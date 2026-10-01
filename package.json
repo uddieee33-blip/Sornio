@@ -1,0 +1,1 @@
+{ name dukaanos, version 0.1.0, private true, scripts with dev, build, start, lint. Dependencies: Supabase, latest, Next latest, React latest, React DOM latest. 
