@@ -7,42 +7,24 @@ yarn-debug.log*
 yarn-error.log*
 
 # Testing
-.next/
-out/
-.nyc_output
 coverage/
-
-# Production
-build/
-dist/
-
-# Misc
-.DS_Store
-.env.local
-.env.*.local
-.env
-.env.production.local
-.env.development.local
-.env.test.local
-
-# Editor directories and files
-.idea/
-.vscode/
-*.suo
-*.ntvs*
-*.njsproj
-*.sln
-*.sw?
 
 # Next.js
 .next/
 out/
 
-# Turbo
-.turbo/
+# Production
+build/
+dist/
 
-# Local environment overrides
-.env*.local
+# Environment files
+.env
+.env.*
+!.env.example
 
-# IDE
-.code-workspace
+# Mac/Windows
+.DS_Store
+Thumbs.db
+
+# Misc
+*.log
