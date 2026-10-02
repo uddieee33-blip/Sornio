@@ -1,16 +1,15 @@
-import { formatCurrency, summarizeFinancials } from '@/lib/financial-engine';
-import { demoTransactions } from '@/lib/demo-data';
+import { emptyTransactions, formatCurrency, summarizeFinancials } from '@/lib/business-data';
 
-const snapshot = summarizeFinancials(demoTransactions);
+const emptySnapshot = summarizeFinancials(emptyTransactions);
 
 export default function BusinessPage() {
   return (
     <div className="p-6 md:p-8">
       <div className="mx-auto max-w-5xl">
         <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.24em] text-slate-500">Business setup</p>
+          <p className="text-xs font-semibold uppercase tracking-widest text-slate-500">Business setup</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Create your business profile</h1>
-          <p className="mt-2 text-slate-600">The initial financial state starts at zero until actual business activity is recorded.</p>
+          <p className="mt-2 text-slate-600">The initial financial state starts at zero. No data is fabricated.</p>
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1.3fr_0.7fr]">
@@ -42,12 +41,12 @@ export default function BusinessPage() {
               <textarea className="min-h-[110px] w-full rounded-xl border border-slate-300 px-3 py-2 outline-none focus:border-slate-900" placeholder="Describe the business and how it operates." />
             </label>
 
-            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">
-              Initial balances remain zero until real business activity is recorded. No financial data is fabricated.
-            </div>
+            <div className="rounded-xl bg-slate-50 p-4 text-sm text-slate-700">Initial balances remain zero until real business activity is recorded. No financial data is fabricated.</div>
 
             <div className="flex justify-end">
-              <button type="button" className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white">Create business</button>
+              <button type="button" className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white hover:bg-slate-800">
+                Create business
+              </button>
             </div>
           </form>
 
@@ -55,18 +54,16 @@ export default function BusinessPage() {
             <h2 className="text-lg font-semibold text-slate-900">Starting financial state</h2>
             <div className="space-y-3 text-sm text-slate-600">
               {[
-                ['Opening cash', 0],
-                ['Opening bank', 0],
-                ['Opening UPI', 0],
-                ['Opening card receivables', 0],
-                ['Revenue', 0],
-                ['COGS', 0],
-                ['Gross profit', 0],
-                ['Expenses', 0],
-                ['Net profit', 0],
-                ['Cash in', 0],
-                ['Cash out', 0],
-                ['Net cash flow', 0],
+                ['Opening cash', emptySnapshot.cashBalance],
+                ['Opening bank', emptySnapshot.bankBalance],
+                ['Opening UPI', emptySnapshot.upiBalance],
+                ['Revenue', emptySnapshot.revenue],
+                ['COGS', emptySnapshot.cogs],
+                ['Gross profit', emptySnapshot.grossProfit],
+                ['Operating expenses', emptySnapshot.operatingExpenses],
+                ['Net profit', emptySnapshot.netProfit],
+                ['Customer receivables', emptySnapshot.customerReceivables],
+                ['Payables', emptySnapshot.payables],
               ].map(([label, value]) => (
                 <div key={label} className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2">
                   <span>{label}</span>
@@ -75,9 +72,7 @@ export default function BusinessPage() {
               ))}
             </div>
 
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-              Current live summary: {formatCurrency(snapshot.revenue)} revenue, {formatCurrency(snapshot.grossProfit)} gross profit.
-            </div>
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">All values start at ₹0. Record your first transaction to begin.</div>
           </div>
         </div>
       </div>

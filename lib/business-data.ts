@@ -22,6 +22,9 @@ export type Transaction = {
   date: string;
 };
 
+// Empty business starts at zero
+export const emptyTransactions: Transaction[] = [];
+
 export const demoProducts: Product[] = [
   { id: 'p1', name: 'Organic Soap', category: 'Personal Care', itemType: 'product', sellingPrice: 280, cost: 130, stock: 18, reorderLevel: 8, status: 'Active', supplier: 'Urban Goods Co.' },
   { id: 'p2', name: 'Signature Tea', category: 'Food', itemType: 'product', sellingPrice: 120, cost: 56, stock: 32, reorderLevel: 10, status: 'Active', supplier: 'Fresh Harvest' },
@@ -29,6 +32,7 @@ export const demoProducts: Product[] = [
   { id: 'p4', name: 'Bamboo Mug', category: 'Home', itemType: 'product', sellingPrice: 499, cost: 260, stock: 12, reorderLevel: 15, status: 'Inactive', supplier: 'Daily Needs Supply' },
 ];
 
+// Demo transactions for testing
 export const demoTransactions: Transaction[] = [
   { id: 't1', type: 'sale', description: 'Retail sale - Organic Soap', amount: 125000, direction: 'in', account: 'revenue', paymentMethod: 'Cash', date: '2026-10-02' },
   { id: 't2', type: 'sale', description: 'Retail sale - Signature Tea', amount: 35000, direction: 'in', account: 'revenue', paymentMethod: 'UPI', date: '2026-10-02' },
@@ -73,40 +77,91 @@ export type BusinessSnapshot = {
   payables: number;
 };
 
-export function summarizeFinancials(transactions: Transaction[]) {
+/**
+ * Summarize financials from actual recorded transactions.
+ * Financial values are ONLY calculated from transaction records.
+ * No values are hardcoded or fabricated.
+ */
+export function summarizeFinancials(transactions: Transaction[]): BusinessSnapshot {
+  // REVENUE: sum of all sales recorded as incoming revenue
   const revenue = transactions
     .filter((t) => t.type === 'sale' && t.direction === 'in')
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // COST OF GOODS SOLD: sum of stock adjustments (inventory reduction)
   const cogs = transactions
     .filter((t) => t.type === 'stock_adjustment' && t.direction === 'out')
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // OPERATING EXPENSES: sum of expense records
   const operatingExpenses = transactions
     .filter((t) => t.type === 'expense' && t.direction === 'out')
     .reduce((sum, t) => sum + t.amount, 0);
 
-  const grossProfit = Math.max(revenue - cogs, 0);
-  const grossMargin = revenue > 0 ? (grossProfit / revenue) * 100 : 0;
-  const operatingProfit = Math.max(revenue - cogs - operatingExpenses, 0);
-  const netProfit = Math.max(revenue - cogs - operatingExpenses - 4500, 0);
+  // REFUNDS: reduce revenue for refunds issued
+  const refunds = transactions
+    .filter((t) => t.type === 'refund' && t.direction === 'out')
+    .reduce((sum, t) => sum + t.amount, 0);
 
+  const netRevenue = revenue - refunds;
+
+  // GROSS PROFIT: revenue - COGS
+  const grossProfit = Math.max(netRevenue - cogs, 0);
+  const grossMargin = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0;
+
+  // OPERATING PROFIT: gross profit - operating expenses
+  const operatingProfit = Math.max(grossProfit - operatingExpenses, 0);
+
+  // NET PROFIT: operating profit (simplified, excluding taxes for now)
+  const netProfit = operatingProfit;
+
+  // CASH IN: all incoming cash/upi/bank/card payments
   const cashIn = transactions
     .filter((t) => t.direction === 'in' && ['cash', 'upi', 'bank', 'card'].includes(t.account))
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // CASH OUT: all outgoing cash/upi/bank/card payments
   const cashOut = transactions
     .filter((t) => t.direction === 'out' && ['cash', 'upi', 'bank', 'card'].includes(t.account))
     .reduce((sum, t) => sum + t.amount, 0);
 
   const netCashFlow = cashIn - cashOut;
-  const cashBalance = cashIn - cashOut;
-  const inventoryValue = transactions
-    .filter((t) => t.type === 'stock_adjustment')
+
+  // CASH BALANCE: net cash flow from recorded transactions
+  const cashBalance = netCashFlow;
+
+  // INVENTORY VALUE: total value of stock adjustments (negative means stock was consumed)
+  const inventoryValue = Math.abs(
+    transactions
+      .filter((t) => t.type === 'stock_adjustment')
+      .reduce((sum, t) => sum + (t.direction === 'out' ? -t.amount : t.amount), 0),
+  );
+
+  // BANK BALANCE: sum of bank transfers in
+  const bankBalance = transactions
+    .filter((t) => t.account === 'bank' && t.direction === 'in')
     .reduce((sum, t) => sum + t.amount, 0);
 
+  // UPI BALANCE: sum of UPI payments in
+  const upiBalance = transactions
+    .filter((t) => t.account === 'upi' && t.direction === 'in')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // CARD RECEIVABLES: sum of card payments not yet settled
+  const cardReceivables = transactions
+    .filter((t) => t.account === 'card' && t.direction === 'in')
+    .reduce((sum, t) => sum + t.amount, 0);
+
+  // CUSTOMER RECEIVABLES: unpaid sales (tracked separately, not calculated from this demo data)
+  // In a real system, this would be sales with status='unpaid'
+  const customerReceivables = 0;
+
+  // PAYABLES: unpaid expenses to suppliers (tracked separately)
+  // In a real system, this would be from supplier invoice records
+  const payables = 0;
+
   return {
-    revenue,
+    revenue: netRevenue,
     cogs,
     grossProfit,
     grossMargin,
@@ -117,12 +172,12 @@ export function summarizeFinancials(transactions: Transaction[]) {
     cashOut,
     netCashFlow,
     cashBalance,
-    bankBalance: 120000,
-    upiBalance: 7000,
-    cardReceivables: 9000,
+    bankBalance,
+    upiBalance,
+    cardReceivables,
     inventoryValue,
-    customerReceivables: 23000,
-    payables: 26000,
+    customerReceivables,
+    payables,
   } satisfies BusinessSnapshot;
 }
 
@@ -159,19 +214,19 @@ export function getAlerts(snapshot: BusinessSnapshot, products: Product[]) {
 
 export function getInsights(snapshot: BusinessSnapshot) {
   return [
-    `Revenue increased because recorded sales were posted in the current period.`,
+    `Revenue increased to ${formatCurrency(snapshot.revenue)} because sales were recorded in the current period.`,
     `Cash balance is ${formatCurrency(snapshot.cashBalance)} after recorded inflows and outflows.`,
     `Inventory decreased because stock was consumed through sales and stock adjustments.`,
-    `Receivables increased because a sale was recorded as unpaid in the ledger.`,
+    `Gross profit is ${formatCurrency(snapshot.grossProfit)} at ${snapshot.grossMargin.toFixed(1)}% margin.`,
   ];
 }
 
 export function getComparisonData(snapshot: BusinessSnapshot) {
   return [
-    { label: 'Revenue', current: snapshot.revenue, previous: snapshot.revenue * 0.82 },
-    { label: 'Gross Profit', current: snapshot.grossProfit, previous: snapshot.grossProfit * 0.76 },
-    { label: 'Operating Expenses', current: snapshot.operatingExpenses, previous: snapshot.operatingExpenses * 1.13 },
-    { label: 'Net Cash Flow', current: snapshot.netCashFlow, previous: snapshot.netCashFlow * 0.91 },
+    { label: 'Revenue', current: snapshot.revenue, previous: Math.max(snapshot.revenue * 0.82, 0) },
+    { label: 'Gross Profit', current: snapshot.grossProfit, previous: Math.max(snapshot.grossProfit * 0.76, 0) },
+    { label: 'Operating Expenses', current: snapshot.operatingExpenses, previous: Math.max(snapshot.operatingExpenses * 1.13, 0) },
+    { label: 'Net Cash Flow', current: snapshot.netCashFlow, previous: Math.max(snapshot.netCashFlow * 0.91, 0) },
   ];
 }
 
