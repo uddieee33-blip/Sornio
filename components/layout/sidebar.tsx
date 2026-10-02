@@ -2,15 +2,20 @@ import Link from 'next/link';
 
 const nav = [
   { href: '/', label: 'Overview' },
+  { href: '/dashboard', label: 'Dashboard' },
   { href: '/business', label: 'Business Setup' },
   { href: '/products', label: 'Products' },
   { href: '/sales', label: 'Sales' },
+  { href: '/payments', label: 'Payments' },
   { href: '/expenses', label: 'Expenses' },
   { href: '/inventory', label: 'Inventory' },
+  { href: '/transactions', label: 'Transactions' },
   { href: '/customers', label: 'Customers' },
   { href: '/suppliers', label: 'Suppliers' },
   { href: '/reports', label: 'Reports' },
   { href: '/insights', label: 'Insights' },
+  { href: '/alerts', label: 'Alerts' },
+  { href: '/comparisons', label: 'Comparisons' },
   { href: '/settings', label: 'Settings' },
 ];
 
@@ -22,7 +27,7 @@ export function Sidebar() {
         <h2 className="mt-2 text-xl font-semibold">Owner Console</h2>
       </div>
 
-      <nav className="flex-1 space-y-2 p-4">
+      <nav className="flex-1 space-y-2 overflow-y-auto p-4">
         {nav.map((item) => (
           <Link
             key={item.href}
