@@ -31,6 +31,64 @@ export type Product = {
   updated_at: string;
 };
 
+export type MembershipPlan = {
+  id: string;
+  name: string;
+  durationMonths: number;
+  price: number;
+  type: 'monthly' | 'quarterly' | 'half_yearly' | 'annual';
+  isActive: boolean;
+  description?: string;
+};
+
+export type Customer = {
+  id: string;
+  name: string;
+  phone: string;
+  email?: string;
+  preferredChannel: 'sms' | 'whatsapp' | 'both';
+  businessId: string;
+};
+
+export type ReceiptMode = 'digital' | 'physical' | 'both';
+
+export type InvoiceItem = {
+  id: string;
+  name: string;
+  unitPrice: number;
+  quantity: number;
+  category: string;
+};
+
+export type Invoice = {
+  id: string;
+  customerName: string;
+  businessName: string;
+  createdAt: string;
+  amount: number;
+  paymentMethod: 'Cash' | 'UPI' | 'Card' | 'Bank Transfer';
+  receiptMode: ReceiptMode;
+  status: 'paid' | 'pending';
+  items: InvoiceItem[];
+};
+
+export type MembershipSubscription = {
+  id: string;
+  customerId: string;
+  planId: string;
+  startDate: string;
+  expiryDate: string;
+  status: 'active' | 'expiring_soon' | 'expired';
+  autoRenew: boolean;
+};
+
+export type ReminderTemplate = {
+  id: string;
+  name: string;
+  channel: 'sms' | 'whatsapp' | 'both';
+  message: string;
+};
+
 export type FinancialSnapshot = {
   revenue: number;
   grossProfit: number;
@@ -45,4 +103,12 @@ export type FinancialSnapshot = {
   customerReceivables: number;
   payables: number;
   grossMargin: number;
+};
+
+export type BusinessTemplate = {
+  id: string;
+  name: string;
+  category: 'retail' | 'service' | 'fitness' | 'hospitality' | 'electronics';
+  description: string;
+  modules: string[];
 };
