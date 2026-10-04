@@ -17,8 +17,11 @@ import { RouteWarmup } from '@/components/perf/route-warmup';
 
 export function ConsoleShell({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
+  const openMobileMenu = useCallback(() => setMobileMenuOpen(true), []);
+  const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
   useCommandHotkey(openPalette);
 
@@ -27,9 +30,9 @@ export function ConsoleShell({ children }: { children: ReactNode }) {
       <RouteWarmup />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onOpenCommand={openPalette} />
+        <Topbar onOpenCommand={openPalette} onOpenMobileMenu={openMobileMenu} />
         <DemoBanner />
-        <MobileNav />
+        <MobileNav open={mobileMenuOpen} onClose={closeMobileMenu} />
         <main id="main" className="flex-1">
           {children}
         </main>

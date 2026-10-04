@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import {
@@ -12,6 +13,7 @@ import {
   Dumbbell,
   Gauge,
   Lock,
+  Menu,
   QrCode,
   Receipt,
   ShieldCheck,
@@ -19,6 +21,7 @@ import {
   Sparkles,
   Store,
   UserRound,
+  X,
   Zap,
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
@@ -112,32 +115,89 @@ function SectionEyebrow({ index, label }: { index: string; label: string }) {
 
 export default function LandingPage() {
   const { t } = useI18n();
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setMenuOpen(false);
+    };
+    document.addEventListener('keydown', closeOnEscape);
+    return () => document.removeEventListener('keydown', closeOnEscape);
+  }, [menuOpen]);
+
   return (
     <div className="relative overflow-hidden">
       {/* single ambient glow — cheap radial gradient, no blur filters */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-page-glow" />
 
-      {/* NAV — floating glass app bar */}
-      <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-4 sm:pt-4">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#0d1017]/85 px-3.5 py-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-5">
-          <Link href="/" className="flex shrink-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm ring-1 ring-white/20"><Store size={18} className="text-white" /></span>
-            <span className="font-display text-lg font-bold tracking-tight text-white">
-              Dukaan<span className="bg-brand-gradient bg-clip-text text-transparent">OS</span>
-            </span>
-          </Link>
-          <nav className="hidden items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-inset ring-white/[0.06] lg:flex">
-            {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white">{t(link.key)}</a>
-            ))}
-          </nav>
-          <div className="flex items-center gap-2">
-            <div className="hidden sm:block"><LanguagePicker /></div>
-            <Link href="/auth" className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white md:block">{t('nav.signIn')}</Link>
-            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-bold text-white shadow-glow-sm ring-1 ring-white/20 transition hover:brightness-110">
-              {t('nav.openConsole')} <ArrowRight size={15} />
-            </Link>
+      {/* Brand-first header with the page sections tucked into a clear menu. */}
+      {menuOpen ? (
+        <button
+          type="button"
+          aria-label="Close navigation menu"
+          onClick={() => setMenuOpen(false)}
+          className="fixed inset-0 z-40 cursor-default bg-black/25"
+        />
+      ) : null}
+      <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4">
+        <div className="relative mx-auto max-w-6xl">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#0d1017]/90 px-3.5 py-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-5">
+            <div className="flex min-w-0 items-center gap-2">
+              <Link href="/" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm ring-1 ring-white/20"><Store size={18} className="text-white" /></span>
+                <span className="font-display text-lg font-bold tracking-tight text-white">
+                  Dukaan<span className="bg-brand-gradient bg-clip-text text-transparent">OS</span>
+                </span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => setMenuOpen((current) => !current)}
+                aria-expanded={menuOpen}
+                aria-controls="landing-navigation"
+                aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                className={`ml-1 inline-flex h-9 shrink-0 items-center gap-2 rounded-xl border px-3 text-xs font-semibold transition ${menuOpen ? 'border-brand-400/30 bg-brand-500/10 text-white' : 'border-white/[0.08] bg-white/[0.03] text-zinc-300 hover:bg-white/[0.07] hover:text-white'}`}
+              >
+                {menuOpen ? <X size={15} /> : <Menu size={15} />}
+                <span className="hidden sm:inline">Menu</span>
+              </button>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <div className="hidden sm:block"><LanguagePicker /></div>
+              <Link href="/auth" className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white md:block">{t('nav.signIn')}</Link>
+              <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-3.5 py-2 text-xs font-bold text-white shadow-glow-sm ring-1 ring-white/20 transition hover:brightness-110 sm:px-4 sm:text-sm">
+                <span className="hidden sm:inline">{t('nav.openConsole')}</span>
+                <span className="sm:hidden">Console</span>
+                <ArrowRight size={15} />
+              </Link>
+            </div>
           </div>
+
+          <nav
+            id="landing-navigation"
+            aria-label="Explore DukaanOS"
+            aria-hidden={!menuOpen}
+            className={`absolute left-0 right-0 top-full mt-2 rounded-2xl border border-white/[0.08] bg-[#10131c]/95 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all duration-200 sm:p-4 ${menuOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'}`}
+          >
+            <div className="mb-3 flex items-center justify-between px-1">
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-zinc-500">Explore DukaanOS</span>
+              <span className="text-[11px] text-zinc-600">Jump to a section</span>
+            </div>
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  onClick={() => setMenuOpen(false)}
+                  tabIndex={menuOpen ? 0 : -1}
+                  className="flex min-h-11 items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.025] px-3.5 py-3 text-sm font-semibold text-zinc-300 transition hover:border-brand-400/25 hover:bg-brand-500/[0.08] hover:text-white"
+                >
+                  {t(link.key)}
+                  <ArrowRight size={14} className="shrink-0 text-zinc-600" />
+                </a>
+              ))}
+            </div>
+          </nav>
         </div>
       </header>
 
