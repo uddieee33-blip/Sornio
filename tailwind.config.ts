@@ -8,14 +8,8 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: '#0f172a',
-        panel: '#ffffff',
-        muted: '#64748b',
-        accent: '#0f766e',
-        success: '#16a34a',
-        warning: '#f59e0b',
-        danger: '#ef4444',
-        soft: '#f8fafc',
+        ink: '#0B0D12',
+        panel: '#12151d',
         brand: {
           50: '#eef2ff',
           100: '#e0e7ff',
@@ -27,20 +21,22 @@ const config: Config = {
           700: '#4338ca',
           800: '#3730a3',
           900: '#312e81',
-          950: '#1e1b4b',
         },
       },
+      fontFamily: {
+        sans: ['"Inter Variable"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        display: ['"Space Grotesk Variable"', '"Inter Variable"', 'ui-sans-serif', 'sans-serif'],
+      },
       boxShadow: {
-        card: '0 1px 2px rgba(15, 23, 42, 0.05), 0 8px 24px -8px rgba(15, 23, 42, 0.10)',
-        'card-hover': '0 2px 4px rgba(15, 23, 42, 0.06), 0 16px 40px -12px rgba(79, 70, 229, 0.22)',
-        glow: '0 0 0 1px rgba(99, 102, 241, 0.12), 0 8px 30px -6px rgba(99, 102, 241, 0.35)',
+        card: '0 1px 0 0 rgba(255,255,255,0.03) inset, 0 8px 24px -12px rgba(0,0,0,0.5)',
+        'card-hover': '0 1px 0 0 rgba(255,255,255,0.05) inset, 0 16px 40px -12px rgba(99,102,241,0.25)',
+        glow: '0 0 24px -4px rgba(99,102,241,0.55)',
+        'glow-sm': '0 0 12px -2px rgba(99,102,241,0.5)',
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #4f46e5 0%, #7c3aed 55%, #db2777 100%)',
-        'brand-soft': 'linear-gradient(135deg, #eef2ff 0%, #faf5ff 60%, #fdf2f8 100%)',
-        'sidebar-gradient': 'linear-gradient(180deg, #0f172a 0%, #1e1b4b 100%)',
-        'mesh-light':
-          'radial-gradient(at 20% 0%, rgba(99,102,241,0.10) 0px, transparent 50%), radial-gradient(at 80% 10%, rgba(219,39,119,0.08) 0px, transparent 50%), radial-gradient(at 50% 100%, rgba(14,165,233,0.08) 0px, transparent 50%)',
+        'brand-gradient': 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%)',
+        'page-glow':
+          'radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,0.13), transparent 60%), radial-gradient(900px 500px at 0% 110%, rgba(34,211,238,0.07), transparent 60%)',
       },
       keyframes: {
         'fade-up': {
@@ -50,10 +46,6 @@ const config: Config = {
         'fade-in': {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
-        },
-        shimmer: {
-          '0%': { backgroundPosition: '-400px 0' },
-          '100%': { backgroundPosition: '400px 0' },
         },
       },
       animation: {

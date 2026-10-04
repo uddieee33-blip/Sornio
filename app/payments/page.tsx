@@ -1,89 +1,81 @@
 'use client';
 
-import { CreditCard, Landmark, Smartphone, Wallet, type LucideIcon } from 'lucide-react';
+import { useState } from 'react';
+import { Banknote, ChartPie, PieChart, CreditCard, Landmark, Smartphone } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { StatCard } from '@/components/ui/stat-card';
+import { DonutChart } from '@/components/charts/DonutChart';
 import { formatCurrency } from '@/lib/business-data';
-import type { PaymentMethod } from '@/lib/models/billing';
-import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
+import { paymentsByMethod } from '@/lib/chart-data';
+import { useDukaanStore } from '@/lib/store';
 
-const METHOD_META: { key: PaymentMethod; icon: LucideIcon; tone: string }[] = [
-  { key: 'Cash', icon: Wallet, tone: 'bg-emerald-100 text-emerald-600' },
-  { key: 'UPI', icon: Smartphone, tone: 'bg-brand-100 text-brand-600' },
-  { key: 'Card', icon: CreditCard, tone: 'bg-violet-100 text-violet-600' },
-  { key: 'Bank Transfer', icon: Landmark, tone: 'bg-sky-100 text-sky-600' },
-  { key: 'Other', icon: CreditCard, tone: 'bg-slate-100 text-slate-500' },
+const MODES: Array<{ id: string; label: string; note: string; icon: typeof Banknote }> = [
+  { id: 'cash', label: 'Cash', note: 'Zero fees. Count the drawer at the end of every shift and sweep excess cash to the bank.', icon: Banknote },
+  { id: 'upi', label: 'UPI', note: 'QR or phone number. Money lands in your bank in minutes with no gateway fee for typical dues.', icon: Smartphone },
+  { id: 'card', label: 'Card', note: 'Swipe or tap on a PoS machine. Expect ~1–2% MDR and a 1–2 day settlement window.', icon: CreditCard },
+  { id: 'bank', label: 'Bank transfer', note: 'NEFT/IMPS/UPI transfer from the customer. Best for large B2B invoices — keep a payment link ready.', icon: Landmark },
 ];
 
 export default function PaymentsPage() {
   const { state } = useDukaanStore();
-  const snapshot = useFinancialSnapshot();
+  const [mode, setMode] = useState('upi');
 
-  const inflowByMethod = state.transactions
-    .filter((tx) => tx.type === 'payment' && tx.direction === 'in')
-    .reduce<Record<string, number>>((acc, tx) => {
-      const method = tx.paymentMethod ?? 'Other';
-      acc[method] = (acc[method] ?? 0) + tx.amount;
-      return acc;
-    }, {});
+  const received = state.paymentRecords.filter((record) => record.status === 'paid' || record.status === 'partial').reduce((sum, record) => sum + record.amount, 0);
+  const pendingAmount = state.paymentRecords.filter((record) => record.status === 'pending').reduce((sum, record) => sum + record.amount, 0);
+  const upiShare = received > 0 ? Math.round((state.paymentRecords.filter((record) => record.paymentMethod === 'UPI' && (record.status === 'paid' || record.status === 'partial')).reduce((sum, record) => sum + record.amount, 0) / received) * 100) : 0;
+
+  const byMethod = paymentsByMethod(state.transactions);
 
   return (
-    <div className="relative min-h-screen bg-soft">
-      <div className="pointer-events-none absolute inset-0 bg-mesh-light" />
-      <div className="relative p-6 md:p-8">
-        <PageHeader eyebrow="Operations" title="Payments" subtitle="Collections captured across cash, UPI, card, bank transfer, and other methods — no sensitive credentials stored." />
+    <div className="p-6 md:p-8">
+      <PageHeader eyebrow="Billing" title="Payment methods" subtitle="How money actually moves in and out — recorded per transaction." />
 
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {METHOD_META.map(({ key, icon: Icon, tone }) => (
-            <div key={key} className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:shadow-card-hover">
-              <span className={`flex h-10 w-10 items-center justify-center rounded-xl ${tone}`}><Icon size={19} /></span>
-              <p className="mt-3 text-xs font-medium text-slate-500">{key}</p>
-              <p className="mt-1 text-xl font-bold tabular-nums text-slate-900">{formatCurrency(inflowByMethod[key] ?? 0)}</p>
-            </div>
-          ))}
-        </div>
+      <div className="grid gap-4 sm:grid-cols-3 animate-fade-up">
+        <StatCard label="Received" value={formatCurrency(received)} icon={Banknote} tone="brand" />
+        <StatCard label="Pending (card/online)" value={formatCurrency(pendingAmount)} icon={CreditCard} tone="amber" />
+        <StatCard label="UPI share of receipts" value={`${upiShare}%`} icon={Smartphone} tone="emerald" />
+      </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <Card className="animate-fade-up h-fit">
-            <div className="mb-5"><CardTitle icon={<Wallet size={17} />}>Payment summary</CardTitle></div>
-            <div className="space-y-3 text-sm text-slate-600">
-              {[
-                { label: 'Cash in', value: snapshot.cashIn },
-                { label: 'Cash out', value: snapshot.cashOut },
-                { label: 'Net cash flow', value: snapshot.netCashFlow },
-                { label: 'Bank balance', value: snapshot.bankBalance },
-                { label: 'UPI balance', value: snapshot.upiBalance },
-              ].map((row) => (
-                <div key={row.label} className="flex items-center justify-between rounded-xl bg-slate-50 p-3">
-                  <span className="font-medium">{row.label}</span>
-                  <strong className="tabular-nums text-slate-900">{formatCurrency(row.value)}</strong>
-                </div>
-              ))}
-            </div>
-          </Card>
+      <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
+        <Card className="animate-fade-up">
+          <div className="mb-5 flex items-center justify-between">
+            <CardTitle icon={<ChartPie size={17} />}>Collection mix</CardTitle>
+            <Badge tone="brand" dot>By payment method</Badge>
+          </div>
+          {byMethod.length > 0 ? (
+            <DonutChart data={byMethod} centerLabel="Received" centerValue={formatCurrency(received)} height={220} />
+          ) : (
+            <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No payments recorded yet.</p>
+          )}
+          <p className="mt-4 rounded-2xl border border-brand-500/20 bg-brand-500/[0.08] p-3.5 text-sm text-brand-200">
+            Every sale, membership, and invoice payment is recorded with its method — the chart above is computed from the live ledger.
+          </p>
+        </Card>
 
-          <Card className="animate-fade-up h-fit">
-            <div className="mb-5 flex items-center justify-between">
-              <CardTitle icon={<CreditCard size={17} />}>Gateway records</CardTitle>
-              <Badge tone="brand" dot>{state.paymentRecords.length}</Badge>
-            </div>
-            <div className="space-y-3">
-              {[...state.paymentRecords].reverse().slice(0, 8).map((record) => (
-                <div key={record.id} className="flex items-center justify-between rounded-xl border border-slate-100 bg-slate-50/50 p-3.5 transition hover:border-brand-200 hover:bg-white hover:shadow-card">
-                  <div>
-                    <p className="text-sm font-semibold text-slate-800">{record.customerName}</p>
-                    <p className="text-xs text-slate-500">{record.paymentMethod} · {record.gateway} · {new Date(record.paymentDate).toLocaleDateString('en-IN')}</p>
+        <Card className="animate-fade-up">
+          <div className="mb-5"><CardTitle icon={<PieChart size={17} />}>How your shop collects money</CardTitle></div>
+          <div className="grid gap-3 md:grid-cols-2">
+            {MODES.map((item) => {
+              const Icon = item.icon;
+              const isActive = mode === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => setMode(item.id)}
+                  className={`rounded-2xl border p-4 text-left transition ${isActive ? 'border-brand-400/40 bg-brand-500/[0.08] shadow-glow-sm' : 'border-white/[0.07] bg-white/[0.03] hover:border-brand-400/25 hover:bg-white/[0.05]'}`}
+                >
+                  <div className="flex items-center gap-2.5">
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-brand-500/20 text-brand-300' : 'bg-white/[0.06] text-zinc-400'}`}><Icon size={16} /></span>
+                    <span className="font-semibold text-white">{item.label}</span>
                   </div>
-                  <div className="text-right">
-                    <p className="text-sm font-bold tabular-nums text-slate-900">{formatCurrency(record.amount)}</p>
-                    <p className={`text-xs capitalize font-medium ${record.status === 'paid' ? 'text-emerald-700' : record.status === 'failed' ? 'text-red-600' : 'text-amber-700'}`}>{record.status}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
+                  <p className="mt-2.5 text-sm leading-relaxed text-zinc-500">{item.note}</p>
+                </button>
+              );
+            })}
+          </div>
+        </Card>
       </div>
     </div>
   );

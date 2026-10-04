@@ -4,30 +4,30 @@ import { Sparkline } from './Sparkline';
 export type StatTone = 'emerald' | 'blue' | 'violet' | 'amber' | 'brand' | 'rose';
 
 const chipTones: Record<StatTone, string> = {
-  emerald: 'bg-emerald-100 text-emerald-600',
-  blue: 'bg-sky-100 text-sky-600',
-  violet: 'bg-violet-100 text-violet-600',
-  amber: 'bg-amber-100 text-amber-600',
-  brand: 'bg-brand-100 text-brand-600',
-  rose: 'bg-rose-100 text-rose-600',
+  emerald: 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20',
+  blue: 'bg-sky-500/10 text-sky-400 ring-sky-500/20',
+  violet: 'bg-violet-500/10 text-violet-400 ring-violet-500/20',
+  amber: 'bg-amber-500/10 text-amber-400 ring-amber-500/20',
+  brand: 'bg-brand-500/10 text-brand-300 ring-brand-500/20',
+  rose: 'bg-rose-500/10 text-rose-400 ring-rose-500/20',
 };
 
 const sparkTones: Record<StatTone, string> = {
-  emerald: '#059669',
-  blue: '#0284c7',
-  violet: '#7c3aed',
-  amber: '#d97706',
-  brand: '#4f46e5',
-  rose: '#e11d48',
+  emerald: '#34d399',
+  blue: '#38bdf8',
+  violet: '#a78bfa',
+  amber: '#fbbf24',
+  brand: '#818cf8',
+  rose: '#fb7185',
 };
 
 const fillTones: Record<StatTone, string> = {
-  emerald: 'rgba(5,150,105,0.10)',
-  blue: 'rgba(2,132,199,0.10)',
-  violet: 'rgba(124,58,237,0.10)',
-  amber: 'rgba(217,119,6,0.10)',
-  brand: 'rgba(79,70,229,0.10)',
-  rose: 'rgba(225,29,72,0.10)',
+  emerald: 'rgba(52,211,153,0.12)',
+  blue: 'rgba(56,189,248,0.12)',
+  violet: 'rgba(167,139,250,0.12)',
+  amber: 'rgba(251,191,36,0.12)',
+  brand: 'rgba(129,140,248,0.14)',
+  rose: 'rgba(251,113,133,0.12)',
 };
 
 type StatCardProps = {
@@ -42,15 +42,15 @@ type StatCardProps = {
 
 export function StatCard({ label, value, icon: Icon, tone = 'brand', delta, deltaTone = 'up', spark }: StatCardProps) {
   return (
-    <div className="group relative overflow-hidden rounded-2xl border border-slate-200/80 bg-white p-5 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:shadow-card-hover">
-      <div className="absolute -right-8 -top-8 h-24 w-24 rounded-full opacity-[0.07] blur-xl transition-opacity group-hover:opacity-[0.14]" style={{ backgroundColor: sparkTones[tone] }} />
+    <div className="group relative overflow-hidden rounded-2xl bg-white/[0.03] p-5 ring-1 ring-white/[0.07] shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:ring-brand-400/30 hover:shadow-card-hover">
+      <div className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-[0.10] blur-2xl transition-opacity group-hover:opacity-[0.2]" style={{ backgroundColor: sparkTones[tone] }} />
       <div className="flex items-start justify-between">
         <div className="min-w-0">
-          <p className="text-[13px] font-medium text-slate-500">{label}</p>
-          <p className="mt-2 truncate text-2xl font-bold tracking-tight text-slate-900 tabular-nums">{value}</p>
+          <p className="text-[13px] font-medium text-zinc-400">{label}</p>
+          <p className="mt-2 truncate font-display text-2xl font-bold tracking-tight text-white tabular-nums">{value}</p>
         </div>
         {Icon ? (
-          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${chipTones[tone]}`}>
+          <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${chipTones[tone]}`}>
             <Icon size={19} strokeWidth={2.2} />
           </span>
         ) : null}
@@ -58,7 +58,7 @@ export function StatCard({ label, value, icon: Icon, tone = 'brand', delta, delt
 
       <div className="mt-3 flex h-9 items-end justify-between gap-3">
         {delta ? (
-          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ${deltaTone === 'up' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-600'}`}>
+          <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold ring-1 ring-inset ${deltaTone === 'up' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-red-500/20'}`}>
             {deltaTone === 'up' ? '▲' : '▼'} {delta}
           </span>
         ) : (

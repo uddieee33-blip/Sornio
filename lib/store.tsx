@@ -4,11 +4,11 @@ import { createContext, useContext, useEffect, useMemo, useRef, useState, type R
 import {
   demoCustomers,
   demoProducts,
-  demoTransactions,
   summarizeFinancials,
   type Product,
   type Transaction,
 } from '@/lib/business-data';
+import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
 import {
   buildSampleSubscriptions,
   defaultMembers,
@@ -33,6 +33,11 @@ export type Customer = {
   id: string;
   name: string;
   phone?: string;
+  email?: string;
+  /** Free-form details/notes about the customer */
+  details?: string;
+  /** Bank + UPI details used to derive the customer's unique payment QR */
+  bank?: BankDetails;
   openingBalance: number;
   createdAt: string;
 };
@@ -54,7 +59,73 @@ export type ActionResult = { ok: boolean; error?: string };
 export type SaleLine = { productId: string; quantity: number; rate: number };
 export type InvoiceLine = { name: string; category: string; quantity: number; unitPrice: number };
 
-const STORAGE_KEY = 'dukaanos-store-v1';
+const STORAGE_KEY = 'dukaanos-store-v3';
+
+/**
+ * Seed ledger: 14 days of realistic, deterministic activity so charts and
+ * reports always show a living business. All figures flow through the same
+ * transaction-driven financial engine — nothing is faked downstream.
+ */
+function buildSeedLedger(): Transaction[] {
+  const ledger: Transaction[] = [];
+  let n = 0;
+  const id = () => `seed-${(n += 1).toString(36)}`;
+  const dayISO = (offset: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - offset);
+    return d.toISOString().slice(0, 10);
+  };
+
+  const fixedExpenses: { offset: number; description: string; amount: number; method: 'Bank Transfer' | 'Cash' | 'UPI' }[] = [
+    { offset: 12, description: 'Rent expense', amount: 28000, method: 'Bank Transfer' },
+    { offset: 9, description: 'Electricity expense', amount: 4200, method: 'Cash' },
+    { offset: 6, description: 'Marketing expense', amount: 12000, method: 'UPI' },
+    { offset: 3, description: 'Software expense', amount: 5600, method: 'UPI' },
+    { offset: 1, description: 'Supplies expense', amount: 3400, method: 'Cash' },
+  ];
+  const fixedByOffset = new Map(fixedExpenses.map((entry) => [entry.offset, entry]));
+
+  for (let offset = 13; offset >= 0; offset -= 1) {
+    const date = dayISO(offset);
+    const t = 13 - offset;
+    const wave = Math.sin(t / 2.1) * 0.5 + 0.5;
+
+    // Two retail sales most days, growing gently through the fortnight.
+    const soap = Math.round(5200 + wave * 3400 + ((t * 733) % 800));
+    const tea = Math.round(2400 + Math.cos(t / 1.7) * 900 + ((t * 401) % 600) + t * 90);
+    ledger.push(
+      { id: id(), type: 'sale', description: 'Retail sale — Organic Soap', amount: soap, direction: 'in', account: 'revenue', paymentMethod: t % 2 === 0 ? 'Cash' : 'UPI', date },
+      { id: id(), type: 'payment', description: 'Collection from retail sale', amount: soap, direction: 'in', account: t % 2 === 0 ? 'cash' : 'upi', paymentMethod: t % 2 === 0 ? 'Cash' : 'UPI', date },
+      { id: id(), type: 'sale', description: 'Retail sale — Signature Tea', amount: tea, direction: 'in', account: 'revenue', paymentMethod: 'UPI', date },
+      { id: id(), type: 'payment', description: 'UPI settlement', amount: tea, direction: 'in', account: 'upi', paymentMethod: 'UPI', date },
+      { id: id(), type: 'stock_adjustment', description: 'Inventory reduction due to sale', amount: Math.round((soap + tea) * 0.42), direction: 'out', account: 'inventory', date },
+    );
+
+    // A membership purchase every fourth day.
+    if (t % 4 === 2) {
+      ledger.push(
+        { id: id(), type: 'sale', description: 'Membership — Quarterly Plus', amount: 4999, direction: 'in', account: 'revenue', paymentMethod: 'Card', date },
+        { id: id(), type: 'payment', description: 'Card payment for membership', amount: 4999, direction: 'in', account: 'card', paymentMethod: 'Card', date },
+      );
+    }
+
+    // Weekly cash-to-bank sweep.
+    if (t % 5 === 4) {
+      ledger.push({ id: id(), type: 'transfer', description: 'Cash to bank transfer', amount: 15000, direction: 'out', account: 'bank', date });
+    }
+
+    const fixed = fixedByOffset.get(offset);
+    if (fixed) {
+      const methodAccount = fixed.method === 'Cash' ? 'cash' : fixed.method === 'UPI' ? 'upi' : 'bank';
+      ledger.push(
+        { id: id(), type: 'expense', description: fixed.description, amount: fixed.amount, direction: 'out', account: 'expense', paymentMethod: fixed.method, date },
+        { id: id(), type: 'payment', description: `${fixed.method} paid for ${fixed.description.replace(/ expense$/, '').toLowerCase()}`, amount: fixed.amount, direction: 'out', account: methodAccount, paymentMethod: fixed.method, date },
+      );
+    }
+  }
+
+  return ledger;
+}
 
 function todayISO() {
   return new Date().toISOString().slice(0, 10);
@@ -94,11 +165,22 @@ function methodGateway(method: PaymentMethod): PaymentRecord['gateway'] {
 export function buildSeedState(): StoreState {
   return {
     products: demoProducts,
-    transactions: demoTransactions,
+    transactions: buildSeedLedger(),
     customers: demoCustomers.map((customer, index) => ({
       id: `customer-${index + 1}`,
       name: customer.name,
       phone: ['+91 98111 22334', '+91 97222 33445', '+91 96333 44556'][index],
+      email: ['riya.sharma@gmail.com', 'amit.verma@outlook.com', 'nisha.patel@gmail.com'][index],
+      details: [
+        'Regular since 2024 · prefers evening pickups',
+        'Wholesale buyer · bills on weekends',
+        'Premium member · festival season orders',
+      ][index],
+      bank: [
+        { upiId: 'riya.sharma@okhdfcbank', bankName: 'HDFC Bank', accountNumber: '50100234567890', ifsc: 'HDFC0001234', accountHolder: 'Riya Sharma' },
+        { upiId: 'amit.verma@ybl', bankName: 'Yes Bank', accountNumber: '0987654321012345', ifsc: 'YESB0000456', accountHolder: 'Amit Verma' },
+        { upiId: 'nisha.patel@paytm', bankName: 'Paytm Payments Bank', accountNumber: '919633344556', ifsc: 'PYTM0000789', accountHolder: 'Nisha Patel' },
+      ][index],
       openingBalance: customer.balance,
       createdAt: '2026-09-01T09:00:00.000Z',
     })),
@@ -116,7 +198,8 @@ export type StoreActions = {
   toggleProductStatus: (productId: string) => void;
   recordSale: (input: { lines: SaleLine[]; method: PaymentMethod; customerName?: string }) => ActionResult;
   recordExpense: (input: { category: string; amount: number; method: PaymentMethod }) => ActionResult;
-  addCustomer: (input: { name: string; phone?: string }) => ActionResult;
+  addCustomer: (input: { name: string; phone?: string; email?: string; details?: string; bank?: BankDetails }) => ActionResult;
+  updateCustomer: (customerId: string, patch: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'details' | 'bank' | 'openingBalance'>>) => ActionResult;
   addPlan: (input: { name: string; type: MembershipPlan['type']; durationMonths: number; price: number; description?: string }) => ActionResult;
   addMember: (input: { name: string; phone: string; preferredChannel: Member['preferredChannel'] }) => ActionResult;
   enrollMember: (input: { memberId: string; planId: string; method: PaymentMethod }) => ActionResult;
@@ -307,14 +390,51 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       return { ok: true };
     },
 
-    addCustomer({ name, phone }) {
+    addCustomer({ name, phone, email, details, bank }) {
       if (!name.trim()) return { ok: false, error: 'Customer name is required.' };
+      if (bank?.upiId && !isValidUpiId(bank.upiId)) return { ok: false, error: 'That UPI ID does not look valid (expected something like name@bank).' };
+      const cleanBank: BankDetails | undefined = bank
+        ? {
+            upiId: bank.upiId ? normalizeUpiId(bank.upiId) : undefined,
+            bankName: bank.bankName?.trim() || undefined,
+            accountNumber: bank.accountNumber?.trim() || undefined,
+            ifsc: bank.ifsc?.trim().toUpperCase() || undefined,
+            accountHolder: bank.accountHolder?.trim() || undefined,
+          }
+        : undefined;
       setState((current) => ({
         ...current,
         customers: [
           ...current.customers,
-          { id: newId('customer'), name: name.trim(), phone: phone?.trim() || undefined, openingBalance: 0, createdAt: new Date().toISOString() },
+          {
+            id: newId('customer'),
+            name: name.trim(),
+            phone: phone?.trim() || undefined,
+            email: email?.trim() || undefined,
+            details: details?.trim() || undefined,
+            bank: cleanBank,
+            openingBalance: 0,
+            createdAt: new Date().toISOString(),
+          },
         ],
+      }));
+      return { ok: true };
+    },
+
+    updateCustomer(customerId, patch) {
+      if (patch.bank?.upiId && !isValidUpiId(patch.bank.upiId)) return { ok: false, error: 'That UPI ID does not look valid (expected something like name@bank).' };
+      setState((current) => ({
+        ...current,
+        customers: current.customers.map((customer) => {
+          if (customer.id !== customerId) return customer;
+          const nextBank = patch.bank === undefined ? customer.bank : { ...customer.bank, ...patch.bank };
+          return {
+            ...customer,
+            ...patch,
+            bank: nextBank,
+            name: patch.name !== undefined ? patch.name.trim() : customer.name,
+          };
+        }),
       }));
       return { ok: true };
     },

@@ -69,21 +69,21 @@ export function Sidebar() {
   const pathname = usePathname();
 
   return (
-    <aside className="hidden w-72 bg-sidebar-gradient text-slate-100 md:flex md:flex-col">
+    <aside className="hidden w-72 shrink-0 border-r border-white/[0.06] bg-[#0d1017]/80 backdrop-blur md:flex md:flex-col">
       <div className="flex items-center gap-3 px-6 py-6">
         <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gradient shadow-glow">
           <Store size={22} className="text-white" />
         </div>
         <div>
-          <p className="text-base font-bold tracking-tight text-white">DukaanOS</p>
-          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-indigo-300">Owner Console</p>
+          <p className="font-display text-base font-bold tracking-tight text-white">DukaanOS</p>
+          <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-brand-300">Owner Console</p>
         </div>
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-4 pb-6">
         {sections.map((section) => (
           <div key={section.title}>
-            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{section.title}</p>
+            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">{section.title}</p>
             <div className="space-y-1">
               {section.links.map((item) => {
                 const Icon = item.icon;
@@ -92,17 +92,15 @@ export function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
-                      active
-                        ? 'bg-white/10 text-white shadow-[inset_0_0_0_1px_rgba(255,255,255,0.08)]'
-                        : 'text-slate-400 hover:bg-white/5 hover:text-white'
+                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                      active ? 'bg-brand-500/10 text-white ring-1 ring-inset ring-brand-500/25' : 'text-zinc-400 hover:bg-white/[0.04] hover:text-white'
                     }`}
                   >
-                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${active ? 'bg-brand-gradient text-white' : 'bg-white/5 text-slate-400 group-hover:text-slate-200'}`}>
+                    {active ? <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-brand-gradient shadow-glow-sm" /> : null}
+                    <span className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${active ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-white/[0.04] text-zinc-500 group-hover:text-zinc-300'}`}>
                       <Icon size={15} strokeWidth={2.2} />
                     </span>
                     {item.label}
-                    {active ? <span className="ml-auto h-1.5 w-1.5 rounded-full bg-emerald-400" /> : null}
                   </Link>
                 );
               })}
@@ -111,10 +109,10 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-white/10 p-4">
-        <div className="rounded-xl bg-white/5 p-3 ring-1 ring-inset ring-white/10">
+      <div className="border-t border-white/[0.06] p-4">
+        <div className="rounded-xl bg-white/[0.03] p-3 ring-1 ring-inset ring-white/[0.06]">
           <p className="text-xs font-semibold text-white">Cult Fitness</p>
-          <p className="mt-0.5 text-[11px] text-slate-400">Demo business · all data local</p>
+          <p className="mt-0.5 text-[11px] text-zinc-500">Demo business · all data local</p>
         </div>
       </div>
     </aside>

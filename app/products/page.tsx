@@ -9,8 +9,8 @@ import { Button } from '@/components/ui/Button';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500';
+const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
 
 export default function ProductsPage() {
   const { state, actions } = useDukaanStore();
@@ -40,83 +40,80 @@ export default function ProductsPage() {
   };
 
   return (
-    <div className="relative min-h-screen bg-soft">
-      <div className="pointer-events-none absolute inset-0 bg-mesh-light" />
-      <div className="relative p-6 md:p-8">
-        <PageHeader
-          eyebrow="Catalog"
-          title="Products & Services"
-          subtitle="Add items and make them available across sales, inventory, profitability, and reports."
-          actions={<Badge tone="brand" dot>{state.products.length} items</Badge>}
-        />
+    <div className="p-6 md:p-8">
+      <PageHeader
+        eyebrow="Catalog"
+        title="Products & Services"
+        subtitle="Add items and make them available across sales, inventory, profitability, and reports."
+        actions={<Badge tone="brand" dot>{state.products.length} items</Badge>}
+      />
 
-        <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
-          <Card className="animate-fade-up h-fit">
-            <div className="mb-5 flex items-center justify-between">
-              <CardTitle icon={<PackagePlus size={17} />}>Add Item</CardTitle>
+      <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+        <Card className="animate-fade-up h-fit">
+          <div className="mb-5 flex items-center justify-between">
+            <CardTitle icon={<PackagePlus size={17} />}>Add Item</CardTitle>
+          </div>
+          <div className="grid gap-4 md:grid-cols-2">
+            <div className="md:col-span-2"><span className={labelClass}>Item Name</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Handmade Soap" /></div>
+            <div><span className={labelClass}>Item Type</span>
+              <select value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })} className={inputClass}>
+                <option value="product">Product</option><option value="service">Service</option>
+              </select>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="md:col-span-2"><span className={labelClass}>Item Name</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Handmade Soap" /></div>
-              <div><span className={labelClass}>Item Type</span>
-                <select value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })} className={inputClass}>
-                  <option value="product">Product</option><option value="service">Service</option>
-                </select>
-              </div>
-              <div><span className={labelClass}>Category</span><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass} /></div>
-              <div><span className={labelClass}>Supplier</span><input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Optional" /></div>
-              <div><span className={labelClass}>Selling Price</span><input type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className={inputClass} /></div>
-              <div><span className={labelClass}>Cost Price</span><input type="number" min={0} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className={inputClass} /></div>
-              {form.itemType === 'product' ? (
-                <>
-                  <div><span className={labelClass}>Opening Stock</span><input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputClass} /></div>
-                  <div><span className={labelClass}>Reorder Level</span><input type="number" min={0} value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} className={inputClass} /></div>
-                </>
-              ) : null}
-            </div>
-
-            {message ? (
-              <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'}`}>{message.text}</p>
+            <div><span className={labelClass}>Category</span><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass} /></div>
+            <div><span className={labelClass}>Supplier</span><input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Optional" /></div>
+            <div><span className={labelClass}>Selling Price</span><input type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className={inputClass} /></div>
+            <div><span className={labelClass}>Cost Price</span><input type="number" min={0} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className={inputClass} /></div>
+            {form.itemType === 'product' ? (
+              <>
+                <div><span className={labelClass}>Opening Stock</span><input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputClass} /></div>
+                <div><span className={labelClass}>Reorder Level</span><input type="number" min={0} value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} className={inputClass} /></div>
+              </>
             ) : null}
+          </div>
 
-            <div className="mt-5 flex justify-end">
-              <Button onClick={handleSubmit}><Plus size={16} /> Save item</Button>
-            </div>
-          </Card>
+          {message ? (
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+          ) : null}
 
-          <Card className="animate-fade-up">
-            <div className="mb-5 flex items-center justify-between">
-              <CardTitle icon={<Package size={17} />}>Product list</CardTitle>
-            </div>
-            <div className="space-y-3">
-              {state.products.map((product) => {
-                const margin = product.sellingPrice > 0 ? ((product.sellingPrice - product.cost) / product.sellingPrice) * 100 : 0;
-                const lowStock = product.itemType === 'product' && product.stock <= product.reorderLevel;
-                return (
-                  <div key={product.id} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition hover:border-brand-200 hover:bg-white hover:shadow-card">
-                    <div className="min-w-0">
-                      <p className="truncate font-semibold text-slate-900">{product.name}</p>
-                      <p className="truncate text-xs text-slate-500">{product.category}{product.supplier ? ` · ${product.supplier}` : ''}</p>
-                      {lowStock ? <p className="mt-1 text-xs font-semibold text-amber-600">Low stock — reorder</p> : null}
-                    </div>
-                    <div className="flex shrink-0 items-center gap-4">
-                      <div className="text-right text-sm">
-                        <p className="font-bold tabular-nums text-slate-900">{formatCurrency(product.sellingPrice)}</p>
-                        <p className="text-xs text-slate-500">Margin {margin.toFixed(0)}%</p>
-                        <p className="text-xs text-slate-500">{product.itemType === 'service' ? 'Service' : `Stock ${product.stock}`}</p>
-                      </div>
-                      <button
-                        onClick={() => actions.toggleProductStatus(product.id)}
-                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${product.status === 'Active' ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                      >
-                        {product.status}
-                      </button>
-                    </div>
+          <div className="mt-5 flex justify-end">
+            <Button onClick={handleSubmit}><Plus size={16} /> Save item</Button>
+          </div>
+        </Card>
+
+        <Card className="animate-fade-up">
+          <div className="mb-5 flex items-center justify-between">
+            <CardTitle icon={<Package size={17} />}>Product list</CardTitle>
+          </div>
+          <div className="space-y-3">
+            {state.products.map((product) => {
+              const margin = product.sellingPrice > 0 ? ((product.sellingPrice - product.cost) / product.sellingPrice) * 100 : 0;
+              const lowStock = product.itemType === 'product' && product.stock <= product.reorderLevel;
+              return (
+                <div key={product.id} className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 transition hover:border-brand-400/30 hover:bg-white/[0.05]">
+                  <div className="min-w-0">
+                    <p className="truncate font-semibold text-white">{product.name}</p>
+                    <p className="truncate text-xs text-zinc-500">{product.category}{product.supplier ? ` · ${product.supplier}` : ''}</p>
+                    {lowStock ? <p className="mt-1 text-xs font-semibold text-amber-400">Low stock — reorder</p> : null}
                   </div>
-                );
-              })}
-            </div>
-          </Card>
-        </div>
+                  <div className="flex shrink-0 items-center gap-4">
+                    <div className="text-right text-sm">
+                      <p className="font-bold text-white tabular-nums">{formatCurrency(product.sellingPrice)}</p>
+                      <p className="text-xs text-zinc-500">Margin {margin.toFixed(0)}%</p>
+                      <p className="text-xs text-zinc-500">{product.itemType === 'service' ? 'Service' : `Stock ${product.stock}`}</p>
+                    </div>
+                    <button
+                      onClick={() => actions.toggleProductStatus(product.id)}
+                      className={`rounded-full px-3 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${product.status === 'Active' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/25 hover:bg-emerald-500/20' : 'bg-white/5 text-zinc-500 ring-white/10 hover:bg-white/10'}`}
+                    >
+                      {product.status}
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
       </div>
     </div>
   );

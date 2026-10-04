@@ -9,7 +9,7 @@ type RingProps = {
   sublabel?: string;
 };
 
-export function Ring({ value, max = 100, size = 112, strokeWidth = 10, color = '#4f46e5', track = '#e2e8f0', label, sublabel }: RingProps) {
+export function Ring({ value, max = 100, size = 112, strokeWidth = 10, color = '#818cf8', track = 'rgba(255,255,255,0.08)', label, sublabel }: RingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const pct = Math.max(0, Math.min(value / max, 1));
@@ -33,8 +33,8 @@ export function Ring({ value, max = 100, size = 112, strokeWidth = 10, color = '
         />
       </svg>
       <div className="absolute text-center">
-        <p className="text-2xl font-bold text-slate-900">{label ?? Math.round(value)}</p>
-        {sublabel ? <p className="text-[10px] uppercase tracking-wide text-slate-500">{sublabel}</p> : null}
+        <p className="font-display text-2xl font-bold text-white tabular-nums">{label ?? Math.round(value)}</p>
+        {sublabel ? <p className="text-[10px] uppercase tracking-wide text-zinc-500">{sublabel}</p> : null}
       </div>
     </div>
   );
