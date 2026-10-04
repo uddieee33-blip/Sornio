@@ -10,6 +10,7 @@ import { HBarList } from '@/components/charts/HBarList';
 import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
 import { expenseSeries, expensesByCategory, paymentsByMethod, revenueByCategoryHint, revenueSeries } from '@/lib/chart-data';
 import { useDukaanStore } from '@/lib/store';
+import { ExportButton } from '@/components/export/export-button';
 
 export default function ReportsPage() {
   const { state } = useDukaanStore();
@@ -33,6 +34,7 @@ export default function ReportsPage() {
         eyebrow="Performance"
         title="Reports"
         subtitle="Financials computed live from the ledger — change a transaction and every number below moves."
+        actions={<ExportButton />}
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-fade-up">

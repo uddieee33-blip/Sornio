@@ -19,7 +19,9 @@ export default function ConsoleTemplate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const node = ref.current;
-    if (!node || prefersReducedMotion()) return;
+    // Guard the Web Animations API: a handful of older browsers lack it, and a
+    // missing animation must never break a navigation.
+    if (!node || typeof node.animate !== 'function' || prefersReducedMotion()) return;
     node.animate(
       [
         { opacity: 0, transform: 'translateY(6px)' },
