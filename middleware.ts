@@ -26,7 +26,7 @@ import {
   type HeaderPair,
 } from '@/lib/security/headers';
 import { clientFingerprint, consume, rateLimitHeaders, ruleForPath, type RateLimitRule } from '@/lib/security/rate-limit';
-import { CSRF_COOKIE, CSRF_HEADER, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
+import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
 import { randomToken } from '@/lib/security/crypto';
 
 const REQUEST_ID_HEADER = 'x-request-id';
@@ -42,12 +42,6 @@ const supabaseConfigured =
   supabaseKey.length >= 20 &&
   !supabaseKey.includes('your-anon-key') &&
   !supabaseKey.includes('your-publishable-key');
-
-function requestOrigin(request: NextRequest): string {
-  const host = request.headers.get('x-forwarded-host') ?? request.headers.get('host') ?? '';
-  const proto = request.headers.get('x-forwarded-proto') ?? (host.includes('localhost') ? 'http' : 'https');
-  return host ? `${proto}://${host}` : '';
-}
 
 function applyHeaders(response: NextResponse, pairs: HeaderPair[]): NextResponse {
   for (const { key, value } of pairs) response.headers.set(key, value);

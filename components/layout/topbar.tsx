@@ -14,7 +14,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useSyncExternalStore } from 'react';
 import { ChevronRight, Command, Database, Lock, Menu, Search, Store, WifiOff } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
 
@@ -46,20 +46,35 @@ const TITLES: Record<string, string> = {
   '/settings': 'Settings',
 };
 
+/**
+ * Browser connectivity, read as an external store.
+ *
+ * `navigator.onLine` is owned by the browser and `online`/`offline` are its
+ * subscription API — exactly the shape `useSyncExternalStore` exists for.
+ * Compared with the old effect this drops a wasted render (mount assuming
+ * `true`, then re-render with the real value) and gives the server a stable
+ * snapshot, so hydration cannot mismatch.
+ */
+function subscribeToConnectivity(onStoreChange: () => void) {
+  window.addEventListener('online', onStoreChange);
+  window.addEventListener('offline', onStoreChange);
+  return () => {
+    window.removeEventListener('online', onStoreChange);
+    window.removeEventListener('offline', onStoreChange);
+  };
+}
+
+function getConnectivitySnapshot(): boolean {
+  return navigator.onLine;
+}
+
+/** There is no connectivity to observe during SSR; assume online. */
+function getConnectivityServerSnapshot(): boolean {
+  return true;
+}
+
 function useOnline(): boolean {
-  const [online, setOnline] = useState(true);
-  useEffect(() => {
-    setOnline(navigator.onLine);
-    const goOnline = () => setOnline(true);
-    const goOffline = () => setOnline(false);
-    window.addEventListener('online', goOnline);
-    window.addEventListener('offline', goOffline);
-    return () => {
-      window.removeEventListener('online', goOnline);
-      window.removeEventListener('offline', goOffline);
-    };
-  }, []);
-  return online;
+  return useSyncExternalStore(subscribeToConnectivity, getConnectivitySnapshot, getConnectivityServerSnapshot);
 }
 
 export function Topbar({
