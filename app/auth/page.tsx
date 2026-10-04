@@ -4,10 +4,14 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, Store } from 'lucide-react';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
 
 const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-11 pr-11 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+
+/** Real Supabase Auth when credentials exist; clearly-labelled demo mode otherwise. */
+const supabaseReady = isSupabaseConfigured();
 
 export default function AuthPage() {
   const router = useRouter();
@@ -15,6 +19,7 @@ export default function AuthPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
+  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [status, setStatus] = useState<'idle' | 'working' | 'success'>('idle');
   const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
 
@@ -28,17 +33,55 @@ export default function AuthPage() {
     return Object.keys(next).length === 0;
   };
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const openConsole = () => {
+    setStatus('success');
+    setTimeout(() => router.push('/home'), 550);
+  };
+
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (status !== 'idle') return;
     if (!validate()) return;
 
     setStatus('working');
-    // Demo build: credentials are validated client-side, then we open the console.
-    setTimeout(() => {
-      setStatus('success');
-      setTimeout(() => router.push('/home'), 550);
-    }, 850);
+
+    if (!supabaseReady) {
+      // Local demo build: no Supabase credentials — accept any valid credentials.
+      setTimeout(openConsole, 850);
+      return;
+    }
+
+    try {
+      const { getBrowserSupabaseClient } = await import('@/lib/supabase/client');
+      const supabase = getBrowserSupabaseClient();
+
+      if (mode === 'signin') {
+        const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+        if (error) {
+          setErrors({ form: error.message === 'Invalid login credentials' ? 'Email or password is incorrect.' : error.message });
+          setStatus('idle');
+          return;
+        }
+      } else {
+        const { data, error } = await supabase.auth.signUp({ email: email.trim(), password });
+        if (error) {
+          setErrors({ form: error.message });
+          setStatus('idle');
+          return;
+        }
+        // If email confirmation is required, there is no session yet — tell the owner.
+        if (!data.session) {
+          setErrors({ form: 'Account created. Check your inbox to confirm your email, then sign in.' });
+          setStatus('idle');
+          setMode('signin');
+          return;
+        }
+      }
+      openConsole();
+    } catch {
+      setErrors({ form: 'Could not reach the authentication service. Please try again.' });
+      setStatus('idle');
+    }
   };
 
   const fieldError = (message?: string) =>
@@ -62,6 +105,31 @@ export default function AuthPage() {
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="rounded-3xl border border-white/10 bg-white/[0.03] p-7 shadow-card backdrop-blur">
+          {errors.form ? (
+            <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-400 ring-1 ring-inset ring-red-500/20 animate-fade-in">
+              <AlertCircle size={14} className="mt-0.5 shrink-0" /> {errors.form}
+            </div>
+          ) : null}
+
+          {supabaseReady ? (
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-white/[0.04] p-1 ring-1 ring-inset ring-white/[0.06]">
+              {(['signin', 'signup'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => { setMode(option); setErrors((current) => ({ ...current, form: undefined })); }}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition ${mode === option ? 'bg-brand-500/20 text-brand-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+                >
+                  {option === 'signin' ? 'Sign in' : 'Create account'}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="mb-4 rounded-xl bg-amber-500/[0.08] px-3.5 py-2.5 text-xs font-semibold text-amber-400/90 ring-1 ring-inset ring-amber-500/20">
+              Demo mode — Supabase credentials are not set, so sign-in is simulated on this device.
+            </div>
+          )}
+
           <div className="space-y-4">
             <div>
               <div className="relative">
@@ -115,13 +183,15 @@ export default function AuthPage() {
             disabled={status !== 'idle'}
             className={`mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold text-white shadow-glow transition ${status === 'success' ? 'bg-emerald-500' : 'bg-brand-gradient hover:brightness-110'} ${status !== 'idle' ? 'cursor-wait' : ''}`}
           >
-            {status === 'idle' && <>Sign in <ArrowRight size={16} /></>}
+            {status === 'idle' && <>{mode === 'signup' ? 'Create account' : 'Sign in'} <ArrowRight size={16} /></>}
             {status === 'working' && <><Loader2 size={16} className="animate-spin" /> Verifying credentials…</>}
             {status === 'success' && <><Check size={16} /> Welcome back — opening console</>}
           </button>
 
           <p className="mt-4 text-center text-xs text-zinc-500">
-            Demo build — any valid email + 8-character password opens the console{remember ? ' and stays signed in on this device' : ''}.
+            {supabaseReady
+              ? 'Secured by Supabase Auth — passwords are never stored by the app.'
+              : `Demo build — any valid email + 8-character password opens the console${remember ? ' and stays signed in on this device' : ''}.`}
           </p>
         </form>
 

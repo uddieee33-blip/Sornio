@@ -10,6 +10,8 @@ import {
 } from '@/lib/business-data';
 import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
 import { defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
+import { currentSyncMode } from '@/lib/supabase/config';
+import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import {
   buildSampleSubscriptions,
   defaultMembers,
@@ -283,6 +285,7 @@ export type StoreActions = {
   addCampaign: (input: { name: string; channel: MarketingCampaign['channel']; spend: number; notes?: string }) => ActionResult;
   loadDemoBusiness: () => void;
   startFreshBusiness: () => void;
+  syncNow: () => Promise<void>;
   updateSettings: (patch: Partial<BusinessSettings>) => ActionResult;
   resetDemo: () => void;
 };
@@ -291,6 +294,8 @@ type StoreContextValue = {
   state: StoreState;
   actions: StoreActions;
   hydrated: boolean;
+  /** Persistence mode: local-first demo, or live Supabase sync when configured. */
+  syncStatus: SyncStatus;
 };
 
 const StoreContext = createContext<StoreContextValue | null>(null);
@@ -362,6 +367,46 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       // Storage may be unavailable (private mode); the session still works in memory.
     }
   }, [state, hydrated]);
+
+  // ---- Supabase sync (active only when real credentials are configured) ----
+  const supabaseMode = currentSyncMode() === 'supabase';
+  const [syncStatus, setSyncStatus] = useState<SyncStatus>(supabaseMode ? 'idle' : 'local');
+  const [authed, setAuthed] = useState(false);
+  const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Detect a signed-in owner once after hydration. Without a session we stay local.
+  useEffect(() => {
+    if (!supabaseMode || !hydrated) return;
+    let cancelled = false;
+    import('@/lib/supabase/client')
+      .then(({ getBrowserSupabaseClient }) => getBrowserSupabaseClient().auth.getUser())
+      .then(({ data }) => {
+        if (!cancelled) setAuthed(Boolean(data.user));
+      })
+      .catch(() => {
+        if (!cancelled) setAuthed(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [supabaseMode, hydrated]);
+
+  const syncingEnabled = supabaseMode && authed && hydrated;
+
+  // Debounced push: any state change schedules a background sync 2s later.
+  useEffect(() => {
+    if (!syncingEnabled) return;
+    if (pushTimer.current) clearTimeout(pushTimer.current);
+    pushTimer.current = setTimeout(() => {
+      setSyncStatus('syncing');
+      pushStateToSupabase(stateRef.current)
+        .then((result) => setSyncStatus(result.ok ? 'synced' : 'error'))
+        .catch(() => setSyncStatus('error'));
+    }, 2000);
+    return () => {
+      if (pushTimer.current) clearTimeout(pushTimer.current);
+    };
+  }, [state, syncingEnabled]);
 
   const actions = useMemo<StoreActions>(() => {
     // Append a traceable audit record for important business/financial changes.
@@ -781,10 +826,22 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       }
       setState(buildSeedState());
     },
-    });
-  }, []);
 
-  return <StoreContext.Provider value={{ state, actions, hydrated }}>{children}</StoreContext.Provider>;
+    async syncNow() {
+      if (!syncingEnabled) return;
+      setSyncStatus('syncing');
+      try {
+        const result = await pushStateToSupabase(stateRef.current);
+        setSyncStatus(result.ok ? 'synced' : 'error');
+      } catch {
+        setSyncStatus('error');
+      }
+    },
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncingEnabled]);
+
+  return <StoreContext.Provider value={{ state, actions, hydrated, syncStatus }}>{children}</StoreContext.Provider>;
 }
 
 export function useDukaanStore(): StoreContextValue {

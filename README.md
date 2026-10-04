@@ -47,7 +47,9 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
   - `insights.ts` — insights, AI tips, and business health scoring shapes
 - **`lib/services/ai-insights.ts`** — `AiInsightsEngine` computes the health score, live insights, and growth tips from snapshots, invoices, and subscriptions.
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
-- **`lib/store.tsx`** — an interactive demo store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, and raise/collect invoices; every action writes transactions into the ledger and the whole console recalculates. State persists to `localStorage` (reset from Settings).
+- **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, and raise/collect invoices; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
+- **`lib/sync/supabase-sync.ts`** — the persistence adapter bridging the live store to the multi-tenant schema. It provisions the owner's `businesses` + `business_members` row, then pushes products, ledger entries, customers, campaigns, audit, and settings, all scoped by `business_id`.
+- **`lib/supabase/`** — Supabase client + config guard (`isSupabaseConfigured`). With placeholder credentials the app stays fully local-first; with real credentials the same code paths sync to the database.
 - **`supabase/schema.sql`** — multi-tenant Postgres schema. Every tenant table carries `business_id` and is protected by row-level security policies scoped to `business_members`.
 
 ## Principles
@@ -64,6 +66,15 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 `supabase/schema.sql` defines a multi-tenant relational schema — 26 tables, every business-owned record carrying `business_id`, with primary keys, foreign keys, indexes, constraints, and `created_at`/`updated_at` timestamps. Highlights: `businesses`, `business_members`, `customers`, `suppliers`, `categories`, `products`, `sales`, `sale_items`, `payment_methods`, `payments`, `expenses`, `inventory_movements`, `transactions`, `audit_logs`, `invoices`, `membership_plans`, `members`, `membership_subscriptions`, `marketing_campaigns`, and more.
 
 **Row Level Security** is enabled on every tenant table with policies scoped to `business_members` — one business can never read or write another business's rows.
+
+## Persistence & sync (local-first)
+
+The store is **local-first by design**, so the console works fully even before a Supabase project is connected:
+
+- **No Supabase credentials** → all data lives in `localStorage`; Settings shows **"Local demo mode"**, and `/auth` runs a clearly-labelled demo sign-in. Nothing touches the network.
+- **Real Supabase credentials + a signed-in owner** → the adapter in `lib/sync/supabase-sync.ts` provisions the tenant and **debounced-pushes** products, ledger transactions, customers, marketing campaigns, the audit trail, and settings to Postgres. Settings shows the live sync status and a **Sync now** action, and `/auth` performs real Supabase sign-in / sign-up.
+
+Every failure is reported as a status, never as a crash — the app always keeps working on the local copy.
 
 ## Environment variables
 

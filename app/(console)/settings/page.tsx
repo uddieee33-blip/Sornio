@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, History, Lock, RotateCcw, Save, ShieldCheck, SlidersHorizontal, ToggleLeft } from 'lucide-react';
+import { Check, Cloud, CloudOff, Database, History, Lock, RefreshCw, RotateCcw, Save, ShieldCheck, SlidersHorizontal, ToggleLeft } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
@@ -45,7 +45,7 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 }
 
 export default function SettingsPage() {
-  const { state, actions } = useDukaanStore();
+  const { state, actions, syncStatus } = useDukaanStore();
   const settings = state.settings;
 
   const [receiptMode, setReceiptMode] = useState(settings.receiptMode);
@@ -100,6 +100,53 @@ export default function SettingsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
+          {/* Data persistence & sync */}
+          <Card className="animate-fade-up">
+            <div className="mb-5 flex items-center justify-between">
+              <CardTitle icon={<Database size={17} />}>Data persistence &amp; sync</CardTitle>
+              {syncStatus === 'local' ? (
+                <Badge tone="amber" dot>Local demo mode</Badge>
+              ) : syncStatus === 'synced' ? (
+                <Badge tone="emerald" dot>Synced</Badge>
+              ) : syncStatus === 'syncing' ? (
+                <Badge tone="brand" dot>Syncing…</Badge>
+              ) : syncStatus === 'error' ? (
+                <Badge tone="red" dot>Sync error</Badge>
+              ) : (
+                <Badge tone="slate" dot>Awaiting sign-in</Badge>
+              )}
+            </div>
+
+            {syncStatus === 'local' ? (
+              <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07]">
+                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-200">
+                  <CloudOff size={16} className="text-amber-400" /> Running on this device
+                </div>
+                <p className="text-sm leading-relaxed text-zinc-400">
+                  Your business data is stored locally in this browser. To persist it to the
+                  Supabase database, set <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[12px] text-zinc-300">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+                  <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[12px] text-zinc-300">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>, then sign in at{' '}
+                  <span className="text-zinc-300">/auth</span>.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07]">
+                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-200">
+                  <Cloud size={16} className="text-emerald-400" /> Connected to Supabase
+                </div>
+                <p className="text-sm leading-relaxed text-zinc-400">
+                  Products, ledger entries, customers, and settings sync to your Supabase project
+                  automatically. Use the button below to force an immediate sync.
+                </p>
+                <div className="mt-4">
+                  <Button variant="secondary" onClick={() => void actions.syncNow()} disabled={syncStatus === 'syncing'}>
+                    <RefreshCw size={15} className={syncStatus === 'syncing' ? 'animate-spin' : ''} /> Sync now
+                  </Button>
+                </div>
+              </div>
+            )}
+          </Card>
+
           {/* Billing defaults — editable */}
           <Card className="animate-fade-up">
             <div className="mb-5 flex items-center justify-between">
