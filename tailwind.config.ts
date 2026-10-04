@@ -4,6 +4,7 @@ const config: Config = {
   content: [
     './app/**/*.{js,ts,jsx,tsx,mdx}',
     './components/**/*.{js,ts,jsx,tsx,mdx}',
+    './lib/**/*.{js,ts,jsx,tsx,mdx}',
   ],
   theme: {
     extend: {
@@ -32,11 +33,17 @@ const config: Config = {
         'card-hover': '0 1px 0 0 rgba(255,255,255,0.05) inset, 0 16px 40px -12px rgba(99,102,241,0.25)',
         glow: '0 0 24px -4px rgba(99,102,241,0.55)',
         'glow-sm': '0 0 12px -2px rgba(99,102,241,0.5)',
+        // Depth for floating surfaces (palette, toasts, popovers).
+        float: '0 24px 64px -24px rgba(0,0,0,0.85), 0 2px 8px -2px rgba(0,0,0,0.6)',
+        'inner-top': 'inset 0 1px 0 0 rgba(255,255,255,0.05)',
       },
       backgroundImage: {
         'brand-gradient': 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%)',
         'page-glow':
           'radial-gradient(1200px 600px at 80% -10%, rgba(99,102,241,0.13), transparent 60%), radial-gradient(900px 500px at 0% 110%, rgba(34,211,238,0.07), transparent 60%)',
+        // Sweeps left→right; paired with background-size for shimmer skeletons.
+        shimmer:
+          'linear-gradient(90deg, rgba(255,255,255,0.03) 0%, rgba(255,255,255,0.09) 50%, rgba(255,255,255,0.03) 100%)',
       },
       keyframes: {
         'fade-up': {
@@ -47,10 +54,16 @@ const config: Config = {
           '0%': { opacity: '0' },
           '100%': { opacity: '1' },
         },
+        shimmer: {
+          '0%': { backgroundPosition: '-200% 0' },
+          '100%': { backgroundPosition: '200% 0' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
         'fade-in': 'fade-in 0.4s ease-out both',
+        // 1.6s sweep: visible enough to read as "working", slow enough not to nag.
+        shimmer: 'shimmer 1.6s linear infinite',
       },
     },
   },

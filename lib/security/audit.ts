@@ -75,8 +75,20 @@ export async function appendAuditEvent(
   chain: AuditEvent[],
   input: NewAuditEvent,
 ): Promise<AuditEvent> {
-  const previous = chain[0];
-  const prev = previous?.hash ?? GENESIS_HASH;
+  return appendAuditEntry(chain[0]?.hash ?? GENESIS_HASH, input);
+}
+
+/**
+ * Append using an explicit previous hash.
+ *
+ * Callers that keep their own record shape (the business store) only need the
+ * previous link, not a full `AuditEvent` — this is that entry point.
+ */
+export async function appendAuditEntry(
+  previousHash: string,
+  input: NewAuditEvent,
+): Promise<AuditEvent> {
+  const prev = previousHash || GENESIS_HASH;
   const base: Omit<AuditEvent, 'hash'> = {
     id: randomId('evt'),
     at: input.at ?? new Date().toISOString(),
@@ -113,37 +125,130 @@ function normaliseMeta(meta: Record<string, unknown> | undefined): AuditEvent['m
 
 export type ChainVerification = {
   valid: boolean;
+  /** Entries that carry a hash and were checked. */
+  verified: number;
+  /** Older entries written before the chain existed — reported, never hidden. */
+  unverified: number;
   length: number;
   brokenAt: number | null;
   reason: string | null;
 };
 
-/** Walk the chain from the newest entry back to genesis. */
+/**
+ * Does this record carry a chain link? Deliberately structural so any record
+ * shape (the store's lighter `AuditEntry`, an imported backup) qualifies.
+ */
+export function isChained(entry: { hash?: unknown; prev?: unknown }): boolean {
+  return typeof entry.hash === 'string' && entry.hash.length === 64 && typeof entry.prev === 'string';
+}
+
+/**
+ * Walk the chain from the newest entry back to genesis.
+ *
+ * History written before the chain shipped has no hash. Instead of pretending
+ * it verifies, we count it as `unverified` and only assert integrity over the
+ * hashed entries — and only while they remain contiguous.
+ */
 export async function verifyChain(chain: AuditEvent[]): Promise<ChainVerification> {
-  for (let index = 0; index < chain.length; index += 1) {
-    const entry = chain[index];
-    const expectedPrev = chain[index + 1]?.hash ?? GENESIS_HASH;
+  const positions = chain
+    .map((entry, index) => ({ entry, index }))
+    .filter((candidate) => isChained(candidate.entry));
+
+  let unverified = chain.length - positions.length;
+
+  for (let position = 0; position < positions.length; position += 1) {
+    const { entry, index } = positions[position];
+    const next = positions[position + 1];
+
+    // A legacy entry sitting between two hashed entries breaks contiguity:
+    // we cannot prove the link, so we stop asserting rather than claim a pass.
+    if (next && next.index !== index + 1) {
+      unverified += 1;
+      break;
+    }
+
+    const expectedPrev = next ? next.entry.hash : GENESIS_HASH;
     if (entry.prev !== expectedPrev) {
       return {
         valid: false,
+        verified: position,
+        unverified,
         length: chain.length,
         brokenAt: index,
-        reason: `Entry ${entry.id} does not link to the entry before it.`,
+        reason: `Entry ${entry.id} does not link to the entry before it — the history was rearranged.`,
       };
     }
+
     const rest: Omit<AuditEvent, 'hash'> = { ...entry };
     delete (rest as Partial<AuditEvent>).hash;
     const recomputed = await sha256Hex(canonicalise(rest));
     if (recomputed !== entry.hash) {
       return {
         valid: false,
+        verified: position,
+        unverified,
         length: chain.length,
         brokenAt: index,
-        reason: `Entry ${entry.id} was modified after it was written.`,
+        reason: `Entry ${entry.id} was changed after it was written.`,
       };
     }
   }
-  return { valid: true, length: chain.length, brokenAt: null, reason: null };
+
+  return {
+    valid: true,
+    verified: positions.length,
+    unverified,
+    length: chain.length,
+    brokenAt: null,
+    reason: null,
+  };
+}
+
+/**
+ * A loose record shape, so callers can hand us their own audit entry type
+ * (the business store keeps a lighter one) and get a verifiable event back.
+ */
+export type ChainRecord = {
+  id: string;
+  createdAt?: string;
+  at?: string;
+  type?: string;
+  category?: string;
+  action?: string;
+  severity?: AuditSeverity;
+  actor?: string | { id?: string; name?: string; role?: string };
+  actorId?: string;
+  actorRole?: string;
+  summary?: string;
+  meta?: Record<string, unknown>;
+  prev?: string;
+  hash?: string;
+};
+
+/**
+ * Rebuild the canonical event a stored record was hashed from. Any field the
+ * writer did not persist stays absent so the recomputed hash either matches
+ * exactly or the entry is correctly reported as unverifiable.
+ */
+export function toChainEvent(record: ChainRecord): AuditEvent {
+  const actorObject = typeof record.actor === 'object' && record.actor !== null ? record.actor : undefined;
+  const category = record.category ?? record.type ?? 'system';
+  return {
+    id: record.id,
+    at: record.at ?? record.createdAt ?? '',
+    category,
+    action: record.action ?? category,
+    severity: record.severity ?? 'info',
+    actor: {
+      id: record.actorId ?? actorObject?.id ?? 'local-owner',
+      name: typeof record.actor === 'string' ? record.actor : (actorObject?.name ?? 'Owner'),
+      role: record.actorRole ?? actorObject?.role ?? 'owner',
+    },
+    summary: record.summary ?? '',
+    meta: record.meta as AuditEvent['meta'],
+    prev: record.prev ?? '',
+    hash: record.hash ?? '',
+  };
 }
 
 export function summariseChain(chain: AuditEvent[]): { total: number; lastAt: string | null; bySeverity: Record<AuditSeverity, number> } {

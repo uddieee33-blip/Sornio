@@ -12,6 +12,9 @@ import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
 import { businessTemplates, defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
+import { GENESIS_HASH, appendAuditEntry, isChained, type AuditActor, type AuditSeverity } from '@/lib/security/audit';
+import { vaultClear, vaultRead, vaultWrite } from '@/lib/security/vault';
+import { debounce } from '@/lib/perf/idle';
 import {
   buildSampleSubscriptions,
   defaultMembers,
@@ -53,7 +56,22 @@ export type AuditEntry = {
   summary: string;
   reference?: string;
   createdAt: string;
+  /** Hash-chain link fields — absent on history written before the chain shipped. */
+  severity?: AuditSeverity;
+  action?: string;
+  actorId?: string;
+  actorRole?: string;
+  meta?: Record<string, string | number | boolean | null>;
+  prev?: string;
+  hash?: string;
 };
+
+/** How this device is currently holding the owner's data. */
+export type PersistenceStatus =
+  | { mode: 'loading' }
+  | { mode: 'encrypted'; writtenAt: string }
+  | { mode: 'plaintext'; warning: string }
+  | { mode: 'memory'; warning: string };
 
 /** A tracked marketing activity with its spend. */
 export type MarketingCampaign = {
@@ -357,9 +375,18 @@ type StoreContextValue = {
   hydrated: boolean;
   /** Persistence mode: local-first demo, or live Supabase sync when configured. */
   syncStatus: SyncStatus;
+  /** How the business is being stored on this device right now. */
+  persistence: PersistenceStatus;
 };
 
-const StoreContext = createContext<StoreContextValue | null>(null);
+/**
+ * Splitting the two contexts is a performance decision, not tidiness: a
+ * component that only dispatches an action (`useDukaanActions`) no longer
+ * re-renders every time a transaction is recorded. Components that need the
+ * data still subscribe to the state context, exactly as before.
+ */
+const StoreStateContext = createContext<Omit<StoreContextValue, 'actions'> | null>(null);
+const StoreActionsContext = createContext<StoreActions | null>(null);
 
 /** Build the revenue + payment transaction pair for a completed sale. */
 function buildRevenueTransactions(description: string, amount: number, method: PaymentMethod, customerLabel?: string): Transaction[] {
@@ -397,38 +424,92 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
-  // Hydrate from localStorage after mount so server and client first renders match.
+  const [persistence, setPersistence] = useState<PersistenceStatus>({ mode: 'loading' });
+
+  // Hydrate from the encrypted vault after mount, so server and client first
+  // renders match. Falls back to the legacy plaintext key and migrates it.
   useEffect(() => {
-    try {
-      const raw = window.localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw) as StoreState;
-        if (parsed && Array.isArray(parsed.transactions) && Array.isArray(parsed.products)) {
-          // Defensive merge: older saved states may lack newer slices.
-          setState({
-            ...parsed,
-            demoMode: parsed.demoMode ?? false,
-            profile: parsed.profile ?? defaultBusinessProfile,
-            settings: parsed.settings ?? defaultBusinessSettings,
-            audit: Array.isArray(parsed.audit) ? parsed.audit : [],
-            campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
-          });
+    let cancelled = false;
+
+    const merge = (parsed: StoreState): StoreState => ({
+      ...parsed,
+      demoMode: parsed.demoMode ?? false,
+      profile: parsed.profile ?? defaultBusinessProfile,
+      settings: parsed.settings ?? defaultBusinessSettings,
+      audit: Array.isArray(parsed.audit) ? parsed.audit : [],
+      campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
+      transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
+      products: Array.isArray(parsed.products) ? parsed.products : [],
+      customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+    });
+
+    const looksValid = (value: StoreState | undefined): value is StoreState =>
+      Boolean(value && Array.isArray(value.transactions) && Array.isArray(value.products));
+
+    (async () => {
+      let restored: StoreState | null = null;
+
+      const vaultResult = await vaultRead<StoreState>(STORAGE_KEY);
+      if (vaultResult.ok && looksValid(vaultResult.data)) {
+        restored = merge(vaultResult.data);
+      } else {
+        // One-time migration from the pre-vault plaintext key.
+        try {
+          const legacyRaw = window.localStorage.getItem(STORAGE_KEY);
+          if (legacyRaw) {
+            const parsed = JSON.parse(legacyRaw) as StoreState;
+            if (looksValid(parsed)) restored = merge(parsed);
+          }
+        } catch {
+          // Unreadable legacy data: start clean rather than crash.
         }
       }
-    } catch {
-      // Corrupt storage falls back to the seeded demo business.
-    }
-    setHydrated(true);
+
+      if (cancelled) return;
+      if (restored) setState(restored);
+      setHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
+
+  // Debounced encrypted persistence. Writing on every keystroke would burn
+  // main-thread time; 600 ms is imperceptible and survives a tab close.
+  const persist = useMemo(
+    () =>
+      debounce((snapshot: StoreState) => {
+        void vaultWrite(STORAGE_KEY, snapshot).then((result) => {
+          if (result.ok && result.encrypted) {
+            setPersistence({ mode: 'encrypted', writtenAt: new Date().toISOString() });
+          } else if (result.ok) {
+            setPersistence({ mode: 'plaintext', warning: result.warning });
+          } else {
+            setPersistence({ mode: 'memory', warning: result.error });
+          }
+        });
+      }, 600),
+    [],
+  );
 
   useEffect(() => {
     if (!hydrated) return;
-    try {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-    } catch {
-      // Storage may be unavailable (private mode); the session still works in memory.
-    }
-  }, [state, hydrated]);
+    persist(state);
+  }, [state, hydrated, persist]);
+
+  // Flush the pending write if the owner closes the tab mid-debounce.
+  useEffect(() => {
+    const flush = () => {
+      persist.cancel();
+      void vaultWrite(STORAGE_KEY, stateRef.current);
+    };
+    window.addEventListener('pagehide', flush);
+    return () => {
+      window.removeEventListener('pagehide', flush);
+      persist.cancel();
+    };
+  }, [persist]);
 
   // ---- Supabase sync (active only when real credentials are configured) ----
   const supabaseMode = currentSyncMode() === 'supabase';
@@ -470,16 +551,55 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [state, syncingEnabled]);
 
+  // The audit chain is written through a promise queue so rapid actions can
+  // never interleave two entries and produce a false "tampered" verdict.
+  const auditQueue = useRef<Promise<void>>(Promise.resolve());
+
   const actions = useMemo<StoreActions>(() => {
-    // Append a traceable audit record for important business/financial changes.
+    /**
+     * Append a traceable, hash-chained audit record.
+     *
+     * Each entry stores the hash of the entry before it, so deleting or editing
+     * history in storage is detectable (see the Trust Centre). Fire-and-forget
+     * by design: the action itself must never wait on hashing.
+     */
     const track = (type: AuditEntry['type'], summary: string, reference?: string) => {
-      setState((current) => ({
-        ...current,
-        audit: [
-          { id: newId('audit'), type, actor: 'Owner', summary, reference, createdAt: new Date().toISOString() },
-          ...current.audit,
-        ].slice(0, 300),
-      }));
+      auditQueue.current = auditQueue.current
+        .then(async () => {
+          const actor: AuditActor = { id: 'local-owner', name: 'Owner', role: 'owner' };
+          const previousHash =
+            stateRef.current.audit.find((entry) => isChained(entry))?.hash ?? GENESIS_HASH;
+          const event = await appendAuditEntry(previousHash, {
+            category: type,
+            action: type,
+            severity: type === 'system' || type === 'settings' ? 'notice' : 'info',
+            actor,
+            summary,
+            meta: reference ? { reference } : undefined,
+          });
+
+          const entry: AuditEntry = {
+            id: event.id,
+            type,
+            actor: event.actor.name,
+            summary: event.summary,
+            reference,
+            createdAt: event.at,
+            // Everything needed to re-verify this entry later, byte for byte.
+            severity: event.severity,
+            action: event.action,
+            actorId: event.actor.id,
+            actorRole: event.actor.role,
+            meta: event.meta,
+            prev: event.prev,
+            hash: event.hash,
+          };
+
+          setState((current) => ({ ...current, audit: [entry, ...current.audit].slice(0, 300) }));
+        })
+        .catch(() => {
+          // Hashing is best-effort; a failed link must not block the business.
+        });
     };
 
     return ({
@@ -914,6 +1034,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
     resetDemo() {
       try {
+        // Clear both the encrypted vault slot and any legacy plaintext key.
+        vaultClear(STORAGE_KEY);
         window.localStorage.removeItem(STORAGE_KEY);
       } catch {
         // Ignore storage errors; state is reset in memory either way.
@@ -935,15 +1057,44 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncingEnabled]);
 
-  return <StoreContext.Provider value={{ state, actions, hydrated, syncStatus }}>{children}</StoreContext.Provider>;
+  const stateValue = useMemo(
+    () => ({ state, hydrated, syncStatus, persistence }),
+    [state, hydrated, syncStatus, persistence],
+  );
+
+  return (
+    <StoreStateContext.Provider value={stateValue}>
+      <StoreActionsContext.Provider value={actions}>{children}</StoreActionsContext.Provider>
+    </StoreStateContext.Provider>
+  );
 }
 
+/** Full accessor — state, actions, and status. */
 export function useDukaanStore(): StoreContextValue {
-  const context = useContext(StoreContext);
-  if (!context) {
+  const stateContext = useContext(StoreStateContext);
+  const actions = useContext(StoreActionsContext);
+  if (!stateContext || !actions) {
     throw new Error('useDukaanStore must be used inside DukaanStoreProvider');
   }
-  return context;
+  return { ...stateContext, actions };
+}
+
+/**
+ * Actions only. Use this in components that dispatch but do not display
+ * business data — they stay still while the ledger changes underneath.
+ */
+export function useDukaanActions(): StoreActions {
+  const actions = useContext(StoreActionsContext);
+  if (!actions) {
+    throw new Error('useDukaanActions must be used inside DukaanStoreProvider');
+  }
+  return actions;
+}
+
+/** Read only the slice a component actually needs. */
+export function useDukaanSelector<T>(select: (state: StoreState) => T): T {
+  const { state } = useDukaanStore();
+  return useMemo(() => select(state), [state, select]);
 }
 
 /** Convenience selector: the financial snapshot recomputed from live transactions. */

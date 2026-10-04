@@ -1,38 +1,107 @@
 {
   "version": "2026.10.0",
   "csp": {
-    "default-src": ["'self'"],
-    "script-src": ["'self'", "'unsafe-inline'"],
-    "style-src": ["'self'", "'unsafe-inline'"],
-    "img-src": ["'self'", "data:", "blob:"],
-    "font-src": ["'self'", "data:"],
-    "connect-src": ["'self'", "https://*.supabase.co", "wss://*.supabase.co"],
-    "media-src": ["'none'"],
-    "worker-src": ["'self'", "blob:"],
-    "manifest-src": ["'self'"],
-    "frame-src": ["'none'"],
-    "base-uri": ["'none'"],
-    "form-action": ["'self'"],
-    "object-src": ["'none'"]
+    "default-src": [
+      "'self'"
+    ],
+    "script-src": [
+      "'self'",
+      "'unsafe-inline'"
+    ],
+    "style-src": [
+      "'self'",
+      "'unsafe-inline'"
+    ],
+    "img-src": [
+      "'self'",
+      "data:",
+      "blob:"
+    ],
+    "font-src": [
+      "'self'",
+      "data:"
+    ],
+    "connect-src": [
+      "'self'",
+      "https://*.supabase.co",
+      "wss://*.supabase.co"
+    ],
+    "media-src": [
+      "'none'"
+    ],
+    "worker-src": [
+      "'self'",
+      "blob:"
+    ],
+    "manifest-src": [
+      "'self'"
+    ],
+    "frame-src": [
+      "'none'"
+    ],
+    "base-uri": [
+      "'none'"
+    ],
+    "form-action": [
+      "'self'"
+    ],
+    "object-src": [
+      "'none'"
+    ]
   },
   "framing": {
-    "strict": ["'self'"],
-    "embed": ["'self'", "https://*.e2b.app", "https://*.arena.ai", "http://localhost:*", "http://127.0.0.1:*"]
+    "strict": [
+      "'self'"
+    ],
+    "embed": [
+      "'self'",
+      "https://*.e2b.app",
+      "https://*.arena.ai",
+      "http://localhost:*",
+      "http://127.0.0.1:*"
+    ]
   },
   "headers": [
-    { "key": "X-Content-Type-Options", "value": "nosniff" },
-    { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+    {
+      "key": "X-Content-Type-Options",
+      "value": "nosniff"
+    },
+    {
+      "key": "Referrer-Policy",
+      "value": "strict-origin-when-cross-origin"
+    },
     {
       "key": "Permissions-Policy",
       "value": "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()"
     },
-    { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-    { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" },
-    { "key": "Origin-Agent-Cluster", "value": "?1" },
-    { "key": "X-DNS-Prefetch-Control", "value": "off" },
-    { "key": "X-Permitted-Cross-Domain-Policies", "value": "none" },
-    { "key": "X-Download-Options", "value": "noopen" },
-    { "key": "Cross-Origin-Embedder-Policy", "value": "unsafe-none" }
+    {
+      "key": "Cross-Origin-Opener-Policy",
+      "value": "same-origin"
+    },
+    {
+      "key": "Cross-Origin-Resource-Policy",
+      "value": "same-origin"
+    },
+    {
+      "key": "Origin-Agent-Cluster",
+      "value": "?1"
+    },
+    {
+      "key": "X-DNS-Prefetch-Control",
+      "value": "off"
+    },
+    {
+      "key": "X-Permitted-Cross-Domain-Policies",
+      "value": "none"
+    },
+    {
+      "key": "X-Download-Options",
+      "value": "noopen"
+    },
+    {
+      "key": "Cross-Origin-Embedder-Policy",
+      "value": "unsafe-none"
+    }
   ],
   "hsts": {
     "key": "Strict-Transport-Security",
@@ -43,11 +112,30 @@
     "value": "no-store, no-cache, must-revalidate, proxy-revalidate, max-age=0"
   },
   "rateLimits": {
-    "api": { "limit": 60, "windowMs": 60000 },
-    "auth": { "limit": 12, "windowMs": 60000 },
-    "reports": { "limit": 20, "windowMs": 60000 },
-    "page": { "limit": 240, "windowMs": 60000 },
-    "burst": { "limit": 8, "windowMs": 5000 }
+    "api": {
+      "limit": 90,
+      "windowMs": 60000
+    },
+    "auth": {
+      "limit": 12,
+      "windowMs": 60000
+    },
+    "reports": {
+      "limit": 20,
+      "windowMs": 60000
+    },
+    "page": {
+      "limit": 300,
+      "windowMs": 60000
+    },
+    "burstApi": {
+      "limit": 8,
+      "windowMs": 5000
+    },
+    "burstPage": {
+      "limit": 60,
+      "windowMs": 5000
+    }
   },
   "probePaths": [
     "/.env",
