@@ -21,6 +21,8 @@ import {
   UserRound,
   Zap,
 } from 'lucide-react';
+import { useI18n } from '@/lib/i18n';
+import { LanguagePicker } from '@/components/ui/LanguagePicker';
 
 // Charts are the heaviest dependency on this page — load them after first paint.
 const LiveCharts = dynamic(() => import('@/components/landing/live-charts').then((mod) => mod.LiveCharts), {
@@ -34,12 +36,12 @@ const LiveCharts = dynamic(() => import('@/components/landing/live-charts').then
 });
 
 const navLinks = [
-  { label: 'Charts', href: '#charts' },
-  { label: 'UPI QR', href: '#upi' },
-  { label: 'Modules', href: '#features' },
-  { label: 'Security', href: '#security' },
-  { label: 'Pricing', href: '#pricing' },
-];
+  { key: 'nav.charts', label: 'Charts', href: '#charts' },
+  { key: 'nav.upi', label: 'UPI QR', href: '#upi' },
+  { key: 'nav.features', label: 'Modules', href: '#features' },
+  { key: 'nav.security', label: 'Security', href: '#security' },
+  { key: 'nav.pricing', label: 'Pricing', href: '#pricing' },
+] as const;
 
 const features = [
   { icon: Receipt, title: 'Billing & Receipts', desc: 'Invoices, digital receipts over SMS/WhatsApp, and printed bills handed over the counter.' },
@@ -74,27 +76,27 @@ const plans = [
     name: 'Starter',
     price: '₹0',
     period: '/forever',
-    desc: 'For a single shop getting started.',
-    features: ['Billing & receipts', 'Live ledger reports', 'Up to 50 products', 'UPI QR collections'],
+    desc: 'Try everything free for 3 days, then keep collecting at no cost.',
+    features: ['3-day full trial of every feature', 'Up to 25 UPI QR collections / month', 'Billing & receipts', 'Live ledger reports'],
     cta: 'Start free',
     highlight: false,
   },
   {
     name: 'Growth',
     price: '₹499',
-    period: '/month',
-    desc: 'For stores that want automation.',
-    features: ['Everything in Starter', 'Memberships & renewals', 'AI insights & alerts', 'Unlimited products', 'Priority support'],
-    cta: 'Start 14-day trial',
+    period: '/month · or ₹999 quarterly',
+    desc: 'For businesses that want unlimited collections and automation.',
+    features: ['Everything in Starter', 'Unlimited UPI QR collections', 'Memberships & renewal reminders', 'AI insights & smart alerts', 'Unlimited products'],
+    cta: 'Start 3-day trial',
     highlight: true,
   },
   {
     name: 'Scale',
-    price: '₹1,499',
-    period: '/month',
-    desc: 'For multi-branch operations.',
-    features: ['Everything in Growth', 'Multi-branch ledger', 'Advanced comparisons', 'Dedicated onboarding', 'API access'],
-    cta: 'Talk to sales',
+    price: '₹1,999',
+    period: '/quarter',
+    desc: 'For multi-branch operations that outgrow a single counter.',
+    features: ['Everything in Growth', 'Multi-branch ledger', 'Advanced comparisons', 'Dedicated onboarding', 'Priority support'],
+    cta: 'Start 3-day trial',
     highlight: false,
   },
 ];
@@ -109,51 +111,53 @@ function SectionEyebrow({ index, label }: { index: string; label: string }) {
 }
 
 export default function LandingPage() {
+  const { t } = useI18n();
   return (
     <div className="relative overflow-hidden">
       {/* single ambient glow — cheap radial gradient, no blur filters */}
       <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-page-glow" />
 
-      {/* NAV */}
-      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0B0D12]/85 backdrop-blur-xl">
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
-          <Link href="/" className="flex items-center gap-3">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm"><Store size={18} className="text-white" /></span>
-            <span className="font-display text-lg font-bold tracking-tight text-white">DukaanOS</span>
+      {/* NAV — floating glass app bar */}
+      <header className="fixed inset-x-0 top-0 z-40 px-3 pt-3 sm:px-4 sm:pt-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#0d1017]/85 px-3.5 py-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-5">
+          <Link href="/" className="flex shrink-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm ring-1 ring-white/20"><Store size={18} className="text-white" /></span>
+            <span className="font-display text-lg font-bold tracking-tight text-white">
+              Dukaan<span className="bg-brand-gradient bg-clip-text text-transparent">OS</span>
+            </span>
           </Link>
-          <nav className="hidden items-center gap-7 md:flex">
+          <nav className="hidden items-center gap-1 rounded-full bg-white/[0.04] p-1 ring-1 ring-inset ring-white/[0.06] lg:flex">
             {navLinks.map((link) => (
-              <a key={link.href} href={link.href} className="text-sm font-medium text-zinc-400 transition hover:text-white">{link.label}</a>
+              <a key={link.href} href={link.href} className="rounded-full px-3.5 py-1.5 text-xs font-semibold text-zinc-400 transition hover:bg-white/[0.07] hover:text-white">{t(link.key)}</a>
             ))}
           </nav>
-          <div className="flex items-center gap-3">
-            <Link href="/auth" className="hidden rounded-xl px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white sm:block">Sign in</Link>
-            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-bold text-white shadow-glow-sm transition hover:brightness-110">
-              Open console <ArrowRight size={15} />
+          <div className="flex items-center gap-2">
+            <div className="hidden sm:block"><LanguagePicker /></div>
+            <Link href="/auth" className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white md:block">{t('nav.signIn')}</Link>
+            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-bold text-white shadow-glow-sm ring-1 ring-white/20 transition hover:brightness-110">
+              {t('nav.openConsole')} <ArrowRight size={15} />
             </Link>
           </div>
         </div>
       </header>
 
       {/* HERO */}
-      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-20 text-center md:pt-24">
-        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-300 animate-fade-up">
-          <Sparkles size={14} /> One operating system for every business — gyms, cafés, salons, shops & more
+      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-32 text-center md:pt-40">
+        <div className="mx-auto mb-6 inline-flex max-w-2xl items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-300 animate-fade-up">
+          <Sparkles size={14} /> {t('hero.badge')}
         </div>
-        <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl animate-fade-up">
-          Your business. Your money.<br className="hidden md:block" /> <span className="bg-brand-gradient bg-clip-text text-transparent">Straight to your bank.</span>
+        <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold leading-[1.05] tracking-tighter text-white md:text-7xl animate-fade-up">
+          {t('hero.titleA')}<br className="hidden md:block" /> <span className="bg-brand-gradient bg-clip-text text-transparent">{t('hero.titleB')}</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-zinc-400 md:text-lg animate-fade-up">
-          DukaanOS runs your billing, inventory, memberships, and reports on one live ledger.
-          Your collection QR comes from <span className="font-semibold text-zinc-200">your own bank account</span> —
-          customers pay you directly. No gateway. No middleman. No liability.
+          {t('hero.sub')}
         </p>
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row animate-fade-up">
           <Link href="/auth" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
-            Start your business — free <ArrowRight size={16} />
+            {t('hero.ctaStart')} <ArrowRight size={16} />
           </Link>
           <Link href="/home" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
-            Peek at the live console
+            {t('hero.ctaConsole')}
           </Link>
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-zinc-500 animate-fade-up">
@@ -192,12 +196,12 @@ export default function LandingPage() {
           ))}
         </div>
         <p className="mx-auto mt-4 max-w-xl text-xs leading-relaxed text-zinc-600">
-          Every new business starts at zero. Every rupee on your dashboard appears only when you record a real sale or expense.
+          {t('zeroStart.line')}
         </p>
       </section>
 
       {/* 01 — LIVE CHARTS */}
-      <section id="charts" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+      <section id="charts" className="relative mx-auto max-w-7xl scroll-mt-32 px-6 pb-24">
         <div className="mb-10 text-center">
           <SectionEyebrow index="01" label="Sample preview" />
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">This is what your dashboard looks like</h2>
@@ -206,14 +210,14 @@ export default function LandingPage() {
             Your own business starts at ₹0 — only the sales and expenses you record will ever move your charts.
           </p>
           <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-1.5 text-xs font-bold text-amber-400">
-            <Gauge size={13} /> Sample data only — never real or fabricated business numbers
+            <Gauge size={13} /> {t('charts.sample')}
           </p>
         </div>
         <LiveCharts />
       </section>
 
       {/* 02 — UPI QR */}
-      <section id="upi" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+      <section id="upi" className="relative mx-auto max-w-7xl scroll-mt-32 px-6 pb-24">
         <div className="overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-500/[0.08] via-transparent to-violet-500/[0.06] p-8 md:p-12">
           <div className="grid items-center gap-10 lg:grid-cols-2">
             <div>
@@ -268,7 +272,7 @@ export default function LandingPage() {
       </section>
 
       {/* 03 — MODULES */}
-      <section id="features" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+      <section id="features" className="relative mx-auto max-w-7xl scroll-mt-32 px-6 pb-24">
         <div className="mb-10 text-center">
           <SectionEyebrow index="03" label="Everything a dukaan needs" />
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">One console. Every module.</h2>
@@ -287,7 +291,7 @@ export default function LandingPage() {
       </section>
 
       {/* 04 — SECURITY */}
-      <section id="security" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+      <section id="security" className="relative mx-auto max-w-7xl scroll-mt-32 px-6 pb-24">
         <div className="rounded-3xl border border-emerald-500/15 bg-emerald-500/[0.03] p-8 md:p-12">
           <div className="mb-10 text-center">
             <SectionEyebrow index="04" label="Security you can verify" />
@@ -311,10 +315,11 @@ export default function LandingPage() {
       </section>
 
       {/* 05 — PRICING */}
-      <section id="pricing" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+      <section id="pricing" className="relative mx-auto max-w-7xl scroll-mt-32 px-6 pb-24">
         <div className="mb-10 text-center">
           <SectionEyebrow index="05" label="Simple pricing" />
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Start free. Scale when you grow.</h2>
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Free to start. Fair when you grow.</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">Every plan starts with a <span className="font-semibold text-zinc-200">3-day full trial</span> — and free accounts keep up to <span className="font-semibold text-zinc-200">25 UPI QR collections every month</span>, forever.</p>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
           {plans.map((plan) => (
@@ -367,13 +372,16 @@ export default function LandingPage() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 md:flex-row">
           <div className="flex items-center gap-3">
             <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient"><Store size={16} className="text-white" /></span>
-            <span className="font-display text-sm font-bold text-white">DukaanOS</span>
+            <div>
+              <span className="font-display text-sm font-bold text-white">DukaanOS</span>
+              <p className="text-[11px] text-zinc-600">Available in 22 Indian languages · हिन्दी · ਪੰਜਾਬੀ · मराठी · বাংলা · தமிழ்…</p>
+            </div>
           </div>
           <p className="text-xs text-zinc-500">Billing · Inventory · Memberships · UPI QR · AI insights — for Indian businesses.</p>
           <div className="flex items-center gap-4 text-xs text-zinc-500">
-            <Link href="/home" className="transition hover:text-white">Console</Link>
-            <Link href="/auth" className="transition hover:text-white">Sign in</Link>
-            <a href="#features" className="transition hover:text-white">Features</a>
+            <Link href="/home" className="transition hover:text-white">{t('nav.openConsole')}</Link>
+            <Link href="/auth" className="transition hover:text-white">{t('nav.signIn')}</Link>
+            <LanguagePicker />
           </div>
         </div>
       </footer>

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { DukaanStoreProvider } from '@/lib/store';
+import { I18nProvider } from '@/lib/i18n';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -12,11 +13,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="en" className="dark">
       <body className="bg-ink text-zinc-200 antialiased">
         <DukaanStoreProvider>
-          <div className="relative min-h-screen">
-            {/* Ambient page glow behind everything */}
-            <div className="pointer-events-none fixed inset-0 bg-page-glow" aria-hidden />
-            <div className="relative">{children}</div>
-          </div>
+          <I18nProvider>
+            <div className="relative min-h-screen">
+              {/* Ambient page glow behind everything */}
+              <div className="pointer-events-none fixed inset-0 bg-page-glow" aria-hidden />
+              <div className="relative">{children}</div>
+            </div>
+          </I18nProvider>
         </DukaanStoreProvider>
       </body>
     </html>
