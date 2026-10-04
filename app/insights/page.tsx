@@ -1,24 +1,10 @@
-import { demoTransactions, formatCurrency, summarizeFinancials } from '@/lib/business-data';
-import { sampleInvoices } from '@/lib/models/billing';
-import { buildSampleSubscriptions } from '@/lib/models/membership';
+'use client';
+
+import { useMemo } from 'react';
+import { formatCurrency } from '@/lib/business-data';
 import { toBusinessSnapshot } from '@/lib/models/business';
 import { AiInsightsEngine } from '@/lib/services/ai-insights';
-
-const financial = summarizeFinancials(demoTransactions);
-const subscriptions = buildSampleSubscriptions();
-
-const pendingPayments = sampleInvoices
-  .filter((invoice) => invoice.paymentStatus === 'pending' || invoice.paymentStatus === 'partial')
-  .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
-
-const activeMembers = subscriptions.filter(
-  (subscription) => subscription.status === 'active' || subscription.status === 'expiring_soon',
-).length;
-
-const snapshot = toBusinessSnapshot(financial, { activeMembers, pendingPayments });
-const health = AiInsightsEngine.calculateBusinessHealth(snapshot, sampleInvoices, subscriptions);
-const insights = AiInsightsEngine.generateInsights(snapshot, sampleInvoices, subscriptions);
-const tips = AiInsightsEngine.generateTips(snapshot, sampleInvoices, subscriptions);
+import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
 
 const insightTypeStyles: Record<string, string> = {
   trend: 'bg-blue-50 text-blue-700',
@@ -39,15 +25,34 @@ const trendLabels: Record<string, string> = {
   stable: 'Stable',
 };
 
-const healthBars = [
-  { label: 'Revenue', score: health.revenueHealth, max: 25 },
-  { label: 'Profitability', score: health.profitabilityHealth, max: 25 },
-  { label: 'Cash flow', score: health.cashFlowHealth, max: 20 },
-  { label: 'Customers', score: health.customerHealth, max: 15 },
-  { label: 'Membership', score: health.membershipHealth, max: 15 },
-];
-
 export default function InsightsPage() {
+  const { state } = useDukaanStore();
+  const financial = useFinancialSnapshot();
+
+  const { health, insights, tips, snapshot } = useMemo(() => {
+    const pendingPayments = state.invoices
+      .filter((invoice) => invoice.paymentStatus === 'pending' || invoice.paymentStatus === 'partial')
+      .reduce((sum, invoice) => sum + invoice.totalAmount, 0);
+    const activeMembers = state.subscriptions.filter(
+      (subscription) => subscription.status === 'active' || subscription.status === 'expiring_soon',
+    ).length;
+    const universalSnapshot = toBusinessSnapshot(financial, { activeMembers, pendingPayments });
+    return {
+      snapshot: universalSnapshot,
+      health: AiInsightsEngine.calculateBusinessHealth(universalSnapshot, state.invoices, state.subscriptions),
+      insights: AiInsightsEngine.generateInsights(universalSnapshot, state.invoices, state.subscriptions),
+      tips: AiInsightsEngine.generateTips(universalSnapshot, state.invoices, state.subscriptions),
+    };
+  }, [financial, state.invoices, state.subscriptions]);
+
+  const healthBars = [
+    { label: 'Revenue', score: health.revenueHealth, max: 25 },
+    { label: 'Profitability', score: health.profitabilityHealth, max: 25 },
+    { label: 'Cash flow', score: health.cashFlowHealth, max: 20 },
+    { label: 'Customers', score: health.customerHealth, max: 15 },
+    { label: 'Membership', score: health.membershipHealth, max: 15 },
+  ];
+
   return (
     <div className="p-6 md:p-8">
       <div className="mx-auto max-w-6xl">
@@ -55,7 +60,7 @@ export default function InsightsPage() {
           <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">ai insights</p>
           <h1 className="mt-2 text-3xl font-bold text-slate-900">Business intelligence</h1>
           <p className="mt-2 max-w-2xl text-slate-600">
-            Health, insights, and growth tips generated from invoices, subscriptions, and the transaction ledger.
+            Health, insights, and growth tips regenerate from live invoices, subscriptions, and the transaction ledger.
           </p>
         </div>
 
@@ -96,7 +101,7 @@ export default function InsightsPage() {
 
               <div className="mt-5 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
                 <div className="rounded-xl bg-slate-50 p-3">
-                  <p className="text-xs text-slate-500">Weekly revenue</p>
+                  <p className="text-xs text-slate-500">Revenue</p>
                   <p className="mt-1 font-semibold text-slate-900">{formatCurrency(snapshot.totalRevenue)}</p>
                 </div>
                 <div className="rounded-xl bg-slate-50 p-3">
@@ -156,7 +161,7 @@ export default function InsightsPage() {
                     <span className="rounded-lg bg-slate-50 px-2 py-1 text-slate-600 ring-1 ring-slate-200">
                       {insight.metricLabel}:{' '}
                       <strong className="text-slate-900">
-                        {insight.metricLabel.toLowerCase().includes('%') || insight.metricLabel.toLowerCase().includes('margin')
+                        {insight.metricLabel.toLowerCase().includes('margin')
                           ? `${insight.metric.toFixed(1)}%`
                           : Number.isInteger(insight.metric)
                             ? insight.metric

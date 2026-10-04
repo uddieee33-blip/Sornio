@@ -1,15 +1,27 @@
-import { demoProducts, demoTransactions, formatCurrency, getAlerts, summarizeFinancials } from '@/lib/business-data';
+'use client';
 
-const snapshot = summarizeFinancials(demoTransactions);
-const alerts = getAlerts(snapshot, demoProducts);
+import Link from 'next/link';
+import { formatCurrency, getAlerts } from '@/lib/business-data';
+import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
 
 export default function DashboardPage() {
+  const { state } = useDukaanStore();
+  const snapshot = useFinancialSnapshot();
+  const alerts = getAlerts(snapshot, state.products);
+
   const cards = [
     { label: 'Revenue', value: snapshot.revenue, tone: 'emerald' },
     { label: 'Gross Profit', value: snapshot.grossProfit, tone: 'blue' },
     { label: 'Operating Profit', value: snapshot.operatingProfit, tone: 'violet' },
     { label: 'Cash Position', value: snapshot.cashBalance, tone: 'amber' },
   ];
+
+  const today = new Date().toISOString().slice(0, 10);
+  const todays = state.transactions.filter((tx) => tx.date === today);
+  const salesToday = todays.filter((tx) => tx.type === 'sale');
+  const expensesToday = todays.filter((tx) => tx.type === 'expense');
+  const revenueToday = salesToday.reduce((sum, tx) => sum + tx.amount, 0);
+  const spendToday = expensesToday.reduce((sum, tx) => sum + tx.amount, 0);
 
   return (
     <div className="p-6 md:p-8">
@@ -42,10 +54,20 @@ export default function DashboardPage() {
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
           <h2 className="text-lg font-semibold text-slate-900">What Changed Today?</h2>
           <ul className="mt-4 space-y-3 text-sm text-slate-600">
-            <li>• Revenue increased because recorded sales were posted.</li>
-            <li>• Cash balance decreased because recorded expenses were paid from cash.</li>
-            <li>• Inventory decreased because sales reduced stock.</li>
-            <li>• Receivables increased because a sale was recorded as unpaid.</li>
+            {salesToday.length > 0 ? (
+              <li>• Revenue increased by <strong className="text-emerald-700">{formatCurrency(revenueToday)}</strong> across {salesToday.length} sale(s).</li>
+            ) : (
+              <li>• No sales recorded yet today. <Link href="/sales" className="font-medium text-slate-900">Record the first one.</Link></li>
+            )}
+            {expensesToday.length > 0 ? (
+              <li>• Cash decreased by <strong className="text-red-700">{formatCurrency(spendToday)}</strong> across {expensesToday.length} expense(s).</li>
+            ) : (
+              <li>• No expenses recorded today.</li>
+            )}
+            {todays.some((tx) => tx.type === 'stock_adjustment') ? (
+              <li>• Inventory decreased because sales consumed stock.</li>
+            ) : null}
+            <li>• Cash position is {formatCurrency(snapshot.cashBalance)} and inventory value is {formatCurrency(snapshot.inventoryValue)}.</li>
           </ul>
         </section>
 
@@ -59,6 +81,9 @@ export default function DashboardPage() {
                 'rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-800'
               }>{alert.message}</div>
             ))}
+            {alerts.length === 0 ? (
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">Nothing needs attention right now.</div>
+            ) : null}
           </div>
         </section>
       </div>

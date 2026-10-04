@@ -42,6 +42,7 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
   - `insights.ts` — insights, AI tips, and business health scoring shapes
 - **`lib/services/ai-insights.ts`** — `AiInsightsEngine` computes the health score, live insights, and growth tips from snapshots, invoices, and subscriptions.
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
+- **`lib/store.tsx`** — an interactive demo store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, and raise/collect invoices; every action writes transactions into the ledger and the whole console recalculates. State persists to `localStorage` (reset from Settings).
 - **`supabase/schema.sql`** — multi-tenant Postgres schema. Every tenant table carries `business_id` and is protected by row-level security policies scoped to `business_members`.
 
 ## Principles

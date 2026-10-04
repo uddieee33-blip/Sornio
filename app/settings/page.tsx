@@ -1,4 +1,8 @@
+'use client';
+
+import { useState } from 'react';
 import { defaultBusinessSettings, sampleAuditEvents } from '@/lib/models/business';
+import { useDukaanStore } from '@/lib/store';
 
 const settings = defaultBusinessSettings;
 
@@ -30,6 +34,9 @@ function formatAuditDate(iso: string) {
 }
 
 export default function SettingsPage() {
+  const { actions } = useDukaanStore();
+  const [resetMessage, setResetMessage] = useState<string | null>(null);
+
   return (
     <div className="p-6 md:p-8">
       <div className="mx-auto max-w-6xl">
@@ -97,6 +104,23 @@ export default function SettingsPage() {
                   <span key={role} className="rounded-full bg-slate-100 px-3 py-1.5 text-xs font-medium text-slate-700">{role}</span>
                 ))}
               </div>
+            </div>
+
+            <div className="rounded-2xl border border-red-200 bg-white p-5 shadow-card">
+              <h2 className="text-lg font-semibold text-slate-900">Demo data</h2>
+              <p className="mt-1 text-sm text-slate-500">
+                All recorded activity lives in your browser. Reset returns the business to its seeded demo state.
+              </p>
+              {resetMessage ? <p className="mt-3 rounded-xl bg-emerald-50 px-3 py-2 text-sm text-emerald-700">{resetMessage}</p> : null}
+              <button
+                onClick={() => {
+                  actions.resetDemo();
+                  setResetMessage('Demo data restored to the seeded business.');
+                }}
+                className="mt-4 rounded-xl border border-red-300 bg-red-50 px-4 py-2 text-sm font-medium text-red-700"
+              >
+                Reset demo data
+              </button>
             </div>
           </div>
 
