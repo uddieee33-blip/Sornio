@@ -8,6 +8,7 @@ import {
   BarChart3,
   Bell,
   Brain,
+  Building2,
   Dumbbell,
   Gauge,
   Lock,
@@ -18,7 +19,7 @@ import {
   Sparkles,
   Store,
   TrendingUp,
-  Users,
+  UserRound,
   Zap,
 } from 'lucide-react';
 import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
@@ -45,25 +46,31 @@ const navLinks = [
 ];
 
 const features = [
-  { icon: Receipt, title: 'Billing & Receipts', desc: 'Invoices, digital and printed receipts, and a payment flow your customers actually enjoy.' },
+  { icon: Receipt, title: 'Billing & Receipts', desc: 'Invoices, digital receipts over SMS/WhatsApp, and printed bills handed over the counter.' },
   { icon: BarChart3, title: 'Live Ledger Reports', desc: 'Revenue, expenses, and profit recomputed from real transactions — never hardcoded.' },
-  { icon: Dumbbell, title: 'Memberships & Renewals', desc: 'Plans, subscriptions, auto reminders, and one-tap renewals that stop revenue leakage.' },
-  { icon: QrCode, title: 'Direct UPI QR', desc: 'A unique QR per customer that pays straight into their bank. You are never the middleman.' },
+  { icon: Dumbbell, title: 'Memberships & Renewals', desc: 'Monthly to annual plans with personalized expiry reminders that stop revenue leakage.' },
+  { icon: QrCode, title: 'Your own UPI QR', desc: 'Generated from your own bank details. Customers pay you directly — no gateway, no middleman, no fees.' },
   { icon: Brain, title: 'AI Insights', desc: 'A health score, growth tips, and anomaly alerts generated from your own numbers.' },
   { icon: Bell, title: 'Smart Alerts', desc: 'Low stock, expiring members, and cash-flow dips surfaced before they cost you money.' },
 ];
 
 const steps = [
-  { icon: Users, title: 'Capture details', desc: 'Add name, phone, and bank or UPI details in seconds.' },
-  { icon: QrCode, title: 'Generate a unique QR', desc: 'DukaanOS builds a UPI deep-link QR from the customer’s own UPI ID.' },
-  { icon: Banknote, title: 'Get paid directly', desc: 'Scan it in any UPI app — money lands in their bank, no middleman, no fees.' },
+  { icon: UserRound, title: 'Sign in & tell us about you', desc: 'Your name, phone, and business details — set up in under three minutes.' },
+  { icon: QrCode, title: 'Add your bank & UPI', desc: 'Your collection QR is generated instantly from your own UPI ID and bank account.' },
+  { icon: Banknote, title: 'Get paid directly', desc: 'Customers scan your QR in any UPI app. Money lands straight in your bank — we never touch it.' },
+];
+
+const heroSteps = [
+  { icon: UserRound, title: 'Sign in', desc: 'Your details, your business name, your phone.' },
+  { icon: Building2, title: 'Add your business', desc: 'Pick your type — gym, café, salon, shop, anything.' },
+  { icon: QrCode, title: 'Get your QR', desc: 'From your own bank. Collect payments from day one.' },
 ];
 
 const securityItems = [
   { icon: ShieldCheck, title: 'Locked-down responses', desc: 'Every page ships with Content-Security-Policy, HSTS, nosniff, and frame protection.' },
-  { icon: Lock, title: 'Zero fund custody', desc: 'UPI QR collections settle directly into customer bank accounts. We never hold your money.' },
-  { icon: Smartphone, title: 'Permissions denied', desc: 'Camera, microphone, geolocation, and payment APIs are blocked site-wide by policy.' },
-  { icon: Gauge, title: 'Local-first data', desc: 'In demo mode your ledger never leaves the browser. Supabase auth is wired and ready.' },
+  { icon: Lock, title: 'Zero fund custody', desc: 'Your UPI collections settle directly into your own bank account. We never hold or route money — so no liability can ever fall on us.' },
+  { icon: Smartphone, title: 'Your data, your device', desc: 'Your customers’ database lives on your device first. Optional Supabase sync is there when you want it.' },
+  { icon: Gauge, title: 'No secrets, ever', desc: 'We never ask for UPI PINs, OTPs, card PINs, or passwords — only the details needed to build your QR.' },
 ];
 
 const plans = [
@@ -137,26 +144,46 @@ export default function LandingPage() {
       {/* HERO */}
       <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-20 text-center md:pt-24">
         <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-300 animate-fade-up">
-          <Sparkles size={14} /> Built for Indian shops, gyms, salons & cafés
+          <Sparkles size={14} /> One operating system for every business — gyms, cafés, salons, shops & more
         </div>
-        <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl animate-fade-up">
-          Run your entire business<br className="hidden md:block" /> from <span className="bg-brand-gradient bg-clip-text text-transparent">one console</span>.
+        <h1 className="mx-auto max-w-4xl font-display text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl animate-fade-up">
+          Your business. Your money.<br className="hidden md:block" /> <span className="bg-brand-gradient bg-clip-text text-transparent">Straight to your bank.</span>
         </h1>
         <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-zinc-400 md:text-lg animate-fade-up">
-          Billing, inventory, memberships, and AI insights — all powered by a live ledger.
-          Collect payments with a unique UPI QR per customer, straight to their bank. No middleman.
+          DukaanOS runs your billing, inventory, memberships, and reports on one live ledger.
+          Your collection QR comes from <span className="font-semibold text-zinc-200">your own bank account</span> —
+          customers pay you directly. No gateway. No middleman. No liability.
         </p>
         <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row animate-fade-up">
-          <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
-            Launch the live console <ArrowRight size={16} />
+          <Link href="/auth" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
+            Start your business — free <ArrowRight size={16} />
           </Link>
-          <a href="#charts" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
-            See live charts
-          </a>
+          <Link href="/home" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
+            Peek at the live console
+          </Link>
+        </div>
+        <div className="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-medium text-zinc-500 animate-fade-up">
+          <span className="inline-flex items-center gap-1.5"><ShieldCheck size={13} className="text-emerald-400" /> No payment gateway — ever</span>
+          <span className="inline-flex items-center gap-1.5"><Smartphone size={13} className="text-brand-300" /> Customer data stays on your device</span>
+          <span className="inline-flex items-center gap-1.5"><Gauge size={13} className="text-brand-300" /> Set up in 3 minutes</span>
+        </div>
+
+        {/* how it works — the direct path */}
+        <div className="mx-auto mt-12 grid max-w-4xl gap-3 sm:grid-cols-3 animate-fade-up">
+          {heroSteps.map((step, index) => (
+            <div key={step.title} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-5 text-left backdrop-blur">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/25"><step.icon size={15} /></span>
+                <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-600">Step {index + 1}</span>
+              </div>
+              <p className="mt-3 text-sm font-bold text-white">{step.title}</p>
+              <p className="mt-1 text-xs leading-relaxed text-zinc-500">{step.desc}</p>
+            </div>
+          ))}
         </div>
 
         {/* hero stat strip */}
-        <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4 animate-fade-up">
+        <div className="mx-auto mt-8 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4 animate-fade-up">
           {[
             { icon: TrendingUp, label: 'Revenue (14d)', value: formatCurrency(financials.revenue) },
             { icon: Banknote, label: 'Net cash flow', value: formatCurrency(financials.netCashFlow) },
@@ -188,11 +215,12 @@ export default function LandingPage() {
           <div className="grid items-center gap-10 lg:grid-cols-2">
             <div>
               <SectionEyebrow index="02" label="No middleman. Ever." />
-              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">A unique UPI QR for every customer</h2>
+              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Your own UPI QR, from your own bank</h2>
               <p className="mt-4 text-sm leading-relaxed text-zinc-400 md:text-base">
-                Capture a customer&apos;s UPI ID and bank details once. DukaanOS generates a personal
-                <span className="font-semibold text-brand-300"> upi://pay</span> QR code that any UPI app can scan.
-                The money settles <span className="font-semibold text-white">directly into their bank</span> — you never hold or route it, and you pay no aggregator fees.
+                During setup you add your own UPI ID and bank account. DukaanOS generates your
+                <span className="font-semibold text-brand-300"> upi://pay</span> collection QR instantly.
+                Every payment settles <span className="font-semibold text-white">directly into your bank account</span> —
+                we never touch your money, so nothing you do can ever land on us.
               </p>
               <div className="mt-6 space-y-4">
                 {steps.map((step, index) => (
@@ -207,8 +235,8 @@ export default function LandingPage() {
                   </div>
                 ))}
               </div>
-              <Link href="/customers" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
-                Try the Customers page <ArrowRight size={15} />
+              <Link href="/auth" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
+                Get your QR — start free <ArrowRight size={15} />
               </Link>
             </div>
 
@@ -222,7 +250,7 @@ export default function LandingPage() {
                       return <span key={i} className={`rounded-[3px] ${on ? 'bg-[#0B0D12]' : 'bg-transparent'}`} />;
                     })}
                   </div>
-                  <p className="mt-4 text-center text-xs font-semibold tracking-wide text-zinc-700">riya.sharma@okhdfcbank</p>
+                  <p className="mt-4 text-center text-xs font-semibold tracking-wide text-zinc-700">yourbusiness@okhdfcbank</p>
                 </div>
                 <div className="absolute -right-4 -top-4 rounded-2xl border border-white/10 bg-[#161a23]/95 px-3.5 py-2.5 text-xs font-semibold text-emerald-400 shadow-2xl backdrop-blur">
                   <span className="flex items-center gap-1.5"><ShieldCheck size={13} /> Settles direct to bank</span>
@@ -305,7 +333,7 @@ export default function LandingPage() {
                 ))}
               </ul>
               <Link
-                href="/home"
+                href="/auth"
                 className={`mt-7 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${plan.highlight ? 'bg-brand-gradient text-white shadow-glow hover:brightness-110' : 'border border-white/10 bg-white/[0.04] text-zinc-200 hover:border-brand-400/40 hover:bg-white/[0.07]'}`}
               >
                 {plan.cta} <ArrowRight size={15} />
@@ -319,13 +347,13 @@ export default function LandingPage() {
       <section className="relative mx-auto max-w-5xl px-6 pb-24">
         <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.12] to-violet-500/[0.08] p-10 text-center md:p-14">
           <h2 className="relative font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Your business, finally in one place.</h2>
-          <p className="relative mx-auto mt-4 max-w-xl text-sm text-zinc-400 md:text-base">Jump into the live console — seeded with a real 14-day ledger so every chart, alert, and QR is already working.</p>
+          <p className="relative mx-auto mt-4 max-w-xl text-sm text-zinc-400 md:text-base">Sign in, add your business and your bank, and start collecting payments today — or jump straight into the live console.</p>
           <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
-              Open the console <ArrowRight size={16} />
+            <Link href="/auth" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
+              Start your business — free <ArrowRight size={16} />
             </Link>
-            <Link href="/auth" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-7 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
-              Sign in
+            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-7 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
+              Open the console
             </Link>
           </div>
         </div>

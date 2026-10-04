@@ -22,7 +22,8 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Marketing landing page |
+| `/` | Landing — tagline, live charts, direct "start your business" flow |
+| `/auth` → `/onboarding` | Sign in → 3-step setup: owner details, business + template, bank/UPI → owner's own collection QR |
 | `/home` | **Owner Cockpit** — greeting, KPIs, what-changed-today, renewals, low stock |
 | `/dashboard` | Business reality dashboard with alerts |
 | `/business` | Business setup with type-specific templates |

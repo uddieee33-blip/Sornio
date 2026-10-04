@@ -35,7 +35,8 @@ export default function AuthPage() {
 
   const openConsole = () => {
     setStatus('success');
-    setTimeout(() => router.push('/home'), 550);
+    // New owners complete their business + bank setup; returning owners can review it.
+    setTimeout(() => router.push('/onboarding'), 550);
   };
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -185,7 +186,7 @@ export default function AuthPage() {
           >
             {status === 'idle' && <>{mode === 'signup' ? 'Create account' : 'Sign in'} <ArrowRight size={16} /></>}
             {status === 'working' && <><Loader2 size={16} className="animate-spin" /> Verifying credentials…</>}
-            {status === 'success' && <><Check size={16} /> Welcome back — opening console</>}
+            {status === 'success' && <><Check size={16} /> Welcome — setting up your business</>}
           </button>
 
           <p className="mt-4 text-center text-xs text-zinc-500">

@@ -65,7 +65,7 @@ export type MarketingCampaign = {
   startDate: string;
 };
 
-/** The live business identity — name, template, and collection details. */
+/** The live business identity — owner, business, and collection details. */
 export type BusinessProfile = {
   name: string;
   /** Which business-type template shapes this business (see lib/models/business). */
@@ -73,8 +73,17 @@ export type BusinessProfile = {
   description: string;
   currency: string;
   timezone: string;
+  /** Owner contact details captured at onboarding. */
+  ownerName?: string;
+  ownerPhone?: string;
+  ownerEmail?: string;
   /** The owner's own UPI ID for receiving payments (never bank credentials). */
   upiId?: string;
+  /**
+   * The owner's own bank + UPI details, used ONLY to derive their collection QR.
+   * Never PINs, OTPs, passwords, or card numbers.
+   */
+  bank?: BankDetails;
 };
 
 export const defaultBusinessProfile: BusinessProfile = {
@@ -268,7 +277,17 @@ export function buildSeedState(): StoreState {
       description: 'Neighborhood gym with membership plans, personal training, and renewal automation.',
       currency: 'INR',
       timezone: 'Asia/Kolkata',
+      ownerName: 'Rohit Kapoor',
+      ownerPhone: '+91 98100 12345',
+      ownerEmail: 'rohit@cultfitness.in',
       upiId: 'cultfitness@okhdfcbank',
+      bank: {
+        upiId: 'cultfitness@okhdfcbank',
+        bankName: 'HDFC Bank',
+        accountNumber: '50100234567890',
+        ifsc: 'HDFC0001234',
+        accountHolder: 'Rohit Kapoor',
+      },
     },
     products: demoProducts,
     transactions: buildSeedLedger(),
@@ -856,6 +875,9 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       if (patch.name !== undefined && !patch.name.trim()) return { ok: false, error: 'Business name is required.' };
       if (patch.upiId && !isValidUpiId(patch.upiId)) {
         return { ok: false, error: 'Enter a valid UPI ID (e.g. businessname@bank).' };
+      }
+      if (patch.bank?.ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(patch.bank.ifsc.toUpperCase().trim())) {
+        return { ok: false, error: 'Enter a valid IFSC code (e.g. HDFC0001234).' };
       }
       setState((current) => ({
         ...current,
