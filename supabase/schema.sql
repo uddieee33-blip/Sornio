@@ -278,3 +278,232 @@ CREATE POLICY "Business members view audit logs" ON audit_logs
 
 CREATE POLICY "Business members insert audit logs" ON audit_logs
   FOR INSERT WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- Universal business, billing, membership, and AI insight models
+-- ---------------------------------------------------------------------------
+
+CREATE TABLE IF NOT EXISTS business_settings (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL UNIQUE REFERENCES businesses(id) ON DELETE CASCADE,
+  receipt_mode TEXT NOT NULL DEFAULT 'both' CHECK (receipt_mode IN ('digital','physical','both')),
+  send_sms_reminders BOOLEAN NOT NULL DEFAULT TRUE,
+  send_whatsapp_reminders BOOLEAN NOT NULL DEFAULT TRUE,
+  auto_generate_invoice_number BOOLEAN NOT NULL DEFAULT TRUE,
+  tax_rate NUMERIC(6,2) NOT NULL DEFAULT 0,
+  allow_memberships BOOLEAN NOT NULL DEFAULT TRUE,
+  allow_inventory BOOLEAN NOT NULL DEFAULT TRUE,
+  allow_appointments BOOLEAN NOT NULL DEFAULT FALSE,
+  allow_digital_receipts BOOLEAN NOT NULL DEFAULT TRUE,
+  allow_physical_receipts BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  invoice_number TEXT,
+  customer_id UUID REFERENCES customers(id) ON DELETE SET NULL,
+  customer_name TEXT NOT NULL,
+  customer_phone TEXT,
+  payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash','UPI','Card','Bank Transfer','Other')),
+  payment_status TEXT NOT NULL DEFAULT 'pending' CHECK (payment_status IN ('paid','pending','partial','failed')),
+  receipt_mode TEXT NOT NULL DEFAULT 'both' CHECK (receipt_mode IN ('digital','physical','both')),
+  subtotal NUMERIC(12,2) NOT NULL DEFAULT 0,
+  tax NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total_amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  due_date TIMESTAMPTZ,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS invoice_items (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  invoice_id UUID NOT NULL REFERENCES invoices(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  category TEXT,
+  quantity NUMERIC(12,3) NOT NULL DEFAULT 1,
+  unit_price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  total NUMERIC(12,2) NOT NULL DEFAULT 0,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS payment_records (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  invoice_id UUID REFERENCES invoices(id) ON DELETE SET NULL,
+  customer_name TEXT NOT NULL,
+  amount NUMERIC(12,2) NOT NULL DEFAULT 0,
+  payment_method TEXT NOT NULL CHECK (payment_method IN ('Cash','UPI','Card','Bank Transfer','Other')),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('paid','pending','partial','failed')),
+  gateway TEXT NOT NULL DEFAULT 'Manual' CHECK (gateway IN ('Razorpay','UPI','Cash','Manual')),
+  payment_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS membership_plans (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  type TEXT NOT NULL CHECK (type IN ('monthly','quarterly','half_yearly','annual')),
+  duration_months INTEGER NOT NULL DEFAULT 1,
+  price NUMERIC(12,2) NOT NULL DEFAULT 0,
+  description TEXT,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS members (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  phone TEXT,
+  email TEXT,
+  preferred_channel TEXT NOT NULL DEFAULT 'both' CHECK (preferred_channel IN ('sms','whatsapp','both')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS membership_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  plan_id UUID NOT NULL REFERENCES membership_plans(id) ON DELETE RESTRICT,
+  start_date TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  expiry_date TIMESTAMPTZ NOT NULL,
+  auto_renew BOOLEAN NOT NULL DEFAULT FALSE,
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active','expiring_soon','expired','paused')),
+  reminder_sent_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS reminder_templates (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  channel TEXT NOT NULL DEFAULT 'both' CHECK (channel IN ('sms','whatsapp','both')),
+  message TEXT NOT NULL,
+  days_before_expiry INTEGER NOT NULL DEFAULT 3,
+  is_active BOOLEAN NOT NULL DEFAULT TRUE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS insights (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  type TEXT NOT NULL CHECK (type IN ('trend','warning','opportunity','growth')),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  metric NUMERIC(14,2) NOT NULL DEFAULT 0,
+  metric_label TEXT,
+  actionable BOOLEAN NOT NULL DEFAULT FALSE,
+  action TEXT,
+  priority TEXT NOT NULL DEFAULT 'medium' CHECK (priority IN ('low','medium','high')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS ai_tips (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  category TEXT NOT NULL CHECK (category IN ('membership','revenue','customers','inventory','growth')),
+  title TEXT NOT NULL,
+  description TEXT NOT NULL,
+  implementation TEXT,
+  expected_impact TEXT,
+  difficulty TEXT NOT NULL DEFAULT 'medium' CHECK (difficulty IN ('easy','medium','hard')),
+  estimated_time TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_business_id ON invoices (business_id);
+CREATE INDEX IF NOT EXISTS idx_invoice_items_invoice_id ON invoice_items (invoice_id);
+CREATE INDEX IF NOT EXISTS idx_payment_records_business_id ON payment_records (business_id);
+CREATE INDEX IF NOT EXISTS idx_membership_plans_business_id ON membership_plans (business_id);
+CREATE INDEX IF NOT EXISTS idx_members_business_id ON members (business_id);
+CREATE INDEX IF NOT EXISTS idx_membership_subscriptions_business_id ON membership_subscriptions (business_id);
+CREATE INDEX IF NOT EXISTS idx_membership_subscriptions_expiry ON membership_subscriptions (business_id, expiry_date);
+CREATE INDEX IF NOT EXISTS idx_reminder_templates_business_id ON reminder_templates (business_id);
+CREATE INDEX IF NOT EXISTS idx_insights_business_id ON insights (business_id);
+CREATE INDEX IF NOT EXISTS idx_ai_tips_business_id ON ai_tips (business_id);
+
+ALTER TABLE business_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE invoice_items ENABLE ROW LEVEL SECURITY;
+ALTER TABLE payment_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE membership_plans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE members ENABLE ROW LEVEL SECURITY;
+ALTER TABLE membership_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE reminder_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE insights ENABLE ROW LEVEL SECURITY;
+ALTER TABLE ai_tips ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Business members manage business settings" ON business_settings
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage invoices" ON invoices
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage invoice items" ON invoice_items
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage payment records" ON payment_records
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage membership plans" ON membership_plans
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage members" ON members
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage membership subscriptions" ON membership_subscriptions
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage reminder templates" ON reminder_templates
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage insights" ON insights
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage AI tips" ON ai_tips
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- ============================================================================
+-- Increment 7: marketing activity tracking (campaigns + spend)
+-- Spend recorded here should also be mirrored in expenses when money is spent.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS marketing_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  channel TEXT NOT NULL CHECK (channel IN ('Social Media','Google Ads','Print','Radio','Events','Referrals','Other')),
+  spend NUMERIC(12,2) NOT NULL DEFAULT 0,
+  notes TEXT,
+  start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_campaigns_business_id ON marketing_campaigns (business_id);
+
+ALTER TABLE marketing_campaigns ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Business members manage marketing campaigns" ON marketing_campaigns
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));

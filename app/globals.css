@@ -1,22 +1,40 @@
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/space-grotesk';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 :root {
-  color-scheme: light;
+  color-scheme: dark;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
 
 html,
 body {
   margin: 0;
   padding: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
+  background: #0b0d12;
+  color: #e4e4e7;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f8fafc;
-  color: #0f172a;
+  text-rendering: optimizeLegibility;
 }
 
 * {
@@ -25,6 +43,7 @@ body {
 
 body {
   min-height: 100vh;
+  font-family: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
 }
 
 input,
@@ -32,4 +51,64 @@ textarea,
 button,
 select {
   font: inherit;
+}
+
+/* Numbers align cleanly in tables and stat blocks */
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slim dark scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.14);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Dark-friendly native select dropdowns */
+select option {
+  background-color: #12151d;
+  color: #e4e4e7;
+}
+
+/* ---- Printable receipts (physical, hand-to-hand bills) ---- */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #ffffff !important; }
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #111111 !important;
+  }
+  .print-area * {
+    color: #111111 !important;
+    border-color: #d4d4d8 !important;
+    background: transparent !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+  .no-print, .no-print * { display: none !important; }
+  .print-area table thead { background: #f4f4f5 !important; }
+  .print-area table thead th { color: #3f3f46 !important; }
 }

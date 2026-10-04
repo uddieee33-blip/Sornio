@@ -75,3 +75,67 @@ export const sampleInvoices: Invoice[] = [
     notes: 'Cafe order receipt',
   },
 ];
+
+export const samplePaymentRecords: PaymentRecord[] = [
+  {
+    id: 'pay-1',
+    businessId: 'biz-1',
+    invoiceId: 'INV-1001',
+    customerName: 'John Wilson',
+    amount: 4999,
+    paymentMethod: 'UPI',
+    status: 'paid',
+    paymentDate: '2026-10-02T10:04:00.000Z',
+    gateway: 'UPI',
+  },
+  {
+    id: 'pay-2',
+    businessId: 'biz-2',
+    invoiceId: 'INV-1002',
+    customerName: 'Aisha Khan',
+    amount: 500,
+    paymentMethod: 'Cash',
+    status: 'partial',
+    paymentDate: '2026-10-02T12:45:00.000Z',
+    gateway: 'Cash',
+  },
+  {
+    id: 'pay-3',
+    businessId: 'biz-1',
+    customerName: 'Priya Nair',
+    amount: 15999,
+    paymentMethod: 'Card',
+    status: 'paid',
+    paymentDate: '2026-09-25T16:20:00.000Z',
+    gateway: 'Razorpay',
+  },
+  {
+    id: 'pay-4',
+    businessId: 'biz-1',
+    invoiceId: 'INV-1001',
+    customerName: 'John Wilson',
+    amount: 0,
+    paymentMethod: 'UPI',
+    status: 'failed',
+    paymentDate: '2026-10-02T09:58:00.000Z',
+    gateway: 'UPI',
+  },
+];
+
+export function summarizePaymentRecords(records: PaymentRecord[]) {
+  const collected = records
+    .filter((record) => record.status === 'paid' || record.status === 'partial')
+    .reduce((sum, record) => sum + record.amount, 0);
+
+  const failed = records.filter((record) => record.status === 'failed').length;
+  const pending = records.filter((record) => record.status === 'pending').length;
+
+  const byMethod = records.reduce<Record<PaymentMethod, number>>((acc, record) => {
+    if (record.status === 'paid' || record.status === 'partial') {
+      acc[record.paymentMethod] = (acc[record.paymentMethod] ?? 0) + record.amount;
+    }
+    return acc;
+  }, { Cash: 0, UPI: 0, Card: 0, 'Bank Transfer': 0, Other: 0 });
+
+  return { collected, failed, pending, byMethod };
+}
