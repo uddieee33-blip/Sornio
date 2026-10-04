@@ -25,6 +25,7 @@ export default function HomePage() {
   const { state, hydrated } = useDukaanStore();
 
   const now = new Date();
+  const ownerName = state.profile.ownerName?.trim();
   const activeMembers = state.subscriptions.filter((s) => s.status === 'active' || s.status === 'expiring_soon').length;
   const revenue = revenueSeries(state.transactions);
   const methods = paymentsByMethod(state.transactions);
@@ -67,7 +68,7 @@ export default function HomePage() {
         <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl">
             <p className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-300 ring-1 ring-inset ring-brand-500/25">
-              <Sparkles size={13} /> {hydrated ? `${greeting(now.getHours())}, Rohit` : 'Welcome back'} · {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+              <Sparkles size={13} /> {hydrated ? `${greeting(now.getHours())}${ownerName ? `, ${ownerName}` : ''}` : 'Welcome back'} · {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
             <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
               Small Business.{' '}

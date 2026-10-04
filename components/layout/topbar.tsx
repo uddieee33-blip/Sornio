@@ -15,7 +15,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useEffect, useState } from 'react';
-import { ChevronRight, Command, Database, Lock, Search, WifiOff } from 'lucide-react';
+import { ChevronRight, Command, Database, Lock, Menu, Search, Store, WifiOff } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
 
 const TITLES: Record<string, string> = {
@@ -62,7 +62,13 @@ function useOnline(): boolean {
   return online;
 }
 
-export function Topbar({ onOpenCommand }: { onOpenCommand: () => void }) {
+export function Topbar({
+  onOpenCommand,
+  onOpenMobileMenu,
+}: {
+  onOpenCommand: () => void;
+  onOpenMobileMenu: () => void;
+}) {
   const pathname = usePathname();
   const online = useOnline();
   const { state, syncStatus } = useDukaanStore();
@@ -82,7 +88,26 @@ export function Topbar({ onOpenCommand }: { onOpenCommand: () => void }) {
   return (
     <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0b0d12]/85 backdrop-blur-xl">
       <div className="flex items-center gap-3 px-4 py-3 md:px-8">
-        <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-2 text-sm">
+        <div className="flex min-w-0 items-center gap-2 md:hidden">
+          <Link href="/home" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm">
+              <Store size={17} className="text-white" />
+            </span>
+            <span className="font-display text-sm font-bold tracking-tight text-white">DukaanOS</span>
+          </Link>
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            aria-label="Open navigation menu"
+            aria-haspopup="dialog"
+            aria-controls="mobile-navigation"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <Menu size={17} />
+          </button>
+        </div>
+
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-2 text-sm md:flex">
           <Link href="/home" className="shrink-0 text-zinc-500 transition hover:text-zinc-300">
             DukaanOS
           </Link>
