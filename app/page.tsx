@@ -18,13 +18,9 @@ import {
   Smartphone,
   Sparkles,
   Store,
-  TrendingUp,
   UserRound,
   Zap,
 } from 'lucide-react';
-import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
-import { buildSeedState } from '@/lib/store';
-import { useMemo } from 'react';
 
 // Charts are the heaviest dependency on this page — load them after first paint.
 const LiveCharts = dynamic(() => import('@/components/landing/live-charts').then((mod) => mod.LiveCharts), {
@@ -113,8 +109,6 @@ function SectionEyebrow({ index, label }: { index: string; label: string }) {
 }
 
 export default function LandingPage() {
-  const financials = useMemo(() => summarizeFinancials(buildSeedState().transactions), []);
-
   return (
     <div className="relative overflow-hidden">
       {/* single ambient glow — cheap radial gradient, no blur filters */}
@@ -182,13 +176,13 @@ export default function LandingPage() {
           ))}
         </div>
 
-        {/* hero stat strip */}
+        {/* the zero-start promise — no fabricated numbers, ever */}
         <div className="mx-auto mt-8 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4 animate-fade-up">
           {[
-            { icon: TrendingUp, label: 'Revenue (14d)', value: formatCurrency(financials.revenue) },
-            { icon: Banknote, label: 'Net cash flow', value: formatCurrency(financials.netCashFlow) },
-            { icon: Gauge, label: 'Gross margin', value: `${financials.grossMargin.toFixed(0)}%` },
-            { icon: ShieldCheck, label: 'Middleman fees', value: '₹0' },
+            { icon: Banknote, label: 'Opening cash', value: '₹0' },
+            { icon: QrCode, label: 'Opening UPI', value: '₹0' },
+            { icon: ShieldCheck, label: 'Fabricated data', value: '0' },
+            { icon: Gauge, label: 'Middleman fees', value: '₹0' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 backdrop-blur">
               <stat.icon size={17} className="mx-auto text-brand-300" />
@@ -197,14 +191,23 @@ export default function LandingPage() {
             </div>
           ))}
         </div>
+        <p className="mx-auto mt-4 max-w-xl text-xs leading-relaxed text-zinc-600">
+          Every new business starts at zero. Every rupee on your dashboard appears only when you record a real sale or expense.
+        </p>
       </section>
 
       {/* 01 — LIVE CHARTS */}
       <section id="charts" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
         <div className="mb-10 text-center">
-          <SectionEyebrow index="01" label="Live from the ledger" />
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Charts that move when your business moves</h2>
-          <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">Every graph below is computed from the same seeded transactions that power the console — record a sale and watch it change.</p>
+          <SectionEyebrow index="01" label="Sample preview" />
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">This is what your dashboard looks like</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">
+            The charts below run on clearly-labelled <span className="font-semibold text-zinc-200">sample data</span> so you can see the product working.
+            Your own business starts at ₹0 — only the sales and expenses you record will ever move your charts.
+          </p>
+          <p className="mx-auto mt-4 inline-flex items-center gap-2 rounded-full border border-amber-500/25 bg-amber-500/10 px-4 py-1.5 text-xs font-bold text-amber-400">
+            <Gauge size={13} /> Sample data only — never real or fabricated business numbers
+          </p>
         </div>
         <LiveCharts />
       </section>
