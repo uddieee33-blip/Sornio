@@ -80,9 +80,12 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
 /** Push the core financial records for the tenant to Supabase. */
 export async function pushStateToSupabase(state: StoreState): Promise<SyncResult> {
   const supabase = getBrowserSupabaseClient();
-  const business = await ensureBusiness();
+  const business = await ensureBusiness(state.profile.name || 'My Business');
   if ('error' in business) return { ok: false, error: business.error };
   const businessId = business.id;
+
+  // Keep the tenant row's name in sync with the live business profile.
+  await supabase.from('businesses').update({ name: state.profile.name || 'My Business' }).eq('id', businessId);
 
   // ---- Products (with category lookup/creation by name) ----
   const categoryNames = Array.from(new Set(state.products.map((p) => p.category))).filter(Boolean);

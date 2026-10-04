@@ -9,7 +9,7 @@ import {
   type Transaction,
 } from '@/lib/business-data';
 import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
-import { defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
+import { businessTemplates, defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import {
@@ -65,9 +65,40 @@ export type MarketingCampaign = {
   startDate: string;
 };
 
+/** The live business identity — name, template, and collection details. */
+export type BusinessProfile = {
+  name: string;
+  /** Which business-type template shapes this business (see lib/models/business). */
+  templateId: string;
+  description: string;
+  currency: string;
+  timezone: string;
+  /** The owner's own UPI ID for receiving payments (never bank credentials). */
+  upiId?: string;
+};
+
+export const defaultBusinessProfile: BusinessProfile = {
+  name: 'My Business',
+  templateId: '',
+  description: '',
+  currency: 'INR',
+  timezone: 'Asia/Kolkata',
+};
+
+/** How each business-type template configures the operating modules. */
+const TEMPLATE_PRESETS: Record<string, Partial<BusinessSettings>> = {
+  'template-gym': { allowMemberships: true, allowInventory: false, allowAppointments: false, receiptMode: 'both', sendSmsReminders: true, sendWhatsappReminders: true },
+  'template-cafe': { allowMemberships: true, allowInventory: true, allowAppointments: false, receiptMode: 'both', sendSmsReminders: false, sendWhatsappReminders: true },
+  'template-grocery': { allowMemberships: false, allowInventory: true, allowAppointments: false, receiptMode: 'physical', sendSmsReminders: false, sendWhatsappReminders: false },
+  'template-salon': { allowMemberships: true, allowInventory: false, allowAppointments: true, receiptMode: 'both', sendSmsReminders: true, sendWhatsappReminders: true },
+  'template-electronics': { allowMemberships: false, allowInventory: true, allowAppointments: false, receiptMode: 'digital', sendSmsReminders: false, sendWhatsappReminders: false },
+};
+
+
 export type StoreState = {
   /** True while viewing the clearly-separated demo business (sample data). */
   demoMode: boolean;
+  profile: BusinessProfile;
   products: Product[];
   transactions: Transaction[];
   customers: Customer[];
@@ -200,6 +231,7 @@ function methodGateway(method: PaymentMethod): PaymentRecord['gateway'] {
 export function buildEmptyState(): StoreState {
   return {
     demoMode: false,
+    profile: { ...defaultBusinessProfile },
     products: [],
     transactions: [],
     customers: [],
@@ -230,6 +262,14 @@ export function buildEmptyState(): StoreState {
 export function buildSeedState(): StoreState {
   return {
     demoMode: true,
+    profile: {
+      name: 'Cult Fitness',
+      templateId: 'template-gym',
+      description: 'Neighborhood gym with membership plans, personal training, and renewal automation.',
+      currency: 'INR',
+      timezone: 'Asia/Kolkata',
+      upiId: 'cultfitness@okhdfcbank',
+    },
     products: demoProducts,
     transactions: buildSeedLedger(),
     customers: demoCustomers.map((customer, index) => ({
@@ -283,6 +323,8 @@ export type StoreActions = {
   markInvoicePaid: (invoiceId: string) => ActionResult;
   updateProduct: (productId: string, patch: Partial<Omit<Product, 'id'>>) => ActionResult;
   addCampaign: (input: { name: string; channel: MarketingCampaign['channel']; spend: number; notes?: string }) => ActionResult;
+  updateProfile: (patch: Partial<BusinessProfile>) => ActionResult;
+  applyTemplate: (templateId: string) => ActionResult;
   loadDemoBusiness: () => void;
   startFreshBusiness: () => void;
   syncNow: () => Promise<void>;
@@ -347,6 +389,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           setState({
             ...parsed,
             demoMode: parsed.demoMode ?? false,
+            profile: parsed.profile ?? defaultBusinessProfile,
             settings: parsed.settings ?? defaultBusinessSettings,
             audit: Array.isArray(parsed.audit) ? parsed.audit : [],
             campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
@@ -806,6 +849,35 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         }));
       }
       track('marketing', `Marketing campaign \"${name.trim()}\" recorded (${channel}, spend ${formatAuditAmount(spend)}).`, campaign.id);
+      return { ok: true };
+    },
+
+    updateProfile(patch) {
+      if (patch.name !== undefined && !patch.name.trim()) return { ok: false, error: 'Business name is required.' };
+      if (patch.upiId && !isValidUpiId(patch.upiId)) {
+        return { ok: false, error: 'Enter a valid UPI ID (e.g. businessname@bank).' };
+      }
+      setState((current) => ({
+        ...current,
+        profile: {
+          ...current.profile,
+          ...patch,
+          ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+        },
+      }));
+      return { ok: true };
+    },
+
+    applyTemplate(templateId) {
+      const template = businessTemplates.find((t) => t.id === templateId);
+      if (!template) return { ok: false, error: 'Unknown business template.' };
+      const preset = TEMPLATE_PRESETS[templateId] ?? {};
+      setState((current) => ({
+        ...current,
+        profile: { ...current.profile, templateId },
+        settings: { ...current.settings, ...preset },
+      }));
+      track('settings', `Applied the "${template.name}" business template — modules configured for ${template.category} operations.`);
       return { ok: true };
     },
 

@@ -81,3 +81,34 @@ select option {
   background-color: #12151d;
   color: #e4e4e7;
 }
+
+/* ---- Printable receipts (physical, hand-to-hand bills) ---- */
+@media print {
+  @page { margin: 14mm; }
+  body { background: #ffffff !important; }
+  body * { visibility: hidden; }
+  .print-area, .print-area * { visibility: visible; }
+  .print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 0;
+    background: #ffffff !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #111111 !important;
+  }
+  .print-area * {
+    color: #111111 !important;
+    border-color: #d4d4d8 !important;
+    background: transparent !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+  .no-print, .no-print * { display: none !important; }
+  .print-area table thead { background: #f4f4f5 !important; }
+  .print-area table thead th { color: #3f3f46 !important; }
+}

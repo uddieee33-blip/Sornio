@@ -31,6 +31,7 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 | `/cashflow`, `/profitability` | Cash movements by account · margins & per-product profit |
 | `/transactions`, `/reports`, `/comparisons` | Ledger traceability and analysis |
 | `/memberships` | Plans, subscriptions, renewal reminders |
+| `/reminders` | Personalized SMS & WhatsApp renewal drafts (deep links, no middleware) |
 | `/customers` | Profiles, balances, receivables, unique UPI QR per customer |
 | `/marketing` | Campaign tracking; spend is booked as a real expense |
 | `/team` | Roles & permissions matrix |
@@ -60,6 +61,8 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 4. **Universal models** — one business/billing/membership/insight model serves gyms, cafes, salons, and retail alike.
 5. **Traceability** — every invoice, payment, stock movement, and setting change lands in the audit trail.
 6. **No sensitive credentials** — payment methods are recorded without ever requesting or storing UPI PINs, bank passwords, OTPs, or card numbers.
+7. **One engine, every business** — business-type templates (`lib/models/business.ts`) configure modules for gyms, cafés, groceries, salons, electronics, and any other business.
+8. **Direct UPI, no middleman** — each owner's own bank UPI ID generates their collection QR; receipts print as physical bills, and membership renewals get personalized SMS/WhatsApp drafts.
 
 ## Database foundation (Supabase Postgres)
 

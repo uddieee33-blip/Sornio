@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, CreditCard, FilePlus2, Plus, Receipt, Trash2 } from 'lucide-react';
+import { CheckCircle2, CreditCard, FilePlus2, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
@@ -58,20 +58,27 @@ export default function BillingPage() {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
           {selected ? (
-            <Card className="animate-fade-up relative overflow-hidden">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
+            <Card className="print-area animate-fade-up relative overflow-hidden">
+              <div className="no-print pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Invoice</p>
-                  <h2 className="mt-1 font-display text-2xl font-bold text-white">{selected.id}</h2>
+                  <p className="font-display text-lg font-bold text-white print:text-2xl">{state.profile.name}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Invoice · {selected.id}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={statusTone[selected.paymentStatus]} dot>{selected.paymentStatus}</Badge>
                   {selected.paymentStatus !== 'paid' ? (
-                    <button onClick={() => handleMarkPaid(selected.id)} className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25">
+                    <button onClick={() => handleMarkPaid(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25">
                       <CheckCircle2 size={13} /> Mark paid
                     </button>
                   ) : null}
+                  <button
+                    onClick={() => window.print()}
+                    className="no-print inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-zinc-300 ring-1 ring-inset ring-white/[0.08] transition hover:bg-white/[0.1]"
+                    title="Print this bill as a physical receipt"
+                  >
+                    <Printer size={13} /> Print bill
+                  </button>
                 </div>
               </div>
 
@@ -113,6 +120,12 @@ export default function BillingPage() {
                 <div className="flex justify-between"><span>Tax</span><span className="tabular-nums">{formatCurrency(selected.tax)}</span></div>
                 <div className="flex justify-between border-t border-white/10 pt-2 text-base font-bold text-white"><span>Total</span><span className="tabular-nums">{formatCurrency(selected.totalAmount)}</span></div>
               </div>
+
+              {state.profile.upiId ? (
+                <p className="mt-6 hidden border-t border-dashed border-white/15 pt-4 text-center text-xs text-zinc-500 print:block">
+                  Pay via UPI: {state.profile.upiId} · Thank you for your business!
+                </p>
+              ) : null}
             </Card>
           ) : null}
 

@@ -17,6 +17,7 @@ export function MobileNav() {
     { href: '/cashflow', label: 'Cash Flow' },
     { href: '/profitability', label: 'Profit' },
     { href: '/memberships', label: 'Memberships' },
+    { href: '/reminders', label: 'Reminders' },
     { href: '/customers', label: 'Customers' },
     { href: '/inventory', label: 'Inventory' },
     { href: '/marketing', label: 'Marketing' },

@@ -6,6 +6,7 @@ import {
   ArrowLeftRight,
   BarChart3,
   Bell,
+  BellRing,
   Building2,
   CircleDollarSign,
   Columns2,
@@ -57,6 +58,7 @@ const sections: { title: string; links: { href: string; label: string; icon: Luc
     title: 'People',
     links: [
       { href: '/memberships', label: 'Memberships', icon: Dumbbell },
+      { href: '/reminders', label: 'Reminders', icon: BellRing },
       { href: '/customers', label: 'Customers', icon: Users },
       { href: '/suppliers', label: 'Suppliers', icon: Truck },
       { href: '/team', label: 'Team & Roles', icon: ShieldCheck },
