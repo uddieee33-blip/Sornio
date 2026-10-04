@@ -10,6 +10,7 @@ import { StatCard } from '@/components/ui/stat-card';
 import { CustomerDetailModal } from '@/components/customers/customer-detail-modal';
 import { formatCurrency } from '@/lib/business-data';
 import { isValidUpiId, normalizeUpiId, upiAccentColor, type BankDetails } from '@/lib/upi';
+import { ExportButton } from '@/components/export/export-button';
 import { useDukaanStore, type Customer } from '@/lib/store';
 
 const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
@@ -81,7 +82,14 @@ export default function CustomersPage() {
         eyebrow="People"
         title="Customers"
         subtitle="Profiles with bank & UPI details — each customer gets a unique payment QR, no middleman."
-        actions={<Badge tone="brand" dot>{upiReadyCount}/{state.customers.length} QR-ready</Badge>}
+        actions={
+          <>
+            <Badge tone="brand" dot>
+              {upiReadyCount}/{state.customers.length} QR-ready
+            </Badge>
+            <ExportButton kinds={['customers', 'everything']} label="Export list" />
+          </>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-3 animate-fade-up">

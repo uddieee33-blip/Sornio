@@ -5,10 +5,20 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, Store } from 'lucide-react';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
+import { consume } from '@/lib/security/rate-limit';
 
 const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-11 pr-11 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
-const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+/**
+ * Local guard against credential-stuffing from this browser.
+ *
+ * Honest about its scope: this protects the person at the keyboard from a
+ * runaway script and gives a clear message on repeated failures. The real
+ * limit lives server-side (Supabase Auth), because a client-side throttle is
+ * always bypassable.
+ */
+const AUTH_ATTEMPT_RULE = { limit: 5, windowMs: 60_000 };
 
 /** Real Supabase Auth when credentials exist; clearly-labelled demo mode otherwise. */
 const supabaseReady = isSupabaseConfigured();
@@ -23,12 +33,16 @@ export default function AuthPage() {
   const [status, setStatus] = useState<'idle' | 'working' | 'success'>('idle');
   const [errors, setErrors] = useState<{ email?: string; password?: string; form?: string }>({});
 
+  const strength = passwordStrength(password);
+
   const validate = () => {
     const next: typeof errors = {};
-    if (!email.trim()) next.email = 'Email is required.';
-    else if (!EMAIL_REGEX.test(email.trim())) next.email = 'Enter a valid email address.';
+    const candidate = cleanLine(email, 254);
+    if (!candidate) next.email = 'Email is required.';
+    else if (!isEmail(candidate)) next.email = 'Enter a valid email address.';
     if (!password) next.password = 'Password is required.';
-    else if (password.length < 8) next.password = 'Password must be at least 8 characters.';
+    else if (password.length < LIMITS.minPassword) next.password = `Password must be at least ${LIMITS.minPassword} characters.`;
+    else if (mode === 'signup' && strength.score < 2) next.password = `Choose something stronger. ${strength.advice}`;
     setErrors(next);
     return Object.keys(next).length === 0;
   };
@@ -43,6 +57,13 @@ export default function AuthPage() {
     event.preventDefault();
     if (status !== 'idle') return;
     if (!validate()) return;
+
+    // Throttle repeated attempts from this browser before doing any work.
+    const attempt = consume(`auth-ui:${email.trim().toLowerCase().slice(0, 60)}`, AUTH_ATTEMPT_RULE);
+    if (!attempt.allowed) {
+      setErrors({ form: `Too many attempts. Please wait ${attempt.retryAfter}s and try again.` });
+      return;
+    }
 
     setStatus('working');
 
@@ -153,7 +174,7 @@ export default function AuthPage() {
                 <input
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
-                  placeholder="Password (8+ characters)"
+                  placeholder={`Password (${LIMITS.minPassword}+ characters)`}
                   value={password}
                   onChange={(e) => { setPassword(e.target.value); if (errors.password) setErrors((current) => ({ ...current, password: undefined })); }}
                   className={`${inputClass} ${errors.password ? 'border-red-500/50' : ''}`}
@@ -168,6 +189,30 @@ export default function AuthPage() {
                 </button>
               </div>
               {fieldError(errors.password)}
+
+              {mode === 'signup' && password ? (
+                <div className="mt-2.5" aria-live="polite">
+                  <div className="flex gap-1.5" aria-hidden>
+                    {[0, 1, 2, 3].map((step) => (
+                      <span
+                        key={step}
+                        className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                          strength.score > step
+                            ? strength.score >= 3
+                              ? 'bg-emerald-400'
+                              : strength.score === 2
+                                ? 'bg-amber-400'
+                                : 'bg-red-400'
+                            : 'bg-white/[0.08]'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-zinc-500">
+                    {strength.score >= 3 ? 'Strong password.' : strength.advice}
+                  </p>
+                </div>
+              ) : null}
             </div>
           </div>
 
@@ -192,13 +237,13 @@ export default function AuthPage() {
           <p className="mt-4 text-center text-xs text-zinc-500">
             {supabaseReady
               ? 'Secured by Supabase Auth — passwords are never stored by the app.'
-              : `Demo build — any valid email + 8-character password opens the console${remember ? ' and stays signed in on this device' : ''}.`}
+              : `Demo build — any valid email + a ${LIMITS.minPassword}-character password opens the console${remember ? ' and stays signed in on this device' : ''}.`}
           </p>
         </form>
 
         <div className="mt-6 flex items-center justify-center gap-2 text-xs text-zinc-600">
           <ShieldCheck size={13} className="text-emerald-500" />
-          <span>Served with CSP, HSTS & nosniff headers · Supabase Auth ready</span>
+          <span>Locked-down CSP, nosniff &amp; strict referrer policy · records encrypted on your device</span>
         </div>
 
         <p className="mt-4 text-center text-xs">
