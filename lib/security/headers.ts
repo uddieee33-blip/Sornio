@@ -61,11 +61,12 @@ export function buildFramingHeaders(posture: SecurityPosture = resolvePosture())
       { key: 'Content-Security-Policy', value: buildContentSecurityPolicy(posture) },
     ];
   }
-  // Previews are embedded in an iframe, so DENY would blank the app.
-  return [
-    { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
-    { key: 'Content-Security-Policy', value: buildContentSecurityPolicy(posture) },
-  ];
+  // Previews are embedded in an iframe from the platform's own host, which is
+  // cross-origin to this app. `X-Frame-Options: SAMEORIGIN` would silently
+  // blank the preview — and browsers apply it *in addition to* CSP, so sending
+  // it would override the permissive policy. Omit it entirely and let
+  // `frame-ancestors` (permissive here, locked down in strict posture) decide.
+  return [{ key: 'Content-Security-Policy', value: buildContentSecurityPolicy(posture) }];
 }
 
 /** Everything that goes on literally every response. */

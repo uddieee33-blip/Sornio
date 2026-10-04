@@ -89,8 +89,14 @@ export async function middleware(request: NextRequest) {
 
   const { scope, rule } = ruleForPath(pathname, RATE_TABLE);
   const decision = consume(`${scope}:${fingerprint}`, rule);
-  // Cheap burst guard sits on top of the per-scope budget.
-  const burst = consume(`burst:${fingerprint}`, RATE_TABLE.burst);
+
+  // A second, shorter-window guard sits on top of the per-scope budget. It is
+  // deliberately generous for page traffic: the app prefetches its own routes,
+  // and throttling our own navigation would be self-inflicted. API and
+  // mutating requests get the tight budget, where it actually protects
+  // something (credential stuffing, scripted writes).
+  const burstRuleName = pathname.startsWith('/api/') || !isSafeMethod(method) ? 'burstApi' : 'burstPage';
+  const burst = consume(`${burstRuleName}:${fingerprint}`, RATE_TABLE[burstRuleName]);
 
   if (!decision.allowed || !burst.allowed) {
     const throttled = decision.allowed ? burst : decision;
@@ -178,6 +184,8 @@ export async function middleware(request: NextRequest) {
     cacheHeaderFor(pathname),
     { key: REQUEST_ID_HEADER, value: requestId },
     { key: 'Vary', value: 'Accept-Encoding' },
+    // Transparent throttling: clients can see the budget they have left.
+    ...Object.entries(rateLimitHeaders(decision)).map(([key, value]) => ({ key, value })),
   ]);
 
   // Mint (or refresh) the CSRF cookie. Readable by JS on purpose: the client

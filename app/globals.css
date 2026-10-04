@@ -59,6 +59,61 @@ table,
   font-variant-numeric: tabular-nums;
 }
 
+/* ---------- Motion primitives ---------- */
+
+/* Shimmer for loading skeletons: a light sweep, not a pulsing block. */
+.shimmer {
+  background-image: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0.035) 0%,
+    rgba(255, 255, 255, 0.085) 50%,
+    rgba(255, 255, 255, 0.035) 100%
+  );
+  background-size: 200% 100%;
+  animation: dukaan-shimmer 1.6s linear infinite;
+}
+
+@keyframes dukaan-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* One visible, consistent focus treatment for keyboard users. */
+:focus-visible {
+  outline: 2px solid rgba(129, 140, 248, 0.75);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Interaction affordances: never animate anything the user did not aim at. */
+@media (hover: hover) {
+  button,
+  a,
+  [role='button'] {
+    -webkit-tap-highlight-color: transparent;
+  }
+}
+
+/* Text selection picks up the brand colour instead of the OS default blue. */
+::selection {
+  background: rgba(99, 102, 241, 0.35);
+  color: #fff;
+}
+
+/* Respect the OS "reduce transparency" / low-power preference. */
+@media (prefers-reduced-transparency: reduce) {
+  .backdrop-blur,
+  .backdrop-blur-sm,
+  .backdrop-blur-xl,
+  .backdrop-blur-2xl {
+    backdrop-filter: none !important;
+  }
+}
+
 /* Slim dark scrollbars */
 * {
   scrollbar-width: thin;

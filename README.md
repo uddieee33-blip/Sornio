@@ -107,3 +107,66 @@ Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy
 - The live demo runs the full domain model client-side (`lib/store.tsx`) so every flow is exercisable without a live Supabase project; the schema is ready for server-side wiring.
 - Accounting is a general-purpose calculation layer, not jurisdiction-specific tax/legal advice.
 - Trial/billing for DukaanOS itself is structured to be added later; no payment is required to run this version.
+
+## Security architecture
+
+DukaanOS is local-first, which means the shop's ledger lives on the shop's
+device. That promise is only worth making if the data is actually protected, so
+security is a first-class layer rather than a header or two.
+
+### Layers
+
+| Layer | Module | What it does |
+| --- | --- | --- |
+| Identity | `lib/security/session.ts` | HMAC-signed, expiring, rotating session claims |
+| Tenancy | `lib/security/tenant.ts` | One business per scope; every record carries a tenant id |
+| Authorisation | `lib/security/rbac.ts` | Owner / manager / cashier / auditor, 18 permissions |
+| Transport | `lib/security/headers.ts` | Posture-aware CSP, HSTS, framing, permissions policy |
+| Edge | `lib/security/rate-limit.ts` | Sliding-window throttling, pluggable store |
+| Request | `lib/security/csrf.ts` | Fetch-metadata + origin allow-list + double-submit token |
+| Input | `lib/security/validation.ts` | Structural validation, clamps, password strength |
+| Output | `lib/security/sanitize.ts` | HTML/CSV/URL escaping for receipts and exports |
+| Storage | `lib/security/vault.ts` | AES-GCM-256 at rest, integrity envelope, rollback snapshot |
+| Evidence | `lib/security/audit.ts` | SHA-256 hash-chained, tamper-evident history |
+| Privacy | `lib/security/redact.ts` | PII/secret scrubbing before anything is logged |
+| Observability | `lib/security/monitor.ts` | Bounded, redacted error + Web Vitals telemetry |
+| Server | `lib/security/guard.ts` | Session helpers that never make a dead network call |
+
+### Edge pipeline (every request)
+
+1. **Request id** — every response carries `x-request-id` so a report maps to one log line.
+2. **Probe rejection** — `/.env`, `/.git`, `/wp-admin`, … return a blank 404, no detail.
+3. **Rate limiting** — a per-client sliding window per scope (auth, api, reports, page) plus a short burst guard. API and mutating requests get the tight budget; page traffic gets a generous one so the app never throttles its own navigation.
+4. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a double-submit token for `/api/*`.
+5. **Headers** — CSP, HSTS, framing, `Permissions-Policy`, `no-store` on console routes.
+6. **Session refresh** — Supabase only when real credentials exist, lazily imported, never blocking a page load.
+
+### Two postures
+
+`strict` and `embed` are resolved from the environment, not hard-coded:
+
+- **strict** — a real domain is configured (`NEXT_PUBLIC_APP_URL`): `frame-ancestors 'self'`, `X-Frame-Options: DENY`, HSTS with a two-year max-age and preload.
+- **embed** — local development and preview hosts: framing is allowed for the preview origins, HSTS is off, and `X-Frame-Options` is omitted entirely so it cannot override CSP and blank the preview.
+
+### What is never collected
+
+No PINs, OTPs, card numbers, or bank passwords — the app has no field for them
+and no code path that could store them. A customer's UPI ID is used solely to
+draw their collection QR; DukaanOS is not a payment gateway and never touches
+the money. Diagnostics are scrubbed through `redact()` first, so phone numbers,
+emails, UPI ids, tokens, and 13–19 digit sequences are masked before anything
+leaves a module.
+
+### Verify it yourself
+
+Open **Trust Centre** (`/security`) in the console. It reports the live posture
+— whether storage is encrypted on this device, whether the audit chain
+verifies, and which role may do what — computed at render time, with degraded
+states shown in amber rather than hidden.
+
+### Performance notes
+
+The same layer is built to stay out of the way: the Supabase SDK is lazily
+imported so Edge middleware stays at ~89 kB instead of ~789 kB, all routes are
+statically prerendered, and hydration/telemetry work is scheduled through
+`lib/perf/idle.ts` so nothing runs mid-interaction.
