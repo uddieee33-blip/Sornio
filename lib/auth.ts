@@ -1,22 +1,35 @@
-import { createServerClient, type CookieOptions } from '@supabase/ssr';
-import { cookies } from 'next/headers';
+/**
+ * Server-side auth access.
+ *
+ * This module used to build a Supabase client unconditionally, which produced
+ * dead network calls (and slow, hanging pages) whenever the deployment ran in
+ * local-first mode with placeholder credentials. It now delegates to the
+ * guarded client: `null` means "no Supabase here", and callers take the
+ * local-first path immediately.
+ */
 
-export async function getSessionUser() {
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL || '',
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY || '',
-    {
-      cookies: {
-        getAll() {
-          return cookies().getAll();
-        },
-        setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
-          cookiesToSet.forEach(({ name, value, options }) => cookies().set(name, value, options));
-        },
-      },
-    },
-  );
+import { getGuardedServerClient, getSessionUser as guardedSessionUser, type GuardedUser } from '@/lib/security/guard';
 
-  const { data } = await supabase.auth.getUser();
-  return data.user;
+export type { GuardedUser };
+
+/**
+ * The signed-in user, or `null`.
+ *
+ * Returns `null` (never throws, never hangs) when Supabase is unconfigured,
+ * unreachable, or the session has expired.
+ */
+export async function getSessionUser(): Promise<GuardedUser | null> {
+  return guardedSessionUser();
+}
+
+/** True when this deployment can authenticate against Supabase at all. */
+export function authAvailable(): boolean {
+  return getGuardedServerClient() !== null;
+}
+
+/** Human label for audit entries — never the raw email address. */
+export function actorNameFor(user: GuardedUser | null): string {
+  if (!user) return 'Local owner (this device)';
+  const [local] = (user.email ?? '').split('@');
+  return local ? local.slice(0, 2) + '•••' : 'Signed-in owner';
 }
