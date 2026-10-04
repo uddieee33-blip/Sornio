@@ -42,7 +42,7 @@ export default function AuthPage() {
           </div>
 
           <Link
-            href="/"
+            href="/home"
             className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-brand-gradient px-4 py-3 text-sm font-bold text-white shadow-glow transition hover:brightness-110"
           >
             Sign in

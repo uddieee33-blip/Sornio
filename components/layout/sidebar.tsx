@@ -28,7 +28,7 @@ const sections: { title: string; links: { href: string; label: string; icon: Luc
   {
     title: 'Overview',
     links: [
-      { href: '/', label: 'Overview', icon: Store },
+      { href: '/home', label: 'Overview', icon: Store },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/insights', label: 'AI Insights', icon: Sparkles },
       { href: '/alerts', label: 'Alerts', icon: Bell },

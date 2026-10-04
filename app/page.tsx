@@ -1,119 +1,336 @@
 'use client';
 
 import Link from 'next/link';
-import { ArrowUpRight, Banknote, Coins, PiggyBank, PlusCircle, Receipt, Sparkles, TrendingUp, Users, Wallet, Zap } from 'lucide-react';
-import { StatCard } from '@/components/ui/stat-card';
-import { Card, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { RevenueAreaChart } from '@/components/charts/RevenueAreaChart';
+import { useMemo } from 'react';
+import {
+  ArrowRight,
+  Banknote,
+  BarChart3,
+  Bell,
+  Brain,
+  Dumbbell,
+  Gauge,
+  QrCode,
+  Receipt,
+  ShieldCheck,
+  Smartphone,
+  Sparkles,
+  Store,
+  TrendingUp,
+  Users,
+  Zap,
+} from 'lucide-react';
+import { RevenueAreaChart, DualAreaChart } from '@/components/charts/RevenueAreaChart';
 import { DonutChart } from '@/components/charts/DonutChart';
-import { formatCurrency } from '@/lib/business-data';
-import { paymentsByMethod, revenueSeries } from '@/lib/chart-data';
-import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
-import { trendSeries } from '@/lib/trend';
+import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
+import { expenseSeries, expensesByCategory, paymentsByMethod, revenueSeries } from '@/lib/chart-data';
+import { buildSeedState } from '@/lib/store';
 
-export default function HomePage() {
-  const snapshot = useFinancialSnapshot();
-  const { state } = useDukaanStore();
+const navLinks = [
+  { label: 'Features', href: '#features' },
+  { label: 'Live Charts', href: '#charts' },
+  { label: 'UPI QR', href: '#upi' },
+  { label: 'Pricing', href: '#pricing' },
+];
 
-  const activeMembers = state.subscriptions.filter((s) => s.status === 'active' || s.status === 'expiring_soon').length;
-  const revenue = revenueSeries(state.transactions);
-  const methods = paymentsByMethod(state.transactions);
+const features = [
+  { icon: Receipt, title: 'Billing & Receipts', desc: 'Invoices, digital and printed receipts, and a payment flow your customers actually enjoy.' },
+  { icon: BarChart3, title: 'Live Ledger Reports', desc: 'Revenue, expenses, and profit recomputed from real transactions — never hardcoded.' },
+  { icon: Dumbbell, title: 'Memberships & Renewals', desc: 'Plans, subscriptions, auto reminders, and one-tap renewals that stop revenue leakage.' },
+  { icon: QrCode, title: 'Direct UPI QR', desc: 'A unique QR per customer that pays straight into their bank. You are never the middleman.' },
+  { icon: Brain, title: 'AI Insights', desc: 'A health score, growth tips, and anomaly alerts generated from your own numbers.' },
+  { icon: Bell, title: 'Smart Alerts', desc: 'Low stock, expiring members, and cash-flow dips surfaced before they cost you money.' },
+];
+
+const steps = [
+  { icon: Users, title: 'Capture details', desc: 'Add name, phone, and bank or UPI details in seconds.' },
+  { icon: QrCode, title: 'Generate a unique QR', desc: 'DukaanOS builds a UPI deep-link QR from the customer’s own UPI ID.' },
+  { icon: Banknote, title: 'Get paid directly', desc: 'Scan it in any UPI app — money lands in their bank, no middleman, no fees.' },
+];
+
+const plans = [
+  {
+    name: 'Starter',
+    price: '₹0',
+    period: '/forever',
+    desc: 'For a single shop getting started.',
+    features: ['Billing & receipts', 'Live ledger reports', 'Up to 50 products', 'UPI QR collections'],
+    cta: 'Start free',
+    highlight: false,
+  },
+  {
+    name: 'Growth',
+    price: '₹499',
+    period: '/month',
+    desc: 'For stores that want automation.',
+    features: ['Everything in Starter', 'Memberships & renewals', 'AI insights & alerts', 'Unlimited products', 'Priority support'],
+    cta: 'Start 14-day trial',
+    highlight: true,
+  },
+  {
+    name: 'Scale',
+    price: '₹1,499',
+    period: '/month',
+    desc: 'For multi-branch operations.',
+    features: ['Everything in Growth', 'Multi-branch ledger', 'Advanced comparisons', 'Dedicated onboarding', 'API access'],
+    cta: 'Talk to sales',
+    highlight: false,
+  },
+];
+
+export default function LandingPage() {
+  // Build the same seeded ledger the console uses, so the landing previews real data.
+  const seed = useMemo(() => buildSeedState(), []);
+  const financials = useMemo(() => summarizeFinancials(seed.transactions), [seed]);
+  const revenue = useMemo(() => revenueSeries(seed.transactions), [seed]);
+  const expenses = useMemo(() => expenseSeries(seed.transactions), [seed]);
+  const byCategory = useMemo(() => expensesByCategory(seed.transactions), [seed]);
+  const byMethod = useMemo(() => paymentsByMethod(seed.transactions), [seed]);
 
   return (
-    <div className="relative p-6 md:p-8">
-      {/* Hero */}
-      <div className="animate-fade-up relative overflow-hidden rounded-3xl border border-white/[0.08] bg-[#10131c] p-6 shadow-card md:p-9">
-        <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-brand-500/20 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-32 right-48 h-72 w-72 rounded-full bg-fuchsia-500/10 blur-3xl" />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-400/50 to-transparent" />
-        <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
-          <div className="max-w-xl">
-            <p className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-300 ring-1 ring-inset ring-brand-500/25">
-              <Sparkles size={13} /> DukaanOS
-            </p>
-            <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
-              Small Business.{' '}
-              <span className="bg-brand-gradient bg-clip-text text-transparent">Big Business Thinking.</span>
-            </h1>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
-              Every number recalculates the moment you record real activity. Billing, inventory, memberships, and AI insights — one glowing console.
-            </p>
-            <div className="mt-6 flex flex-wrap gap-3">
-              <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:brightness-110">
-                <PlusCircle size={17} /> Record a sale
-              </Link>
-              <Link href="/insights" className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/10 transition hover:bg-white/10">
-                <TrendingUp size={17} /> View insights
-              </Link>
-            </div>
-          </div>
+    <div className="relative overflow-hidden">
+      {/* ambient glows */}
+      <div className="pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-brand-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute right-0 top-[38rem] h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
 
-          <div className="grid shrink-0 grid-cols-2 gap-3 lg:w-[380px]">
-            {[
-              { label: 'Net Profit', value: formatCurrency(snapshot.netProfit), accent: true },
-              { label: 'Gross Margin', value: `${snapshot.grossMargin.toFixed(1)}%` },
-              { label: 'Transactions', value: state.transactions.length },
-              { label: 'Active Members', value: activeMembers },
-            ].map((tile) => (
-              <div key={tile.label} className={`rounded-2xl p-4 ring-1 ring-inset ${tile.accent ? 'bg-brand-500/10 ring-brand-500/30' : 'bg-white/[0.03] ring-white/[0.07]'}`}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{tile.label}</p>
-                <p className={`mt-1.5 font-display text-xl font-bold tabular-nums ${tile.accent ? 'text-brand-200' : 'text-white'}`}>{tile.value}</p>
-              </div>
+      {/* NAV */}
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0B0D12]/80 backdrop-blur-xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
+          <Link href="/" className="flex items-center gap-3">
+            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm"><Store size={18} className="text-white" /></span>
+            <span className="font-display text-lg font-bold tracking-tight text-white">DukaanOS</span>
+          </Link>
+          <nav className="hidden items-center gap-7 md:flex">
+            {navLinks.map((link) => (
+              <a key={link.href} href={link.href} className="text-sm font-medium text-zinc-400 transition hover:text-white">{link.label}</a>
             ))}
+          </nav>
+          <div className="flex items-center gap-3">
+            <Link href="/auth" className="hidden rounded-xl px-4 py-2 text-sm font-semibold text-zinc-300 transition hover:text-white sm:block">Sign in</Link>
+            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2 text-sm font-bold text-white shadow-glow-sm transition hover:brightness-110">
+              Open console <ArrowRight size={15} />
+            </Link>
           </div>
         </div>
-      </div>
+      </header>
 
-      {/* KPI row */}
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Revenue" value={formatCurrency(snapshot.revenue)} icon={Banknote} tone="emerald" delta="12.4%" spark={trendSeries(snapshot.revenue, 8, 0.2, 1)} />
-        <StatCard label="Gross Profit" value={formatCurrency(snapshot.grossProfit)} icon={Coins} tone="brand" delta="8.1%" spark={trendSeries(snapshot.grossProfit, 8, 0.22, 2)} />
-        <StatCard label="Operating Profit" value={formatCurrency(snapshot.operatingProfit)} icon={PiggyBank} tone="violet" delta="5.6%" spark={trendSeries(snapshot.operatingProfit, 8, 0.18, 3)} />
-        <StatCard label="Cash Position" value={formatCurrency(snapshot.cashBalance)} icon={Wallet} tone="amber" delta="3.2%" spark={trendSeries(snapshot.cashBalance, 8, 0.25, 4)} />
-      </div>
+      {/* HERO */}
+      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-20 text-center md:pt-28">
+        <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-300 animate-fade-up">
+          <Sparkles size={14} /> Built for Indian shops, gyms, salons & cafés
+        </div>
+        <h1 className="mx-auto max-w-3xl font-display text-4xl font-bold leading-tight tracking-tight text-white md:text-6xl animate-fade-up">
+          Run your entire business<br className="hidden md:block" /> from <span className="bg-brand-gradient bg-clip-text text-transparent">one console</span>.
+        </h1>
+        <p className="mx-auto mt-6 max-w-2xl text-base leading-relaxed text-zinc-400 md:text-lg animate-fade-up">
+          Billing, inventory, memberships, and AI insights — all powered by a live ledger.
+          Collect payments with a unique UPI QR per customer, straight to their bank. No middleman.
+        </p>
+        <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row animate-fade-up">
+          <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-6 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
+            Launch the live console <ArrowRight size={16} />
+          </Link>
+          <a href="#charts" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-6 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
+            See live charts
+          </a>
+        </div>
 
-      {/* Charts */}
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">
-        <Card className="animate-fade-up">
-          <div className="mb-4 flex items-center justify-between">
-            <CardTitle icon={<TrendingUp size={17} />}>Revenue — last 14 days</CardTitle>
-            <Badge tone="emerald" dot>Live from ledger</Badge>
+        {/* hero stat strip */}
+        <div className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-3 sm:grid-cols-4 animate-fade-up">
+          {[
+            { icon: TrendingUp, label: 'Revenue (14d)', value: formatCurrency(financials.revenue) },
+            { icon: Banknote, label: 'Net cash flow', value: formatCurrency(financials.netCashFlow) },
+            { icon: Gauge, label: 'Gross margin', value: `${financials.grossMargin.toFixed(0)}%` },
+            { icon: Users, label: 'QR-ready customers', value: '100%' },
+          ].map((stat) => (
+            <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 backdrop-blur">
+              <stat.icon size={17} className="mx-auto text-brand-300" />
+              <p className="mt-2 font-display text-lg font-bold tabular-nums text-white">{stat.value}</p>
+              <p className="text-[11px] font-medium uppercase tracking-wide text-zinc-500">{stat.label}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* LIVE CHARTS PREVIEW */}
+      <section id="charts" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">Live from the ledger</p>
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Charts that move when your business moves</h2>
+          <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">Every graph below is computed from the same seeded transactions that power the console — record a sale and watch it change.</p>
+        </div>
+
+        <div className="grid gap-6 lg:grid-cols-3">
+          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6 lg:col-span-2">
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-200"><TrendingUp size={16} className="text-brand-300" /> Revenue vs expenses · 14 days</h3>
+              <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25">Live</span>
+            </div>
+            <DualAreaChart revenue={revenue} expenses={expenses} height={260} />
           </div>
-          <RevenueAreaChart data={revenue} gradientId="homeRevenue" height={260} />
-        </Card>
 
-        <Card className="animate-fade-up">
-          <div className="mb-4 flex items-center justify-between">
-            <CardTitle icon={<Banknote size={17} />}>Collections by method</CardTitle>
+          <div className="grid gap-6">
+            <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
+              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Banknote size={16} className="text-brand-300" /> Payment mix</h3>
+              {byMethod.length > 0 ? <DonutChart data={byMethod} centerLabel="Collected" centerValue={formatCurrency(financials.cashIn)} height={190} /> : null}
+            </div>
           </div>
-          <DonutChart data={methods} centerLabel="Collected" centerValue={formatCurrency(methods.reduce((sum, slice) => sum + slice.value, 0))} />
-        </Card>
-      </div>
+        </div>
 
-      {/* Quick actions */}
-      <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {[
-          { href: '/sales', title: 'Record a sale', desc: 'Grow revenue and cash instantly.', icon: Zap },
-          { href: '/expenses', title: 'Log an expense', desc: 'Keep profit honest.', icon: Wallet },
-          { href: '/memberships', title: 'Enroll a member', desc: 'Build recurring income.', icon: Users },
-          { href: '/billing', title: 'Raise an invoice', desc: 'Collect what you are owed.', icon: Receipt },
-        ].map((item) => {
-          const Icon = item.icon;
-          return (
-            <Link key={item.href} href={item.href} className="group animate-fade-up flex items-center gap-4 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.07] shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.05] hover:ring-brand-400/30 hover:shadow-card-hover">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/20 transition group-hover:bg-brand-gradient group-hover:text-white group-hover:shadow-glow-sm">
-                <Icon size={19} />
+        <div className="mt-6 grid gap-6 lg:grid-cols-2">
+          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><BarChart3 size={16} className="text-brand-300" /> Revenue trend</h3>
+            <RevenueAreaChart data={revenue} gradientId="landing-rev" height={190} />
+          </div>
+          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
+            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Receipt size={16} className="text-brand-300" /> Expenses by category</h3>
+            {byCategory.length > 0 ? <DonutChart data={byCategory} centerLabel="Spent" centerValue={formatCurrency(financials.operatingExpenses)} height={190} /> : null}
+          </div>
+        </div>
+      </section>
+
+      {/* FEATURES */}
+      <section id="features" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">Everything a dukaan needs</p>
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">One console. Every module.</h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature) => (
+            <div key={feature.title} className="group rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6 transition hover:border-brand-400/30 hover:bg-white/[0.04] hover:shadow-card-hover">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/20 transition group-hover:bg-brand-gradient group-hover:text-white group-hover:shadow-glow-sm">
+                <feature.icon size={20} />
               </span>
-              <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-white">{item.title}</span>
-                <span className="block truncate text-xs text-zinc-500">{item.desc}</span>
-              </span>
-              <ArrowUpRight size={16} className="text-zinc-600 transition group-hover:text-brand-300" />
+              <h3 className="mt-4 text-base font-semibold text-white">{feature.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* UPI QR */}
+      <section id="upi" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+        <div className="overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-500/[0.08] via-transparent to-violet-500/[0.06] p-8 md:p-12">
+          <div className="grid items-center gap-10 lg:grid-cols-2">
+            <div>
+              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">No middleman. Ever.</p>
+              <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">A unique UPI QR for every customer</h2>
+              <p className="mt-4 text-sm leading-relaxed text-zinc-400 md:text-base">
+                Capture a customer&apos;s UPI ID and bank details once. DukaanOS generates a personal
+                <span className="font-semibold text-brand-300"> upi://pay</span> QR code that any UPI app can scan.
+                The money settles <span className="font-semibold text-white">directly into their bank</span> — you never hold or route it, and you pay no aggregator fees.
+              </p>
+              <div className="mt-6 space-y-4">
+                {steps.map((step, index) => (
+                  <div key={step.title} className="flex items-start gap-4">
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/25">
+                      <step.icon size={17} />
+                    </span>
+                    <div>
+                      <p className="text-sm font-semibold text-white">{index + 1}. {step.title}</p>
+                      <p className="mt-0.5 text-sm text-zinc-400">{step.desc}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <Link href="/customers" className="mt-8 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-3 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
+                Try the Customers page <ArrowRight size={15} />
+              </Link>
+            </div>
+
+            <div className="flex justify-center">
+              <div className="relative">
+                <div className="pointer-events-none absolute inset-0 -m-8 rounded-full bg-brand-500/20 blur-3xl" />
+                <div className="relative w-fit rounded-3xl bg-white p-5 shadow-glow">
+                  {/* decorative QR grid */}
+                  <div className="grid h-56 w-56 grid-cols-8 gap-1">
+                    {Array.from({ length: 64 }).map((_, i) => {
+                      const on = [0, 1, 2, 5, 7, 8, 10, 13, 15, 16, 18, 21, 23, 24, 27, 29, 31, 32, 34, 37, 39, 40, 42, 45, 47, 48, 50, 53, 55, 56, 58, 61, 63].includes(i);
+                      return <span key={i} className={`rounded-[3px] ${on ? 'bg-[#0B0D12]' : 'bg-transparent'}`} />;
+                    })}
+                  </div>
+                  <p className="mt-4 text-center text-xs font-semibold tracking-wide text-zinc-700">riya.sharma@okhdfcbank</p>
+                </div>
+                <div className="absolute -right-4 -top-4 rounded-2xl border border-white/10 bg-[#161a23]/95 px-3.5 py-2.5 text-xs font-semibold text-emerald-400 shadow-2xl backdrop-blur">
+                  <span className="flex items-center gap-1.5"><ShieldCheck size={13} /> Settles direct to bank</span>
+                </div>
+                <div className="absolute -bottom-4 -left-4 rounded-2xl border border-white/10 bg-[#161a23]/95 px-3.5 py-2.5 text-xs font-semibold text-brand-300 shadow-2xl backdrop-blur">
+                  <span className="flex items-center gap-1.5"><Smartphone size={13} /> Works in any UPI app</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* PRICING */}
+      <section id="pricing" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+        <div className="mb-10 text-center">
+          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">Simple pricing</p>
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Start free. Scale when you grow.</h2>
+        </div>
+        <div className="grid gap-6 md:grid-cols-3">
+          {plans.map((plan) => (
+            <div
+              key={plan.name}
+              className={`relative rounded-3xl border p-7 transition ${plan.highlight ? 'border-brand-400/40 bg-brand-500/[0.06] shadow-glow' : 'border-white/[0.07] bg-white/[0.02] hover:border-brand-400/25'}`}
+            >
+              {plan.highlight ? (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand-gradient px-3.5 py-1 text-[11px] font-bold text-white shadow-glow-sm">Most popular</span>
+              ) : null}
+              <h3 className="text-base font-semibold text-white">{plan.name}</h3>
+              <p className="mt-1 text-sm text-zinc-500">{plan.desc}</p>
+              <p className="mt-5"><span className="font-display text-4xl font-bold text-white">{plan.price}</span><span className="ml-1 text-sm text-zinc-500">{plan.period}</span></p>
+              <ul className="mt-6 space-y-2.5">
+                {plan.features.map((item) => (
+                  <li key={item} className="flex items-center gap-2.5 text-sm text-zinc-300">
+                    <Zap size={15} className="shrink-0 text-brand-300" /> {item}
+                  </li>
+                ))}
+              </ul>
+              <Link
+                href="/home"
+                className={`mt-7 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${plan.highlight ? 'bg-brand-gradient text-white shadow-glow hover:brightness-110' : 'border border-white/10 bg-white/[0.04] text-zinc-200 hover:border-brand-400/40 hover:bg-white/[0.07]'}`}
+              >
+                {plan.cta} <ArrowRight size={15} />
+              </Link>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* FINAL CTA */}
+      <section className="relative mx-auto max-w-5xl px-6 pb-24">
+        <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.12] to-violet-500/[0.08] p-10 text-center md:p-14">
+          <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-[600px] -translate-x-1/2 rounded-full bg-brand-500/20 blur-3xl" />
+          <h2 className="relative font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Your business, finally in one place.</h2>
+          <p className="relative mx-auto mt-4 max-w-xl text-sm text-zinc-400 md:text-base">Jump into the live console — seeded with a real 14-day ledger so every chart, alert, and QR is already working.</p>
+          <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-7 py-3.5 text-sm font-bold text-white shadow-glow transition hover:brightness-110">
+              Open the console <ArrowRight size={16} />
             </Link>
-          );
-        })}
-      </div>
+            <Link href="/auth" className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-7 py-3.5 text-sm font-semibold text-zinc-200 transition hover:border-brand-400/40 hover:bg-white/[0.07]">
+              Sign in
+            </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* FOOTER */}
+      <footer className="border-t border-white/[0.06] bg-[#0a0c11]/60">
+        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 md:flex-row">
+          <div className="flex items-center gap-3">
+            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient"><Store size={16} className="text-white" /></span>
+            <span className="font-display text-sm font-bold text-white">DukaanOS</span>
+          </div>
+          <p className="text-xs text-zinc-500">Billing · Inventory · Memberships · UPI QR · AI insights — for Indian businesses.</p>
+          <div className="flex items-center gap-4 text-xs text-zinc-500">
+            <Link href="/home" className="transition hover:text-white">Console</Link>
+            <Link href="/auth" className="transition hover:text-white">Sign in</Link>
+            <a href="#features" className="transition hover:text-white">Features</a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
