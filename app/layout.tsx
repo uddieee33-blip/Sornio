@@ -1,6 +1,13 @@
+import type { Metadata } from 'next';
 import { Sidebar } from '@/components/layout/sidebar';
 import { MobileNav } from '@/components/layout/mobile-nav';
 import { DukaanStoreProvider } from '@/lib/store';
+import './globals.css';
+
+export const metadata: Metadata = {
+  title: 'DukaanOS — Owner Console',
+  description: 'Billing, inventory, memberships, and AI insights for small Indian businesses.',
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

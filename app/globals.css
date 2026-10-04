@@ -15,8 +15,16 @@ body {
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background: #f8fafc;
+  text-rendering: optimizeLegibility;
+  background: #f1f5f9;
   color: #0f172a;
+  letter-spacing: 0.01em;
+}
+
+/* Numbers in tables and stat cards align cleanly */
+table,
+.tabular {
+  font-variant-numeric: tabular-nums;
 }
 
 * {
