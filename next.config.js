@@ -64,8 +64,8 @@ const nextConfig = {
   compress: true,
   productionBrowserSourceMaps: false,
 
-  // Ship fewer bytes and fewer requests to the browser.
-  swcMinify: true,
+  // Ship fewer bytes and fewer requests to the browser. SWC minification is
+  // always on from Next.js 15 onwards, so the old `swcMinify` flag is gone.
   images: {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60 * 60 * 24 * 30,
@@ -74,6 +74,25 @@ const nextConfig = {
   // Tree-shake icon and chart libraries down to what is actually imported.
   experimental: {
     optimizePackageImports: ['lucide-react', 'recharts'],
+  },
+
+  /**
+   * Next.js 16 builds with Turbopack by default, and Turbopack refuses to run
+   * when a `webpack` config is present without a matching `turbopack` config.
+   *
+   * Nothing needs porting:
+   *   - the `@/` alias is already declared in tsconfig `paths`, which both
+   *     bundlers honour natively (the webpack alias below was redundant);
+   *   - `resolve.fallback` only existed to keep Node built-ins out of the
+   *     client bundle, which Turbopack already refuses to do.
+   *
+   * The block is declared explicitly so the intent is visible and so a future
+   * alias change has an obvious home.
+   */
+  turbopack: {
+    resolveAlias: {
+      '@': path.resolve(__dirname),
+    },
   },
 
   // Keep the client bundle honest: fail loudly on accidental Node imports.

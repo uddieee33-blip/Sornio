@@ -132,18 +132,26 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
     [onClose],
   );
 
-  useEffect(() => {
+  // Clear the query and the highlighted row each time the palette opens. This
+  // uses React's documented "adjust state when a prop changes" pattern during
+  // render, so the reset lands in the same commit as the open instead of
+  // triggering a second render pass from an effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setQuery('');
       setActive(0);
-      // Focus after the dialog has painted.
-      requestAnimationFrame(() => inputRef.current?.focus());
     }
-  }, [open]);
+  }
 
+  // Focusing the input is a genuine external side effect, so it stays in an
+  // effect — and the frame is now cancelled on unmount rather than leaking.
   useEffect(() => {
-    setActive(0);
-  }, [query]);
+    if (!open) return;
+    const frame = requestAnimationFrame(() => inputRef.current?.focus());
+    return () => cancelAnimationFrame(frame);
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -191,7 +199,12 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
           <input
             ref={inputRef}
             value={query}
-            onChange={(event) => setQuery(event.target.value)}
+            onChange={(event) => {
+              setQuery(event.target.value);
+              // A new query invalidates the highlighted row. Resetting it here
+              // rather than in an effect keyed on `query` avoids an extra render.
+              setActive(0);
+            }}
             placeholder="Search modules, actions, anything…"
             aria-label="Search commands"
             autoComplete="off"

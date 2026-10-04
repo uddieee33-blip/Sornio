@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+# A newer push to the same branch supersedes an in-flight run.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  verify:
+    name: Lint, types, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # `npm ci` is used rather than `npm install` so the build reproduces
+      # package-lock.json exactly and fails loudly if the lockfile drifts from
+      # package.json.
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Build
+        run: npm run build
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Audited against the *production* dependency tree only.
+      #
+      # The dev tree currently reports high-severity findings whose single root
+      # cause is `braces`, which has no patched release published upstream (the
+      # advisory range `<=3.0.3` covers every version that exists). Those
+      # packages are build-time glob matchers reached through tailwindcss 3.x
+      # and @next/eslint-plugin-next; they are never bundled, never served to a
+      # browser, and `npm ls braces --omit=dev` confirms they are absent from
+      # the shipped tree. Blocking CI on an unfixable dev-only advisory would
+      # only train people to ignore it.
+      #
+      # Production dependencies must stay at zero — that is the tree that runs
+      # against real business records.
+      - name: Audit production dependencies
+        run: npm audit --omit=dev --audit-level=high

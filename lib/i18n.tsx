@@ -178,6 +178,10 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY) as LanguageCode | null;
+      // Deliberate post-mount read. The server always renders English, so
+      // adopting the stored language during render would guarantee a hydration
+      // mismatch; syncing once after mount is the SSR-safe way to pick it up.
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- see note above
       if (saved && dictionaries[saved]) setLangState(saved);
     } catch {
       // Storage unavailable — stay on English.

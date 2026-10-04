@@ -420,9 +420,15 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<StoreState>(buildEmptyState);
   const [hydrated, setHydrated] = useState(false);
 
-  // A ref that always mirrors the latest state so memoized actions read fresh data.
+  // A ref that always mirrors the latest committed state so memoized actions
+  // read fresh data. React 19 forbids writing to a ref during render, so the
+  // mirror is refreshed after commit instead. Every consumer reads it from an
+  // event handler or async callback, which by definition runs after commit, so
+  // no reader can observe a stale value.
   const stateRef = useRef(state);
-  stateRef.current = state;
+  useEffect(() => {
+    stateRef.current = state;
+  }, [state]);
 
   const [persistence, setPersistence] = useState<PersistenceStatus>({ mode: 'loading' });
 
@@ -1054,7 +1060,6 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       }
     },
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [syncingEnabled]);
 
   const stateValue = useMemo(
