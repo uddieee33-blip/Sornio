@@ -1,99 +1,152 @@
-const invoice = {
-  id: 'INV-1024',
-  customerName: 'John Wilson',
-  businessName: 'Cult Fitness',
-  date: '02 Oct 2026',
-  paymentMethod: 'UPI',
-  subtotal: 4999,
-  tax: 0,
-  total: 4999,
-  items: [
-    { name: 'Quarterly membership', qty: 1, price: 4999 },
-  ],
+import {
+  buildSampleSubscriptions,
+  daysUntil,
+  defaultMembers,
+  defaultMembershipPlans,
+  defaultReminderTemplates,
+} from '@/lib/models/membership';
+
+const subscriptions = buildSampleSubscriptions();
+const membersById = new Map(defaultMembers.map((member) => [member.id, member]));
+const plansById = new Map(defaultMembershipPlans.map((plan) => [plan.id, plan]));
+
+const statusStyles: Record<string, string> = {
+  active: 'bg-emerald-100 text-emerald-700',
+  expiring_soon: 'bg-amber-100 text-amber-700',
+  expired: 'bg-red-100 text-red-700',
+  paused: 'bg-slate-200 text-slate-600',
 };
 
-const receiptModes = [
-  { name: 'Digital receipt', details: 'Share via SMS or WhatsApp instantly.' },
-  { name: 'Physical receipt', details: 'Print on paper for hand-to-hand delivery.' },
-  { name: 'Both', details: 'Best for retail, cafes, and premium service businesses.' },
-];
+const statusLabels: Record<string, string> = {
+  active: 'Active',
+  expiring_soon: 'Expiring soon',
+  expired: 'Expired',
+  paused: 'Paused',
+};
 
-export default function BillingPage() {
+const channelLabels: Record<string, string> = {
+  sms: 'SMS',
+  whatsapp: 'WhatsApp',
+  both: 'SMS + WhatsApp',
+};
+
+function reminderLabel(days: number) {
+  if (days < 0) return `Expired ${Math.abs(days)} day(s) ago`;
+  if (days === 0) return 'Expired today';
+  return `${days} day${days === 1 ? '' : 's'} left`;
+}
+
+export default function MembershipsPage() {
+  const activeMembers = subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'expiring_soon').length;
+  const renewalQueue = subscriptions
+    .filter((subscription) => daysUntil(subscription.expiryDate) <= 7)
+    .sort((a, b) => new Date(a.expiryDate).getTime() - new Date(b.expiryDate).getTime());
+
   return (
     <div className="p-6 md:p-8">
       <div className="mx-auto max-w-6xl">
-        <div className="mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">billing</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Bills, receipts, and payment flow</h1>
+        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">memberships</p>
+            <h1 className="mt-2 text-3xl font-bold text-slate-900">Subscriptions and renewals</h1>
+            <p className="mt-2 text-sm text-slate-600">{activeMembers} active member{activeMembers === 1 ? '' : 's'} · {defaultMembershipPlans.filter((plan) => plan.isActive).length} plans on sale</p>
+          </div>
+          <button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white">Add plan</button>
         </div>
 
         <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-            <div className="mb-5 flex items-center justify-between">
-              <div>
-                <p className="text-sm uppercase tracking-[0.18em] text-slate-500">Invoice</p>
-                <h2 className="mt-1 text-2xl font-bold text-slate-900">{invoice.id}</h2>
-              </div>
-              <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">Paid</div>
-            </div>
-
-            <div className="mb-6 grid gap-3 text-sm text-slate-600 md:grid-cols-2">
-              <div><span className="font-medium text-slate-800">Customer:</span> {invoice.customerName}</div>
-              <div><span className="font-medium text-slate-800">Business:</span> {invoice.businessName}</div>
-              <div><span className="font-medium text-slate-800">Date:</span> {invoice.date}</div>
-              <div><span className="font-medium text-slate-800">Payment:</span> {invoice.paymentMethod}</div>
-            </div>
-
-            <div className="overflow-hidden rounded-xl border border-slate-200">
-              <table className="min-w-full text-left text-sm">
-                <thead className="bg-slate-50 text-slate-700">
-                  <tr>
-                    <th className="px-4 py-3 font-medium">Item</th>
-                    <th className="px-4 py-3 font-medium">Qty</th>
-                    <th className="px-4 py-3 font-medium">Price</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {invoice.items.map((item) => (
-                    <tr key={item.name} className="border-t border-slate-200">
-                      <td className="px-4 py-3">{item.name}</td>
-                      <td className="px-4 py-3">{item.qty}</td>
-                      <td className="px-4 py-3">₹{item.price.toLocaleString('en-IN')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-
-            <div className="mt-6 ml-auto max-w-xs space-y-2 text-sm text-slate-700">
-              <div className="flex justify-between"><span>Subtotal</span><span>₹{invoice.subtotal.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between"><span>Tax</span><span>₹{invoice.tax.toLocaleString('en-IN')}</span></div>
-              <div className="flex justify-between border-t border-slate-200 pt-2 text-base font-semibold text-slate-900"><span>Total</span><span>₹{invoice.total.toLocaleString('en-IN')}</span></div>
-            </div>
-          </div>
-
-          <div className="space-y-5">
+          <div className="space-y-6">
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-              <h2 className="text-lg font-semibold text-slate-900">Receipt modes</h2>
+              <h2 className="text-lg font-semibold text-slate-900">Membership plans</h2>
               <div className="mt-4 space-y-3">
-                {receiptModes.map((mode) => (
-                  <div key={mode.name} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="font-medium text-slate-800">{mode.name}</p>
-                    <p className="mt-1 text-sm text-slate-600">{mode.details}</p>
+                {defaultMembershipPlans.map((plan) => (
+                  <div key={plan.id} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+                    <div>
+                      <p className="font-medium text-slate-800">{plan.name}</p>
+                      <p className="text-sm text-slate-500">{plan.durationMonths} month{plan.durationMonths === 1 ? '' : 's'}{plan.description ? ` · ${plan.description}` : ''}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-lg font-bold text-slate-900">₹{plan.price.toLocaleString('en-IN')}</p>
+                      <p className="text-xs text-emerald-700">{plan.isActive ? 'Active' : 'Inactive'}</p>
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-              <h2 className="text-lg font-semibold text-slate-900">Payment capabilities</h2>
-              <ul className="mt-4 space-y-2 text-sm text-slate-600">
-                <li>• UPI direct transfer</li>
-                <li>• Card / bank payment</li>
-                <li>• Cash collection and bookkeeping</li>
-                <li>• Digital SMS / WhatsApp receipts</li>
-                <li>• Printed physical bill</li>
-              </ul>
+              <h2 className="text-lg font-semibold text-slate-900">Subscriptions</h2>
+              <div className="mt-4 space-y-3">
+                {subscriptions.map((subscription) => {
+                  const member = membersById.get(subscription.memberId);
+                  const plan = plansById.get(subscription.planId);
+                  const days = daysUntil(subscription.expiryDate);
+                  return (
+                    <div key={subscription.id} className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-medium text-slate-800">{member?.name ?? 'Unknown member'}</p>
+                          <p className="text-sm text-slate-500">{plan?.name ?? 'Custom plan'} · started {new Date(subscription.startDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+                        </div>
+                        <div className="text-right">
+                          <span className={`rounded-full px-2 py-1 text-xs font-medium ${statusStyles[subscription.status]}`}>
+                            {statusLabels[subscription.status]}
+                          </span>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {days >= 0 ? `Expires ${new Date(subscription.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}` : `Expired ${new Date(subscription.expiryDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex items-center justify-between text-xs text-slate-500">
+                        <span>{subscription.autoRenew ? 'Auto-renew on' : 'Auto-renew off'}</span>
+                        <span>{member ? channelLabels[member.preferredChannel] : ''}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+              <h2 className="text-lg font-semibold text-slate-900">Renewal reminders</h2>
+              <div className="mt-4 space-y-3 text-sm">
+                {renewalQueue.map((subscription) => {
+                  const member = membersById.get(subscription.memberId);
+                  const days = daysUntil(subscription.expiryDate);
+                  return (
+                    <div key={subscription.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                      <p className="font-medium text-slate-800">{member?.name ?? 'Unknown member'}</p>
+                      <p className="mt-1 text-slate-600">{plansById.get(subscription.planId)?.name ?? 'Membership'}</p>
+                      <div className="mt-2 flex items-center justify-between text-xs">
+                        <span className={`rounded-full px-2 py-1 ${days < 0 ? 'bg-red-100 text-red-700' : days <= 1 ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                          {reminderLabel(days)}
+                        </span>
+                        <span className="text-slate-500">{member ? channelLabels[member.preferredChannel] : ''}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                {renewalQueue.length === 0 ? (
+                  <p className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-slate-500">No renewals due in the next 7 days.</p>
+                ) : null}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
+              <h2 className="text-lg font-semibold text-slate-900">Reminder templates</h2>
+              <div className="mt-4 space-y-3">
+                {defaultReminderTemplates.map((template) => (
+                  <div key={template.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                    <div className="flex items-center justify-between text-xs">
+                      <p className="font-medium text-slate-800">{template.name}</p>
+                      <span className="text-slate-500">{channelLabels[template.channel]} · {template.daysBeforeExpiry === 0 ? 'expiry day' : `${template.daysBeforeExpiry} days before`}</span>
+                    </div>
+                    <p className="mt-2 text-xs leading-relaxed text-slate-600">{template.message}</p>
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
         </div>
@@ -101,4 +154,3 @@ export default function BillingPage() {
     </div>
   );
 }
-

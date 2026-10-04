@@ -1,7 +1,6 @@
 import Link from 'next/link';
 import { StatCard } from '@/components/ui/stat-card';
-import { formatCurrency, summarizeFinancials } from '@/lib/financial-engine';
-import { demoTransactions } from '@/lib/demo-data';
+import { demoTransactions, formatCurrency, summarizeFinancials } from '@/lib/business-data';
 
 const snapshot = summarizeFinancials(demoTransactions);
 

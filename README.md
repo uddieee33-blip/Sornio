@@ -1,65 +1,52 @@
-const plans = [
-  { name: 'Monthly Access', price: 1999, duration: '1 month', status: 'Active' },
-  { name: 'Quarterly Plus', price: 4999, duration: '3 months', status: 'Active' },
-  { name: 'Half Year Fitness', price: 8999, duration: '6 months', status: 'Active' },
-  { name: 'Annual Elite', price: 15999, duration: '12 months', status: 'Active' },
-];
+# DukaanOS
 
-const reminders = [
-  { customer: 'John Wilson', business: 'Cult Fitness', time: '3 days left', channel: 'SMS + WhatsApp' },
-  { customer: 'Aisha Khan', business: 'Cult Fitness', time: '1 day left', channel: 'WhatsApp' },
-  { customer: 'Rahul Mehta', business: 'Cult Fitness', time: 'Expired today', channel: 'SMS' },
-];
+An operating system for small Indian businesses — retail shops, cafes, gyms, salons, and electronics stores. DukaanOS gives owners a single console for billing, inventory, memberships, payments, and AI-driven business intelligence, built around a transaction-driven financial engine where every number is derived from recorded activity.
 
-export default function MembershipsPage() {
-  return (
-    <div className="p-6 md:p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-6 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">memberships</p>
-            <h1 className="mt-2 text-3xl font-bold text-slate-900">Subscriptions and renewals</h1>
-          </div>
-          <button className="rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white">Add plan</button>
-        </div>
+## Stack
 
-        <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-            <h2 className="text-lg font-semibold text-slate-900">Membership plans</h2>
-            <div className="mt-4 space-y-3">
-              {plans.map((plan) => (
-                <div key={plan.name} className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-                  <div>
-                    <p className="font-medium text-slate-800">{plan.name}</p>
-                    <p className="text-sm text-slate-500">{plan.duration}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-lg font-bold text-slate-900">₹{plan.price.toLocaleString('en-IN')}</p>
-                    <p className="text-xs text-emerald-700">{plan.status}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+- **Next.js 14** (App Router) + **React 18** + **TypeScript**
+- **Tailwind CSS** for styling
+- **Supabase** (Postgres + Auth) for persistence and multi-tenant row-level security
 
-          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-            <h2 className="text-lg font-semibold text-slate-900">Renewal reminders</h2>
-            <div className="mt-4 space-y-3 text-sm">
-              {reminders.map((item) => (
-                <div key={`${item.customer}-${item.time}`} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                  <p className="font-medium text-slate-800">{item.customer}</p>
-                  <p className="mt-1 text-slate-600">{item.business}</p>
-                  <div className="mt-2 flex items-center justify-between text-xs">
-                    <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-700">{item.time}</span>
-                    <span className="text-slate-500">{item.channel}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
+## Getting started
 
+```bash
+npm install
+cp .env.example .env.local   # then fill in your Supabase credentials
+npm run dev                  # http://localhost:3000
+```
+
+Apply the database schema to your Supabase project with `supabase/schema.sql`.
+
+## Product map
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Owner overview with live financial summary |
+| `/dashboard` | Business reality dashboard with alerts |
+| `/business` | Business setup with type-specific templates |
+| `/products`, `/inventory`, `/suppliers` | Catalog, stock, and supply chain |
+| `/sales`, `/billing`, `/payments`, `/expenses` | Money in and money out |
+| `/transactions`, `/reports`, `/comparisons` | Ledger traceability and analysis |
+| `/memberships` | Plans, subscriptions, renewal reminders |
+| `/customers` | Profiles, balances, and receivables |
+| `/insights` | AI business health score, insights, growth tips |
+| `/alerts`, `/settings` | Notifications, preferences, audit trail |
+
+## Architecture
+
+- **`lib/models/`** — universal domain models shared across the product:
+  - `business.ts` — business profile, settings, templates, audit events, snapshot adapter
+  - `billing.ts` — invoices, line items, payment records, collection summaries
+  - `membership.ts` — plans, members, subscriptions, reminder templates, expiry derivation
+  - `insights.ts` — insights, AI tips, and business health scoring shapes
+- **`lib/services/ai-insights.ts`** — `AiInsightsEngine` computes the health score, live insights, and growth tips from snapshots, invoices, and subscriptions.
+- **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
+- **`supabase/schema.sql`** — multi-tenant Postgres schema. Every tenant table carries `business_id` and is protected by row-level security policies scoped to `business_members`.
+
+## Principles
+
+1. **Real data only** — metrics come from the transaction ledger, never hardcoded dashboards.
+2. **Universal models** — one business/billing/membership/insight model serves gyms, cafes, salons, and retail alike.
+3. **Traceability** — every invoice, payment, stock movement, and setting change lands in the audit trail.
+4. **No sensitive credentials** — payment methods are recorded without storing card numbers or banking secrets.

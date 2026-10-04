@@ -1,4 +1,3 @@
-import Link from 'next/link';
 import { Sidebar } from '@/components/layout/sidebar';
 import { MobileNav } from '@/components/layout/mobile-nav';
 

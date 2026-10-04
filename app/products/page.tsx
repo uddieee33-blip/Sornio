@@ -1,6 +1,4 @@
-import { demoProducts, formatCurrency, summarizeFinancials, demoTransactions } from '@/lib/business-data';
-
-const snapshot = summarizeFinancials(demoTransactions);
+import { demoProducts, formatCurrency } from '@/lib/business-data';
 
 export default function ProductsPage() {
   return (

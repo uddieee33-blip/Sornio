@@ -6,6 +6,8 @@ export function MobileNav() {
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/products', label: 'Products' },
     { href: '/sales', label: 'Sales' },
+    { href: '/billing', label: 'Billing' },
+    { href: '/memberships', label: 'Memberships' },
     { href: '/expenses', label: 'Expenses' },
     { href: '/inventory', label: 'Inventory' },
     { href: '/customers', label: 'Customers' },
