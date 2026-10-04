@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useMemo } from 'react';
+import dynamic from 'next/dynamic';
 import {
   ArrowRight,
   Banknote,
@@ -10,6 +10,7 @@ import {
   Brain,
   Dumbbell,
   Gauge,
+  Lock,
   QrCode,
   Receipt,
   ShieldCheck,
@@ -20,16 +21,26 @@ import {
   Users,
   Zap,
 } from 'lucide-react';
-import { RevenueAreaChart, DualAreaChart } from '@/components/charts/RevenueAreaChart';
-import { DonutChart } from '@/components/charts/DonutChart';
 import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
-import { expenseSeries, expensesByCategory, paymentsByMethod, revenueSeries } from '@/lib/chart-data';
 import { buildSeedState } from '@/lib/store';
+import { useMemo } from 'react';
+
+// Charts are the heaviest dependency on this page — load them after first paint.
+const LiveCharts = dynamic(() => import('@/components/landing/live-charts').then((mod) => mod.LiveCharts), {
+  ssr: false,
+  loading: () => (
+    <div className="grid gap-6 lg:grid-cols-3">
+      <div className="flex h-[360px] animate-pulse items-center justify-center rounded-3xl border border-white/[0.07] bg-white/[0.02] text-sm text-zinc-600 lg:col-span-2">Loading live charts…</div>
+      <div className="hidden h-[360px] animate-pulse rounded-3xl border border-white/[0.07] bg-white/[0.02] lg:block" />
+    </div>
+  ),
+});
 
 const navLinks = [
-  { label: 'Features', href: '#features' },
-  { label: 'Live Charts', href: '#charts' },
+  { label: 'Charts', href: '#charts' },
   { label: 'UPI QR', href: '#upi' },
+  { label: 'Modules', href: '#features' },
+  { label: 'Security', href: '#security' },
   { label: 'Pricing', href: '#pricing' },
 ];
 
@@ -46,6 +57,13 @@ const steps = [
   { icon: Users, title: 'Capture details', desc: 'Add name, phone, and bank or UPI details in seconds.' },
   { icon: QrCode, title: 'Generate a unique QR', desc: 'DukaanOS builds a UPI deep-link QR from the customer’s own UPI ID.' },
   { icon: Banknote, title: 'Get paid directly', desc: 'Scan it in any UPI app — money lands in their bank, no middleman, no fees.' },
+];
+
+const securityItems = [
+  { icon: ShieldCheck, title: 'Locked-down responses', desc: 'Every page ships with Content-Security-Policy, HSTS, nosniff, and frame protection.' },
+  { icon: Lock, title: 'Zero fund custody', desc: 'UPI QR collections settle directly into customer bank accounts. We never hold your money.' },
+  { icon: Smartphone, title: 'Permissions denied', desc: 'Camera, microphone, geolocation, and payment APIs are blocked site-wide by policy.' },
+  { icon: Gauge, title: 'Local-first data', desc: 'In demo mode your ledger never leaves the browser. Supabase auth is wired and ready.' },
 ];
 
 const plans = [
@@ -78,23 +96,25 @@ const plans = [
   },
 ];
 
+function SectionEyebrow({ index, label }: { index: string; label: string }) {
+  return (
+    <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">
+      <span className="mr-2 text-zinc-600">{index}</span>
+      {label}
+    </p>
+  );
+}
+
 export default function LandingPage() {
-  // Build the same seeded ledger the console uses, so the landing previews real data.
-  const seed = useMemo(() => buildSeedState(), []);
-  const financials = useMemo(() => summarizeFinancials(seed.transactions), [seed]);
-  const revenue = useMemo(() => revenueSeries(seed.transactions), [seed]);
-  const expenses = useMemo(() => expenseSeries(seed.transactions), [seed]);
-  const byCategory = useMemo(() => expensesByCategory(seed.transactions), [seed]);
-  const byMethod = useMemo(() => paymentsByMethod(seed.transactions), [seed]);
+  const financials = useMemo(() => summarizeFinancials(buildSeedState().transactions), []);
 
   return (
     <div className="relative overflow-hidden">
-      {/* ambient glows */}
-      <div className="pointer-events-none absolute -top-40 left-1/2 h-[560px] w-[900px] -translate-x-1/2 rounded-full bg-brand-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute right-0 top-[38rem] h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
+      {/* single ambient glow — cheap radial gradient, no blur filters */}
+      <div className="pointer-events-none absolute inset-x-0 top-0 h-[600px] bg-page-glow" />
 
       {/* NAV */}
-      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0B0D12]/80 backdrop-blur-xl">
+      <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0B0D12]/85 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-6 py-4">
           <Link href="/" className="flex items-center gap-3">
             <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm"><Store size={18} className="text-white" /></span>
@@ -115,7 +135,7 @@ export default function LandingPage() {
       </header>
 
       {/* HERO */}
-      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-20 text-center md:pt-28">
+      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-20 text-center md:pt-24">
         <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-300 animate-fade-up">
           <Sparkles size={14} /> Built for Indian shops, gyms, salons & cafés
         </div>
@@ -141,7 +161,7 @@ export default function LandingPage() {
             { icon: TrendingUp, label: 'Revenue (14d)', value: formatCurrency(financials.revenue) },
             { icon: Banknote, label: 'Net cash flow', value: formatCurrency(financials.netCashFlow) },
             { icon: Gauge, label: 'Gross margin', value: `${financials.grossMargin.toFixed(0)}%` },
-            { icon: Users, label: 'QR-ready customers', value: '100%' },
+            { icon: ShieldCheck, label: 'Middleman fees', value: '₹0' },
           ].map((stat) => (
             <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 backdrop-blur">
               <stat.icon size={17} className="mx-auto text-brand-300" />
@@ -152,68 +172,22 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* LIVE CHARTS PREVIEW */}
+      {/* 01 — LIVE CHARTS */}
       <section id="charts" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
         <div className="mb-10 text-center">
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">Live from the ledger</p>
+          <SectionEyebrow index="01" label="Live from the ledger" />
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Charts that move when your business moves</h2>
           <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">Every graph below is computed from the same seeded transactions that power the console — record a sale and watch it change.</p>
         </div>
-
-        <div className="grid gap-6 lg:grid-cols-3">
-          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6 lg:col-span-2">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="flex items-center gap-2 text-sm font-semibold text-zinc-200"><TrendingUp size={16} className="text-brand-300" /> Revenue vs expenses · 14 days</h3>
-              <span className="rounded-full bg-emerald-500/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/25">Live</span>
-            </div>
-            <DualAreaChart revenue={revenue} expenses={expenses} height={260} />
-          </div>
-
-          <div className="grid gap-6">
-            <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-              <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Banknote size={16} className="text-brand-300" /> Payment mix</h3>
-              {byMethod.length > 0 ? <DonutChart data={byMethod} centerLabel="Collected" centerValue={formatCurrency(financials.cashIn)} height={190} /> : null}
-            </div>
-          </div>
-        </div>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><BarChart3 size={16} className="text-brand-300" /> Revenue trend</h3>
-            <RevenueAreaChart data={revenue} gradientId="landing-rev" height={190} />
-          </div>
-          <div className="rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6">
-            <h3 className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Receipt size={16} className="text-brand-300" /> Expenses by category</h3>
-            {byCategory.length > 0 ? <DonutChart data={byCategory} centerLabel="Spent" centerValue={formatCurrency(financials.operatingExpenses)} height={190} /> : null}
-          </div>
-        </div>
+        <LiveCharts />
       </section>
 
-      {/* FEATURES */}
-      <section id="features" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
-        <div className="mb-10 text-center">
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">Everything a dukaan needs</p>
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">One console. Every module.</h2>
-        </div>
-        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-          {features.map((feature) => (
-            <div key={feature.title} className="group rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6 transition hover:border-brand-400/30 hover:bg-white/[0.04] hover:shadow-card-hover">
-              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/20 transition group-hover:bg-brand-gradient group-hover:text-white group-hover:shadow-glow-sm">
-                <feature.icon size={20} />
-              </span>
-              <h3 className="mt-4 text-base font-semibold text-white">{feature.title}</h3>
-              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{feature.desc}</p>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      {/* UPI QR */}
+      {/* 02 — UPI QR */}
       <section id="upi" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
         <div className="overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-500/[0.08] via-transparent to-violet-500/[0.06] p-8 md:p-12">
           <div className="grid items-center gap-10 lg:grid-cols-2">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">No middleman. Ever.</p>
+              <SectionEyebrow index="02" label="No middleman. Ever." />
               <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">A unique UPI QR for every customer</h2>
               <p className="mt-4 text-sm leading-relaxed text-zinc-400 md:text-base">
                 Capture a customer&apos;s UPI ID and bank details once. DukaanOS generates a personal
@@ -240,9 +214,8 @@ export default function LandingPage() {
 
             <div className="flex justify-center">
               <div className="relative">
-                <div className="pointer-events-none absolute inset-0 -m-8 rounded-full bg-brand-500/20 blur-3xl" />
+                <div className="pointer-events-none absolute inset-0 -m-8 rounded-full bg-brand-500/15 blur-3xl" />
                 <div className="relative w-fit rounded-3xl bg-white p-5 shadow-glow">
-                  {/* decorative QR grid */}
                   <div className="grid h-56 w-56 grid-cols-8 gap-1">
                     {Array.from({ length: 64 }).map((_, i) => {
                       const on = [0, 1, 2, 5, 7, 8, 10, 13, 15, 16, 18, 21, 23, 24, 27, 29, 31, 32, 34, 37, 39, 40, 42, 45, 47, 48, 50, 53, 55, 56, 58, 61, 63].includes(i);
@@ -263,10 +236,53 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* PRICING */}
+      {/* 03 — MODULES */}
+      <section id="features" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+        <div className="mb-10 text-center">
+          <SectionEyebrow index="03" label="Everything a dukaan needs" />
+          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">One console. Every module.</h2>
+        </div>
+        <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
+          {features.map((feature) => (
+            <div key={feature.title} className="group rounded-3xl border border-white/[0.07] bg-white/[0.02] p-6 transition hover:border-brand-400/30 hover:bg-white/[0.04] hover:shadow-card-hover">
+              <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/20 transition group-hover:bg-brand-gradient group-hover:text-white group-hover:shadow-glow-sm">
+                <feature.icon size={20} />
+              </span>
+              <h3 className="mt-4 text-base font-semibold text-white">{feature.title}</h3>
+              <p className="mt-2 text-sm leading-relaxed text-zinc-400">{feature.desc}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* 04 — SECURITY */}
+      <section id="security" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
+        <div className="rounded-3xl border border-emerald-500/15 bg-emerald-500/[0.03] p-8 md:p-12">
+          <div className="mb-10 text-center">
+            <SectionEyebrow index="04" label="Security you can verify" />
+            <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Hardened by default</h2>
+            <p className="mx-auto mt-3 max-w-2xl text-sm text-zinc-400 md:text-base">Inspect the response headers yourself — every protection below ships on every page.</p>
+          </div>
+          <div className="grid gap-5 md:grid-cols-2">
+            {securityItems.map((item) => (
+              <div key={item.title} className="flex items-start gap-4 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-5 transition hover:border-emerald-400/30">
+                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/25">
+                  <item.icon size={18} />
+                </span>
+                <div>
+                  <h3 className="text-base font-semibold text-white">{item.title}</h3>
+                  <p className="mt-1 text-sm leading-relaxed text-zinc-400">{item.desc}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* 05 — PRICING */}
       <section id="pricing" className="relative mx-auto max-w-7xl scroll-mt-24 px-6 pb-24">
         <div className="mb-10 text-center">
-          <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-300">Simple pricing</p>
+          <SectionEyebrow index="05" label="Simple pricing" />
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Start free. Scale when you grow.</h2>
         </div>
         <div className="grid gap-6 md:grid-cols-3">
@@ -302,7 +318,6 @@ export default function LandingPage() {
       {/* FINAL CTA */}
       <section className="relative mx-auto max-w-5xl px-6 pb-24">
         <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.12] to-violet-500/[0.08] p-10 text-center md:p-14">
-          <div className="pointer-events-none absolute -top-24 left-1/2 h-64 w-[600px] -translate-x-1/2 rounded-full bg-brand-500/20 blur-3xl" />
           <h2 className="relative font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Your business, finally in one place.</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-sm text-zinc-400 md:text-base">Jump into the live console — seeded with a real 14-day ledger so every chart, alert, and QR is already working.</p>
           <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

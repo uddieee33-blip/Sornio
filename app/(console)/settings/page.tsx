@@ -1,30 +1,15 @@
 'use client';
 
 import { useState } from 'react';
-import { History, RotateCcw, ShieldCheck, SlidersHorizontal, ToggleLeft } from 'lucide-react';
+import { Check, History, Lock, RotateCcw, Save, ShieldCheck, SlidersHorizontal, ToggleLeft } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { defaultBusinessSettings, sampleAuditEvents } from '@/lib/models/business';
+import { sampleAuditEvents } from '@/lib/models/business';
 import { useDukaanStore } from '@/lib/store';
 
-const settings = defaultBusinessSettings;
 const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-
-const toggles = [
-  { label: 'SMS reminders', description: 'Send renewal and payment reminders via SMS.', enabled: settings.sendSmsReminders },
-  { label: 'WhatsApp reminders', description: 'Send renewal and payment reminders via WhatsApp.', enabled: settings.sendWhatsappReminders },
-  { label: 'Auto invoice numbers', description: 'Generate sequential invoice numbers automatically.', enabled: settings.autoGenerateInvoiceNumber },
-  { label: 'Digital receipts', description: 'Share receipts over SMS or WhatsApp.', enabled: settings.allowDigitalReceipts },
-  { label: 'Physical receipts', description: 'Print paper receipts at checkout.', enabled: settings.allowPhysicalReceipts },
-];
-
-const modules = [
-  { label: 'Memberships', description: 'Plans, subscriptions, and renewal automation.', enabled: settings.allowMemberships },
-  { label: 'Inventory', description: 'Stock levels, valuation, and reorder alerts.', enabled: settings.allowInventory },
-  { label: 'Appointments', description: 'Bookings and service scheduling.', enabled: settings.allowAppointments },
-];
 
 const auditTones: Record<string, BadgeTone> = {
   invoice: 'sky', payment: 'emerald', inventory: 'violet', member: 'amber', security: 'red', system: 'slate',
@@ -34,54 +19,139 @@ function formatAuditDate(iso: string) {
   return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
+type ToggleKey = 'sendSmsReminders' | 'sendWhatsappReminders' | 'autoGenerateInvoiceNumber' | 'allowDigitalReceipts' | 'allowPhysicalReceipts' | 'allowMemberships' | 'allowInventory' | 'allowAppointments';
+
+const toggleMeta: Record<ToggleKey, { label: string; description: string }> = {
+  sendSmsReminders: { label: 'SMS reminders', description: 'Renewal and payment reminders over SMS.' },
+  sendWhatsappReminders: { label: 'WhatsApp reminders', description: 'Renewal and payment reminders over WhatsApp.' },
+  autoGenerateInvoiceNumber: { label: 'Auto invoice numbers', description: 'Sequential invoice numbers on every bill.' },
+  allowDigitalReceipts: { label: 'Digital receipts', description: 'Share receipts over SMS or WhatsApp.' },
+  allowPhysicalReceipts: { label: 'Physical receipts', description: 'Print paper receipts at checkout.' },
+  allowMemberships: { label: 'Memberships module', description: 'Plans, subscriptions, and renewal automation.' },
+  allowInventory: { label: 'Inventory module', description: 'Stock levels, valuation, and reorder alerts.' },
+  allowAppointments: { label: 'Appointments module', description: 'Bookings and service scheduling.' },
+};
+
+function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
+  return (
+    <button
+      onClick={onClick}
+      role="switch"
+      aria-checked={on}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${on ? 'bg-brand-500' : 'bg-white/[0.08]'}`}
+    >
+      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
+    </button>
+  );
+}
+
 export default function SettingsPage() {
-  const { actions } = useDukaanStore();
+  const { state, actions } = useDukaanStore();
+  const settings = state.settings;
+
+  const [receiptMode, setReceiptMode] = useState(settings.receiptMode);
+  const [taxRate, setTaxRate] = useState(String(settings.taxRate));
+  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [resetMessage, setResetMessage] = useState<string | null>(null);
+  const [confirmReset, setConfirmReset] = useState(false);
+
+  const flash = (tone: 'ok' | 'error', text: string) => {
+    setMessage({ tone, text });
+    setTimeout(() => setMessage(null), 2600);
+  };
+
+  const flipToggle = (key: ToggleKey) => {
+    const result = actions.updateSettings({ [key]: !settings[key] } as Partial<typeof settings>);
+    if (result.ok) flash('ok', `${toggleMeta[key].label} ${settings[key] ? 'disabled' : 'enabled'}.`);
+    else flash('error', result.error ?? 'Could not update setting.');
+  };
+
+  const saveBillingDefaults = () => {
+    const parsed = Number(taxRate);
+    const result = actions.updateSettings({ receiptMode, taxRate: parsed });
+    if (result.ok) flash('ok', `Billing defaults saved — ${receiptMode} receipts, ${parsed}% tax.`);
+    else flash('error', result.error ?? 'Could not save billing defaults.');
+  };
+
+  const toggles: ToggleKey[] = ['sendSmsReminders', 'sendWhatsappReminders', 'autoGenerateInvoiceNumber', 'allowDigitalReceipts', 'allowPhysicalReceipts'];
+  const modules: ToggleKey[] = ['allowMemberships', 'allowInventory', 'allowAppointments'];
+
+  const securityPosture = [
+    { label: 'Content-Security-Policy', detail: 'Every response is locked to this origin — no foreign scripts or frames.', icon: ShieldCheck },
+    { label: 'HSTS + nosniff + DENY framing', detail: 'Forced HTTPS, no MIME sniffing, no clickjacking.', icon: Lock },
+    { label: 'Zero fund custody', detail: 'UPI QR payments settle directly into bank accounts. DukaanOS never touches money.', icon: Check },
+    { label: 'Local-first data', detail: 'Your ledger lives in this browser. Nothing leaves your device in demo mode.', icon: Lock },
+    { label: 'Masked account numbers', detail: 'Bank accounts are stored once, displayed masked (•••• last 4).', icon: ShieldCheck },
+  ];
 
   return (
     <div className="mx-auto max-w-6xl p-6 md:p-8">
-      <PageHeader eyebrow="Analysis" title="Business preferences" subtitle="Receipt behavior, reminder channels, tax defaults, module availability, and the audit trail." />
+      <PageHeader
+        eyebrow="Configuration"
+        title="Settings"
+        subtitle="Every control below is live — changes apply instantly and persist across sessions."
+        actions={<Badge tone="emerald" dot>Interactive</Badge>}
+      />
+
+      {message ? (
+        <div className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-red-500/20'}`}>
+          {message.tone === 'ok' ? <Check size={15} /> : <RotateCcw size={15} />} {message.text}
+        </div>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <div className="space-y-6">
+          {/* Billing defaults — editable */}
           <Card className="animate-fade-up">
-            <div className="mb-5"><CardTitle icon={<SlidersHorizontal size={17} />}>Billing defaults</CardTitle></div>
+            <div className="mb-5 flex items-center justify-between">
+              <CardTitle icon={<SlidersHorizontal size={17} />}>Billing defaults</CardTitle>
+              <Button variant="secondary" onClick={saveBillingDefaults}><Save size={15} /> Save</Button>
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="text-sm">
                 <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Receipt mode</span>
-                <select defaultValue={settings.receiptMode} className={inputClass}>
-                  <option value="digital">Digital</option><option value="physical">Physical</option><option value="both">Both</option>
+                <select value={receiptMode} onChange={(e) => setReceiptMode(e.target.value as typeof receiptMode)} className={inputClass}>
+                  <option value="digital">Digital</option>
+                  <option value="physical">Physical</option>
+                  <option value="both">Both</option>
                 </select>
               </label>
               <label className="text-sm">
                 <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Default tax rate (%)</span>
-                <input type="number" defaultValue={settings.taxRate} className={inputClass} />
+                <input type="number" min={0} max={100} step={0.5} value={taxRate} onChange={(e) => setTaxRate(e.target.value)} className={inputClass} />
               </label>
             </div>
+            <p className="mt-3 text-xs text-zinc-500">Current: <span className="font-semibold text-zinc-300 capitalize">{settings.receiptMode}</span> receipts · <span className="font-semibold text-zinc-300">{settings.taxRate}%</span> tax · last updated {new Date(settings.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+          </Card>
 
-            <div className="mt-5 space-y-3">
-              {toggles.map((toggle) => (
-                <div key={toggle.label} className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-brand-400/25 hover:bg-white/[0.05]">
+          {/* Reminders & receipts — live toggles */}
+          <Card className="animate-fade-up">
+            <div className="mb-5"><CardTitle icon={<ToggleLeft size={17} />}>Reminders & receipts</CardTitle></div>
+            <div className="space-y-3">
+              {toggles.map((key) => (
+                <div key={key} className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-brand-400/25 hover:bg-white/[0.05]">
                   <div>
-                    <p className="text-sm font-semibold text-zinc-200">{toggle.label}</p>
-                    <p className="text-xs text-zinc-500">{toggle.description}</p>
+                    <p className="text-sm font-semibold text-zinc-200">{toggleMeta[key].label}</p>
+                    <p className="text-xs text-zinc-500">{toggleMeta[key].description}</p>
                   </div>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-semibold ring-1 ring-inset ${toggle.enabled ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/25' : 'bg-white/[0.05] text-zinc-500 ring-white/[0.08]'}`}>
-                    <ToggleLeft size={13} /> {toggle.enabled ? 'On' : 'Off'}
-                  </span>
+                  <Toggle on={Boolean(settings[key])} onClick={() => flipToggle(key)} />
                 </div>
               ))}
             </div>
           </Card>
 
+          {/* Modules — live toggles */}
           <Card className="animate-fade-up">
-            <div className="mb-5"><CardTitle icon={<ShieldCheck size={17} />}>Modules & roles</CardTitle></div>
-            <div className="grid gap-3 md:grid-cols-3">
-              {modules.map((module) => (
-                <div key={module.label} className={`rounded-2xl border p-4 transition ${module.enabled ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'border-white/[0.07] bg-white/[0.03]'}`}>
-                  <p className="text-sm font-semibold text-zinc-200">{module.label}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{module.description}</p>
-                  <p className={`mt-2.5 text-xs font-semibold ${module.enabled ? 'text-emerald-400' : 'text-zinc-500'}`}>{module.enabled ? '● Enabled' : '○ Disabled'}</p>
+            <div className="mb-5"><CardTitle icon={<SlidersHorizontal size={17} />}>Modules</CardTitle></div>
+            <div className="space-y-3">
+              {modules.map((key) => (
+                <div key={key} className={`flex items-center justify-between rounded-2xl border p-4 transition ${settings[key] ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'border-white/[0.07] bg-white/[0.03]'}`}>
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-200">{toggleMeta[key].label}</p>
+                    <p className="text-xs text-zinc-500">{toggleMeta[key].description}</p>
+                    <p className={`mt-1.5 text-xs font-semibold ${settings[key] ? 'text-emerald-400' : 'text-zinc-500'}`}>{settings[key] ? '● Enabled' : '○ Disabled'}</p>
+                  </div>
+                  <Toggle on={Boolean(settings[key])} onClick={() => flipToggle(key)} />
                 </div>
               ))}
             </div>
@@ -92,21 +162,57 @@ export default function SettingsPage() {
             </div>
           </Card>
 
+          {/* Security & privacy */}
+          <Card className="animate-fade-up">
+            <div className="mb-5 flex items-center justify-between">
+              <CardTitle icon={<Lock size={17} />}>Security & privacy</CardTitle>
+              <Badge tone="emerald" dot>Active</Badge>
+            </div>
+            <div className="space-y-3">
+              {securityPosture.map((item) => (
+                <div key={item.label} className="flex items-start gap-3 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.05] p-3.5">
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400"><item.icon size={14} /></span>
+                  <div>
+                    <p className="text-sm font-semibold text-zinc-200">{item.label}</p>
+                    <p className="text-xs leading-relaxed text-zinc-500">{item.detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+
+          {/* Demo data */}
           <Card className="animate-fade-up border-red-500/20">
             <div className="mb-2"><CardTitle icon={<RotateCcw size={17} />}>Demo data</CardTitle></div>
             <p className="text-sm text-zinc-500">All recorded activity lives in your browser. Reset returns the business to its seeded demo state.</p>
             {resetMessage ? <p className="mt-3 rounded-xl bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-400 ring-1 ring-inset ring-emerald-500/20">{resetMessage}</p> : null}
-            <div className="mt-4">
-              <Button
-                variant="danger"
-                onClick={() => { actions.resetDemo(); setResetMessage('Demo data restored to the seeded business.'); }}
-              >
-                <RotateCcw size={15} /> Reset demo data
-              </Button>
+            <div className="mt-4 flex items-center gap-3">
+              {!confirmReset ? (
+                <Button variant="danger" onClick={() => setConfirmReset(true)}><RotateCcw size={15} /> Reset demo data</Button>
+              ) : (
+                <>
+                  <span className="text-sm font-semibold text-red-400">Are you sure?</span>
+                  <Button
+                    variant="danger"
+                    onClick={() => {
+                      actions.resetDemo();
+                      setReceiptMode('both');
+                      setTaxRate('18');
+                      setConfirmReset(false);
+                      setResetMessage('Demo data restored to the seeded business.');
+                      setTimeout(() => setResetMessage(null), 3000);
+                    }}
+                  >
+                    Yes, reset everything
+                  </Button>
+                  <Button variant="secondary" onClick={() => setConfirmReset(false)}>Cancel</Button>
+                </>
+              )}
             </div>
           </Card>
         </div>
 
+        {/* Audit trail */}
         <Card className="animate-fade-up h-fit">
           <div className="mb-1 flex items-center justify-between">
             <CardTitle icon={<History size={17} />}>Audit history</CardTitle>

@@ -9,6 +9,7 @@ import {
   type Transaction,
 } from '@/lib/business-data';
 import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
+import { defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
 import {
   buildSampleSubscriptions,
   defaultMembers,
@@ -52,6 +53,7 @@ export type StoreState = {
   reminderTemplates: ReminderTemplate[];
   invoices: Invoice[];
   paymentRecords: PaymentRecord[];
+  settings: BusinessSettings;
 };
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -59,7 +61,7 @@ export type ActionResult = { ok: boolean; error?: string };
 export type SaleLine = { productId: string; quantity: number; rate: number };
 export type InvoiceLine = { name: string; category: string; quantity: number; unitPrice: number };
 
-const STORAGE_KEY = 'dukaanos-store-v3';
+const STORAGE_KEY = 'dukaanos-store-v4';
 
 /**
  * Seed ledger: 14 days of realistic, deterministic activity so charts and
@@ -190,6 +192,7 @@ export function buildSeedState(): StoreState {
     reminderTemplates: defaultReminderTemplates,
     invoices: sampleInvoices,
     paymentRecords: samplePaymentRecords,
+    settings: defaultBusinessSettings,
   };
 }
 
@@ -206,6 +209,7 @@ export type StoreActions = {
   renewSubscription: (input: { subscriptionId: string; method: PaymentMethod }) => ActionResult;
   createInvoice: (input: { customerName: string; customerPhone?: string; lines: InvoiceLine[]; method: PaymentMethod; taxRate: number }) => ActionResult;
   markInvoicePaid: (invoiceId: string) => ActionResult;
+  updateSettings: (patch: Partial<BusinessSettings>) => ActionResult;
   resetDemo: () => void;
 };
 
@@ -259,7 +263,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       if (raw) {
         const parsed = JSON.parse(raw) as StoreState;
         if (parsed && Array.isArray(parsed.transactions) && Array.isArray(parsed.products)) {
-          setState(parsed);
+          // Defensive merge: older saved states may lack newer slices.
+          setState({ ...parsed, settings: parsed.settings ?? defaultBusinessSettings });
         }
       }
     } catch {
@@ -584,6 +589,19 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...current.transactions,
           ...buildRevenueTransactions(`Invoice ${invoice.id}`, invoice.totalAmount, invoice.paymentMethod, invoice.customerName).map((tx) => ({ ...tx, date })),
         ],
+      }));
+      return { ok: true };
+    },
+
+    updateSettings(patch) {
+      if (patch.taxRate !== undefined) {
+        if (!Number.isFinite(patch.taxRate) || patch.taxRate < 0 || patch.taxRate > 100) {
+          return { ok: false, error: 'Tax rate must be between 0 and 100.' };
+        }
+      }
+      setState((current) => ({
+        ...current,
+        settings: { ...current.settings, ...patch, updatedAt: new Date().toISOString() },
       }));
       return { ok: true };
     },
