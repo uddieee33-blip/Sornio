@@ -1,20 +1,18 @@
 'use client';
 
 import Link from 'next/link';
+import { Activity, AlertTriangle, Banknote, CheckCircle2, Coins, PiggyBank, TrendingUp, Zap } from 'lucide-react';
+import { StatCard } from '@/components/ui/stat-card';
+import { Card, CardTitle } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
 import { formatCurrency, getAlerts } from '@/lib/business-data';
 import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
+import { trendSeries } from '@/lib/trend';
 
 export default function DashboardPage() {
   const { state } = useDukaanStore();
   const snapshot = useFinancialSnapshot();
   const alerts = getAlerts(snapshot, state.products);
-
-  const cards = [
-    { label: 'Revenue', value: snapshot.revenue, tone: 'emerald' },
-    { label: 'Gross Profit', value: snapshot.grossProfit, tone: 'blue' },
-    { label: 'Operating Profit', value: snapshot.operatingProfit, tone: 'violet' },
-    { label: 'Cash Position', value: snapshot.cashBalance, tone: 'amber' },
-  ];
 
   const today = new Date().toISOString().slice(0, 10);
   const todays = state.transactions.filter((tx) => tx.date === today);
@@ -24,68 +22,93 @@ export default function DashboardPage() {
   const spendToday = expensesToday.reduce((sum, tx) => sum + tx.amount, 0);
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="mb-6 flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500">Owner Cockpit</p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Business reality dashboard</h1>
+    <div className="relative min-h-screen bg-soft">
+      <div className="pointer-events-none absolute inset-0 bg-mesh-light" />
+      <div className="relative p-6 md:p-8">
+        <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+          <div>
+            <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-600">Owner Cockpit</p>
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">Business reality dashboard</h1>
+          </div>
+          <Badge tone="emerald" dot>Real data only</Badge>
         </div>
-        <div className="rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-medium text-emerald-700">
-          Real data only
-        </div>
-      </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {cards.map((card) => (
-          <div key={card.label} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-            <div className={`inline-flex rounded-full px-2 py-1 text-xs font-medium ${
-              card.tone === 'emerald' ? 'bg-emerald-50 text-emerald-700' :
-              card.tone === 'blue' ? 'bg-blue-50 text-blue-700' :
-              card.tone === 'violet' ? 'bg-violet-50 text-violet-700' : 'bg-amber-50 text-amber-700'
-            }`}>
-              {card.label}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <StatCard label="Revenue" value={formatCurrency(snapshot.revenue)} icon={Banknote} tone="emerald" spark={trendSeries(snapshot.revenue, 8, 0.2, 1)} />
+          <StatCard label="Gross Profit" value={formatCurrency(snapshot.grossProfit)} icon={Coins} tone="brand" spark={trendSeries(snapshot.grossProfit, 8, 0.22, 2)} />
+          <StatCard label="Operating Profit" value={formatCurrency(snapshot.operatingProfit)} icon={PiggyBank} tone="violet" spark={trendSeries(snapshot.operatingProfit, 8, 0.18, 3)} />
+          <StatCard label="Cash Position" value={formatCurrency(snapshot.cashBalance)} icon={Banknote} tone="amber" spark={trendSeries(snapshot.cashBalance, 8, 0.25, 4)} />
+        </div>
+
+        <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+          <Card className="animate-fade-up">
+            <div className="mb-5 flex items-center justify-between">
+              <CardTitle icon={<Activity size={17} />}>What Changed Today?</CardTitle>
+              <Badge tone="brand">{todays.length} entries</Badge>
             </div>
-            <p className="mt-4 text-2xl font-bold text-slate-900">{formatCurrency(card.value)}</p>
-          </div>
-        ))}
-      </div>
+            <ul className="space-y-3">
+              {salesToday.length > 0 ? (
+                <li className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/50 p-3.5 text-sm text-slate-700">
+                  <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-600" />
+                  <span>Revenue increased by <strong className="text-emerald-700">{formatCurrency(revenueToday)}</strong> across {salesToday.length} sale(s).</span>
+                </li>
+              ) : (
+                <li className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3.5 text-sm text-slate-600">
+                  <Zap size={18} className="mt-0.5 shrink-0 text-brand-500" />
+                  <span>No sales recorded yet today. <Link href="/sales" className="font-semibold text-brand-600 hover:underline">Record the first one.</Link></span>
+                </li>
+              )}
+              {expensesToday.length > 0 ? (
+                <li className="flex items-start gap-3 rounded-2xl border border-red-100 bg-red-50/50 p-3.5 text-sm text-slate-700">
+                  <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-500" />
+                  <span>Cash decreased by <strong className="text-red-600">{formatCurrency(spendToday)}</strong> across {expensesToday.length} expense(s).</span>
+                </li>
+              ) : (
+                <li className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3.5 text-sm text-slate-600">
+                  <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>No expenses recorded today.</span>
+                </li>
+              )}
+              {todays.some((tx) => tx.type === 'stock_adjustment') ? (
+                <li className="flex items-start gap-3 rounded-2xl border border-slate-100 bg-slate-50 p-3.5 text-sm text-slate-600">
+                  <Activity size={18} className="mt-0.5 shrink-0 text-slate-400" />
+                  <span>Inventory decreased because sales consumed stock.</span>
+                </li>
+              ) : null}
+              <li className="flex items-start gap-3 rounded-2xl border border-brand-100 bg-brand-50/40 p-3.5 text-sm text-slate-700">
+                <TrendingUp size={18} className="mt-0.5 shrink-0 text-brand-600" />
+                <span>Cash position is <strong>{formatCurrency(snapshot.cashBalance)}</strong> and inventory value is <strong>{formatCurrency(snapshot.inventoryValue)}</strong>.</span>
+              </li>
+            </ul>
+          </Card>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-          <h2 className="text-lg font-semibold text-slate-900">What Changed Today?</h2>
-          <ul className="mt-4 space-y-3 text-sm text-slate-600">
-            {salesToday.length > 0 ? (
-              <li>• Revenue increased by <strong className="text-emerald-700">{formatCurrency(revenueToday)}</strong> across {salesToday.length} sale(s).</li>
-            ) : (
-              <li>• No sales recorded yet today. <Link href="/sales" className="font-medium text-slate-900">Record the first one.</Link></li>
-            )}
-            {expensesToday.length > 0 ? (
-              <li>• Cash decreased by <strong className="text-red-700">{formatCurrency(spendToday)}</strong> across {expensesToday.length} expense(s).</li>
-            ) : (
-              <li>• No expenses recorded today.</li>
-            )}
-            {todays.some((tx) => tx.type === 'stock_adjustment') ? (
-              <li>• Inventory decreased because sales consumed stock.</li>
-            ) : null}
-            <li>• Cash position is {formatCurrency(snapshot.cashBalance)} and inventory value is {formatCurrency(snapshot.inventoryValue)}.</li>
-          </ul>
-        </section>
-
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-          <h2 className="text-lg font-semibold text-slate-900">Alerts</h2>
-          <div className="mt-4 space-y-3 text-sm">
-            {alerts.map((alert) => (
-              <div key={alert.type} className={
-                alert.tone === 'amber' ? 'rounded-xl border border-amber-200 bg-amber-50 p-3 text-amber-800' :
-                alert.tone === 'red' ? 'rounded-xl border border-red-200 bg-red-50 p-3 text-red-800' :
-                'rounded-xl border border-sky-200 bg-sky-50 p-3 text-sky-800'
-              }>{alert.message}</div>
-            ))}
-            {alerts.length === 0 ? (
-              <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 text-emerald-800">Nothing needs attention right now.</div>
-            ) : null}
-          </div>
-        </section>
+          <Card className="animate-fade-up">
+            <div className="mb-5 flex items-center justify-between">
+              <CardTitle icon={<AlertTriangle size={17} />}>Alerts</CardTitle>
+              <Badge tone={alerts.length ? 'amber' : 'emerald'} dot>{alerts.length ? `${alerts.length} active` : 'All clear'}</Badge>
+            </div>
+            <div className="space-y-3">
+              {alerts.map((alert) => (
+                <div
+                  key={alert.type}
+                  className={`rounded-2xl border p-3.5 text-sm ${
+                    alert.tone === 'amber' ? 'border-amber-200 bg-amber-50 text-amber-800' :
+                    alert.tone === 'red' ? 'border-red-200 bg-red-50 text-red-800' :
+                    'border-sky-200 bg-sky-50 text-sky-800'
+                  }`}
+                >
+                  {alert.message}
+                </div>
+              ))}
+              {alerts.length === 0 ? (
+                <div className="flex items-center gap-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+                  <CheckCircle2 size={18} className="shrink-0 text-emerald-600" />
+                  Nothing needs attention right now.
+                </div>
+              ) : null}
+            </div>
+          </Card>
+        </div>
       </div>
     </div>
   );

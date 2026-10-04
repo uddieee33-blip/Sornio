@@ -1,21 +1,40 @@
+'use client';
+
+import { Truck } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Card } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { demoSuppliers, formatCurrency } from '@/lib/business-data';
+
 export default function SuppliersPage() {
   return (
-    <div className="p-6 md:p-8">
-      <h1 className="text-3xl font-bold text-slate-900">Suppliers</h1>
-      <p className="mt-2 text-slate-600">Supplier profiles, products supplied, purchase history, and outstanding payables.</p>
+    <div className="relative min-h-screen bg-soft">
+      <div className="pointer-events-none absolute inset-0 bg-mesh-light" />
+      <div className="relative p-6 md:p-8">
+        <PageHeader
+          eyebrow="People"
+          title="Suppliers"
+          subtitle="Supplier profiles, products supplied, purchase history, and outstanding payables."
+          actions={<Badge tone="brand" dot>{demoSuppliers.length} suppliers</Badge>}
+        />
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {[
-          { name: 'Urban Goods Co.', payable: 18000, orders: 4 },
-          { name: 'Fresh Harvest', payable: 6500, orders: 2 },
-          { name: 'Daily Needs Supply', payable: 0, orders: 1 },
-        ].map((supplier) => (
-          <div key={supplier.name} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-            <p className="font-medium text-slate-900">{supplier.name}</p>
-            <p className="mt-3 text-sm text-slate-500">Payable: ₹{supplier.payable}</p>
-            <p className="mt-1 text-xs text-slate-500">Orders: {supplier.orders}</p>
-          </div>
-        ))}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {demoSuppliers.map((supplier) => (
+            <Card key={supplier.name} className="animate-fade-up" hover>
+              <div className="flex items-center gap-3">
+                <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gradient text-white"><Truck size={20} /></span>
+                <div>
+                  <p className="font-semibold text-slate-900">{supplier.name}</p>
+                  <p className="text-xs text-slate-500">{supplier.orders} order{supplier.orders === 1 ? '' : 's'} placed</p>
+                </div>
+              </div>
+              <div className="mt-4 flex items-center justify-between rounded-2xl bg-slate-50 p-3.5 text-sm">
+                <span className="text-slate-600">Payable</span>
+                <strong className={`tabular-nums ${supplier.payable > 0 ? 'text-amber-700' : 'text-emerald-700'}`}>{formatCurrency(supplier.payable)}</strong>
+              </div>
+            </Card>
+          ))}
+        </div>
       </div>
     </div>
   );

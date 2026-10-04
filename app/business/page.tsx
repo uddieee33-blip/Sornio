@@ -1,94 +1,86 @@
+'use client';
+
+import { Building2, Check, Sparkles } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Card, CardTitle } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { businessTemplates, defaultBusinessSettings } from '@/lib/models/business';
+
+const inputClass = 'w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500';
 
 export default function BusinessPage() {
   return (
-    <div className="p-6 md:p-8">
-      <div className="mx-auto max-w-6xl">
-        <div className="mb-8">
-          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-slate-500"> business setup </p>
-          <h1 className="mt-2 text-3xl font-bold text-slate-900">Build your business profile</h1>
-          <p className="mt-2 max-w-2xl text-slate-600">
-            DukaanOS adapts to your business type with the right modules, billing logic, customer flow, and receipt system.
-          </p>
-        </div>
+    <div className="relative min-h-screen bg-soft">
+      <div className="pointer-events-none absolute inset-0 bg-mesh-light" />
+      <div className="relative mx-auto max-w-6xl p-6 md:p-8">
+        <PageHeader
+          eyebrow="Business Setup"
+          title="Build your business profile"
+          subtitle="DukaanOS adapts to your business type with the right modules, billing logic, customer flow, and receipt system."
+        />
 
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
-          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-card">
-            <div className="grid gap-5 md:grid-cols-2">
-              <label className="text-sm text-slate-700">
-                <span className="mb-2 block font-medium">Business name</span>
-                <input className="w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-900" placeholder="Cult Fitness" />
-              </label>
-
-              <label className="text-sm text-slate-700">
-                <span className="mb-2 block font-medium">Business type</span>
-                <select className="w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-900">
-                  {businessTemplates.map((template) => (
-                    <option key={template.id}>{template.name}</option>
-                  ))}
+          <Card className="animate-fade-up h-fit">
+            <div className="mb-5"><CardTitle icon={<Building2 size={17} />}>Business details</CardTitle></div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" /></div>
+              <div><span className={labelClass}>Business type</span>
+                <select className={inputClass}>
+                  {businessTemplates.map((template) => <option key={template.id}>{template.name}</option>)}
                 </select>
-              </label>
-
-              <label className="text-sm text-slate-700">
-                <span className="mb-2 block font-medium">Currency</span>
-                <input defaultValue="INR" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-900" />
-              </label>
-
-              <label className="text-sm text-slate-700">
-                <span className="mb-2 block font-medium">Time zone</span>
-                <input defaultValue="Asia/Kolkata" className="w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-900" />
-              </label>
+              </div>
+              <div><span className={labelClass}>Currency</span><input defaultValue="INR" className={inputClass} /></div>
+              <div><span className={labelClass}>Time zone</span><input defaultValue="Asia/Kolkata" className={inputClass} /></div>
             </div>
 
-            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="mb-2 text-sm font-medium text-slate-800">UPI / payment setup</p>
-              <div className="grid gap-4 md:grid-cols-2">
-                <input className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-slate-900" placeholder="Business UPI ID" />
-                <input className="rounded-xl border border-slate-300 bg-white px-3 py-2.5 outline-none focus:border-slate-900" placeholder="Bank name / IFSC" />
+            <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50/60 p-4">
+              <p className="mb-3 text-sm font-semibold text-slate-800">UPI / payment setup</p>
+              <div className="grid gap-3 md:grid-cols-2">
+                <input className={inputClass} placeholder="Business UPI ID" />
+                <input className={inputClass} placeholder="Bank name / IFSC" />
               </div>
             </div>
 
             <div className="mt-5">
-              <label className="block text-sm text-slate-700">
-                <span className="mb-2 block font-medium">Business description</span>
-                <textarea className="min-h-[120px] w-full rounded-xl border border-slate-300 px-3 py-2.5 outline-none focus:border-slate-900" placeholder="Describe your business, customers, and service model." />
-              </label>
+              <span className={labelClass}>Business description</span>
+              <textarea className="min-h-[110px] w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-brand-400 focus:ring-2 focus:ring-brand-100" placeholder="Describe your business, customers, and service model." />
             </div>
 
-            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="mb-3 text-sm font-medium text-slate-800">Default operating preferences</p>
+            <div className="mt-5 rounded-2xl border border-brand-100 bg-brand-50/50 p-4">
+              <p className="mb-3 text-sm font-semibold text-slate-800">Default operating preferences</p>
               <div className="grid gap-2 text-sm text-slate-600 md:grid-cols-2">
-                <p>• Receipt mode: <span className="font-medium text-slate-800 capitalize">{defaultBusinessSettings.receiptMode}</span></p>
-                <p>• Default tax rate: <span className="font-medium text-slate-800">{defaultBusinessSettings.taxRate}%</span></p>
-                <p>• Auto invoice numbers: <span className="font-medium text-slate-800">{defaultBusinessSettings.autoGenerateInvoiceNumber ? 'On' : 'Off'}</span></p>
-                <p>• Reminders: <span className="font-medium text-slate-800">SMS + WhatsApp</span></p>
+                <p className="flex items-center gap-2"><Check size={14} className="text-emerald-600" /> Receipt mode: <span className="font-semibold capitalize text-slate-800">{defaultBusinessSettings.receiptMode}</span></p>
+                <p className="flex items-center gap-2"><Check size={14} className="text-emerald-600" /> Default tax rate: <span className="font-semibold text-slate-800">{defaultBusinessSettings.taxRate}%</span></p>
+                <p className="flex items-center gap-2"><Check size={14} className="text-emerald-600" /> Auto invoice numbers: <span className="font-semibold text-slate-800">{defaultBusinessSettings.autoGenerateInvoiceNumber ? 'On' : 'Off'}</span></p>
+                <p className="flex items-center gap-2"><Check size={14} className="text-emerald-600" /> Reminders: <span className="font-semibold text-slate-800">SMS + WhatsApp</span></p>
               </div>
             </div>
 
             <div className="mt-6 flex justify-end">
-              <button className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-medium text-white">Create business</button>
+              <Button><Building2 size={16} /> Create business</Button>
             </div>
-          </div>
+          </Card>
 
-          <div className="space-y-5">
-            <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-card">
-              <h2 className="text-lg font-semibold text-slate-900">Recommended modules</h2>
-              <div className="mt-4 grid gap-3">
+          <div className="space-y-6">
+            <Card className="animate-fade-up h-fit">
+              <div className="mb-5"><CardTitle icon={<Sparkles size={17} />}>Recommended modules</CardTitle></div>
+              <div className="space-y-3">
                 {businessTemplates.map((template) => (
-                  <div key={template.id} className="rounded-xl border border-slate-200 bg-slate-50 p-3">
-                    <p className="font-medium text-slate-800">{template.name}</p>
+                  <div key={template.id} className="rounded-2xl border border-slate-100 bg-slate-50/50 p-4 transition hover:border-brand-200 hover:bg-white hover:shadow-card">
+                    <p className="font-semibold text-slate-800">{template.name}</p>
                     <p className="mt-1 text-xs text-slate-500">{template.description}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
+                    <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {template.recommendedModules.map((module) => (
-                        <span key={module} className="rounded-full bg-white px-2 py-1 text-[11px] text-slate-600 ring-1 ring-slate-200">{module}</span>
+                        <span key={module} className="rounded-full bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-inset ring-slate-200">{module}</span>
                       ))}
                     </div>
                   </div>
                 ))}
               </div>
-            </div>
+            </Card>
 
-            <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+            <div className="animate-fade-up rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900 shadow-card">
               Every business starts with zero financial history and can add real data as soon as operation begins.
             </div>
           </div>

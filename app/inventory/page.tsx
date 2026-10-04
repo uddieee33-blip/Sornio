@@ -1,6 +1,9 @@
 'use client';
 
 import Link from 'next/link';
+import { Boxes, Package } from 'lucide-react';
+import { PageHeader } from '@/components/ui/PageHeader';
+import { Badge } from '@/components/ui/Badge';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
 
@@ -11,40 +14,47 @@ export default function InventoryPage() {
   const lowStockCount = products.filter((product) => product.status === 'Active' && product.stock <= product.reorderLevel).length;
 
   return (
-    <div className="p-6 md:p-8">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-900">Inventory</h1>
-          <p className="mt-2 text-slate-600">Stock levels update automatically when sales are recorded.</p>
-        </div>
-        <div className="flex gap-2">
-          <span className="rounded-full bg-slate-200 px-3 py-1 text-xs font-medium text-slate-700">Value {formatCurrency(stockValue)}</span>
-          {lowStockCount > 0 ? (
-            <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">{lowStockCount} low</span>
-          ) : null}
-        </div>
-      </div>
+    <div className="relative min-h-screen bg-soft">
+      <div className="pointer-events-none absolute inset-0 bg-mesh-light" />
+      <div className="relative p-6 md:p-8">
+        <PageHeader
+          eyebrow="Operations"
+          title="Inventory"
+          subtitle="Stock levels update automatically when sales are recorded."
+          actions={
+            <>
+              <Badge tone="brand">Value {formatCurrency(stockValue)}</Badge>
+              {lowStockCount > 0 ? <Badge tone="amber" dot>{lowStockCount} low</Badge> : null}
+            </>
+          }
+        />
 
-      <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {products.map((product) => {
-          const low = product.status === 'Active' && product.stock <= product.reorderLevel;
-          return (
-            <div key={product.id} className={`rounded-2xl border bg-white p-5 shadow-card ${low ? 'border-amber-300' : 'border-slate-200'}`}>
-              <div className="flex items-center justify-between">
-                <p className="text-sm text-slate-500">{product.name}</p>
-                {low ? <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-medium text-amber-700">Reorder</span> : null}
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {products.map((product) => {
+            const low = product.status === 'Active' && product.stock <= product.reorderLevel;
+            return (
+              <div key={product.id} className={`animate-fade-up relative overflow-hidden rounded-2xl border bg-white p-5 shadow-card transition hover:-translate-y-0.5 hover:shadow-card-hover ${low ? 'border-amber-300' : 'border-slate-200/80'}`}>
+                {low ? <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-amber-400 to-orange-400" /> : <div className="absolute inset-x-0 top-0 h-1 bg-brand-gradient opacity-60" />}
+                <div className="flex items-center justify-between">
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-100 text-slate-500"><Package size={17} /></span>
+                  {low ? <Badge tone="amber" dot>Reorder</Badge> : <Badge tone="emerald" dot>In stock</Badge>}
+                </div>
+                <p className="mt-3 text-sm font-medium text-slate-500">{product.name}</p>
+                <p className="mt-1 text-3xl font-bold tabular-nums text-slate-900">{product.stock}</p>
+                <div className="mt-3 space-y-1 text-xs text-slate-500">
+                  <p>Reorder at {product.reorderLevel} · cost {formatCurrency(product.cost)}</p>
+                  <p>On-hand value <span className="font-semibold text-slate-700 tabular-nums">{formatCurrency(product.stock * product.cost)}</span></p>
+                </div>
               </div>
-              <p className="mt-3 text-2xl font-bold text-slate-900">{product.stock}</p>
-              <p className="mt-1 text-xs text-slate-500">Reorder at {product.reorderLevel} · cost {formatCurrency(product.cost)}</p>
-              <p className="mt-2 text-xs text-slate-500">On-hand value {formatCurrency(product.stock * product.cost)}</p>
-            </div>
-          );
-        })}
-      </div>
+            );
+          })}
+        </div>
 
-      <p className="mt-6 text-sm text-slate-500">
-        Stock moves when you <Link href="/sales" className="font-medium text-slate-900">record sales</Link> and new items appear from <Link href="/products" className="font-medium text-slate-900">the catalog</Link>.
-      </p>
+        <div className="mt-8 flex items-center gap-3 rounded-2xl border border-brand-100 bg-brand-50/50 p-4 text-sm text-slate-600">
+          <Boxes size={18} className="shrink-0 text-brand-600" />
+          <p>Stock moves when you <Link href="/sales" className="font-semibold text-brand-600 hover:underline">record sales</Link> and new items appear from <Link href="/products" className="font-semibold text-brand-600 hover:underline">the catalog</Link>.</p>
+        </div>
+      </div>
     </div>
   );
 }
