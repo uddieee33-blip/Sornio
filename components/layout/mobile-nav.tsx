@@ -7,16 +7,21 @@ export function MobileNav() {
   const pathname = usePathname();
 
   const links = [
-    { href: '/home', label: 'Overview' },
+    { href: '/home', label: 'Cockpit' },
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/products', label: 'Products' },
     { href: '/sales', label: 'Sales' },
     { href: '/billing', label: 'Billing' },
-    { href: '/memberships', label: 'Memberships' },
+    { href: '/payments', label: 'Payments' },
     { href: '/expenses', label: 'Expenses' },
-    { href: '/inventory', label: 'Inventory' },
-    { href: '/insights', label: 'Insights' },
+    { href: '/cashflow', label: 'Cash Flow' },
+    { href: '/profitability', label: 'Profit' },
+    { href: '/memberships', label: 'Memberships' },
     { href: '/customers', label: 'Customers' },
+    { href: '/inventory', label: 'Inventory' },
+    { href: '/marketing', label: 'Marketing' },
+    { href: '/insights', label: 'Insights' },
+    { href: '/audit', label: 'Audit' },
   ];
 
   return (

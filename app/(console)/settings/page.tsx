@@ -6,13 +6,12 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { sampleAuditEvents } from '@/lib/models/business';
 import { useDukaanStore } from '@/lib/store';
 
 const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 const auditTones: Record<string, BadgeTone> = {
-  invoice: 'sky', payment: 'emerald', inventory: 'violet', member: 'amber', security: 'red', system: 'slate',
+  sale: 'emerald', expense: 'red', product: 'brand', customer: 'sky', membership: 'violet', invoice: 'amber', marketing: 'violet', settings: 'slate', system: 'slate',
 };
 
 function formatAuditDate(iso: string) {
@@ -212,15 +211,15 @@ export default function SettingsPage() {
           </Card>
         </div>
 
-        {/* Audit trail */}
+        {/* Audit trail — real entries written as actions happen */}
         <Card className="animate-fade-up h-fit">
           <div className="mb-1 flex items-center justify-between">
             <CardTitle icon={<History size={17} />}>Audit history</CardTitle>
-            <Badge tone="brand" dot>{sampleAuditEvents.length}</Badge>
+            <Badge tone="brand" dot>{state.audit.length}</Badge>
           </div>
-          <p className="mb-4 text-sm text-zinc-500">Every business action is traceable.</p>
+          <p className="mb-4 text-sm text-zinc-500">Every important change is recorded as it happens.</p>
           <div className="space-y-3">
-            {sampleAuditEvents.map((event) => (
+            {state.audit.slice(0, 10).map((event) => (
               <div key={event.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-brand-400/25 hover:bg-white/[0.05]">
                 <div className="flex items-center justify-between">
                   <Badge tone={auditTones[event.type] ?? 'slate'}>{event.type}</Badge>
@@ -230,6 +229,9 @@ export default function SettingsPage() {
                 <p className="mt-1 text-xs text-zinc-500">by {event.actor}</p>
               </div>
             ))}
+            {state.audit.length === 0 ? (
+              <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No activity recorded yet — the trail starts with your first sale, expense, or catalog change.</p>
+            ) : null}
           </div>
         </Card>
       </div>

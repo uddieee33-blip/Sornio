@@ -482,3 +482,28 @@ CREATE POLICY "Business members manage insights" ON insights
 CREATE POLICY "Business members manage AI tips" ON ai_tips
   FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
   WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- ============================================================================
+-- Increment 7: marketing activity tracking (campaigns + spend)
+-- Spend recorded here should also be mirrored in expenses when money is spent.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS marketing_campaigns (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  channel TEXT NOT NULL CHECK (channel IN ('Social Media','Google Ads','Print','Radio','Events','Referrals','Other')),
+  spend NUMERIC(12,2) NOT NULL DEFAULT 0,
+  notes TEXT,
+  start_date DATE NOT NULL DEFAULT CURRENT_DATE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_marketing_campaigns_business_id ON marketing_campaigns (business_id);
+
+ALTER TABLE marketing_campaigns ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Business members manage marketing campaigns" ON marketing_campaigns
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));

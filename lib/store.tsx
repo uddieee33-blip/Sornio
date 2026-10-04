@@ -43,7 +43,29 @@ export type Customer = {
   createdAt: string;
 };
 
+/** Traceable record of an important business or financial change. */
+export type AuditEntry = {
+  id: string;
+  type: 'sale' | 'expense' | 'product' | 'customer' | 'membership' | 'invoice' | 'marketing' | 'settings' | 'system';
+  actor: string;
+  summary: string;
+  reference?: string;
+  createdAt: string;
+};
+
+/** A tracked marketing activity with its spend. */
+export type MarketingCampaign = {
+  id: string;
+  name: string;
+  channel: 'Social Media' | 'Google Ads' | 'Print' | 'Radio' | 'Events' | 'Referrals' | 'Other';
+  spend: number;
+  notes?: string;
+  startDate: string;
+};
+
 export type StoreState = {
+  /** True while viewing the clearly-separated demo business (sample data). */
+  demoMode: boolean;
   products: Product[];
   transactions: Transaction[];
   customers: Customer[];
@@ -54,6 +76,8 @@ export type StoreState = {
   invoices: Invoice[];
   paymentRecords: PaymentRecord[];
   settings: BusinessSettings;
+  audit: AuditEntry[];
+  campaigns: MarketingCampaign[];
 };
 
 export type ActionResult = { ok: boolean; error?: string };
@@ -61,12 +85,14 @@ export type ActionResult = { ok: boolean; error?: string };
 export type SaleLine = { productId: string; quantity: number; rate: number };
 export type InvoiceLine = { name: string; category: string; quantity: number; unitPrice: number };
 
-const STORAGE_KEY = 'dukaanos-store-v4';
+const STORAGE_KEY = 'dukaanos-store-v5';
 
 /**
- * Seed ledger: 14 days of realistic, deterministic activity so charts and
- * reports always show a living business. All figures flow through the same
- * transaction-driven financial engine — nothing is faked downstream.
+ * CORE PRINCIPLE: a real business starts at ZERO. Every financial figure is
+ * calculated from actually recorded activity — never fabricated.
+ *
+ * The demo business below is OPTIONAL and clearly separated (demoMode flag):
+ * it exists only to demonstrate the product and never mixes with real records.
  */
 function buildSeedLedger(): Transaction[] {
   const ledger: Transaction[] = [];
@@ -143,6 +169,10 @@ function addMonths(reference: Date, months: number): string {
   return date.toISOString();
 }
 
+function formatAuditAmount(value: number): string {
+  return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+}
+
 function methodAccount(method: PaymentMethod): Transaction['account'] {
   switch (method) {
     case 'Cash':
@@ -164,8 +194,40 @@ function methodGateway(method: PaymentMethod): PaymentRecord['gateway'] {
   return 'Razorpay';
 }
 
+/** A completely new business at zero — the default state of DukaanOS. */
+export function buildEmptyState(): StoreState {
+  return {
+    demoMode: false,
+    products: [],
+    transactions: [],
+    customers: [],
+    plans: [],
+    members: [],
+    subscriptions: [],
+    reminderTemplates: [],
+    invoices: [],
+    paymentRecords: [],
+    settings: defaultBusinessSettings,
+    audit: [
+      {
+        id: newId('audit'),
+        type: 'system',
+        actor: 'System',
+        summary: 'Business created. All balances start at ₹0 and will move only as real activity is recorded.',
+        createdAt: new Date().toISOString(),
+      },
+    ],
+    campaigns: [],
+  };
+}
+
+/**
+ * OPTIONAL demo business — rich sample data, clearly flagged with demoMode.
+ * Loaded only on explicit owner action; never the default.
+ */
 export function buildSeedState(): StoreState {
   return {
+    demoMode: true,
     products: demoProducts,
     transactions: buildSeedLedger(),
     customers: demoCustomers.map((customer, index) => ({
@@ -193,6 +255,14 @@ export function buildSeedState(): StoreState {
     invoices: sampleInvoices,
     paymentRecords: samplePaymentRecords,
     settings: defaultBusinessSettings,
+    audit: [
+      { id: 'audit-demo-1', type: 'system', actor: 'System', summary: 'Demo business loaded — sample data, clearly separated from real records.', createdAt: new Date().toISOString() },
+      { id: 'audit-demo-2', type: 'sale', actor: 'Front Desk', summary: 'Sample ledger seeded with 14 days of retail, membership, and expense activity.', createdAt: new Date().toISOString() },
+    ],
+    campaigns: [
+      { id: 'camp-1', name: 'Diwali Offers', channel: 'Social Media', spend: 7500, notes: 'Festive push on Instagram + WhatsApp status.', startDate: new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10) },
+      { id: 'camp-2', name: 'Google Search — local', channel: 'Google Ads', spend: 4500, notes: 'Brand + “near me” keywords.', startDate: new Date(Date.now() - 11 * 864e5).toISOString().slice(0, 10) },
+    ],
   };
 }
 
@@ -209,6 +279,10 @@ export type StoreActions = {
   renewSubscription: (input: { subscriptionId: string; method: PaymentMethod }) => ActionResult;
   createInvoice: (input: { customerName: string; customerPhone?: string; lines: InvoiceLine[]; method: PaymentMethod; taxRate: number }) => ActionResult;
   markInvoicePaid: (invoiceId: string) => ActionResult;
+  updateProduct: (productId: string, patch: Partial<Omit<Product, 'id'>>) => ActionResult;
+  addCampaign: (input: { name: string; channel: MarketingCampaign['channel']; spend: number; notes?: string }) => ActionResult;
+  loadDemoBusiness: () => void;
+  startFreshBusiness: () => void;
   updateSettings: (patch: Partial<BusinessSettings>) => ActionResult;
   resetDemo: () => void;
 };
@@ -249,7 +323,8 @@ function buildRevenueTransactions(description: string, amount: number, method: P
 }
 
 export function DukaanStoreProvider({ children }: { children: ReactNode }) {
-  const [state, setState] = useState<StoreState>(buildSeedState);
+  // A real business starts at zero. Demo data is opt-in and clearly separated.
+  const [state, setState] = useState<StoreState>(buildEmptyState);
   const [hydrated, setHydrated] = useState(false);
 
   // A ref that always mirrors the latest state so memoized actions read fresh data.
@@ -264,7 +339,13 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         const parsed = JSON.parse(raw) as StoreState;
         if (parsed && Array.isArray(parsed.transactions) && Array.isArray(parsed.products)) {
           // Defensive merge: older saved states may lack newer slices.
-          setState({ ...parsed, settings: parsed.settings ?? defaultBusinessSettings });
+          setState({
+            ...parsed,
+            demoMode: parsed.demoMode ?? false,
+            settings: parsed.settings ?? defaultBusinessSettings,
+            audit: Array.isArray(parsed.audit) ? parsed.audit : [],
+            campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
+          });
         }
       }
     } catch {
@@ -282,7 +363,19 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     }
   }, [state, hydrated]);
 
-  const actions = useMemo<StoreActions>(() => ({
+  const actions = useMemo<StoreActions>(() => {
+    // Append a traceable audit record for important business/financial changes.
+    const track = (type: AuditEntry['type'], summary: string, reference?: string) => {
+      setState((current) => ({
+        ...current,
+        audit: [
+          { id: newId('audit'), type, actor: 'Owner', summary, reference, createdAt: new Date().toISOString() },
+          ...current.audit,
+        ].slice(0, 300),
+      }));
+    };
+
+    return ({
     addProduct(input) {
       if (!input.name.trim()) return { ok: false, error: 'Item name is required.' };
       if (input.sellingPrice < 0 || input.cost < 0 || input.stock < 0) {
@@ -292,6 +385,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         ...current,
         products: [...current.products, { ...input, id: newId('p'), name: input.name.trim() }],
       }));
+      track('product', `Product \"${input.name.trim()}\" added to the catalog.`);
       return { ok: true };
     },
 
@@ -332,6 +426,12 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           label,
         );
 
+        // Traceability: record exactly which items were sold, at what rate and cost.
+        newTransactions[0].items = validLines.map((line) => {
+          const product = current.products.find((item) => item.id === line.productId);
+          return { productId: line.productId, name: product?.name ?? 'Item', quantity: line.quantity, rate: line.rate, cost: product?.cost ?? 0 };
+        });
+
         // Inventory reduction at cost for physical goods.
         for (const line of validLines) {
           const product = current.products.find((item) => item.id === line.productId);
@@ -358,6 +458,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           }),
         };
       });
+      track('sale', `Sale of ${formatAuditAmount(total)} recorded via ${method}${label ? ` for ${label}` : ''}.`);
       return { ok: true };
     },
 
@@ -392,6 +493,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           },
         ],
       }));
+      track('expense', `${category} expense of ${formatAuditAmount(amount)} paid via ${method}.`);
       return { ok: true };
     },
 
@@ -423,6 +525,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           },
         ],
       }));
+      track('customer', `Customer \"${name.trim()}\" added.`);
       return { ok: true };
     },
 
@@ -441,6 +544,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           };
         }),
       }));
+      track('customer', 'Customer profile updated.');
       return { ok: true };
     },
 
@@ -455,6 +559,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           { id: newId('plan'), businessId: 'biz-1', name: name.trim(), type, durationMonths, price, description, isActive: true },
         ],
       }));
+      track('membership', `Membership plan \"${name.trim()}\" created (${durationMonths} month(s), ${formatAuditAmount(price)}).`);
       return { ok: true };
     },
 
@@ -468,6 +573,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           { id: newId('member'), businessId: 'biz-1', name: name.trim(), phone: phone.trim(), preferredChannel, createdAt: new Date().toISOString() },
         ],
       }));
+      track('membership', `Member \"${name.trim()}\" added to the directory.`);
       return { ok: true };
     },
 
@@ -499,6 +605,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...buildRevenueTransactions(`${plan.name} membership`, plan.price, method, member.name),
         ],
       }));
+      track('membership', `Membership enrollment recorded — payment via ${method}.`);
       return { ok: true };
     },
 
@@ -521,6 +628,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...buildRevenueTransactions(`${plan.name} renewal`, plan.price, method, member?.name),
         ],
       }));
+      track('membership', `Subscription renewed — payment via ${method}.`);
       return { ok: true };
     },
 
@@ -560,6 +668,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           },
         ],
       }));
+      track('invoice', `Invoice raised for ${customerName.trim()} (${lines.length} line(s)).`);
       return { ok: true };
     },
 
@@ -590,6 +699,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...buildRevenueTransactions(`Invoice ${invoice.id}`, invoice.totalAmount, invoice.paymentMethod, invoice.customerName).map((tx) => ({ ...tx, date })),
         ],
       }));
+      track('invoice', `Invoice ${invoiceId} marked paid — revenue and cash updated.`, invoiceId);
       return { ok: true };
     },
 
@@ -603,7 +713,64 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         ...current,
         settings: { ...current.settings, ...patch, updatedAt: new Date().toISOString() },
       }));
+      track('settings', 'Business settings updated.');
       return { ok: true };
+    },
+
+    updateProduct(productId, patch) {
+      if (patch.sellingPrice !== undefined && (patch.sellingPrice < 0 || !Number.isFinite(patch.sellingPrice))) {
+        return { ok: false, error: 'Selling price cannot be negative.' };
+      }
+      if (patch.cost !== undefined && (patch.cost < 0 || !Number.isFinite(patch.cost))) {
+        return { ok: false, error: 'Cost price cannot be negative.' };
+      }
+      if (patch.stock !== undefined && (patch.stock < 0 || !Number.isFinite(patch.stock))) {
+        return { ok: false, error: 'Stock cannot be negative.' };
+      }
+      setState((current) => ({
+        ...current,
+        products: current.products.map((product) =>
+          product.id === productId ? { ...product, ...patch, id: productId } : product,
+        ),
+      }));
+      track('product', 'Product details updated (price/cost/stock/status changes are audited).', productId);
+      return { ok: true };
+    },
+
+    addCampaign({ name, channel, spend, notes }) {
+      if (!name.trim()) return { ok: false, error: 'Campaign name is required.' };
+      if (!Number.isFinite(spend) || spend < 0) return { ok: false, error: 'Spend cannot be negative.' };
+      const campaign: MarketingCampaign = {
+        id: newId('camp'),
+        name: name.trim(),
+        channel,
+        spend,
+        notes: notes?.trim() || undefined,
+        startDate: todayISO(),
+      };
+      setState((current) => ({ ...current, campaigns: [campaign, ...current.campaigns] }));
+      if (spend > 0) {
+        // Marketing spend is also a real business expense paid out.
+        setState((current) => ({
+          ...current,
+          transactions: [
+            ...current.transactions,
+            { id: newId('t'), type: 'expense', description: `Marketing expense — ${name.trim()}`, amount: spend, direction: 'out', account: 'expense', paymentMethod: 'UPI', date: todayISO() },
+            { id: newId('t'), type: 'payment', description: `UPI paid for marketing — ${name.trim()}`, amount: spend, direction: 'out', account: 'upi', paymentMethod: 'UPI', date: todayISO() },
+          ],
+        }));
+      }
+      track('marketing', `Marketing campaign \"${name.trim()}\" recorded (${channel}, spend ${formatAuditAmount(spend)}).`, campaign.id);
+      return { ok: true };
+    },
+
+    loadDemoBusiness() {
+      setState(buildSeedState());
+    },
+
+    startFreshBusiness() {
+      setState(buildEmptyState());
+      track('system', 'Started a fresh business — every balance reset to ₹0.');
     },
 
     resetDemo() {
@@ -614,7 +781,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       }
       setState(buildSeedState());
     },
-  }), []);
+    });
+  }, []);
 
   return <StoreContext.Provider value={{ state, actions, hydrated }}>{children}</StoreContext.Provider>;
 }

@@ -12,7 +12,7 @@ import { expensesByCategory } from '@/lib/chart-data';
 import type { PaymentMethod } from '@/lib/models/billing';
 import { useDukaanStore } from '@/lib/store';
 
-const CATEGORIES = ['Rent', 'Electricity', 'Marketing', 'Software', 'Salaries', 'Supplies', 'Other'];
+const CATEGORIES = ['Rent', 'Electricity', 'Marketing', 'Salaries', 'Supplies', 'Software', 'Transport', 'Other'];
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';

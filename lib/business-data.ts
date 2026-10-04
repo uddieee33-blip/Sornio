@@ -9,7 +9,17 @@ export type Product = {
   reorderLevel: number;
   status: 'Active' | 'Inactive';
   supplier?: string;
+  description?: string;
+  /** GST / tax rate in percent, if applicable */
+  taxRate?: number;
+  /** SKU / item code (optional) */
+  sku?: string;
+  /** Unit of measure, e.g. pcs, kg, hour */
+  unit?: string;
 };
+
+/** A sold line item recorded on the sale transaction for full traceability. */
+export type SaleItemRef = { productId: string; name: string; quantity: number; rate: number; cost: number };
 
 export type Transaction = {
   id: string;
@@ -20,6 +30,8 @@ export type Transaction = {
   account: 'cash' | 'bank' | 'upi' | 'card' | 'receivables' | 'payables' | 'revenue' | 'expense' | 'inventory';
   paymentMethod?: 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Other';
   date: string;
+  /** Present on sale transactions: the exact items sold (product profitability + history). */
+  items?: SaleItemRef[];
 };
 
 // Empty business starts at zero

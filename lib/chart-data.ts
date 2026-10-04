@@ -37,6 +37,24 @@ export function expenseSeries(transactions: Transaction[], days = 14): TimePoint
   return dailyTotals(transactions, (tx) => tx.type === 'expense' && tx.direction === 'out', days);
 }
 
+/** Daily money arriving in cash/bank/UPI/card accounts (payment receipts). */
+export function cashInSeries(transactions: Transaction[], days = 14): TimePoint[] {
+  return dailyTotals(
+    transactions,
+    (tx) => tx.type === 'payment' && tx.direction === 'in' && ['cash', 'upi', 'bank', 'card'].includes(tx.account),
+    days,
+  );
+}
+
+/** Daily money leaving cash/bank/UPI/card accounts (expense payouts, sweeps). */
+export function cashOutSeries(transactions: Transaction[], days = 14): TimePoint[] {
+  return dailyTotals(
+    transactions,
+    (tx) => tx.type === 'payment' && tx.direction === 'out' && ['cash', 'upi', 'bank', 'card'].includes(tx.account),
+    days,
+  );
+}
+
 export function cashflowSeries(transactions: Transaction[], days = 14): TimePoint[] {
   return dailyTotals(
     transactions,

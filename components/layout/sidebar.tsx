@@ -11,10 +11,15 @@ import {
   Columns2,
   CreditCard,
   Dumbbell,
+  Landmark,
   LayoutDashboard,
+  Megaphone,
   Package,
+  Percent,
   Receipt,
+  ScrollText,
   Settings,
+  ShieldCheck,
   Sparkles,
   Store,
   Truck,
@@ -28,7 +33,7 @@ const sections: { title: string; links: { href: string; label: string; icon: Luc
   {
     title: 'Overview',
     links: [
-      { href: '/home', label: 'Overview', icon: Store },
+      { href: '/home', label: 'Owner Cockpit', icon: Store },
       { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
       { href: '/insights', label: 'AI Insights', icon: Sparkles },
       { href: '/alerts', label: 'Alerts', icon: Bell },
@@ -45,6 +50,7 @@ const sections: { title: string; links: { href: string; label: string; icon: Luc
       { href: '/payments', label: 'Payments', icon: CreditCard },
       { href: '/expenses', label: 'Expenses', icon: Wallet },
       { href: '/transactions', label: 'Transactions', icon: ArrowLeftRight },
+      { href: '/marketing', label: 'Marketing', icon: Megaphone },
     ],
   },
   {
@@ -53,6 +59,14 @@ const sections: { title: string; links: { href: string; label: string; icon: Luc
       { href: '/memberships', label: 'Memberships', icon: Dumbbell },
       { href: '/customers', label: 'Customers', icon: Users },
       { href: '/suppliers', label: 'Suppliers', icon: Truck },
+      { href: '/team', label: 'Team & Roles', icon: ShieldCheck },
+    ],
+  },
+  {
+    title: 'Money',
+    links: [
+      { href: '/cashflow', label: 'Cash Flow', icon: Landmark },
+      { href: '/profitability', label: 'Profitability', icon: Percent },
     ],
   },
   {
@@ -60,6 +74,7 @@ const sections: { title: string; links: { href: string; label: string; icon: Luc
     links: [
       { href: '/reports', label: 'Reports', icon: BarChart3 },
       { href: '/comparisons', label: 'Comparisons', icon: CircleDollarSign },
+      { href: '/audit', label: 'Audit History', icon: ScrollText },
       { href: '/settings', label: 'Settings', icon: Settings },
     ],
   },

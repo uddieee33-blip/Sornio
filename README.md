@@ -22,16 +22,21 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 
 | Route | Purpose |
 | --- | --- |
-| `/` | Owner overview with live financial summary |
+| `/` | Marketing landing page |
+| `/home` | **Owner Cockpit** — greeting, KPIs, what-changed-today, renewals, low stock |
 | `/dashboard` | Business reality dashboard with alerts |
 | `/business` | Business setup with type-specific templates |
-| `/products`, `/inventory`, `/suppliers` | Catalog, stock, and supply chain |
-| `/sales`, `/billing`, `/payments`, `/expenses` | Money in and money out |
+| `/products`, `/inventory`, `/suppliers` | Full catalog CRUD (add/edit/archive), stock, supply chain |
+| `/sales`, `/billing`, `/payments`, `/expenses` | Money in and money out (Cash/UPI/Card/Bank Transfer/Other) |
+| `/cashflow`, `/profitability` | Cash movements by account · margins & per-product profit |
 | `/transactions`, `/reports`, `/comparisons` | Ledger traceability and analysis |
 | `/memberships` | Plans, subscriptions, renewal reminders |
-| `/customers` | Profiles, balances, and receivables |
+| `/customers` | Profiles, balances, receivables, unique UPI QR per customer |
+| `/marketing` | Campaign tracking; spend is booked as a real expense |
+| `/team` | Roles & permissions matrix |
+| `/audit` | Real, timestamped audit history of every financial change |
 | `/insights` | AI business health score, insights, growth tips |
-| `/alerts`, `/settings` | Notifications, preferences, audit trail |
+| `/alerts`, `/settings` | Notifications, interactive preferences, audit trail |
 
 ## Architecture
 
@@ -47,7 +52,43 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 
 ## Principles
 
-1. **Real data only** — metrics come from the transaction ledger, never hardcoded dashboards.
-2. **Universal models** — one business/billing/membership/insight model serves gyms, cafes, salons, and retail alike.
-3. **Traceability** — every invoice, payment, stock movement, and setting change lands in the audit trail.
-4. **No sensitive credentials** — payment methods are recorded without storing card numbers or banking secrets.
+1. **Start at zero → record reality → calculate reality** — a new business opens with every balance at ₹0 (cash, bank, UPI, receivables, revenue, COGS, profit, inventory, payables). Nothing is fabricated; every figure moves only when real activity is recorded.
+2. **Real data only** — metrics come from the transaction ledger, never hardcoded dashboards.
+3. **Demo data is separated** — the sample business is opt-in and clearly flagged (`demoMode`); it never mixes with a real business's records.
+4. **Universal models** — one business/billing/membership/insight model serves gyms, cafes, salons, and retail alike.
+5. **Traceability** — every invoice, payment, stock movement, and setting change lands in the audit trail.
+6. **No sensitive credentials** — payment methods are recorded without ever requesting or storing UPI PINs, bank passwords, OTPs, or card numbers.
+
+## Database foundation (Supabase Postgres)
+
+`supabase/schema.sql` defines a multi-tenant relational schema — 26 tables, every business-owned record carrying `business_id`, with primary keys, foreign keys, indexes, constraints, and `created_at`/`updated_at` timestamps. Highlights: `businesses`, `business_members`, `customers`, `suppliers`, `categories`, `products`, `sales`, `sale_items`, `payment_methods`, `payments`, `expenses`, `inventory_movements`, `transactions`, `audit_logs`, `invoices`, `membership_plans`, `members`, `membership_subscriptions`, `marketing_campaigns`, and more.
+
+**Row Level Security** is enabled on every tenant table with policies scoped to `business_members` — one business can never read or write another business's rows.
+
+## Environment variables
+
+Browser-safe:
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`
+
+Server-only (never shipped to the browser):
+- `SUPABASE_SERVICE_ROLE_KEY` (if used for admin operations)
+- `NEXT_PUBLIC_APP_URL`
+
+Never commit real credentials; `.env*` is gitignored.
+
+## Run it
+
+```bash
+npm install
+cp .env.example .env.local   # add your Supabase URL + anon key
+npm run dev                  # http://localhost:3000
+```
+
+Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy to Vercel with the same environment variables.
+
+## Assumptions
+
+- The live demo runs the full domain model client-side (`lib/store.tsx`) so every flow is exercisable without a live Supabase project; the schema is ready for server-side wiring.
+- Accounting is a general-purpose calculation layer, not jurisdiction-specific tax/legal advice.
+- Trial/billing for DukaanOS itself is structured to be added later; no payment is required to run this version.
