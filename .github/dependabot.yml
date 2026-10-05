@@ -1,0 +1,32 @@
+# Keep dependencies current automatically.
+#
+# This repo runs a Next.js console over real business records, so framework
+# security patches matter. Dependabot opens the PRs; the CI workflow gates them.
+version: 2
+
+updates:
+  - package-ecosystem: npm
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - dependencies
+    groups:
+      # Batch the routine minor/patch churn into one PR so the important
+      # security majors stay visible instead of buried.
+      minor-and-patch:
+        update-types:
+          - minor
+          - patch
+
+  - package-ecosystem: github-actions
+    directory: '/'
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+      - ci

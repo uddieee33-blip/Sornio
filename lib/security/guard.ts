@@ -18,6 +18,8 @@ export type GuardedUser = { id: string; email: string | null };
 export async function getGuardedServerClient() {
   if (!isSupabaseConfigured()) return null;
   try {
+    // `cookies()` became async in Next.js 15, so it is awaited once here and
+    // captured rather than called repeatedly inside the cookie adapters.
     const cookieStore = await cookies();
     return createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
       cookies: {
