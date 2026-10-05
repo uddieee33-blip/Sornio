@@ -1,6 +1,7 @@
 'use client';
 
-import { RefreshCw, Store } from 'lucide-react';
+import { RefreshCw } from 'lucide-react';
+import { BrandIcon } from '@/components/ui/BrandLogo';
 
 /**
  * Global error boundary — if anything ever fails client-side, the owner sees
@@ -13,9 +14,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
 
       <div className="relative w-full max-w-md rounded-3xl border border-white/10 bg-white/[0.03] p-8 text-center shadow-card backdrop-blur">
-        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient shadow-glow">
-          <Store size={26} className="text-white" />
-        </div>
+        <BrandIcon size={56} className="mx-auto h-14 w-14 rounded-2xl shadow-glow" />
         <h1 className="mt-5 font-display text-xl font-bold text-white">Something tripped on our side</h1>
         <p className="mt-2 text-sm leading-relaxed text-zinc-400">
           Your data is safe on this device. Tap retry and you&apos;ll be right back where you were.

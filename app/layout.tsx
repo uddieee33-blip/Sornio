@@ -13,6 +13,7 @@ export const metadata: Metadata = {
   description:
     'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.',
   applicationName: 'DukaanOS',
+  icons: { icon: '/brand/dukaanos-app-icon.svg' },
   formatDetection: { telephone: false, address: false, email: false },
   robots: { index: true, follow: true },
   openGraph: {
@@ -24,7 +25,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#f7f6ef',
+  themeColor: '#061c4d',
   width: 'device-width',
   initialScale: 1,
   // Never block zoom — pinch-to-zoom is an accessibility feature, not a bug.

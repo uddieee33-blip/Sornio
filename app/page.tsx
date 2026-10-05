@@ -19,13 +19,13 @@ import {
   ShieldCheck,
   Smartphone,
   Sparkles,
-  Store,
   UserRound,
   X,
   Zap,
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
+import { BrandIcon } from '@/components/ui/BrandLogo';
 
 // Charts are the heaviest dependency on this page — load them after first paint.
 const LiveCharts = dynamic(() => import('@/components/landing/live-charts').then((mod) => mod.LiveCharts), {
@@ -145,7 +145,7 @@ export default function LandingPage() {
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-[#0d1017]/90 px-3.5 py-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
               <Link href="/" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm ring-1 ring-white/20"><Store size={18} className="text-white" /></span>
+                <BrandIcon size={36} priority className="h-9 w-9 shrink-0 rounded-xl shadow-glow-sm ring-1 ring-white/20" />
                 <span className="font-display text-lg font-bold tracking-tight text-white">
                   Dukaan<span className="bg-brand-gradient bg-clip-text text-transparent">OS</span>
                 </span>
@@ -431,9 +431,10 @@ export default function LandingPage() {
       <footer className="border-t border-white/[0.06] bg-[#0a0c11]/60">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 px-6 py-8 md:flex-row">
           <div className="flex items-center gap-3">
-            <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-gradient"><Store size={16} className="text-white" /></span>
+            <BrandIcon size={32} className="h-8 w-8 shrink-0 rounded-lg" />
             <div>
               <span className="font-display text-sm font-bold text-white">DukaanOS</span>
+              <p className="text-[10px] font-medium tracking-[0.08em] text-brand-300">Smarter Business. Bigger Dreams.</p>
               <p className="text-[11px] text-zinc-600">Available in 22 Indian languages · हिन्दी · ਪੰਜਾਬੀ · मराठी · বাংলা · தமிழ்…</p>
             </div>
           </div>

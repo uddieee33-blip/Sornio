@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 680 430" role="img" aria-labelledby="title desc">
+  <title id="title">DukaanOS</title>
+  <desc id="desc">Smarter Business. Bigger Dreams.</desc>
+  <defs>
+    <linearGradient id="dukaan-blue" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#08a8ff" />
+      <stop offset="0.48" stop-color="#0874f5" />
+      <stop offset="1" stop-color="#073ed1" />
+    </linearGradient>
+    <linearGradient id="growth-bars" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#08a9ff" />
+      <stop offset="1" stop-color="#1764ec" />
+    </linearGradient>
+  </defs>
+
+  <g transform="translate(237 27) scale(.8)">
+    <path fill="url(#dukaan-blue)" fill-rule="evenodd" d="M30 30h89c69 0 109 40 109 98s-40 98-109 98H30v-50h88c37 0 58-16 58-48s-21-48-58-48H30V30Zm49 50h40c32 0 57 16 57 48s-25 48-57 48H79V80Z" />
+    <path fill="url(#growth-bars)" d="m84 140 17-9v40c0 4-2 7-6 9l-9 5c-4 2-7 0-7-4v-32c0-4 2-7 5-9Zm29-20 17-10v48c0 4-2 7-6 9l-9 5c-4 2-7 0-7-4v-40c0-4 2-7 5-8Zm29-20 17-10v58c0 4-2 7-6 9l-9 5c-4 2-7 0-7-4v-49c0-4 2-7 5-9Z" />
+  </g>
+
+  <text x="340" y="325" text-anchor="middle" fill="#07132f" font-family="'Space Grotesk', 'Inter', Arial, sans-serif" font-size="100" font-weight="700" letter-spacing="-5">DukaanOS</text>
+  <text x="340" y="387" text-anchor="middle" fill="#30405d" font-family="'Inter', Arial, sans-serif" font-size="25" font-weight="400" letter-spacing="8">Smarter Business. Bigger Dreams.</text>
+</svg>
