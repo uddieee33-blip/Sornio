@@ -15,17 +15,18 @@ import { isSupabaseConfigured, getSupabasePublishableKey, getSupabaseUrl } from 
 export type GuardedUser = { id: string; email: string | null };
 
 /** Returns a server client, or null when Supabase is not configured. */
-export function getGuardedServerClient() {
+export async function getGuardedServerClient() {
   if (!isSupabaseConfigured()) return null;
   try {
+    const cookieStore = await cookies();
     return createServerClient(getSupabaseUrl(), getSupabasePublishableKey(), {
       cookies: {
         getAll() {
-          return cookies().getAll();
+          return cookieStore.getAll();
         },
         setAll(cookiesToSet: { name: string; value: string; options: CookieOptions }[]) {
           try {
-            cookiesToSet.forEach(({ name, value, options }) => cookies().set(name, value, options));
+            cookiesToSet.forEach(({ name, value, options }) => cookieStore.set(name, value, options));
           } catch {
             // Called from a server component render — middleware handles cookie writes.
           }
@@ -39,7 +40,7 @@ export function getGuardedServerClient() {
 
 /** Resolve the signed-in user without ever throwing or hanging. */
 export async function getSessionUser(): Promise<GuardedUser | null> {
-  const client = getGuardedServerClient();
+  const client = await getGuardedServerClient();
   if (!client) return null;
   try {
     const { data, error } = await client.auth.getUser();

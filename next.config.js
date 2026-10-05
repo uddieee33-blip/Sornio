@@ -65,7 +65,6 @@ const nextConfig = {
   productionBrowserSourceMaps: false,
 
   // Ship fewer bytes and fewer requests to the browser.
-  swcMinify: true,
   images: {
     formats: ['image/avif', 'image/webp'],
     minimumCacheTTL: 60 * 60 * 24 * 30,

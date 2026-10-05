@@ -23,8 +23,8 @@ export async function getSessionUser(): Promise<GuardedUser | null> {
 }
 
 /** True when this deployment can authenticate against Supabase at all. */
-export function authAvailable(): boolean {
-  return getGuardedServerClient() !== null;
+export async function authAvailable(): Promise<boolean> {
+  return (await getGuardedServerClient()) !== null;
 }
 
 /** Human label for audit entries — never the raw email address. */
