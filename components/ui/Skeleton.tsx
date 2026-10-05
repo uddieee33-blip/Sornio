@@ -28,7 +28,7 @@ export function SkeletonStatGrid({ count = 4 }: { count?: number }) {
   return (
     <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4" aria-hidden>
       {Array.from({ length: count }).map((_, index) => (
-        <div key={index} className="rounded-2xl bg-white/[0.03] p-5 ring-1 ring-white/[0.06]">
+        <div key={index} className="rounded-2xl bg-stone-50 p-5 ring-1 ring-stone-200">
           <Skeleton className="h-3 w-24" />
           <Skeleton className="mt-4 h-7 w-32" />
           <Skeleton className="mt-3 h-3 w-20" />
@@ -40,7 +40,7 @@ export function SkeletonStatGrid({ count = 4 }: { count?: number }) {
 
 export function SkeletonChart({ className = 'h-[320px]' }: { className?: string }) {
   return (
-    <div className={`rounded-2xl bg-white/[0.03] p-6 ring-1 ring-white/[0.06] ${className}`} aria-hidden>
+    <div className={`rounded-2xl bg-stone-50 p-6 ring-1 ring-stone-200 ${className}`} aria-hidden>
       <Skeleton className="h-4 w-40" />
       <div className="mt-6 flex h-[calc(100%-3rem)] items-end gap-2">
         {[62, 40, 78, 52, 88, 46, 70, 34].map((height, index) => (
@@ -53,14 +53,14 @@ export function SkeletonChart({ className = 'h-[320px]' }: { className?: string 
 
 export function SkeletonTable({ rows = 6, columns = 5 }: { rows?: number; columns?: number }) {
   return (
-    <div className="overflow-hidden rounded-2xl bg-white/[0.03] ring-1 ring-white/[0.06]" aria-hidden>
-      <div className="flex gap-4 border-b border-white/[0.06] px-5 py-3">
+    <div className="overflow-hidden rounded-2xl bg-stone-50 ring-1 ring-stone-200" aria-hidden>
+      <div className="flex gap-4 border-b border-stone-200 px-5 py-3">
         {Array.from({ length: columns }).map((_, index) => (
           <Skeleton key={index} className="h-3 flex-1" />
         ))}
       </div>
       {Array.from({ length: rows }).map((_, rowIndex) => (
-        <div key={rowIndex} className="flex gap-4 border-b border-white/[0.04] px-5 py-4 last:border-0">
+        <div key={rowIndex} className="flex gap-4 border-b border-stone-100 px-5 py-4 last:border-0">
           {Array.from({ length: columns }).map((_, columnIndex) => (
             <Skeleton key={columnIndex} className={`h-3.5 flex-1 ${columnIndex === 0 ? 'max-w-[220px]' : ''}`} />
           ))}

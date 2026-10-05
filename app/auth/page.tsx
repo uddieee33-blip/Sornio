@@ -9,7 +9,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
 import { consume } from '@/lib/security/rate-limit';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] py-3 pl-11 pr-11 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 py-3 pl-11 pr-11 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 /**
  * Local guard against credential-stuffing from this browser.
@@ -109,7 +109,7 @@ export default function AuthPage() {
 
   const fieldError = (message?: string) =>
     message ? (
-      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-400"><AlertCircle size={12} /> {message}</p>
+      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-700"><AlertCircle size={12} /> {message}</p>
     ) : null;
 
   return (
@@ -120,32 +120,32 @@ export default function AuthPage() {
       <div className="animate-fade-up relative w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
           <BrandWordmark width={190} priority className="h-auto w-[190px]" />
-          <h1 className="mt-2 font-display text-2xl font-bold text-white">Business access</h1>
-          <p className="mt-1.5 text-sm text-zinc-400">Sign in to manage your store, sales, and insights.</p>
+          <h1 className="mt-2 font-display text-2xl font-bold text-stone-900">Business access</h1>
+          <p className="mt-1.5 text-sm text-stone-600">Sign in to manage your store, sales, and insights.</p>
         </div>
 
-        <form onSubmit={handleSubmit} noValidate className="rounded-3xl border border-white/10 bg-white/[0.03] p-7 shadow-card backdrop-blur">
+        <form onSubmit={handleSubmit} noValidate className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card backdrop-blur">
           {errors.form ? (
-            <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-400 ring-1 ring-inset ring-red-500/20 animate-fade-in">
+            <div className="mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20 animate-fade-in">
               <AlertCircle size={14} className="mt-0.5 shrink-0" /> {errors.form}
             </div>
           ) : null}
 
           {supabaseReady ? (
-            <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-white/[0.04] p-1 ring-1 ring-inset ring-white/[0.06]">
+            <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-stone-50 p-1 ring-1 ring-inset ring-stone-200">
               {(['signin', 'signup'] as const).map((option) => (
                 <button
                   key={option}
                   type="button"
                   onClick={() => { setMode(option); setErrors((current) => ({ ...current, form: undefined })); }}
-                  className={`rounded-lg px-3 py-2 text-xs font-bold transition ${mode === option ? 'bg-brand-500/20 text-brand-200' : 'text-zinc-500 hover:text-zinc-300'}`}
+                  className={`rounded-lg px-3 py-2 text-xs font-bold transition ${mode === option ? 'bg-brand-500/20 text-brand-200' : 'text-stone-600 hover:text-stone-700'}`}
                 >
                   {option === 'signin' ? 'Sign in' : 'Create account'}
                 </button>
               ))}
             </div>
           ) : (
-            <div className="mb-4 rounded-xl bg-amber-500/[0.08] px-3.5 py-2.5 text-xs font-semibold text-amber-400/90 ring-1 ring-inset ring-amber-500/20">
+            <div className="mb-4 rounded-xl bg-amber-500/[0.08] px-3.5 py-2.5 text-xs font-semibold text-amber-700/90 ring-1 ring-inset ring-amber-500/20">
               Demo mode — Supabase credentials are not set, so sign-in is simulated on this device.
             </div>
           )}
@@ -153,7 +153,7 @@ export default function AuthPage() {
           <div className="space-y-4">
             <div>
               <div className="relative">
-                <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-600" />
                 <input
                   type="email"
                   autoComplete="email"
@@ -168,7 +168,7 @@ export default function AuthPage() {
 
             <div>
               <div className="relative">
-                <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-600" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="current-password"
@@ -180,7 +180,7 @@ export default function AuthPage() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((value) => !value)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg p-1.5 text-stone-600 transition hover:bg-stone-100 hover:text-stone-700"
                   aria-label={showPassword ? 'Hide password' : 'Show password'}
                 >
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
@@ -201,12 +201,12 @@ export default function AuthPage() {
                               : strength.score === 2
                                 ? 'bg-amber-400'
                                 : 'bg-red-400'
-                            : 'bg-white/[0.08]'
+                            : 'bg-stone-100'
                         }`}
                       />
                     ))}
                   </div>
-                  <p className="mt-1.5 text-[11px] text-zinc-500">
+                  <p className="mt-1.5 text-[11px] text-stone-600">
                     {strength.score >= 3 ? 'Strong password.' : strength.advice}
                   </p>
                 </div>
@@ -215,11 +215,11 @@ export default function AuthPage() {
           </div>
 
           <div className="mt-4 flex items-center justify-between text-xs">
-            <label className="flex cursor-pointer items-center gap-2 text-zinc-400">
+            <label className="flex cursor-pointer items-center gap-2 text-stone-600">
               <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} className="h-3.5 w-3.5 rounded accent-indigo-500" />
               Keep me signed in
             </label>
-            <button type="button" className="font-semibold text-brand-300 hover:underline">Forgot password?</button>
+            <button type="button" className="font-semibold text-brand-600 hover:underline">Forgot password?</button>
           </div>
 
           <button
@@ -232,20 +232,20 @@ export default function AuthPage() {
             {status === 'success' && <><Check size={16} /> Welcome — setting up your business</>}
           </button>
 
-          <p className="mt-4 text-center text-xs text-zinc-500">
+          <p className="mt-4 text-center text-xs text-stone-600">
             {supabaseReady
               ? 'Secured by Supabase Auth — passwords are never stored by the app.'
               : `Demo build — any valid email + a ${LIMITS.minPassword}-character password opens the console${remember ? ' and stays signed in on this device' : ''}.`}
           </p>
         </form>
 
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-zinc-600">
+        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-stone-600">
           <ShieldCheck size={13} className="text-emerald-500" />
           <span>Locked-down CSP, nosniff &amp; strict referrer policy · records encrypted on your device</span>
         </div>
 
         <p className="mt-4 text-center text-xs">
-          <Link href="/" className="text-zinc-500 transition hover:text-zinc-300">← Back to home</Link>
+          <Link href="/" className="text-stone-600 transition hover:text-stone-700">← Back to home</Link>
         </p>
       </div>
     </div>

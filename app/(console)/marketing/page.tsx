@@ -10,8 +10,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore, type MarketingCampaign } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const CHANNELS: MarketingCampaign['channel'][] = ['Social Media', 'Google Ads', 'Print', 'Radio', 'Events', 'Referrals', 'Other'];
 
@@ -47,22 +47,22 @@ export default function MarketingPage() {
       <div className="grid gap-4 sm:grid-cols-2 animate-fade-up">
         <Card>
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400"><Megaphone size={18} /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700"><Megaphone size={18} /></span>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Campaign spend (tracked here)</p>
-              <p className="font-display text-xl font-bold text-white tabular-nums">{formatCurrency(totalSpend)}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Campaign spend (tracked here)</p>
+              <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{formatCurrency(totalSpend)}</p>
             </div>
           </div>
         </Card>
         <Card>
           <div className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300"><TrendingUp size={18} /></span>
+            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600"><TrendingUp size={18} /></span>
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Marketing expense in ledger</p>
-              <p className="font-display text-xl font-bold text-white tabular-nums">{formatCurrency(marketingExpenses)}</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Marketing expense in ledger</p>
+              <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{formatCurrency(marketingExpenses)}</p>
             </div>
           </div>
-          <p className="mt-2.5 text-xs text-zinc-500">Includes marketing-category expenses recorded on the Expenses page.</p>
+          <p className="mt-2.5 text-xs text-stone-600">Includes marketing-category expenses recorded on the Expenses page.</p>
         </Card>
       </div>
 
@@ -88,7 +88,7 @@ export default function MarketingPage() {
             </div>
           </div>
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
           <div className="mt-5 flex justify-end">
             <Button onClick={handleSubmit}><Plus size={16} /> Record campaign</Button>
@@ -104,15 +104,15 @@ export default function MarketingPage() {
           ) : (
             <div className="space-y-3">
               {state.campaigns.map((campaign) => (
-                <div key={campaign.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 transition hover:border-violet-400/30">
+                <div key={campaign.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-4 transition hover:border-violet-400/30">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate font-semibold text-white">{campaign.name}</p>
-                      <p className="text-xs text-zinc-500">{campaign.channel} · started {campaign.startDate}</p>
+                      <p className="truncate font-semibold text-stone-900">{campaign.name}</p>
+                      <p className="text-xs text-stone-600">{campaign.channel} · started {campaign.startDate}</p>
                     </div>
                     <Badge tone="violet">{formatCurrency(campaign.spend)}</Badge>
                   </div>
-                  {campaign.notes ? <p className="mt-2 text-sm text-zinc-400">{campaign.notes}</p> : null}
+                  {campaign.notes ? <p className="mt-2 text-sm text-stone-600">{campaign.notes}</p> : null}
                 </div>
               ))}
             </div>

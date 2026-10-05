@@ -35,7 +35,7 @@ export default function AuditPage() {
       <div className="mb-5 flex flex-wrap items-center gap-2 animate-fade-up">
         <button
           onClick={() => setFilter('all')}
-          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${filter === 'all' ? 'bg-brand-500/15 text-brand-300 ring-brand-400/30' : 'text-zinc-500 ring-white/[0.08] hover:bg-white/[0.04] hover:text-zinc-300'}`}
+          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${filter === 'all' ? 'bg-brand-500/15 text-brand-600 ring-brand-400/30' : 'text-stone-600 ring-stone-200 hover:bg-stone-50 hover:text-stone-700'}`}
         >
           All
         </button>
@@ -43,7 +43,7 @@ export default function AuditPage() {
           <button
             key={type}
             onClick={() => setFilter(type)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold capitalize ring-1 ring-inset transition ${filter === type ? 'bg-brand-500/15 text-brand-300 ring-brand-400/30' : 'text-zinc-500 ring-white/[0.08] hover:bg-white/[0.04] hover:text-zinc-300'}`}
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold capitalize ring-1 ring-inset transition ${filter === type ? 'bg-brand-500/15 text-brand-600 ring-brand-400/30' : 'text-stone-600 ring-stone-200 hover:bg-stone-50 hover:text-stone-700'}`}
           >
             {type}
           </button>
@@ -56,22 +56,22 @@ export default function AuditPage() {
         <Card className="animate-fade-up">
           <div className="space-y-3">
             {visible.map((entry) => (
-              <div key={entry.id} className="flex items-start gap-3.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 transition hover:border-brand-400/25 hover:bg-white/[0.05]">
-                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white/[0.05] text-zinc-400">
+              <div key={entry.id} className="flex items-start gap-3.5 rounded-2xl border border-stone-200 bg-stone-50 p-4 transition hover:border-brand-400/25 hover:bg-stone-100">
+                <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-stone-100 text-stone-600">
                   <ScrollText size={16} />
                 </span>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <Badge tone={typeTones[entry.type] ?? 'slate'}>{entry.type}</Badge>
-                    <span className="text-xs text-zinc-500">{formatStamp(entry.createdAt)}</span>
-                    {entry.reference ? <span className="rounded bg-white/[0.05] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">{entry.reference}</span> : null}
+                    <span className="text-xs text-stone-600">{formatStamp(entry.createdAt)}</span>
+                    {entry.reference ? <span className="rounded bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600">{entry.reference}</span> : null}
                   </div>
-                  <p className="mt-1.5 text-sm text-zinc-300">{entry.summary}</p>
-                  <p className="mt-0.5 text-xs text-zinc-600">by {entry.actor}</p>
+                  <p className="mt-1.5 text-sm text-stone-700">{entry.summary}</p>
+                  <p className="mt-0.5 text-xs text-stone-600">by {entry.actor}</p>
                 </div>
               </div>
             ))}
-            {visible.length === 0 ? <p className="rounded-2xl bg-white/[0.03] p-6 text-sm text-zinc-500">No records of this type yet.</p> : null}
+            {visible.length === 0 ? <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600">No records of this type yet.</p> : null}
           </div>
         </Card>
       )}

@@ -10,8 +10,8 @@ import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const STEPS = [
   { id: 1, title: 'About you', icon: User },
@@ -100,10 +100,10 @@ export default function OnboardingPage() {
       <div className="animate-fade-up relative w-full max-w-3xl">
         <div className="mb-6 flex flex-col items-center text-center">
           <BrandWordmark width={190} priority className="h-auto w-[190px]" />
-          <h1 className="mt-2 font-display text-2xl font-bold text-white">
+          <h1 className="mt-2 font-display text-2xl font-bold text-stone-900">
             {alreadySetup ? 'Review your business profile' : 'Set up your business in 3 steps'}
           </h1>
-          <p className="mt-1.5 max-w-md text-sm text-zinc-400">
+          <p className="mt-1.5 max-w-md text-sm text-stone-600">
             {alreadySetup
               ? 'Everything below stays on your device — update anything, then jump into the console.'
               : 'Direct payments to your own bank, your customers’ data on your own device. No gateway, no middleman.'}
@@ -121,8 +121,8 @@ export default function OnboardingPage() {
                 onClick={() => { setError(null); setStep(s.id); }}
                 className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
                   active ? 'bg-brand-500/20 text-brand-200 ring-1 ring-inset ring-brand-400/40'
-                  : done ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/25'
-                  : 'bg-white/[0.04] text-zinc-500 ring-1 ring-inset ring-white/[0.06]'
+                  : done ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/25'
+                  : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200'
                 }`}
               >
                 {done ? <Check size={13} /> : <s.icon size={13} />} {s.title}
@@ -131,9 +131,9 @@ export default function OnboardingPage() {
           })}
         </div>
 
-        <div className="rounded-3xl border border-white/10 bg-white/[0.03] p-7 shadow-card backdrop-blur">
+        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card backdrop-blur">
           {error ? (
-            <div className="mb-5 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-400 ring-1 ring-inset ring-red-500/20 animate-fade-in">{error}</div>
+            <div className="mb-5 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20 animate-fade-in">{error}</div>
           ) : null}
 
           {step === 1 ? (
@@ -158,19 +158,19 @@ export default function OnboardingPage() {
                       <button
                         key={template.id}
                         onClick={() => setTemplateId(template.id)}
-                        className={`rounded-2xl p-3.5 text-left ring-1 ring-inset transition ${active ? 'bg-brand-500/[0.12] ring-brand-400/40' : 'bg-white/[0.03] ring-white/[0.07] hover:bg-white/[0.06]'}`}
+                        className={`rounded-2xl p-3.5 text-left ring-1 ring-inset transition ${active ? 'bg-brand-500/[0.12] ring-brand-400/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'}`}
                       >
-                        <span className="flex items-center justify-between text-sm font-bold text-white">
+                        <span className="flex items-center justify-between text-sm font-bold text-stone-900">
                           {template.name}
-                          {active ? <Check size={14} className="text-brand-300" /> : null}
+                          {active ? <Check size={14} className="text-brand-600" /> : null}
                         </span>
-                        <span className="mt-1 block text-xs leading-relaxed text-zinc-500">{template.description}</span>
+                        <span className="mt-1 block text-xs leading-relaxed text-stone-600">{template.description}</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
-              <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-white/10 bg-white/[0.04] px-3.5 py-3 text-sm text-white placeholder-zinc-600 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+              <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
             </div>
           ) : null}
 
@@ -187,7 +187,7 @@ export default function OnboardingPage() {
                   <div><span className={labelClass}>Account number</span><input className={inputClass} placeholder="XXXXXXXXXXXX" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></div>
                   <div><span className={labelClass}>IFSC code</span><input className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value)} /></div>
                 </div>
-                <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-400/90 ring-1 ring-inset ring-emerald-500/20">
+                <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-700/90 ring-1 ring-inset ring-emerald-500/20">
                   <ShieldCheck size={13} className="mr-1.5 inline" />
                   Payments go <strong>directly into your bank account</strong> — DukaanOS never touches your money.
                   We will <strong>never</strong> ask for your UPI PIN, OTP, card PIN, or passwords.
@@ -200,13 +200,13 @@ export default function OnboardingPage() {
                     <div className="rounded-2xl bg-white p-3 shadow-card">
                       <QRCodeCanvas value={deepLink} size={360} level="M" fgColor="#0B0D12" bgColor="#ffffff" style={{ width: 150, height: 150 }} />
                     </div>
-                    <p className="max-w-[160px] text-center text-[11px] leading-snug text-zinc-500">
-                      Your collection QR — customers scan it in any UPI app and pay <span className="text-zinc-300">{businessName.trim() || 'your business'}</span> directly.
+                    <p className="max-w-[160px] text-center text-[11px] leading-snug text-stone-600">
+                      Your collection QR — customers scan it in any UPI app and pay <span className="text-stone-700">{businessName.trim() || 'your business'}</span> directly.
                     </p>
-                    {accountNumber.trim() ? <p className="text-[11px] text-zinc-600">A/c {maskAccountNumber(accountNumber)}</p> : null}
+                    {accountNumber.trim() ? <p className="text-[11px] text-stone-600">A/c {maskAccountNumber(accountNumber)}</p> : null}
                   </>
                 ) : (
-                  <div className="flex h-[174px] w-[174px] items-center justify-center rounded-2xl border border-dashed border-white/15 p-4 text-center text-xs leading-snug text-zinc-600">
+                  <div className="flex h-[174px] w-[174px] items-center justify-center rounded-2xl border border-dashed border-stone-300 p-4 text-center text-xs leading-snug text-stone-600">
                     Enter your UPI ID to see your QR code
                   </div>
                 )}
@@ -216,11 +216,11 @@ export default function OnboardingPage() {
 
           <div className="mt-7 flex items-center justify-between">
             {step > 1 ? (
-              <button onClick={() => { setError(null); setStep(step - 1); }} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-400 transition hover:text-white">
+              <button onClick={() => { setError(null); setStep(step - 1); }} className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:text-stone-900">
                 <ArrowLeft size={15} /> Back
               </button>
             ) : (
-              <Link href="/auth" className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-zinc-400 transition hover:text-white">
+              <Link href="/auth" className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:text-stone-900">
                 <ArrowLeft size={15} /> Sign out
               </Link>
             )}
@@ -237,7 +237,7 @@ export default function OnboardingPage() {
           </div>
         </div>
 
-        <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-zinc-600">
+        <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-stone-600">
           <Banknote size={13} className="text-emerald-500" /> No payment gateway · money lands straight in your bank · customer data stays on your device
         </p>
       </div>

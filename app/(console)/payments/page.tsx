@@ -47,9 +47,9 @@ export default function PaymentsPage() {
           {byMethod.length > 0 ? (
             <DonutChart data={byMethod} centerLabel="Received" centerValue={formatCurrency(received)} height={220} />
           ) : (
-            <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No payments recorded yet.</p>
+            <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">No payments recorded yet.</p>
           )}
-          <p className="mt-4 rounded-2xl border border-brand-500/20 bg-brand-500/[0.08] p-3.5 text-sm text-brand-200">
+          <p className="mt-4 rounded-2xl border border-brand-500/20 bg-brand-500/[0.08] p-3.5 text-sm text-brand-700">
             Every sale, membership, and invoice payment is recorded with its method — the chart above is computed from the live ledger.
           </p>
         </Card>
@@ -64,13 +64,13 @@ export default function PaymentsPage() {
                 <button
                   key={item.id}
                   onClick={() => setMode(item.id)}
-                  className={`rounded-2xl border p-4 text-left transition ${isActive ? 'border-brand-400/40 bg-brand-500/[0.08] shadow-glow-sm' : 'border-white/[0.07] bg-white/[0.03] hover:border-brand-400/25 hover:bg-white/[0.05]'}`}
+                  className={`rounded-2xl border p-4 text-left transition ${isActive ? 'border-brand-400/40 bg-brand-500/[0.08] shadow-glow-sm' : 'border-stone-200 bg-stone-50 hover:border-brand-400/25 hover:bg-stone-100'}`}
                 >
                   <div className="flex items-center gap-2.5">
-                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-brand-500/20 text-brand-300' : 'bg-white/[0.06] text-zinc-400'}`}><Icon size={16} /></span>
-                    <span className="font-semibold text-white">{item.label}</span>
+                    <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? 'bg-brand-500/20 text-brand-600' : 'bg-stone-100 text-stone-600'}`}><Icon size={16} /></span>
+                    <span className="font-semibold text-stone-900">{item.label}</span>
                   </div>
-                  <p className="mt-2.5 text-sm leading-relaxed text-zinc-500">{item.note}</p>
+                  <p className="mt-2.5 text-sm leading-relaxed text-stone-600">{item.note}</p>
                 </button>
               );
             })}

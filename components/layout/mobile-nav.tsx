@@ -52,16 +52,16 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-navigation-title"
-        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-white/10 bg-[#0d1017] shadow-float animate-fade-in"
+        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-stone-200 bg-panel shadow-float animate-fade-in"
       >
-        <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
+        <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4">
           <Link href="/home" onClick={onClose} className="flex items-center gap-3">
             <BrandIcon size={40} className="h-10 w-10 shrink-0 rounded-xl shadow-glow-sm" />
             <span>
-              <span id="mobile-navigation-title" className="block font-display text-sm font-bold text-white">
+              <span id="mobile-navigation-title" className="block font-display text-sm font-bold text-stone-900">
                 DukaanOS
               </span>
-              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-300">
+              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-600">
                 Owner Console
               </span>
             </span>
@@ -70,7 +70,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
             type="button"
             onClick={onClose}
             aria-label="Close navigation menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-zinc-400 transition hover:bg-white/[0.07] hover:text-white"
+            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
           >
             <X size={18} />
           </button>
@@ -79,7 +79,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
         <nav aria-label="Main navigation" className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
           {NAV_SECTIONS.map((section) => (
             <section key={section.title} aria-label={section.title}>
-              <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-600">
+              <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
                 {section.title}
               </p>
               <div className="space-y-1">
@@ -94,11 +94,11 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
                       aria-current={active ? 'page' : undefined}
                       className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                         active
-                          ? 'bg-brand-500/10 text-white ring-1 ring-inset ring-brand-500/25'
-                          : 'text-zinc-400 hover:bg-white/[0.05] hover:text-white'
+                          ? 'bg-brand-500/10 text-brand-600 ring-1 ring-inset ring-brand-500/25'
+                          : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                       }`}
                     >
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-white/[0.04] text-zinc-500 group-hover:text-zinc-300'}`}>
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 group-hover:text-stone-700'}`}>
                         <Icon size={16} strokeWidth={2.1} />
                       </span>
                       <span className="flex-1">{item.label}</span>
@@ -111,18 +111,18 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
           ))}
         </nav>
 
-        <div className="border-t border-white/[0.07] p-4">
+        <div className="border-t border-stone-200 p-4">
           <Link
             href="/security"
             onClick={onClose}
-            className="block rounded-xl bg-white/[0.03] p-3 ring-1 ring-inset ring-white/[0.06] transition hover:bg-white/[0.05]"
+            className="block rounded-xl bg-stone-50 p-3 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100"
             title="Open the Trust Centre"
           >
-            <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-white">
-              <Lock size={12} className="shrink-0 text-emerald-400" />
+            <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-stone-900">
+              <Lock size={12} className="shrink-0 text-emerald-700" />
               {businessName}
             </p>
-            <p className="mt-1 truncate text-[11px] text-zinc-500">{statusLine}</p>
+            <p className="mt-1 truncate text-[11px] text-stone-600">{statusLine}</p>
           </Link>
         </div>
       </aside>

@@ -33,8 +33,8 @@ export function Ring({ value, max = 100, size = 112, strokeWidth = 10, color = '
         />
       </svg>
       <div className="absolute text-center">
-        <p className="font-display text-2xl font-bold text-white tabular-nums">{label ?? Math.round(value)}</p>
-        {sublabel ? <p className="text-[10px] uppercase tracking-wide text-zinc-500">{sublabel}</p> : null}
+        <p className="font-display text-2xl font-bold text-stone-900 tabular-nums">{label ?? Math.round(value)}</p>
+        {sublabel ? <p className="text-[10px] uppercase tracking-wide text-stone-600">{sublabel}</p> : null}
       </div>
     </div>
   );

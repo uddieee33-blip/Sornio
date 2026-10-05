@@ -11,8 +11,8 @@ import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
 import { buildUpiDeepLink, isValidUpiId } from '@/lib/upi';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 export default function BusinessPage() {
   const { state, actions } = useDukaanStore();
@@ -57,7 +57,7 @@ export default function BusinessPage() {
       />
 
       {message ? (
-        <div className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-red-500/20'}`}>
+        <div className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-red-500/20'}`}>
           <Check size={15} /> {message.text}
         </div>
       ) : null}
@@ -82,8 +82,8 @@ export default function BusinessPage() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-brand-500/20 bg-brand-500/[0.06] p-4">
-            <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-brand-200"><QrCode size={15} /> Your collection UPI ID</p>
-            <p className="mb-3 text-xs text-zinc-500">Your own bank&apos;s UPI ID — payments land directly in your account, no middleman. The QR below is generated from it.</p>
+            <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-brand-700"><QrCode size={15} /> Your collection UPI ID</p>
+            <p className="mb-3 text-xs text-stone-600">Your own bank&apos;s UPI ID — payments land directly in your account, no middleman. The QR below is generated from it.</p>
             <div className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
               <input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
               {upiValid ? (
@@ -98,30 +98,30 @@ export default function BusinessPage() {
                       style={{ width: 92, height: 92 }}
                     />
                   </div>
-                  <span className="text-[10px] font-semibold uppercase tracking-wide text-zinc-500">Your QR</span>
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-stone-600">Your QR</span>
                 </div>
               ) : (
-                <div className="flex h-[108px] w-[108px] items-center justify-center rounded-xl border border-dashed border-white/15 text-center text-[10px] leading-tight text-zinc-600">QR appears when you enter a valid UPI ID</div>
+                <div className="flex h-[108px] w-[108px] items-center justify-center rounded-xl border border-dashed border-stone-300 text-center text-[10px] leading-tight text-stone-600">QR appears when you enter a valid UPI ID</div>
               )}
             </div>
           </div>
 
           <div className="mt-5">
             <span className={labelClass}>Business description</span>
-            <textarea className="min-h-[110px] w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" placeholder="Describe your business, customers, and service model." value={description} onChange={(e) => setDescription(e.target.value)} />
+            <textarea className="min-h-[110px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" placeholder="Describe your business, customers, and service model." value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
         </Card>
 
         <div className="space-y-6">
           {templateFlash ? (
-            <div className="rounded-xl bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-400 ring-1 ring-inset ring-emerald-500/20 animate-fade-in">
+            <div className="rounded-xl bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-700 ring-1 ring-inset ring-emerald-500/20 animate-fade-in">
               <Check size={14} className="mr-1.5 inline" /> {templateFlash}
             </div>
           ) : null}
 
           <Card className="animate-fade-up h-fit">
             <div className="mb-5"><CardTitle icon={<Sparkles size={17} />}>Business templates</CardTitle></div>
-            <p className="mb-4 text-xs leading-relaxed text-zinc-500">
+            <p className="mb-4 text-xs leading-relaxed text-stone-600">
               One engine, every business. Pick your type and DukaanOS configures memberships, inventory,
               appointments, receipts, and reminders to match how you operate.
             </p>
@@ -132,16 +132,16 @@ export default function BusinessPage() {
                   <button
                     key={template.id}
                     onClick={() => applyTemplate(template.id)}
-                    className={`w-full rounded-2xl p-4 text-left ring-1 ring-inset transition ${active ? 'bg-brand-500/[0.12] ring-brand-400/40' : 'bg-white/[0.03] ring-white/[0.07] hover:bg-white/[0.06]'}`}
+                    className={`w-full rounded-2xl p-4 text-left ring-1 ring-inset transition ${active ? 'bg-brand-500/[0.12] ring-brand-400/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'}`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold text-white">{template.name}</span>
+                      <span className="text-sm font-bold text-stone-900">{template.name}</span>
                       {active ? <Badge tone="brand" dot>Active</Badge> : null}
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-zinc-400">{template.description}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-stone-600">{template.description}</p>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {template.recommendedModules.map((module) => (
-                        <span key={module} className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[10px] font-semibold text-zinc-400 ring-1 ring-inset ring-white/[0.07]">{module}</span>
+                        <span key={module} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">{module}</span>
                       ))}
                     </div>
                   </button>
