@@ -278,7 +278,7 @@ export default function LandingPage() {
 
       {/* 02 — UPI QR */}
       <section id="upi" className="relative mx-auto max-w-7xl scroll-mt-32 px-6 pb-24">
-        <div className="overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-500/[0.08] via-transparent to-violet-500/[0.06] p-8 md:p-12">
+        <div className="overflow-hidden rounded-3xl border border-brand-500/20 bg-gradient-to-br from-brand-500/[0.08] via-transparent to-amber-500/[0.06] p-8 md:p-12">
           <div className="grid items-center gap-10 lg:grid-cols-2">
             <div>
               <SectionEyebrow index="02" label="No middleman. Ever." />
@@ -413,7 +413,7 @@ export default function LandingPage() {
 
       {/* FINAL CTA */}
       <section className="relative mx-auto max-w-5xl px-6 pb-24">
-        <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.12] to-violet-500/[0.08] p-10 text-center md:p-14">
+        <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.12] to-amber-500/[0.08] p-10 text-center md:p-14">
           <h2 className="relative font-display text-3xl font-bold tracking-tight text-white md:text-4xl">Your business, finally in one place.</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-sm text-zinc-400 md:text-base">Sign in, add your business and your bank, and start collecting payments today — or jump straight into the live console.</p>
           <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
