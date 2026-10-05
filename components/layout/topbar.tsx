@@ -15,8 +15,9 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
-import { ChevronRight, Command, Database, Lock, Menu, Search, Store, WifiOff } from 'lucide-react';
+import { ChevronRight, Command, Database, Lock, Menu, Search, WifiOff } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
+import { BrandIcon } from '@/components/ui/BrandLogo';
 
 const TITLES: Record<string, string> = {
   '/home': 'Owner Cockpit',
@@ -105,9 +106,7 @@ export function Topbar({
       <div className="flex items-center gap-3 px-4 py-3 md:px-8">
         <div className="flex min-w-0 items-center gap-2 md:hidden">
           <Link href="/home" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
-            <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm">
-              <Store size={17} className="text-white" />
-            </span>
+            <BrandIcon size={36} className="h-9 w-9 shrink-0 rounded-xl shadow-glow-sm" />
             <span className="font-display text-sm font-bold tracking-tight text-white">DukaanOS</span>
           </Link>
           <button

@@ -2,9 +2,10 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Lock, Store } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { NAV_SECTIONS } from './nav-items';
 import { useDukaanStore } from '@/lib/store';
+import { BrandIcon } from '@/components/ui/BrandLogo';
 
 /**
  * Primary navigation.
@@ -30,9 +31,7 @@ export function Sidebar() {
   return (
     <aside className="hidden w-72 shrink-0 border-r border-white/[0.06] bg-[#0d1017]/80 backdrop-blur md:flex md:flex-col">
       <div className="flex items-center gap-3 px-6 py-6">
-        <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-brand-gradient shadow-glow">
-          <Store size={22} className="text-white" />
-        </div>
+        <BrandIcon size={44} className="h-11 w-11 shrink-0 rounded-2xl shadow-glow" />
         <div>
           <p className="font-display text-base font-bold tracking-tight text-white">DukaanOS</p>
           <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-brand-300">Owner Console</p>

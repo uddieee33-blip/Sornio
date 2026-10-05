@@ -3,9 +3,10 @@
 import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Lock, Store, X } from 'lucide-react';
+import { Lock, X } from 'lucide-react';
 import { NAV_SECTIONS } from './nav-items';
 import { useDukaanStore } from '@/lib/store';
+import { BrandIcon } from '@/components/ui/BrandLogo';
 
 export function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
@@ -55,9 +56,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
       >
         <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
           <Link href="/home" onClick={onClose} className="flex items-center gap-3">
-            <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-gradient shadow-glow-sm">
-              <Store size={19} className="text-white" />
-            </span>
+            <BrandIcon size={40} className="h-10 w-10 shrink-0 rounded-xl shadow-glow-sm" />
             <span>
               <span id="mobile-navigation-title" className="block font-display text-sm font-bold text-white">
                 DukaanOS

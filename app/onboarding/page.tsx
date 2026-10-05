@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Lock, QrCode, ShieldCheck, Store, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
+import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
@@ -98,10 +99,7 @@ export default function OnboardingPage() {
 
       <div className="animate-fade-up relative w-full max-w-3xl">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient shadow-glow">
-            <Store size={26} className="text-white" />
-          </div>
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.25em] text-brand-300">DukaanOS Setup</p>
+          <BrandWordmark width={190} priority className="h-auto w-[190px]" />
           <h1 className="mt-2 font-display text-2xl font-bold text-white">
             {alreadySetup ? 'Review your business profile' : 'Set up your business in 3 steps'}
           </h1>

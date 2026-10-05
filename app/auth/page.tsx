@@ -3,7 +3,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { AlertCircle, ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck, Store } from 'lucide-react';
+import { AlertCircle, ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
+import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
 import { consume } from '@/lib/security/rate-limit';
@@ -118,10 +119,7 @@ export default function AuthPage() {
 
       <div className="animate-fade-up relative w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-brand-gradient shadow-glow">
-            <Store size={26} className="text-white" />
-          </div>
-          <p className="mt-4 text-[11px] font-bold uppercase tracking-[0.25em] text-brand-300">DukaanOS</p>
+          <BrandWordmark width={190} priority className="h-auto w-[190px]" />
           <h1 className="mt-2 font-display text-2xl font-bold text-white">Business access</h1>
           <p className="mt-1.5 text-sm text-zinc-400">Sign in to manage your store, sales, and insights.</p>
         </div>
