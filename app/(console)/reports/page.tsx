@@ -64,9 +64,9 @@ export default function ReportsPage() {
         <Card className="animate-fade-up">
           <div className="mb-5"><CardTitle icon={<Landmark size={17} />}>Cash flow in vs out</CardTitle></div>
           <DualAreaChart revenue={revenueSeries(state.transactions)} expenses={expenseSeries(state.transactions)} height={240} />
-          <div className="mt-4 flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
-            <span className="text-sm text-zinc-400">Net profit after expenses</span>
-            <span className={`font-display text-xl font-bold tabular-nums ${financials.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>
+          <div className="mt-4 flex items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 p-4">
+            <span className="text-sm text-stone-600">Net profit after expenses</span>
+            <span className={`font-display text-xl font-bold tabular-nums ${financials.netProfit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
               {formatCurrency(financials.netProfit)}
             </span>
           </div>
@@ -76,16 +76,16 @@ export default function ReportsPage() {
           <div className="mb-5"><CardTitle icon={<BarChart3 size={17} />}>Breakdowns</CardTitle></div>
           <div className="space-y-6">
             <div>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Revenue by category</p>
-              {revenueByCategory.length > 0 ? <HBarList data={revenueByCategory} /> : <p className="text-sm text-zinc-500">No revenue yet.</p>}
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-600">Revenue by category</p>
+              {revenueByCategory.length > 0 ? <HBarList data={revenueByCategory} /> : <p className="text-sm text-stone-600">No revenue yet.</p>}
             </div>
             <div>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Expenses by category</p>
-              {expenseByCategory.length > 0 ? <HBarList data={expenseByCategory} /> : <p className="text-sm text-zinc-500">No expenses yet.</p>}
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-600">Expenses by category</p>
+              {expenseByCategory.length > 0 ? <HBarList data={expenseByCategory} /> : <p className="text-sm text-stone-600">No expenses yet.</p>}
             </div>
             <div>
-              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Payments by method</p>
-              {byMethod.length > 0 ? <HBarList data={byMethod} /> : <p className="text-sm text-zinc-500">No payments yet.</p>}
+              <p className="mb-3 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-600">Payments by method</p>
+              {byMethod.length > 0 ? <HBarList data={byMethod} /> : <p className="text-sm text-stone-600">No payments yet.</p>}
             </div>
           </div>
         </Card>
@@ -98,9 +98,9 @@ export default function ReportsPage() {
         </div>
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {balances.map((item) => (
-            <div key={item.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 transition hover:border-brand-400/30 hover:bg-white/[0.05]">
-              <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{item.label}</p>
-              <p className={`mt-1.5 font-display text-xl font-bold tabular-nums ${item.value >= 0 ? 'text-white' : 'text-red-400'}`}>{formatCurrency(item.value)}</p>
+            <div key={item.label} className="rounded-2xl border border-stone-200 bg-stone-50 p-4 transition hover:border-brand-400/30 hover:bg-stone-100">
+              <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">{item.label}</p>
+              <p className={`mt-1.5 font-display text-xl font-bold tabular-nums ${item.value >= 0 ? 'text-stone-900' : 'text-red-700'}`}>{formatCurrency(item.value)}</p>
             </div>
           ))}
         </div>

@@ -12,10 +12,10 @@ export function HBarList({ data }: { data: Slice[] }) {
       {data.map((slice, index) => (
         <div key={slice.name}>
           <div className="mb-1.5 flex items-center justify-between text-sm">
-            <span className="font-medium text-zinc-300">{slice.name}</span>
-            <span className="font-semibold text-white tabular-nums">{formatCurrency(slice.value)}</span>
+            <span className="font-medium text-stone-700">{slice.name}</span>
+            <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(slice.value)}</span>
           </div>
-          <div className="h-2 overflow-hidden rounded-full bg-white/5">
+          <div className="h-2 overflow-hidden rounded-full bg-stone-100">
             <div
               className="h-full rounded-full transition-all duration-700"
               style={{ width: `${(slice.value / max) * 100}%`, background: `linear-gradient(90deg, ${CHART_COLORS[index % CHART_COLORS.length]}cc, ${CHART_COLORS[index % CHART_COLORS.length]})` }}

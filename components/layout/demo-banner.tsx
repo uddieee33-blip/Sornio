@@ -16,7 +16,7 @@ export function DemoBanner() {
 
   if (state.demoMode) {
     return (
-      <div className="flex items-center justify-between gap-3 border-b border-amber-500/25 bg-amber-500/[0.08] px-4 py-2 text-xs text-amber-300 md:px-8">
+      <div className="flex items-center justify-between gap-3 border-b border-amber-500/25 bg-amber-500/[0.08] px-4 py-2 text-xs text-amber-700 md:px-8">
         <p className="flex items-center gap-2 font-semibold">
           <FlaskConical size={14} className="shrink-0" />
           <span className="truncate">DEMO BUSINESS — sample data for exploration, clearly separated from real records.</span>
@@ -39,13 +39,13 @@ export function DemoBanner() {
   if (!isFresh || dismissed) return null;
 
   return (
-    <div className="flex items-center justify-between gap-3 border-b border-brand-500/20 bg-brand-500/[0.07] px-4 py-2 text-xs text-brand-200 md:px-8">
+    <div className="flex items-center justify-between gap-3 border-b border-brand-500/20 bg-brand-500/[0.07] px-4 py-2 text-xs text-brand-700 md:px-8">
       <p className="flex items-center gap-2 font-semibold">
         <Sprout size={14} className="shrink-0" />
         <span className="truncate">Your business starts at ₹0 — record real activity, or load the sample business to explore.</span>
       </p>
       <span className="flex shrink-0 items-center gap-2">
-        <Link href="/products" className="hidden rounded-lg bg-white/[0.06] px-3 py-1.5 font-bold text-zinc-200 ring-1 ring-inset ring-white/[0.09] transition hover:bg-white/[0.1] sm:block">
+        <Link href="/products" className="hidden rounded-lg bg-stone-100 px-3 py-1.5 font-bold text-stone-800 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200 sm:block">
           Add first product
         </Link>
         <button
@@ -54,7 +54,7 @@ export function DemoBanner() {
         >
           Load demo business
         </button>
-        <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="rounded-lg p-1.5 text-zinc-500 transition hover:bg-white/[0.06] hover:text-zinc-300">
+        <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="rounded-lg p-1.5 text-stone-600 transition hover:bg-stone-100 hover:text-stone-700">
           <X size={13} />
         </button>
       </span>

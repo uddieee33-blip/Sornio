@@ -73,7 +73,7 @@ export function ExportButton({ kinds = ORDER, label = 'Export' }: { kinds?: Expo
         disabled={!hydrated}
         aria-haspopup="menu"
         aria-expanded={open}
-        className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-semibold text-zinc-200 transition hover:bg-white/10 disabled:opacity-50"
+        className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-800 transition hover:bg-stone-200 disabled:opacity-50"
       >
         <Download size={15} />
         {label}
@@ -82,9 +82,9 @@ export function ExportButton({ kinds = ORDER, label = 'Export' }: { kinds?: Expo
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1218]/97 p-1.5 shadow-float backdrop-blur-xl animate-fade-up"
+          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-stone-200 bg-panel/97 p-1.5 shadow-float backdrop-blur-xl animate-fade-up"
         >
-          <p className="flex items-center gap-1.5 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-500">
+          <p className="flex items-center gap-1.5 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-stone-600">
             <Receipt size={11} /> Download your records
           </p>
           {kinds.map((kind) => (
@@ -93,16 +93,16 @@ export function ExportButton({ kinds = ORDER, label = 'Export' }: { kinds?: Expo
               role="menuitem"
               onClick={() => handle(kind)}
               disabled={busy !== null}
-              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-zinc-300 transition hover:bg-white/[0.06] hover:text-white disabled:opacity-50"
+              className="flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm text-stone-700 transition hover:bg-stone-100 hover:text-stone-900 disabled:opacity-50"
             >
-              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-white/[0.05] text-zinc-400">
+              <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-stone-100 text-stone-600">
                 {busy === kind ? <Loader2 size={13} className="animate-spin" /> : ICONS[kind]}
               </span>
               <span className="flex-1">{EXPORT_LABELS[kind]}</span>
-              {busy === kind ? <Check size={13} className="text-emerald-400" /> : null}
+              {busy === kind ? <Check size={13} className="text-emerald-700" /> : null}
             </button>
           ))}
-          <p className="px-2.5 pb-1.5 pt-2 text-[10px] leading-relaxed text-zinc-600">
+          <p className="px-2.5 pb-1.5 pt-2 text-[10px] leading-relaxed text-stone-600">
             Built on this device. Nothing is uploaded anywhere.
           </p>
         </div>

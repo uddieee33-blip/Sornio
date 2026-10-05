@@ -45,13 +45,13 @@ export default function CashFlowPage() {
             {accounts.map((account) => (
               <Card key={account.label}>
                 <div className="flex items-center gap-3">
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300 ring-1 ring-inset ring-brand-500/20"><account.icon size={18} /></span>
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 ring-1 ring-inset ring-brand-500/20"><account.icon size={18} /></span>
                   <div>
-                    <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">{account.label}</p>
-                    <p className="font-display text-xl font-bold text-white tabular-nums">{formatCurrency(account.value)}</p>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">{account.label}</p>
+                    <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{formatCurrency(account.value)}</p>
                   </div>
                 </div>
-                <p className="mt-2.5 text-xs text-zinc-500">{account.note}</p>
+                <p className="mt-2.5 text-xs text-stone-600">{account.note}</p>
               </Card>
             ))}
           </div>
@@ -65,12 +65,12 @@ export default function CashFlowPage() {
               <DualAreaChart revenue={inflows} expenses={outflows} height={260} />
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="flex items-center gap-3 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-4">
-                  <ArrowUpRight size={17} className="text-emerald-400" />
-                  <div><p className="text-xs text-zinc-500">Cash in</p><p className="font-display text-lg font-bold text-emerald-400 tabular-nums">{formatCurrency(financials.cashIn)}</p></div>
+                  <ArrowUpRight size={17} className="text-emerald-700" />
+                  <div><p className="text-xs text-stone-600">Cash in</p><p className="font-display text-lg font-bold text-emerald-700 tabular-nums">{formatCurrency(financials.cashIn)}</p></div>
                 </div>
                 <div className="flex items-center gap-3 rounded-2xl border border-red-500/20 bg-red-500/[0.06] p-4">
-                  <ArrowDownRight size={17} className="text-red-400" />
-                  <div><p className="text-xs text-zinc-500">Cash out</p><p className="font-display text-lg font-bold text-red-400 tabular-nums">{formatCurrency(financials.cashOut)}</p></div>
+                  <ArrowDownRight size={17} className="text-red-700" />
+                  <div><p className="text-xs text-stone-600">Cash out</p><p className="font-display text-lg font-bold text-red-700 tabular-nums">{formatCurrency(financials.cashOut)}</p></div>
                 </div>
               </div>
             </Card>
@@ -79,17 +79,17 @@ export default function CashFlowPage() {
               <div className="mb-5"><CardTitle icon={<Wallet size={17} />}>Recent movements</CardTitle></div>
               <div className="space-y-2.5">
                 {movements.map((tx) => (
-                  <div key={tx.id} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-sm">
+                  <div key={tx.id} className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm">
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-zinc-300">{tx.description}</p>
-                      <p className="text-[11px] text-zinc-500">{tx.date} · {tx.account.toUpperCase()} · {tx.paymentMethod ?? '—'}</p>
+                      <p className="truncate font-medium text-stone-700">{tx.description}</p>
+                      <p className="text-[11px] text-stone-600">{tx.date} · {tx.account.toUpperCase()} · {tx.paymentMethod ?? '—'}</p>
                     </div>
-                    <span className={`shrink-0 font-bold tabular-nums ${tx.direction === 'in' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <span className={`shrink-0 font-bold tabular-nums ${tx.direction === 'in' ? 'text-emerald-700' : 'text-red-700'}`}>
                       {tx.direction === 'in' ? '+' : '−'}{formatCurrency(tx.amount)}
                     </span>
                   </div>
                 ))}
-                {movements.length === 0 ? <p className="rounded-xl bg-white/[0.03] p-4 text-sm text-zinc-500">No account movements recorded yet.</p> : null}
+                {movements.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No account movements recorded yet.</p> : null}
               </div>
             </Card>
           </div>

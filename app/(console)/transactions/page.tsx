@@ -62,7 +62,7 @@ export default function TransactionsPage() {
           <button
             key={item}
             onClick={() => setFilter(item)}
-            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${filter === item ? 'bg-brand-500/15 text-brand-300 ring-brand-400/30' : 'text-zinc-500 ring-white/[0.08] hover:bg-white/[0.04] hover:text-zinc-300'}`}
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold ring-1 ring-inset transition ${filter === item ? 'bg-brand-500/15 text-brand-600 ring-brand-400/30' : 'text-stone-600 ring-stone-200 hover:bg-stone-50 hover:text-stone-700'}`}
           >
             {filterLabels[item]}
           </button>
@@ -70,7 +70,7 @@ export default function TransactionsPage() {
         <select
           value={account}
           onChange={(e) => setAccount(e.target.value)}
-          className="ml-auto rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-xs font-semibold text-zinc-300 outline-none focus:border-brand-400/60"
+          className="ml-auto rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-700 outline-none focus:border-brand-400/60"
         >
           <option value="all">All accounts</option>
           {Object.entries(accountLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
@@ -80,7 +80,7 @@ export default function TransactionsPage() {
       <Card className="animate-fade-up overflow-hidden">
         <div className="overflow-x-auto">
           <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-white/[0.07] bg-white/[0.02] text-[11px] uppercase tracking-wide text-zinc-500">
+            <thead className="border-b border-stone-200 bg-stone-50 text-[11px] uppercase tracking-wide text-stone-600">
               <tr>
                 <th className="px-5 py-3.5 font-semibold">Date</th>
                 <th className="px-5 py-3.5 font-semibold">Description</th>
@@ -93,19 +93,19 @@ export default function TransactionsPage() {
               {visible.slice(0, 60).map((tx) => {
                 const meta = typeMeta[tx.type] ?? { label: tx.type, tone: 'slate' as BadgeTone };
                 return (
-                  <tr key={tx.id} className="border-b border-white/[0.04] transition hover:bg-white/[0.03]">
-                    <td className="whitespace-nowrap px-5 py-3.5 text-zinc-500 tabular-nums">{tx.date}</td>
+                  <tr key={tx.id} className="border-b border-stone-100 transition hover:bg-stone-50">
+                    <td className="whitespace-nowrap px-5 py-3.5 text-stone-600 tabular-nums">{tx.date}</td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center gap-2.5">
-                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${tx.direction === 'in' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-red-500/10 text-red-400'}`}>
+                        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${tx.direction === 'in' ? 'bg-emerald-500/10 text-emerald-700' : 'bg-red-500/10 text-red-700'}`}>
                           {tx.type === 'payment' ? <Wallet size={13} /> : tx.type === 'sale' ? <Receipt size={13} /> : tx.type.startsWith('membership') ? <Layers size={13} /> : tx.type === 'transfer' ? <ArrowLeftRight size={13} /> : <Package size={13} />}
                         </span>
-                        <span className="max-w-[280px] truncate font-medium text-zinc-300">{tx.description}</span>
+                        <span className="max-w-[280px] truncate font-medium text-stone-700">{tx.description}</span>
                       </div>
                     </td>
                     <td className="px-5 py-3.5"><Badge tone={meta.tone}>{meta.label}</Badge></td>
-                    <td className="px-5 py-3.5 text-zinc-500">{accountLabels[tx.account] ?? tx.account}</td>
-                    <td className={`whitespace-nowrap px-5 py-3.5 text-right font-semibold tabular-nums ${tx.direction === 'in' ? 'text-emerald-400' : 'text-red-400'}`}>
+                    <td className="px-5 py-3.5 text-stone-600">{accountLabels[tx.account] ?? tx.account}</td>
+                    <td className={`whitespace-nowrap px-5 py-3.5 text-right font-semibold tabular-nums ${tx.direction === 'in' ? 'text-emerald-700' : 'text-red-700'}`}>
                       {tx.direction === 'in' ? '+' : '−'}{formatCurrency(tx.amount)}
                     </td>
                   </tr>
@@ -115,13 +115,13 @@ export default function TransactionsPage() {
           </table>
         </div>
         {visible.length === 0 ? (
-          <div className="p-8 text-center text-sm text-zinc-500">No transactions match the current filter.</div>
+          <div className="p-8 text-center text-sm text-stone-600">No transactions match the current filter.</div>
         ) : null}
       </Card>
 
-      <div className="mt-4 flex items-center gap-4 text-xs text-zinc-500">
-        <span className="flex items-center gap-1.5"><ArrowUpRight size={13} className="text-emerald-400" /> money in</span>
-        <span className="flex items-center gap-1.5"><ArrowDownRight size={13} className="text-red-400" /> money out</span>
+      <div className="mt-4 flex items-center gap-4 text-xs text-stone-600">
+        <span className="flex items-center gap-1.5"><ArrowUpRight size={13} className="text-emerald-700" /> money in</span>
+        <span className="flex items-center gap-1.5"><ArrowDownRight size={13} className="text-red-700" /> money out</span>
         <span className="ml-auto">Showing {Math.min(visible.length, 60)} of {visible.length}</span>
       </div>
     </div>

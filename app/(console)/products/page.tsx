@@ -10,8 +10,8 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency, type Product } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 type SortKey = 'name' | 'sellingPrice' | 'stock' | 'margin';
 
@@ -136,7 +136,7 @@ export default function ProductsPage() {
             </div>
           </div>
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
           <div className="mt-5 flex justify-end">
             <Button onClick={handleSubmit}><PackagePlus size={16} /> Save item</Button>
@@ -148,36 +148,36 @@ export default function ProductsPage() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <CardTitle icon={<Package size={17} />}>Product list</CardTitle>
             <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-3 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" />
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" />
             </div>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-semibold text-zinc-300 outline-none focus:border-brand-400/60">
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-brand-400/60">
               <option value="all">All categories</option>
               {categories.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-semibold text-zinc-300 outline-none focus:border-brand-400/60">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-brand-400/60">
               <option value="all">Any status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>
             </select>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-semibold text-zinc-300 outline-none focus:border-brand-400/60">
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-brand-400/60">
               <option value="name">Sort: Name</option>
               <option value="sellingPrice">Sort: Price</option>
               <option value="stock">Sort: Stock</option>
               <option value="margin">Sort: Margin</option>
             </select>
-            <span className="ml-auto text-zinc-500">{visible.length} shown</span>
+            <span className="ml-auto text-stone-600">{visible.length} shown</span>
           </div>
 
           {state.products.length === 0 ? (
             <EmptyState icon={Package} title="No items yet" description="A new business starts with an empty catalog. Add your first product or service — every sale, stock movement, and profit figure will flow from it." />
           ) : visible.length === 0 ? (
-            <p className="rounded-2xl bg-white/[0.03] p-6 text-sm text-zinc-500">No items match the current search/filter.</p>
+            <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600">No items match the current search/filter.</p>
           ) : (
-            <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
+            <div className="overflow-x-auto rounded-2xl border border-stone-200">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-zinc-500">
+                <thead className="bg-stone-50 text-[11px] uppercase tracking-wide text-stone-600">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Item</th>
                     <th className="px-4 py-3 font-semibold">Category</th>
@@ -192,16 +192,16 @@ export default function ProductsPage() {
                   {visible.map((product) => {
                     const margin = marginPct(product);
                     return (
-                      <tr key={product.id} onClick={() => setSelected(product)} className="cursor-pointer border-t border-white/[0.05] transition hover:bg-brand-500/[0.06]">
+                      <tr key={product.id} onClick={() => setSelected(product)} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-zinc-200">{product.name}</p>
-                          <p className="text-xs text-zinc-500">{product.itemType === 'service' ? 'Service' : 'Product'}{product.sku ? ` · ${product.sku}` : ''}</p>
+                          <p className="font-medium text-stone-800">{product.name}</p>
+                          <p className="text-xs text-stone-600">{product.itemType === 'service' ? 'Service' : 'Product'}{product.sku ? ` · ${product.sku}` : ''}</p>
                         </td>
-                        <td className="px-4 py-3 text-zinc-400">{product.category}</td>
-                        <td className="px-4 py-3 text-right font-semibold text-white tabular-nums">{formatCurrency(product.sellingPrice)}</td>
-                        <td className="px-4 py-3 text-right text-zinc-400 tabular-nums">{formatCurrency(product.cost)}</td>
-                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${margin >= 40 ? 'text-emerald-400' : margin >= 15 ? 'text-amber-400' : 'text-red-400'}`}>{margin.toFixed(1)}%</td>
-                        <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">{product.itemType === 'service' ? '—' : product.stock}</td>
+                        <td className="px-4 py-3 text-stone-600">{product.category}</td>
+                        <td className="px-4 py-3 text-right font-semibold text-stone-900 tabular-nums">{formatCurrency(product.sellingPrice)}</td>
+                        <td className="px-4 py-3 text-right text-stone-600 tabular-nums">{formatCurrency(product.cost)}</td>
+                        <td className={`px-4 py-3 text-right font-semibold tabular-nums ${margin >= 40 ? 'text-emerald-700' : margin >= 15 ? 'text-amber-700' : 'text-red-700'}`}>{margin.toFixed(1)}%</td>
+                        <td className="px-4 py-3 text-right text-stone-700 tabular-nums">{product.itemType === 'service' ? '—' : product.stock}</td>
                         <td className="px-4 py-3"><Badge tone={product.status === 'Active' ? 'emerald' : 'slate'} dot>{product.status}</Badge></td>
                       </tr>
                     );
@@ -216,17 +216,17 @@ export default function ProductsPage() {
       {/* Product detail drawer */}
       {selected ? (
         <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm" onClick={() => setSelected(null)} role="dialog" aria-modal="true">
-          <div className="h-full w-full max-w-lg overflow-y-auto border-l border-white/10 bg-[#12141c] p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+          <div className="h-full w-full max-w-lg overflow-y-auto border-l border-stone-200 bg-panel p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
-                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-300">Product detail</p>
-                <h2 className="mt-1.5 font-display text-2xl font-bold text-white">{selected.name}</h2>
-                <p className="mt-1 text-sm text-zinc-500">{selected.category} · {selected.itemType === 'service' ? 'Service' : 'Product'}{selected.sku ? ` · SKU ${selected.sku}` : ''}{selected.supplier ? ` · ${selected.supplier}` : ''}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">Product detail</p>
+                <h2 className="mt-1.5 font-display text-2xl font-bold text-stone-900">{selected.name}</h2>
+                <p className="mt-1 text-sm text-stone-600">{selected.category} · {selected.itemType === 'service' ? 'Service' : 'Product'}{selected.sku ? ` · SKU ${selected.sku}` : ''}{selected.supplier ? ` · ${selected.supplier}` : ''}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/[0.06] text-zinc-400 transition hover:bg-white/[0.12] hover:text-white" aria-label="Close"><X size={16} /></button>
+              <button onClick={() => setSelected(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900" aria-label="Close"><X size={16} /></button>
             </div>
 
-            {selected.description ? <p className="mt-3 rounded-xl bg-white/[0.03] p-3 text-sm text-zinc-400">{selected.description}</p> : null}
+            {selected.description ? <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">{selected.description}</p> : null}
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               {[
@@ -237,32 +237,32 @@ export default function ProductsPage() {
                 { label: 'Stock on hand', value: selected.itemType === 'service' ? '—' : String(selected.stock) },
                 { label: 'Stock value', value: selected.itemType === 'service' ? '—' : formatCurrency(selected.stock * selected.cost) },
               ].map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5">
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{stat.label}</p>
-                  <p className="mt-1 font-display text-lg font-bold text-white tabular-nums">{stat.value}</p>
+                <div key={stat.label} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">{stat.label}</p>
+                  <p className="mt-1 font-display text-lg font-bold text-stone-900 tabular-nums">{stat.value}</p>
                 </div>
               ))}
             </div>
 
             <ProductEditor key={selected.id} product={selected} />
 
-            <h3 className="mt-6 text-sm font-semibold text-zinc-300">Sales history</h3>
+            <h3 className="mt-6 text-sm font-semibold text-stone-700">Sales history</h3>
             <div className="mt-2 space-y-2">
               {(selectedStats?.history ?? []).slice(0, 8).map((entry, index) => (
-                <div key={index} className="flex items-center justify-between rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-sm">
-                  <span className="text-zinc-400">{entry.date} · {entry.quantity} × {formatCurrency(entry.rate)}</span>
-                  <span className="font-semibold text-emerald-400 tabular-nums">+{formatCurrency(entry.total)}</span>
+                <div key={index} className="flex items-center justify-between rounded-xl border border-stone-200 bg-stone-50 p-3 text-sm">
+                  <span className="text-stone-600">{entry.date} · {entry.quantity} × {formatCurrency(entry.rate)}</span>
+                  <span className="font-semibold text-emerald-700 tabular-nums">+{formatCurrency(entry.total)}</span>
                 </div>
               ))}
               {!selectedStats || selectedStats.history.length === 0 ? (
-                <p className="rounded-xl bg-white/[0.03] p-4 text-sm text-zinc-500">No sales recorded for this item yet — record one from the Sales page and it appears here.</p>
+                <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No sales recorded for this item yet — record one from the Sales page and it appears here.</p>
               ) : null}
             </div>
 
             <div className="mt-6 flex gap-2.5">
               <button
                 onClick={() => actions.toggleProductStatus(selected.id)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold ring-1 ring-inset transition ${selected.status === 'Active' ? 'bg-red-500/10 text-red-400 ring-red-500/25 hover:bg-red-500/20' : 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/25 hover:bg-emerald-500/20'}`}
+                className={`flex flex-1 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-bold ring-1 ring-inset transition ${selected.status === 'Active' ? 'bg-red-500/10 text-red-700 ring-red-500/25 hover:bg-red-500/20' : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25 hover:bg-emerald-500/20'}`}
               >
                 {selected.status === 'Active' ? <><Archive size={15} /> Archive (deactivate)</> : <><ArchiveRestore size={15} /> Reactivate</>}
               </button>
@@ -304,27 +304,27 @@ function ProductEditor({ product }: { product: Product }) {
     setTimeout(() => setSaved(null), 2500);
   };
 
-  const small = 'w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-2 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60';
+  const small = 'w-full rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60';
 
   return (
-    <div className="mt-6 rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4">
-      <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Pencil size={14} className="text-brand-300" /> Edit item</p>
+    <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">
+      <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-stone-800"><Pencil size={14} className="text-brand-600" /> Edit item</p>
       <div className="grid grid-cols-2 gap-3">
-        <label className="text-xs text-zinc-500">Selling price<input type="number" min={0} value={draft.sellingPrice} onChange={(e) => setDraft({ ...draft, sellingPrice: e.target.value })} className={`mt-1 ${small}`} /></label>
-        <label className="text-xs text-zinc-500">Cost price<input type="number" min={0} value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} className={`mt-1 ${small}`} /></label>
-        <label className="text-xs text-zinc-500">Category<input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className={`mt-1 ${small}`} /></label>
-        <label className="text-xs text-zinc-500">Tax %<input type="number" min={0} max={100} value={draft.taxRate} onChange={(e) => setDraft({ ...draft, taxRate: e.target.value })} className={`mt-1 ${small}`} /></label>
+        <label className="text-xs text-stone-600">Selling price<input type="number" min={0} value={draft.sellingPrice} onChange={(e) => setDraft({ ...draft, sellingPrice: e.target.value })} className={`mt-1 ${small}`} /></label>
+        <label className="text-xs text-stone-600">Cost price<input type="number" min={0} value={draft.cost} onChange={(e) => setDraft({ ...draft, cost: e.target.value })} className={`mt-1 ${small}`} /></label>
+        <label className="text-xs text-stone-600">Category<input value={draft.category} onChange={(e) => setDraft({ ...draft, category: e.target.value })} className={`mt-1 ${small}`} /></label>
+        <label className="text-xs text-stone-600">Tax %<input type="number" min={0} max={100} value={draft.taxRate} onChange={(e) => setDraft({ ...draft, taxRate: e.target.value })} className={`mt-1 ${small}`} /></label>
         {product.itemType === 'product' ? (
           <>
-            <label className="text-xs text-zinc-500">Stock<input type="number" min={0} value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} className={`mt-1 ${small}`} /></label>
-            <label className="text-xs text-zinc-500">Reorder level<input type="number" min={0} value={draft.reorderLevel} onChange={(e) => setDraft({ ...draft, reorderLevel: e.target.value })} className={`mt-1 ${small}`} /></label>
+            <label className="text-xs text-stone-600">Stock<input type="number" min={0} value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} className={`mt-1 ${small}`} /></label>
+            <label className="text-xs text-stone-600">Reorder level<input type="number" min={0} value={draft.reorderLevel} onChange={(e) => setDraft({ ...draft, reorderLevel: e.target.value })} className={`mt-1 ${small}`} /></label>
           </>
         ) : null}
-        <label className="text-xs text-zinc-500">Supplier<input value={draft.supplier} onChange={(e) => setDraft({ ...draft, supplier: e.target.value })} className={`mt-1 ${small}`} /></label>
-        <label className="text-xs text-zinc-500">Unit<input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} className={`mt-1 ${small}`} /></label>
+        <label className="text-xs text-stone-600">Supplier<input value={draft.supplier} onChange={(e) => setDraft({ ...draft, supplier: e.target.value })} className={`mt-1 ${small}`} /></label>
+        <label className="text-xs text-stone-600">Unit<input value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} className={`mt-1 ${small}`} /></label>
       </div>
       <div className="mt-3 flex items-center justify-between">
-        {saved ? <span className="text-xs font-semibold text-emerald-400">{saved}</span> : <span className="text-xs text-zinc-600">Archiving is used instead of deletion.</span>}
+        {saved ? <span className="text-xs font-semibold text-emerald-700">{saved}</span> : <span className="text-xs text-stone-600">Archiving is used instead of deletion.</span>}
         <Button variant="secondary" onClick={save}>Save changes</Button>
       </div>
     </div>

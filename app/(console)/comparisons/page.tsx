@@ -52,8 +52,8 @@ export default function ComparisonsPage() {
             <Card key={item.label} className="animate-fade-up" hover>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2.5">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300"><Columns2 size={16} /></span>
-                  <h2 className="text-base font-semibold text-white">{item.label}</h2>
+                  <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600"><Columns2 size={16} /></span>
+                  <h2 className="text-base font-semibold text-stone-900">{item.label}</h2>
                 </div>
                 <Badge tone={improving ? 'emerald' : 'red'}>
                   <span className="inline-flex items-center gap-1"><TrendIcon size={12} /> {change >= 0 ? '+' : ''}{change.toFixed(1)}%</span>
@@ -61,15 +61,15 @@ export default function ComparisonsPage() {
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-brand-500/[0.08] p-4 ring-1 ring-inset ring-brand-500/20">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-300">Current</p>
-                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-white">{formatCurrency(item.current)}</p>
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-600">Current</p>
+                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-stone-900">{formatCurrency(item.current)}</p>
                 </div>
-                <div className="rounded-2xl bg-white/[0.04] p-4 ring-1 ring-inset ring-white/[0.07]">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Previous</p>
-                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-zinc-400">{formatCurrency(item.previous)}</p>
+                <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Previous</p>
+                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-stone-600">{formatCurrency(item.previous)}</p>
                 </div>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/[0.06]">
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-100">
                 <div className="h-full rounded-full bg-brand-gradient transition-all duration-700" style={{ width: `${Math.min(Math.abs(change), 100)}%`, opacity: item.label === 'Operating Expenses' ? 0.6 : 1 }} />
               </div>
             </Card>

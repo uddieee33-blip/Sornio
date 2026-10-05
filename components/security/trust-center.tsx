@@ -39,9 +39,9 @@ import { useToast } from '@/lib/ui/toast';
 type Posture = 'protected' | 'attention' | 'information';
 
 const POSTURE_STYLES: Record<Posture, string> = {
-  protected: 'ring-emerald-500/20 bg-emerald-500/[0.06] text-emerald-300',
-  attention: 'ring-amber-500/25 bg-amber-500/[0.07] text-amber-300',
-  information: 'ring-white/[0.07] bg-white/[0.03] text-zinc-300',
+  protected: 'ring-emerald-500/20 bg-emerald-500/[0.06] text-emerald-700',
+  attention: 'ring-amber-500/25 bg-amber-500/[0.07] text-amber-700',
+  information: 'ring-stone-200 bg-stone-50 text-stone-700',
 };
 
 function PostureRow({
@@ -155,10 +155,10 @@ export function TrustCenter() {
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
           <CardTitle icon={<ShieldCheck size={15} />}>Data stays here</CardTitle>
-          <p className="mt-3 font-display text-2xl font-bold text-white">
+          <p className="mt-3 font-display text-2xl font-bold text-stone-900">
             {isSupabaseConfigured() ? 'Sync on' : 'On-device'}
           </p>
-          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+          <p className="mt-1 text-xs leading-relaxed text-stone-600">
             {isSupabaseConfigured()
               ? 'A Supabase project is connected and row-level security scopes every record to your business.'
               : 'No server is connected. Your ledger lives on this device and works with no internet.'}
@@ -167,8 +167,8 @@ export function TrustCenter() {
 
         <Card>
           <CardTitle icon={<Fingerprint size={15} />}>Tamper-evident history</CardTitle>
-          <p className="mt-3 font-display text-2xl font-bold text-white">{chainedCount}</p>
-          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+          <p className="mt-3 font-display text-2xl font-bold text-stone-900">{chainedCount}</p>
+          <p className="mt-1 text-xs leading-relaxed text-stone-600">
             {legacyCount > 0
               ? `Sealed entries. ${legacyCount} older record${legacyCount === 1 ? '' : 's'} predate the chain and are shown as unverified rather than claimed.`
               : 'Every recorded change carries a SHA-256 fingerprint linked to the one before it.'}
@@ -177,8 +177,8 @@ export function TrustCenter() {
 
         <Card>
           <CardTitle icon={<KeyRound size={15} />}>Access control</CardTitle>
-          <p className="mt-3 font-display text-2xl font-bold text-white">{ROLES.length} roles</p>
-          <p className="mt-1 text-xs leading-relaxed text-zinc-400">
+          <p className="mt-3 font-display text-2xl font-bold text-stone-900">{ROLES.length} roles</p>
+          <p className="mt-1 text-xs leading-relaxed text-stone-600">
             {PERMISSIONS.length} granular permissions. A cashier can bill; only an owner can reach people, billing, and data reset.
           </p>
         </Card>
@@ -265,15 +265,15 @@ export function TrustCenter() {
 
         <Card>
           <CardTitle icon={<Users size={15} />}>Who can do what</CardTitle>
-          <p className="mt-2 text-xs leading-relaxed text-zinc-400">
+          <p className="mt-2 text-xs leading-relaxed text-stone-600">
             Roles are enforced in the app and mirrored in the database schema. Invite staff from{' '}
-            <span className="text-zinc-300">Team &amp; Roles</span>.
+            <span className="text-stone-700">Team &amp; Roles</span>.
           </p>
 
           <div className="mt-4 overflow-x-auto">
             <table className="w-full min-w-[520px] border-collapse text-left text-xs">
               <thead>
-                <tr className="text-[10px] uppercase tracking-wider text-zinc-500">
+                <tr className="text-[10px] uppercase tracking-wider text-stone-600">
                   <th className="pb-2 pr-3 font-bold">Capability</th>
                   {ROLES.map((role) => (
                     <th key={role} className="pb-2 px-2 text-center font-bold">
@@ -295,14 +295,14 @@ export function TrustCenter() {
                     ['Reset all data', 'data.reset'],
                   ] as const
                 ).map(([label, permission]) => (
-                  <tr key={permission} className="border-t border-white/[0.05]">
-                    <td className="py-2 pr-3 text-zinc-300">{label}</td>
+                  <tr key={permission} className="border-t border-stone-200">
+                    <td className="py-2 pr-3 text-stone-700">{label}</td>
                     {(ROLES as readonly Role[]).map((role) => (
                       <td key={role} className="px-2 py-2 text-center">
                         {can(role, permission) ? (
-                          <CheckCircle2 size={14} className="mx-auto text-emerald-400" aria-label="allowed" />
+                          <CheckCircle2 size={14} className="mx-auto text-emerald-700" aria-label="allowed" />
                         ) : (
-                          <span className="text-zinc-700" aria-label="not allowed">
+                          <span className="text-stone-600" aria-label="not allowed">
                             —
                           </span>
                         )}
@@ -316,9 +316,9 @@ export function TrustCenter() {
 
           <dl className="mt-5 space-y-2">
             {(ROLES as readonly Role[]).map((role) => (
-              <div key={role} className="rounded-xl bg-white/[0.02] p-3 ring-1 ring-inset ring-white/[0.05]">
-                <dt className="text-xs font-semibold text-white">{ROLE_LABELS[role]}</dt>
-                <dd className="mt-0.5 text-[11px] leading-relaxed text-zinc-400">{ROLE_DESCRIPTIONS[role]}</dd>
+              <div key={role} className="rounded-xl bg-stone-50 p-3 ring-1 ring-inset ring-stone-200">
+                <dt className="text-xs font-semibold text-stone-900">{ROLE_LABELS[role]}</dt>
+                <dd className="mt-0.5 text-[11px] leading-relaxed text-stone-600">{ROLE_DESCRIPTIONS[role]}</dd>
               </div>
             ))}
           </dl>
@@ -327,12 +327,12 @@ export function TrustCenter() {
 
       <Card>
         <CardTitle icon={<Lock size={15} />}>What we never collect</CardTitle>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+        <p className="mt-3 text-sm leading-relaxed text-stone-600">
           No PINs, OTPs, card numbers, or bank passwords — the app has no field for them and no code path that could store
           them. Your UPI ID is used solely to draw your collection QR and is never sent to a payment gateway, because
           DukaanOS is not one: customers pay you directly.
         </p>
-        <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+        <p className="mt-3 text-sm leading-relaxed text-stone-600">
           Diagnostics are scrubbed before they leave a module — phone numbers, emails, UPI ids, tokens, and any 13–19 digit
           sequence are masked on the way in, so a bug report can never contain a customer’s identity.
         </p>

@@ -192,10 +192,10 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         role="dialog"
         aria-modal="true"
         aria-label="Command palette"
-        className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-white/[0.08] bg-[#0f1218]/95 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)] backdrop-blur-2xl animate-fade-up"
+        className="relative w-full max-w-xl overflow-hidden rounded-2xl border border-stone-200 bg-panel/95 shadow-[0_24px_80px_-24px_rgba(0,0,0,0.9)] backdrop-blur-2xl animate-fade-up"
       >
-        <div className="flex items-center gap-3 border-b border-white/[0.06] px-4 py-3.5">
-          <Search size={16} className="shrink-0 text-zinc-500" />
+        <div className="flex items-center gap-3 border-b border-stone-200 px-4 py-3.5">
+          <Search size={16} className="shrink-0 text-stone-600" />
           <input
             ref={inputRef}
             value={query}
@@ -209,14 +209,14 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             aria-label="Search commands"
             autoComplete="off"
             spellCheck={false}
-            className="w-full bg-transparent text-sm text-white outline-none placeholder:text-zinc-600"
+            className="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-600"
           />
-          <kbd className="rounded-md bg-white/[0.06] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500">ESC</kbd>
+          <kbd className="rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600">ESC</kbd>
         </div>
 
         <div ref={listRef} className="max-h-[46vh] overflow-y-auto p-2">
           {results.length === 0 ? (
-            <p className="px-3 py-8 text-center text-sm text-zinc-500">
+            <p className="px-3 py-8 text-center text-sm text-stone-600">
               Nothing matches “{query}”. Try “sale”, “members”, or “audit”.
             </p>
           ) : (
@@ -230,31 +230,31 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
                   onMouseEnter={() => setActive(index)}
                   onClick={() => runCommand(command)}
                   className={`flex w-full items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
-                    isActive ? 'bg-brand-500/[0.14] ring-1 ring-inset ring-brand-500/25' : 'hover:bg-white/[0.04]'
+                    isActive ? 'bg-brand-500/[0.14] ring-1 ring-inset ring-brand-500/25' : 'hover:bg-stone-50'
                   }`}
                 >
                   <span
                     className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-                      isActive ? 'bg-brand-gradient text-white' : 'bg-white/[0.05] text-zinc-500'
+                      isActive ? 'bg-brand-gradient text-white' : 'bg-stone-100 text-stone-600'
                     }`}
                   >
                     <Icon size={14} strokeWidth={2.2} />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium text-white">{command.label}</span>
-                    {command.hint ? <span className="block truncate text-[11px] text-zinc-500">{command.hint}</span> : null}
+                    <span className="block truncate text-sm font-medium text-stone-900">{command.label}</span>
+                    {command.hint ? <span className="block truncate text-[11px] text-stone-600">{command.hint}</span> : null}
                   </span>
-                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+                  <span className="shrink-0 text-[10px] font-bold uppercase tracking-wider text-stone-600">
                     {command.group}
                   </span>
-                  {isActive ? <CornerDownLeft size={13} className="shrink-0 text-brand-300" /> : <ArrowRight size={13} className="shrink-0 text-transparent" />}
+                  {isActive ? <CornerDownLeft size={13} className="shrink-0 text-brand-600" /> : <ArrowRight size={13} className="shrink-0 text-transparent" />}
                 </button>
               );
             })
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t border-white/[0.06] px-4 py-2 text-[10px] text-zinc-600">
+        <div className="flex items-center justify-between border-t border-stone-200 px-4 py-2 text-[10px] text-stone-600">
           <span>↑ ↓ to move · ↵ to open</span>
           <span>{results.length} result{results.length === 1 ? '' : 's'}</span>
         </div>

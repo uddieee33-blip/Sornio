@@ -62,26 +62,26 @@ export default function HomePage() {
   return (
     <div className="relative p-6 md:p-8">
       {/* Hero */}
-      <div className="animate-fade-up relative overflow-hidden rounded-3xl border border-white/[0.08] bg-[#10131c] p-6 shadow-card md:p-9">
+      <div className="animate-fade-up relative overflow-hidden rounded-3xl border border-stone-200 bg-panel p-6 shadow-card md:p-9">
         <div className="pointer-events-none absolute -right-24 -top-32 h-80 w-80 rounded-full bg-brand-500/15 blur-3xl" />
         <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-brand-400/50 to-transparent" />
         <div className="relative flex flex-col gap-8 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl">
-            <p className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-300 ring-1 ring-inset ring-brand-500/25">
+            <p className="inline-flex items-center gap-2 rounded-full bg-brand-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-brand-600 ring-1 ring-inset ring-brand-500/25">
               <Sparkles size={13} /> {hydrated ? `${greeting(now.getHours())}${ownerName ? `, ${ownerName}` : ''}` : 'Welcome back'} · {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
             </p>
-            <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tight text-white md:text-[2.6rem]">
+            <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tight text-stone-900 md:text-[2.6rem]">
               Small Business.{' '}
               <span className="bg-brand-gradient bg-clip-text text-transparent">Big Business Thinking.</span>
             </h1>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">
+            <p className="mt-3 text-sm leading-relaxed text-stone-600">
               Every number recalculates the moment you record real activity. Billing, inventory, memberships, UPI QR collections, and AI insights — one console.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
               <Link href="/sales" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition hover:brightness-110">
                 <PlusCircle size={17} /> Record a sale
               </Link>
-              <Link href="/customers" className="inline-flex items-center gap-2 rounded-xl bg-white/[0.05] px-4 py-2.5 text-sm font-semibold text-white ring-1 ring-inset ring-white/10 transition hover:bg-white/10">
+              <Link href="/customers" className="inline-flex items-center gap-2 rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-900 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200">
                 <QrCode size={17} /> Customer QR codes
               </Link>
             </div>
@@ -94,10 +94,10 @@ export default function HomePage() {
               { label: 'Transactions', value: String(state.transactions.length), sub: 'in the ledger' },
               { label: 'Active Members', value: String(activeMembers), sub: `${state.customers.length} customers on file` },
             ].map((tile) => (
-              <div key={tile.label} className={`rounded-2xl p-4 ring-1 ring-inset ${tile.accent ? 'bg-brand-500/10 ring-brand-500/30' : 'bg-white/[0.03] ring-white/[0.07]'}`}>
-                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500">{tile.label}</p>
-                <p className={`mt-1.5 font-display text-xl font-bold tabular-nums ${tile.accent ? 'text-brand-200' : 'text-white'}`}>{tile.value}</p>
-                <p className="mt-0.5 text-[11px] text-zinc-500">{tile.sub}</p>
+              <div key={tile.label} className={`rounded-2xl p-4 ring-1 ring-inset ${tile.accent ? 'bg-brand-500/10 ring-brand-500/30' : 'bg-stone-50 ring-stone-200'}`}>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">{tile.label}</p>
+                <p className={`mt-1.5 font-display text-xl font-bold tabular-nums ${tile.accent ? 'text-brand-600' : 'text-stone-900'}`}>{tile.value}</p>
+                <p className="mt-0.5 text-[11px] text-stone-600">{tile.sub}</p>
               </div>
             ))}
           </div>
@@ -135,16 +135,16 @@ export default function HomePage() {
         <Card className="animate-fade-up">
           <div className="mb-4 flex items-center justify-between">
             <CardTitle icon={<Receipt size={17} />}>Recent activity</CardTitle>
-            <Link href="/transactions" className="text-xs font-semibold text-brand-300 hover:underline">View all</Link>
+            <Link href="/transactions" className="text-xs font-semibold text-brand-600 hover:underline">View all</Link>
           </div>
           <div className="space-y-2.5">
             {recentActivity.map((tx) => (
-              <Link key={tx.id} href="/transactions" className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-brand-400/25 hover:bg-white/[0.04]">
+              <Link key={tx.id} href="/transactions" className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3 transition hover:border-brand-400/25 hover:bg-stone-50">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-200">{tx.description}</p>
-                  <p className="text-[11px] text-zinc-500">{tx.date} · {tx.account}</p>
+                  <p className="truncate text-sm font-medium text-stone-800">{tx.description}</p>
+                  <p className="text-[11px] text-stone-600">{tx.date} · {tx.account}</p>
                 </div>
-                <span className={`shrink-0 text-sm font-bold tabular-nums ${tx.direction === 'in' ? 'text-emerald-400' : 'text-red-400'}`}>
+                <span className={`shrink-0 text-sm font-bold tabular-nums ${tx.direction === 'in' ? 'text-emerald-700' : 'text-red-700'}`}>
                   {tx.direction === 'in' ? '+' : '−'}{formatCurrency(tx.amount)}
                 </span>
               </Link>
@@ -155,46 +155,46 @@ export default function HomePage() {
         <Card className="animate-fade-up">
           <div className="mb-4 flex items-center justify-between">
             <CardTitle icon={<CalendarClock size={17} />}>Renewals due</CardTitle>
-            <Link href="/memberships" className="text-xs font-semibold text-brand-300 hover:underline">Manage</Link>
+            <Link href="/memberships" className="text-xs font-semibold text-brand-600 hover:underline">Manage</Link>
           </div>
           <div className="space-y-2.5">
             {renewalsDue.map(({ subscription, days }) => {
               const member = membersById.get(subscription.memberId);
               const plan = plansById.get(subscription.planId);
               return (
-                <Link key={subscription.id} href="/memberships" className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 transition hover:border-brand-400/25 hover:bg-white/[0.04]">
+                <Link key={subscription.id} href="/memberships" className="flex items-center justify-between gap-3 rounded-xl border border-stone-200 bg-stone-50 p-3 transition hover:border-brand-400/25 hover:bg-stone-50">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-medium text-zinc-200">{member?.name ?? 'Member'}</p>
-                    <p className="truncate text-[11px] text-zinc-500">{plan?.name ?? 'Plan'}</p>
+                    <p className="truncate text-sm font-medium text-stone-800">{member?.name ?? 'Member'}</p>
+                    <p className="truncate text-[11px] text-stone-600">{plan?.name ?? 'Plan'}</p>
                   </div>
-                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${days < 0 ? 'bg-red-500/10 text-red-400 ring-red-500/25' : days <= 1 ? 'bg-amber-500/10 text-amber-400 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/25'}`}>
+                  <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1 ring-inset ${days < 0 ? 'bg-red-500/10 text-red-700 ring-red-500/25' : days <= 1 ? 'bg-amber-500/10 text-amber-700 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25'}`}>
                     {days < 0 ? `${Math.abs(days)}d overdue` : days === 0 ? 'Today' : `${days}d left`}
                   </span>
                 </Link>
               );
             })}
-            {renewalsDue.length === 0 ? <p className="rounded-xl bg-white/[0.03] p-4 text-sm text-zinc-500">No renewals due in the next 7 days. 🎉</p> : null}
+            {renewalsDue.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No renewals due in the next 7 days. 🎉</p> : null}
           </div>
         </Card>
 
         <Card className="animate-fade-up">
           <div className="mb-4 flex items-center justify-between">
             <CardTitle icon={<Package size={17} />}>Low stock watch</CardTitle>
-            <Link href="/inventory" className="text-xs font-semibold text-brand-300 hover:underline">Inventory</Link>
+            <Link href="/inventory" className="text-xs font-semibold text-brand-600 hover:underline">Inventory</Link>
           </div>
           <div className="space-y-2.5">
             {lowStock.map((product) => (
               <div key={product.id} className="flex items-center justify-between gap-3 rounded-xl border border-amber-500/20 bg-amber-500/[0.05] p-3">
                 <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-zinc-200">{product.name}</p>
-                  <p className="text-[11px] text-zinc-500">Reorder at {product.reorderLevel}</p>
+                  <p className="truncate text-sm font-medium text-stone-800">{product.name}</p>
+                  <p className="text-[11px] text-stone-600">Reorder at {product.reorderLevel}</p>
                 </div>
-                <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-400 ring-1 ring-inset ring-amber-500/25">
+                <span className="shrink-0 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-500/25">
                   {product.stock} left
                 </span>
               </div>
             ))}
-            {lowStock.length === 0 ? <p className="rounded-xl bg-white/[0.03] p-4 text-sm text-zinc-500">All products above reorder levels.</p> : null}
+            {lowStock.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">All products above reorder levels.</p> : null}
           </div>
         </Card>
       </div>
@@ -209,15 +209,15 @@ export default function HomePage() {
         ].map((item) => {
           const Icon = item.icon;
           return (
-            <Link key={item.href} href={item.href} className="group animate-fade-up flex items-center gap-4 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/[0.07] shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:bg-white/[0.05] hover:ring-brand-400/30 hover:shadow-card-hover">
-              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-300 ring-1 ring-inset ring-brand-500/20 transition group-hover:bg-brand-gradient group-hover:text-white group-hover:shadow-glow-sm">
+            <Link key={item.href} href={item.href} className="group animate-fade-up flex items-center gap-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-stone-200 shadow-card transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-100 hover:ring-brand-400/30 hover:shadow-card-hover">
+              <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600 ring-1 ring-inset ring-brand-500/20 transition group-hover:bg-brand-gradient group-hover:text-white group-hover:shadow-glow-sm">
                 <Icon size={19} />
               </span>
               <span className="min-w-0 flex-1">
-                <span className="block text-sm font-semibold text-white">{item.title}</span>
-                <span className="block truncate text-xs text-zinc-500">{item.desc}</span>
+                <span className="block text-sm font-semibold text-stone-900">{item.title}</span>
+                <span className="block truncate text-xs text-stone-600">{item.desc}</span>
               </span>
-              <ArrowUpRight size={16} className="text-zinc-600 transition group-hover:text-brand-300" />
+              <ArrowUpRight size={16} className="text-stone-600 transition group-hover:text-brand-600" />
             </Link>
           );
         })}
@@ -225,14 +225,14 @@ export default function HomePage() {
 
       {/* Alerts teaser */}
       <div className="mt-6">
-        <Link href="/alerts" className="group flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.02] p-4 transition hover:border-brand-400/30 hover:bg-white/[0.04]">
-          <span className="flex items-center gap-3 text-sm text-zinc-400">
-            <Bell size={16} className="text-brand-300" />
+        <Link href="/alerts" className="group flex items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 p-4 transition hover:border-brand-400/30 hover:bg-stone-50">
+          <span className="flex items-center gap-3 text-sm text-stone-600">
+            <Bell size={16} className="text-brand-600" />
             {renewalsDue.length + lowStock.length > 0
               ? `${renewalsDue.length + lowStock.length} item${renewalsDue.length + lowStock.length === 1 ? '' : 's'} need attention — renewals and low stock.`
               : 'Everything looks healthy. Open alerts to see the full picture.'}
           </span>
-          <span className="flex items-center gap-1 text-xs font-semibold text-brand-300">Review alerts <ArrowUpRight size={13} className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></span>
+          <span className="flex items-center gap-1 text-xs font-semibold text-brand-600">Review alerts <ArrowUpRight size={13} className="transition group-hover:translate-x-0.5 group-hover:-translate-y-0.5" /></span>
         </Link>
       </div>
     </div>

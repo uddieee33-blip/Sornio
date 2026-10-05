@@ -102,12 +102,12 @@ export function Topbar({
             : 'Local-first';
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/[0.06] bg-[#0b0d12]/85 backdrop-blur-xl">
+    <header className="sticky top-0 z-40 border-b border-stone-200 bg-panel/85 backdrop-blur-xl">
       <div className="flex items-center gap-3 px-4 py-3 md:px-8">
         <div className="flex min-w-0 items-center gap-2 md:hidden">
           <Link href="/home" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
             <BrandIcon size={36} className="h-9 w-9 shrink-0 rounded-xl shadow-glow-sm" />
-            <span className="font-display text-sm font-bold tracking-tight text-white">DukaanOS</span>
+            <span className="font-display text-sm font-bold tracking-tight text-stone-900">DukaanOS</span>
           </Link>
           <button
             type="button"
@@ -115,24 +115,24 @@ export function Topbar({
             aria-label="Open navigation menu"
             aria-haspopup="dialog"
             aria-controls="mobile-navigation"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.04] text-zinc-300 transition hover:bg-white/[0.08] hover:text-white"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700 transition hover:bg-stone-100 hover:text-stone-900"
           >
             <Menu size={17} />
           </button>
         </div>
 
         <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-2 text-sm md:flex">
-          <Link href="/home" className="shrink-0 text-zinc-500 transition hover:text-zinc-300">
+          <Link href="/home" className="shrink-0 text-stone-600 transition hover:text-stone-700">
             DukaanOS
           </Link>
-          <ChevronRight size={14} className="shrink-0 text-zinc-700" />
-          <span className="truncate font-semibold text-white">{title}</span>
+          <ChevronRight size={14} className="shrink-0 text-stone-600" />
+          <span className="truncate font-semibold text-stone-900">{title}</span>
         </nav>
 
         <div className="ml-auto flex items-center gap-2">
           {!online ? (
             <span
-              className="hidden items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-300 ring-1 ring-inset ring-amber-500/25 sm:flex"
+              className="hidden items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-500/25 sm:flex"
               title="You are offline. Everything still works — your data stays on this device."
             >
               <WifiOff size={12} /> Offline — still working
@@ -140,16 +140,16 @@ export function Topbar({
           ) : null}
 
           <span
-            className="hidden items-center gap-1.5 rounded-full bg-white/[0.04] px-2.5 py-1 text-[11px] font-semibold text-zinc-400 ring-1 ring-inset ring-white/[0.07] lg:flex"
+            className="hidden items-center gap-1.5 rounded-full bg-stone-50 px-2.5 py-1 text-[11px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200 lg:flex"
             title="Your records are stored on this device; sync turns on automatically when Supabase is connected."
           >
-            <Database size={12} className={syncStatus === 'error' ? 'text-amber-400' : 'text-emerald-400'} />
+            <Database size={12} className={syncStatus === 'error' ? 'text-amber-700' : 'text-emerald-700'} />
             {syncLabel}
           </span>
 
           <Link
             href="/security"
-            className="hidden items-center gap-1.5 rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[11px] font-bold text-emerald-300 ring-1 ring-inset ring-emerald-500/20 transition hover:bg-emerald-500/[0.14] sm:flex"
+            className="hidden items-center gap-1.5 rounded-full bg-emerald-500/[0.08] px-2.5 py-1 text-[11px] font-bold text-emerald-700 ring-1 ring-inset ring-emerald-500/20 transition hover:bg-emerald-500/[0.14] sm:flex"
             title="Open the Trust Centre"
           >
             <Lock size={12} /> Encrypted
@@ -157,12 +157,12 @@ export function Topbar({
 
           <button
             onClick={onOpenCommand}
-            className="group flex items-center gap-2 rounded-xl bg-white/[0.04] px-2.5 py-1.5 text-xs font-medium text-zinc-400 ring-1 ring-inset ring-white/[0.07] transition hover:bg-white/[0.07] hover:text-zinc-200"
+            className="group flex items-center gap-2 rounded-xl bg-stone-50 px-2.5 py-1.5 text-xs font-medium text-stone-600 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-800"
             aria-label="Open the command palette"
           >
             <Search size={14} />
             <span className="hidden md:inline">Search or jump to…</span>
-            <span className="hidden items-center gap-0.5 rounded-md bg-white/[0.07] px-1.5 py-0.5 font-mono text-[10px] text-zinc-500 md:flex">
+            <span className="hidden items-center gap-0.5 rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600 md:flex">
               <Command size={9} />K
             </span>
           </button>

@@ -62,35 +62,35 @@ export default function ProfitabilityPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-fade-up">
             <Card>
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-400"><TrendingUp size={18} /></span>
-                <div><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Gross margin</p>
-                  <p className="font-display text-xl font-bold text-white tabular-nums">{financials.grossMargin.toFixed(1)}%</p></div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/10 text-emerald-700"><TrendingUp size={18} /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Gross margin</p>
+                  <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{financials.grossMargin.toFixed(1)}%</p></div>
               </div>
-              <p className="mt-2.5 text-xs text-zinc-500">Gross profit {formatCurrency(financials.grossProfit)}</p>
+              <p className="mt-2.5 text-xs text-stone-600">Gross profit {formatCurrency(financials.grossProfit)}</p>
             </Card>
             <Card>
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-300"><Zap size={18} /></span>
-                <div><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Operating margin</p>
-                  <p className="font-display text-xl font-bold text-white tabular-nums">{operatingMargin.toFixed(1)}%</p></div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600"><Zap size={18} /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Operating margin</p>
+                  <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{operatingMargin.toFixed(1)}%</p></div>
               </div>
-              <p className="mt-2.5 text-xs text-zinc-500">Operating profit {formatCurrency(financials.operatingProfit)}</p>
+              <p className="mt-2.5 text-xs text-stone-600">Operating profit {formatCurrency(financials.operatingProfit)}</p>
             </Card>
             <Card>
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-400"><Percent size={18} /></span>
-                <div><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Net margin</p>
-                  <p className="font-display text-xl font-bold text-white tabular-nums">{netMargin.toFixed(1)}%</p></div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-500/10 text-violet-700"><Percent size={18} /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Net margin</p>
+                  <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{netMargin.toFixed(1)}%</p></div>
               </div>
-              <p className="mt-2.5 text-xs text-zinc-500">Est. net profit {formatCurrency(financials.netProfit)}</p>
+              <p className="mt-2.5 text-xs text-stone-600">Est. net profit {formatCurrency(financials.netProfit)}</p>
             </Card>
             <Card>
               <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-400"><BarChart3 size={18} /></span>
-                <div><p className="text-xs font-semibold uppercase tracking-wide text-zinc-500">Revenue</p>
-                  <p className="font-display text-xl font-bold text-white tabular-nums">{formatCurrency(financials.revenue)}</p></div>
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700"><BarChart3 size={18} /></span>
+                <div><p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Revenue</p>
+                  <p className="font-display text-xl font-bold text-stone-900 tabular-nums">{formatCurrency(financials.revenue)}</p></div>
               </div>
-              <p className="mt-2.5 text-xs text-zinc-500">COGS {formatCurrency(financials.cogs)}</p>
+              <p className="mt-2.5 text-xs text-stone-600">COGS {formatCurrency(financials.cogs)}</p>
             </Card>
           </div>
 
@@ -101,11 +101,11 @@ export default function ProfitabilityPage() {
                 <Badge tone="brand" dot>{productRows.length} items sold</Badge>
               </div>
               {productRows.length === 0 ? (
-                <p className="rounded-2xl bg-white/[0.03] p-6 text-sm text-zinc-500">No itemised sales recorded yet. Sales made from here on record their exact items, so per-product profit appears automatically.</p>
+                <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600">No itemised sales recorded yet. Sales made from here on record their exact items, so per-product profit appears automatically.</p>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border border-white/[0.07]">
+                <div className="overflow-x-auto rounded-2xl border border-stone-200">
                   <table className="min-w-full text-left text-sm">
-                    <thead className="bg-white/[0.03] text-[11px] uppercase tracking-wide text-zinc-500">
+                    <thead className="bg-stone-50 text-[11px] uppercase tracking-wide text-stone-600">
                       <tr>
                         <th className="px-4 py-3 font-semibold">Item</th>
                         <th className="px-4 py-3 text-right font-semibold">Revenue</th>
@@ -119,15 +119,15 @@ export default function ProfitabilityPage() {
                         const profit = row.revenue - row.cogs;
                         const margin = row.revenue > 0 ? (profit / row.revenue) * 100 : 0;
                         return (
-                          <tr key={row.name} className="border-t border-white/[0.05]">
+                          <tr key={row.name} className="border-t border-stone-200">
                             <td className="px-4 py-3">
-                              <p className="font-medium text-zinc-200">{row.name}</p>
-                              <p className="text-xs text-zinc-500">{row.units} unit(s) · {row.category || 'Uncategorised'}</p>
+                              <p className="font-medium text-stone-800">{row.name}</p>
+                              <p className="text-xs text-stone-600">{row.units} unit(s) · {row.category || 'Uncategorised'}</p>
                             </td>
-                            <td className="px-4 py-3 text-right text-zinc-300 tabular-nums">{formatCurrency(row.revenue)}</td>
-                            <td className="px-4 py-3 text-right text-zinc-400 tabular-nums">{formatCurrency(row.cogs)}</td>
-                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-400' : 'text-red-400'}`}>{formatCurrency(profit)}</td>
-                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${margin >= 40 ? 'text-emerald-400' : margin >= 15 ? 'text-amber-400' : 'text-red-400'}`}>{margin.toFixed(1)}%</td>
+                            <td className="px-4 py-3 text-right text-stone-700 tabular-nums">{formatCurrency(row.revenue)}</td>
+                            <td className="px-4 py-3 text-right text-stone-600 tabular-nums">{formatCurrency(row.cogs)}</td>
+                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${profit >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>{formatCurrency(profit)}</td>
+                            <td className={`px-4 py-3 text-right font-semibold tabular-nums ${margin >= 40 ? 'text-emerald-700' : margin >= 15 ? 'text-amber-700' : 'text-red-700'}`}>{margin.toFixed(1)}%</td>
                           </tr>
                         );
                       })}
@@ -139,7 +139,7 @@ export default function ProfitabilityPage() {
 
             <Card className="animate-fade-up">
               <div className="mb-5"><CardTitle icon={<Percent size={17} />}>Profit by category</CardTitle></div>
-              {categoryRows.length > 0 ? <HBarList data={categoryRows} /> : <p className="rounded-2xl bg-white/[0.03] p-6 text-sm text-zinc-500">Category profit appears once itemised sales exist.</p>}
+              {categoryRows.length > 0 ? <HBarList data={categoryRows} /> : <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600">Category profit appears once itemised sales exist.</p>}
             </Card>
           </div>
         </>

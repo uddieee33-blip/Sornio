@@ -20,8 +20,8 @@ const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
 const channelLabels: Record<string, string> = { sms: 'SMS', whatsapp: 'WhatsApp', both: 'SMS + WhatsApp' };
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
@@ -89,7 +89,7 @@ export default function MembershipsPage() {
       />
 
       {message ? (
-        <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+        <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -101,19 +101,19 @@ export default function MembershipsPage() {
             </div>
             <div className="grid gap-3 md:grid-cols-2">
               {state.plans.map((plan) => (
-                <div key={plan.id} className="relative overflow-hidden rounded-2xl border border-white/[0.07] bg-gradient-to-br from-white/[0.05] to-brand-500/[0.06] p-4 transition hover:border-brand-400/30 hover:shadow-card-hover">
+                <div key={plan.id} className="relative overflow-hidden rounded-2xl border border-stone-200 bg-gradient-to-br from-stone-50 to-brand-500/[0.06] p-4 transition hover:border-brand-400/30 hover:shadow-card-hover">
                   <div className="flex items-start justify-between">
-                    <p className="font-semibold text-white">{plan.name}</p>
+                    <p className="font-semibold text-stone-900">{plan.name}</p>
                     <Badge tone={plan.isActive ? 'emerald' : 'slate'} dot>{plan.isActive ? 'Active' : 'Off'}</Badge>
                   </div>
-                  <p className="mt-1 text-xs text-zinc-500">{plan.durationMonths} month{plan.durationMonths === 1 ? '' : 's'}{plan.description ? ` · ${plan.description}` : ''}</p>
-                  <p className="mt-3 font-display text-2xl font-bold text-white tabular-nums">₹{plan.price.toLocaleString('en-IN')}</p>
+                  <p className="mt-1 text-xs text-stone-600">{plan.durationMonths} month{plan.durationMonths === 1 ? '' : 's'}{plan.description ? ` · ${plan.description}` : ''}</p>
+                  <p className="mt-3 font-display text-2xl font-bold text-stone-900 tabular-nums">₹{plan.price.toLocaleString('en-IN')}</p>
                 </div>
               ))}
             </div>
 
-            <div className="mt-5 rounded-2xl border border-dashed border-white/15 p-4">
-              <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Plus size={15} className="text-brand-300" /> Add plan</p>
+            <div className="mt-5 rounded-2xl border border-dashed border-stone-300 p-4">
+              <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-stone-800"><Plus size={15} className="text-brand-600" /> Add plan</p>
               <div className="grid gap-3 md:grid-cols-4">
                 <input value={planForm.name} onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })} placeholder="Plan name" className={inputClass} />
                 <select value={planForm.type} onChange={(e) => setPlanForm({ ...planForm, type: e.target.value })} className={inputClass}>
@@ -141,18 +141,18 @@ export default function MembershipsPage() {
                 const days = daysUntil(subscription.expiryDate);
                 const meta = statusMeta[subscription.status] ?? statusMeta.active;
                 return (
-                  <div key={subscription.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 transition hover:border-brand-400/30 hover:bg-white/[0.05]">
+                  <div key={subscription.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-4 transition hover:border-brand-400/30 hover:bg-stone-100">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div>
-                        <p className="font-semibold text-white">{member?.name ?? 'Unknown member'}</p>
-                        <p className="text-xs text-zinc-500">{plan?.name ?? 'Custom plan'} · started {formatDate(subscription.startDate)}</p>
+                        <p className="font-semibold text-stone-900">{member?.name ?? 'Unknown member'}</p>
+                        <p className="text-xs text-stone-600">{plan?.name ?? 'Custom plan'} · started {formatDate(subscription.startDate)}</p>
                       </div>
                       <div className="text-right">
                         <Badge tone={meta.tone} dot>{meta.label}</Badge>
-                        <p className="mt-1.5 text-xs text-zinc-500">{days >= 0 ? 'Expires' : 'Expired'} {formatDate(subscription.expiryDate)}</p>
+                        <p className="mt-1.5 text-xs text-stone-600">{days >= 0 ? 'Expires' : 'Expired'} {formatDate(subscription.expiryDate)}</p>
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center justify-between text-xs text-zinc-500">
+                    <div className="mt-3 flex items-center justify-between text-xs text-stone-600">
                       <span>{subscription.autoRenew ? 'Auto-renew on' : 'Auto-renew off'} · {member ? channelLabels[member.preferredChannel] : ''}</span>
                       {(subscription.status === 'expiring_soon' || subscription.status === 'expired') ? (
                         <button onClick={() => handleRenew(subscription.id)} className="inline-flex items-center gap-1.5 rounded-full bg-brand-gradient px-3.5 py-1.5 font-semibold text-white shadow-glow-sm transition hover:brightness-110">
@@ -191,8 +191,8 @@ export default function MembershipsPage() {
               <Button className="w-full" onClick={handleEnroll}><CreditCard size={16} /> Enroll & collect payment</Button>
             </div>
 
-            <div className="mt-6 border-t border-white/[0.07] pt-5">
-              <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-zinc-200"><Users size={15} className="text-brand-300" /> Add member</p>
+            <div className="mt-6 border-t border-stone-200 pt-5">
+              <p className="mb-3 flex items-center gap-2 text-sm font-semibold text-stone-800"><Users size={15} className="text-brand-600" /> Add member</p>
               <div className="space-y-3">
                 <input value={memberForm.name} onChange={(e) => setMemberForm({ ...memberForm, name: e.target.value })} placeholder="Full name" className={inputClass} />
                 <input value={memberForm.phone} onChange={(e) => setMemberForm({ ...memberForm, phone: e.target.value })} placeholder="Phone" className={inputClass} />
@@ -214,19 +214,19 @@ export default function MembershipsPage() {
                 const member = membersById.get(subscription.memberId);
                 const days = daysUntil(subscription.expiryDate);
                 return (
-                  <div key={subscription.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5">
-                    <p className="font-semibold text-zinc-200">{member?.name ?? 'Unknown member'}</p>
-                    <p className="mt-0.5 text-xs text-zinc-500">{plansById.get(subscription.planId)?.name ?? 'Membership'}</p>
+                  <div key={subscription.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
+                    <p className="font-semibold text-stone-800">{member?.name ?? 'Unknown member'}</p>
+                    <p className="mt-0.5 text-xs text-stone-600">{plansById.get(subscription.planId)?.name ?? 'Membership'}</p>
                     <div className="mt-2.5 flex items-center justify-between text-xs">
-                      <span className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset ${days < 0 ? 'bg-red-500/10 text-red-400 ring-red-500/25' : days <= 1 ? 'bg-amber-500/10 text-amber-400 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/25'}`}>
+                      <span className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset ${days < 0 ? 'bg-red-500/10 text-red-700 ring-red-500/25' : days <= 1 ? 'bg-amber-500/10 text-amber-700 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25'}`}>
                         {days < 0 ? `Expired ${Math.abs(days)} day(s) ago` : days === 0 ? 'Expires today' : `${days} day${days === 1 ? '' : 's'} left`}
                       </span>
-                      <span className="flex items-center gap-1 text-zinc-500"><CalendarClock size={12} /> {member ? channelLabels[member.preferredChannel] : ''}</span>
+                      <span className="flex items-center gap-1 text-stone-600"><CalendarClock size={12} /> {member ? channelLabels[member.preferredChannel] : ''}</span>
                     </div>
                   </div>
                 );
               })}
-              {renewalQueue.length === 0 ? <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No renewals due in the next 7 days.</p> : null}
+              {renewalQueue.length === 0 ? <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">No renewals due in the next 7 days.</p> : null}
             </div>
           </Card>
         </div>

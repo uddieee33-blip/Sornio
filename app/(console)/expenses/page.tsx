@@ -14,8 +14,8 @@ import { useDukaanStore } from '@/lib/store';
 
 const CATEGORIES = ['Rent', 'Electricity', 'Marketing', 'Salaries', 'Supplies', 'Software', 'Transport', 'Other'];
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 export default function ExpensesPage() {
   const { state, actions } = useDukaanStore();
@@ -59,7 +59,7 @@ export default function ExpensesPage() {
             </div>
           </div>
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
           <div className="mt-5 flex justify-end">
             <Button onClick={handleSubmit}><Plus size={16} /> Record expense</Button>
@@ -74,21 +74,21 @@ export default function ExpensesPage() {
           {byCategory.length > 0 ? (
             <DonutChart data={byCategory} centerLabel="Spent" centerValue={formatCurrency(totalExpenses)} height={200} />
           ) : (
-            <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No expenses recorded yet.</p>
+            <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">No expenses recorded yet.</p>
           )}
 
-          <h3 className="mt-6 text-sm font-semibold text-zinc-300">Recent entries</h3>
+          <h3 className="mt-6 text-sm font-semibold text-stone-700">Recent entries</h3>
           <div className="mt-2 space-y-2">
             {expenseLedger.slice(0, 6).map((tx) => (
-              <div key={tx.id} className="flex items-center justify-between rounded-xl border border-white/[0.07] p-3 text-sm transition hover:border-red-400/25">
+              <div key={tx.id} className="flex items-center justify-between rounded-xl border border-stone-200 p-3 text-sm transition hover:border-red-400/25">
                 <div>
-                  <p className="font-medium text-zinc-200">{tx.description}</p>
-                  <p className="text-xs text-zinc-500">{tx.date} · {tx.paymentMethod ?? '—'}</p>
+                  <p className="font-medium text-stone-800">{tx.description}</p>
+                  <p className="text-xs text-stone-600">{tx.date} · {tx.paymentMethod ?? '—'}</p>
                 </div>
-                <span className="font-bold text-red-400 tabular-nums">−{formatCurrency(tx.amount)}</span>
+                <span className="font-bold text-red-700 tabular-nums">−{formatCurrency(tx.amount)}</span>
               </div>
             ))}
-            {expenseLedger.length === 0 ? <p className="rounded-xl bg-white/[0.03] p-4 text-sm text-zinc-500">Nothing yet.</p> : null}
+            {expenseLedger.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">Nothing yet.</p> : null}
           </div>
         </Card>
       </div>

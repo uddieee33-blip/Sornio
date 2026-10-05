@@ -11,7 +11,7 @@ import { useDukaanStore, type SaleLine } from '@/lib/store';
 import type { PaymentMethod } from '@/lib/models/billing';
 
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
-const inputClass = 'rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 export default function SalesPage() {
   const { state, actions } = useDukaanStore();
@@ -67,15 +67,15 @@ export default function SalesPage() {
 
           <div className="space-y-4">
             {lines.length === 0 ? (
-              <div className="rounded-2xl border-2 border-dashed border-white/10 p-8 text-center">
-                <ShoppingCart size={28} className="mx-auto text-zinc-600" />
-                <p className="mt-2 text-sm text-zinc-500">No lines yet — add one to start a sale.</p>
+              <div className="rounded-2xl border-2 border-dashed border-stone-200 p-8 text-center">
+                <ShoppingCart size={28} className="mx-auto text-stone-600" />
+                <p className="mt-2 text-sm text-stone-600">No lines yet — add one to start a sale.</p>
               </div>
             ) : null}
             {lines.map((line, index) => {
               const product = state.products.find((item) => item.id === line.productId);
               return (
-                <div key={index} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5">
+                <div key={index} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
                   <div className="grid gap-3 md:grid-cols-[1.5fr_0.5fr_0.8fr_auto]">
                     <select value={line.productId} onChange={(e) => handleProductChange(index, e.target.value)} className={inputClass}>
                       {sellableProducts.map((item) => (
@@ -87,40 +87,40 @@ export default function SalesPage() {
                     <input type="number" min={1} value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
                     <input type="number" min={0} value={line.rate} onChange={(e) => updateLine(index, { rate: Number(e.target.value || 0) })} className={inputClass} />
                     <div className="flex items-center justify-between gap-3 md:justify-end">
-                      <span className="font-display text-sm font-bold text-white tabular-nums">{formatCurrency(line.quantity * line.rate)}</span>
-                      <button onClick={() => removeLine(index)} className="rounded-lg p-2 text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400"><Trash2 size={16} /></button>
+                      <span className="font-display text-sm font-bold text-stone-900 tabular-nums">{formatCurrency(line.quantity * line.rate)}</span>
+                      <button onClick={() => removeLine(index)} className="rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
                     </div>
                   </div>
                   {product && product.itemType === 'product' && line.quantity > product.stock ? (
-                    <p className="mt-2 text-xs font-semibold text-red-400">Only {product.stock} in stock for {product.name}.</p>
+                    <p className="mt-2 text-xs font-semibold text-red-700">Only {product.stock} in stock for {product.name}.</p>
                   ) : null}
                 </div>
               );
             })}
           </div>
 
-          <div className="mt-5 space-y-4 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.06]">
+          <div className="mt-5 space-y-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
             <div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Customer (optional)</span>
+              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600">Customer (optional)</span>
               <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in customer" className={`${inputClass} w-full`} />
             </div>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap gap-2">
                 {METHODS.map((option) => (
-                  <button key={option} onClick={() => setMethod(option)} className={`rounded-full px-3.5 py-2 text-xs font-semibold transition ${method === option ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-white/[0.04] text-zinc-400 ring-1 ring-inset ring-white/10 hover:text-white'}`}>
+                  <button key={option} onClick={() => setMethod(option)} className={`rounded-full px-3.5 py-2 text-xs font-semibold transition ${method === option ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-900'}`}>
                     {option}
                   </button>
                 ))}
               </div>
               <div className="text-right">
-                <p className="text-xs font-medium text-zinc-500">Sale total</p>
-                <p className="font-display text-2xl font-bold text-white tabular-nums">{formatCurrency(total)}</p>
+                <p className="text-xs font-medium text-stone-600">Sale total</p>
+                <p className="font-display text-2xl font-bold text-stone-900 tabular-nums">{formatCurrency(total)}</p>
               </div>
             </div>
           </div>
 
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
 
           <div className="mt-5 flex justify-end">
@@ -135,15 +135,15 @@ export default function SalesPage() {
           </div>
           <div className="space-y-3">
             {recentSales.map((sale) => (
-              <div key={sale.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-emerald-400/25 hover:bg-white/[0.05]">
-                <p className="text-sm font-semibold text-zinc-200">{sale.description}</p>
-                <div className="mt-1.5 flex items-center justify-between text-xs text-zinc-500">
+              <div key={sale.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 transition hover:border-emerald-400/25 hover:bg-stone-100">
+                <p className="text-sm font-semibold text-stone-800">{sale.description}</p>
+                <div className="mt-1.5 flex items-center justify-between text-xs text-stone-600">
                   <span>{sale.date} · {sale.paymentMethod ?? '—'}</span>
-                  <span className="font-bold text-emerald-400 tabular-nums">+{formatCurrency(sale.amount)}</span>
+                  <span className="font-bold text-emerald-700 tabular-nums">+{formatCurrency(sale.amount)}</span>
                 </div>
               </div>
             ))}
-            {recentSales.length === 0 ? <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No sales recorded yet.</p> : null}
+            {recentSales.length === 0 ? <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">No sales recorded yet.</p> : null}
           </div>
         </Card>
       </div>

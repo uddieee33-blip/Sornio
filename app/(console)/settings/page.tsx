@@ -8,7 +8,7 @@ import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { useDukaanStore } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 const auditTones: Record<string, BadgeTone> = {
   sale: 'emerald', expense: 'red', product: 'brand', customer: 'sky', membership: 'violet', invoice: 'amber', marketing: 'violet', settings: 'slate', system: 'slate',
@@ -37,7 +37,7 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
       onClick={onClick}
       role="switch"
       aria-checked={on}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${on ? 'bg-brand-500' : 'bg-white/[0.08]'}`}
+      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors duration-200 ${on ? 'bg-brand-500' : 'bg-stone-100'}`}
     >
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${on ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
     </button>
@@ -93,7 +93,7 @@ export default function SettingsPage() {
       />
 
       {message ? (
-        <div className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-red-500/20'}`}>
+        <div className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-red-500/20'}`}>
           {message.tone === 'ok' ? <Check size={15} /> : <RotateCcw size={15} />} {message.text}
         </div>
       ) : null}
@@ -118,23 +118,23 @@ export default function SettingsPage() {
             </div>
 
             {syncStatus === 'local' ? (
-              <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07]">
-                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-200">
-                  <CloudOff size={16} className="text-amber-400" /> Running on this device
+              <div className="rounded-xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
+                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <CloudOff size={16} className="text-amber-700" /> Running on this device
                 </div>
-                <p className="text-sm leading-relaxed text-zinc-400">
+                <p className="text-sm leading-relaxed text-stone-600">
                   Your business data is stored locally in this browser. To persist it to the
-                  Supabase database, set <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[12px] text-zinc-300">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
-                  <code className="rounded bg-white/[0.06] px-1.5 py-0.5 text-[12px] text-zinc-300">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>, then sign in at{' '}
-                  <span className="text-zinc-300">/auth</span>.
+                  Supabase database, set <code className="rounded bg-stone-100 px-1.5 py-0.5 text-[12px] text-stone-700">NEXT_PUBLIC_SUPABASE_URL</code> and{' '}
+                  <code className="rounded bg-stone-100 px-1.5 py-0.5 text-[12px] text-stone-700">NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY</code>, then sign in at{' '}
+                  <span className="text-stone-700">/auth</span>.
                 </p>
               </div>
             ) : (
-              <div className="rounded-xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.07]">
-                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-zinc-200">
-                  <Cloud size={16} className="text-emerald-400" /> Connected to Supabase
+              <div className="rounded-xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
+                <div className="mb-1.5 flex items-center gap-2 text-sm font-semibold text-stone-800">
+                  <Cloud size={16} className="text-emerald-700" /> Connected to Supabase
                 </div>
-                <p className="text-sm leading-relaxed text-zinc-400">
+                <p className="text-sm leading-relaxed text-stone-600">
                   Products, ledger entries, customers, and settings sync to your Supabase project
                   automatically. Use the button below to force an immediate sync.
                 </p>
@@ -155,7 +155,7 @@ export default function SettingsPage() {
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="text-sm">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Receipt mode</span>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600">Receipt mode</span>
                 <select value={receiptMode} onChange={(e) => setReceiptMode(e.target.value as typeof receiptMode)} className={inputClass}>
                   <option value="digital">Digital</option>
                   <option value="physical">Physical</option>
@@ -163,11 +163,11 @@ export default function SettingsPage() {
                 </select>
               </label>
               <label className="text-sm">
-                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500">Default tax rate (%)</span>
+                <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600">Default tax rate (%)</span>
                 <input type="number" min={0} max={100} step={0.5} value={taxRate} onChange={(e) => setTaxRate(e.target.value)} className={inputClass} />
               </label>
             </div>
-            <p className="mt-3 text-xs text-zinc-500">Current: <span className="font-semibold text-zinc-300 capitalize">{settings.receiptMode}</span> receipts · <span className="font-semibold text-zinc-300">{settings.taxRate}%</span> tax · last updated {new Date(settings.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+            <p className="mt-3 text-xs text-stone-600">Current: <span className="font-semibold text-stone-700 capitalize">{settings.receiptMode}</span> receipts · <span className="font-semibold text-stone-700">{settings.taxRate}%</span> tax · last updated {new Date(settings.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
           </Card>
 
           {/* Reminders & receipts — live toggles */}
@@ -175,10 +175,10 @@ export default function SettingsPage() {
             <div className="mb-5"><CardTitle icon={<ToggleLeft size={17} />}>Reminders & receipts</CardTitle></div>
             <div className="space-y-3">
               {toggles.map((key) => (
-                <div key={key} className="flex items-center justify-between rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-brand-400/25 hover:bg-white/[0.05]">
+                <div key={key} className="flex items-center justify-between rounded-2xl border border-stone-200 bg-stone-50 p-3.5 transition hover:border-brand-400/25 hover:bg-stone-100">
                   <div>
-                    <p className="text-sm font-semibold text-zinc-200">{toggleMeta[key].label}</p>
-                    <p className="text-xs text-zinc-500">{toggleMeta[key].description}</p>
+                    <p className="text-sm font-semibold text-stone-800">{toggleMeta[key].label}</p>
+                    <p className="text-xs text-stone-600">{toggleMeta[key].description}</p>
                   </div>
                   <Toggle on={Boolean(settings[key])} onClick={() => flipToggle(key)} />
                 </div>
@@ -191,11 +191,11 @@ export default function SettingsPage() {
             <div className="mb-5"><CardTitle icon={<SlidersHorizontal size={17} />}>Modules</CardTitle></div>
             <div className="space-y-3">
               {modules.map((key) => (
-                <div key={key} className={`flex items-center justify-between rounded-2xl border p-4 transition ${settings[key] ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'border-white/[0.07] bg-white/[0.03]'}`}>
+                <div key={key} className={`flex items-center justify-between rounded-2xl border p-4 transition ${settings[key] ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'border-stone-200 bg-stone-50'}`}>
                   <div>
-                    <p className="text-sm font-semibold text-zinc-200">{toggleMeta[key].label}</p>
-                    <p className="text-xs text-zinc-500">{toggleMeta[key].description}</p>
-                    <p className={`mt-1.5 text-xs font-semibold ${settings[key] ? 'text-emerald-400' : 'text-zinc-500'}`}>{settings[key] ? '● Enabled' : '○ Disabled'}</p>
+                    <p className="text-sm font-semibold text-stone-800">{toggleMeta[key].label}</p>
+                    <p className="text-xs text-stone-600">{toggleMeta[key].description}</p>
+                    <p className={`mt-1.5 text-xs font-semibold ${settings[key] ? 'text-emerald-700' : 'text-stone-600'}`}>{settings[key] ? '● Enabled' : '○ Disabled'}</p>
                   </div>
                   <Toggle on={Boolean(settings[key])} onClick={() => flipToggle(key)} />
                 </div>
@@ -203,7 +203,7 @@ export default function SettingsPage() {
             </div>
             <div className="mt-5 flex flex-wrap gap-2">
               {['Owner', 'Manager', 'Accountant', 'Staff', 'Viewer'].map((role) => (
-                <span key={role} className="rounded-full bg-brand-500/10 px-3.5 py-1.5 text-xs font-semibold text-brand-300 ring-1 ring-inset ring-brand-500/25">{role}</span>
+                <span key={role} className="rounded-full bg-brand-500/10 px-3.5 py-1.5 text-xs font-semibold text-brand-600 ring-1 ring-inset ring-brand-500/25">{role}</span>
               ))}
             </div>
           </Card>
@@ -217,10 +217,10 @@ export default function SettingsPage() {
             <div className="space-y-3">
               {securityPosture.map((item) => (
                 <div key={item.label} className="flex items-start gap-3 rounded-2xl border border-emerald-500/15 bg-emerald-500/[0.05] p-3.5">
-                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-400"><item.icon size={14} /></span>
+                  <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-emerald-500/15 text-emerald-700"><item.icon size={14} /></span>
                   <div>
-                    <p className="text-sm font-semibold text-zinc-200">{item.label}</p>
-                    <p className="text-xs leading-relaxed text-zinc-500">{item.detail}</p>
+                    <p className="text-sm font-semibold text-stone-800">{item.label}</p>
+                    <p className="text-xs leading-relaxed text-stone-600">{item.detail}</p>
                   </div>
                 </div>
               ))}
@@ -230,14 +230,14 @@ export default function SettingsPage() {
           {/* Demo data */}
           <Card className="animate-fade-up border-red-500/20">
             <div className="mb-2"><CardTitle icon={<RotateCcw size={17} />}>Demo data</CardTitle></div>
-            <p className="text-sm text-zinc-500">All recorded activity lives in your browser. Reset returns the business to its seeded demo state.</p>
-            {resetMessage ? <p className="mt-3 rounded-xl bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-400 ring-1 ring-inset ring-emerald-500/20">{resetMessage}</p> : null}
+            <p className="text-sm text-stone-600">All recorded activity lives in your browser. Reset returns the business to its seeded demo state.</p>
+            {resetMessage ? <p className="mt-3 rounded-xl bg-emerald-500/10 px-3 py-2.5 text-sm text-emerald-700 ring-1 ring-inset ring-emerald-500/20">{resetMessage}</p> : null}
             <div className="mt-4 flex items-center gap-3">
               {!confirmReset ? (
                 <Button variant="danger" onClick={() => setConfirmReset(true)}><RotateCcw size={15} /> Reset demo data</Button>
               ) : (
                 <>
-                  <span className="text-sm font-semibold text-red-400">Are you sure?</span>
+                  <span className="text-sm font-semibold text-red-700">Are you sure?</span>
                   <Button
                     variant="danger"
                     onClick={() => {
@@ -264,20 +264,20 @@ export default function SettingsPage() {
             <CardTitle icon={<History size={17} />}>Audit history</CardTitle>
             <Badge tone="brand" dot>{state.audit.length}</Badge>
           </div>
-          <p className="mb-4 text-sm text-zinc-500">Every important change is recorded as it happens.</p>
+          <p className="mb-4 text-sm text-stone-600">Every important change is recorded as it happens.</p>
           <div className="space-y-3">
             {state.audit.slice(0, 10).map((event) => (
-              <div key={event.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-brand-400/25 hover:bg-white/[0.05]">
+              <div key={event.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 transition hover:border-brand-400/25 hover:bg-stone-100">
                 <div className="flex items-center justify-between">
                   <Badge tone={auditTones[event.type] ?? 'slate'}>{event.type}</Badge>
-                  <span className="text-xs text-zinc-500">{formatAuditDate(event.createdAt)}</span>
+                  <span className="text-xs text-stone-600">{formatAuditDate(event.createdAt)}</span>
                 </div>
-                <p className="mt-2.5 text-sm text-zinc-300">{event.summary}</p>
-                <p className="mt-1 text-xs text-zinc-500">by {event.actor}</p>
+                <p className="mt-2.5 text-sm text-stone-700">{event.summary}</p>
+                <p className="mt-1 text-xs text-stone-600">by {event.actor}</p>
               </div>
             ))}
             {state.audit.length === 0 ? (
-              <p className="rounded-2xl bg-white/[0.03] p-4 text-sm text-zinc-500">No activity recorded yet — the trail starts with your first sale, expense, or catalog change.</p>
+              <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">No activity recorded yet — the trail starts with your first sale, expense, or catalog change.</p>
             ) : null}
           </div>
         </Card>

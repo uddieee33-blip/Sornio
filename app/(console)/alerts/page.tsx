@@ -12,9 +12,9 @@ import { useDukaanStore } from '@/lib/store';
 type AlertRow = { id: string; severity: 'critical' | 'warning' | 'info'; area: string; title: string; description: string; action: string };
 
 const severityMeta = {
-  critical: { icon: ShieldAlert, wrapper: 'border-red-500/25 bg-red-500/[0.07]', iconBox: 'bg-red-500/15 text-red-400', label: 'Critical', chip: 'bg-red-500/10 text-red-400 ring-red-500/25' },
-  warning: { icon: AlertTriangle, wrapper: 'border-amber-500/25 bg-amber-500/[0.07]', iconBox: 'bg-amber-500/15 text-amber-400', label: 'Warning', chip: 'bg-amber-500/10 text-amber-400 ring-amber-500/25' },
-  info: { icon: Bell, wrapper: 'border-sky-500/20 bg-sky-500/[0.06]', iconBox: 'bg-sky-500/15 text-sky-400', label: 'Info', chip: 'bg-sky-500/10 text-sky-400 ring-sky-500/25' },
+  critical: { icon: ShieldAlert, wrapper: 'border-red-500/25 bg-red-500/[0.07]', iconBox: 'bg-red-500/15 text-red-700', label: 'Critical', chip: 'bg-red-500/10 text-red-700 ring-red-500/25' },
+  warning: { icon: AlertTriangle, wrapper: 'border-amber-500/25 bg-amber-500/[0.07]', iconBox: 'bg-amber-500/15 text-amber-700', label: 'Warning', chip: 'bg-amber-500/10 text-amber-700 ring-amber-500/25' },
+  info: { icon: Bell, wrapper: 'border-sky-500/20 bg-sky-500/[0.06]', iconBox: 'bg-sky-500/15 text-sky-700', label: 'Info', chip: 'bg-sky-500/10 text-sky-700 ring-sky-500/25' },
 } as const;
 
 export default function AlertsPage() {
@@ -103,20 +103,20 @@ export default function AlertsPage() {
 
       <div className="grid gap-4 sm:grid-cols-4 animate-fade-up">
         <Card className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/15 text-red-400"><ShieldAlert size={19} /></span>
-          <div><p className="font-display text-2xl font-bold text-white">{criticalCount}</p><p className="text-xs text-zinc-500">Critical</p></div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-red-500/15 text-red-700"><ShieldAlert size={19} /></span>
+          <div><p className="font-display text-2xl font-bold text-stone-900">{criticalCount}</p><p className="text-xs text-stone-600">Critical</p></div>
         </Card>
         <Card className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-400"><AlertTriangle size={19} /></span>
-          <div><p className="font-display text-2xl font-bold text-white">{warningCount}</p><p className="text-xs text-zinc-500">Warnings</p></div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700"><AlertTriangle size={19} /></span>
+          <div><p className="font-display text-2xl font-bold text-stone-900">{warningCount}</p><p className="text-xs text-stone-600">Warnings</p></div>
         </Card>
         <Card className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/15 text-brand-300"><PackageX size={19} /></span>
-          <div><p className="font-display text-2xl font-bold text-white">{lowStockCount}</p><p className="text-xs text-zinc-500">Low stock items</p></div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-500/15 text-brand-600"><PackageX size={19} /></span>
+          <div><p className="font-display text-2xl font-bold text-stone-900">{lowStockCount}</p><p className="text-xs text-stone-600">Low stock items</p></div>
         </Card>
         <Card className="flex items-center gap-3">
-          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-400"><CheckCircle2 size={19} /></span>
-          <div><p className="font-display text-2xl font-bold text-white">{healthy.length}</p><p className="text-xs text-zinc-500">Healthy checks</p></div>
+          <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-500/15 text-emerald-700"><CheckCircle2 size={19} /></span>
+          <div><p className="font-display text-2xl font-bold text-stone-900">{healthy.length}</p><p className="text-xs text-stone-600">Healthy checks</p></div>
         </Card>
       </div>
 
@@ -138,11 +138,11 @@ export default function AlertsPage() {
                       <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${meta.iconBox}`}><Icon size={17} /></span>
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-white">{alert.title}</p>
-                          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[11px] font-medium text-zinc-400">{alert.area}</span>
+                          <p className="text-sm font-semibold text-stone-900">{alert.title}</p>
+                          <span className="rounded-full bg-stone-100 px-2 py-0.5 text-[11px] font-medium text-stone-600">{alert.area}</span>
                         </div>
-                        <p className="mt-1 text-sm leading-relaxed text-zinc-400">{alert.description}</p>
-                        <p className="mt-2 rounded-xl bg-black/20 p-2.5 text-xs leading-relaxed text-zinc-300">→ {alert.action}</p>
+                        <p className="mt-1 text-sm leading-relaxed text-stone-600">{alert.description}</p>
+                        <p className="mt-2 rounded-xl bg-stone-100 p-2.5 text-xs leading-relaxed text-stone-700">→ {alert.action}</p>
                       </div>
                     </div>
                   );
@@ -156,11 +156,11 @@ export default function AlertsPage() {
           <div className="mb-5"><CardTitle icon={<ShieldCheck size={17} />}>Healthy checks</CardTitle></div>
           <ul className="grid gap-2.5 md:grid-cols-2">
             {healthy.map((item) => (
-              <li key={item} className="flex items-start gap-2.5 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.05] p-3 text-sm text-emerald-300">
+              <li key={item} className="flex items-start gap-2.5 rounded-xl border border-emerald-500/15 bg-emerald-500/[0.05] p-3 text-sm text-emerald-700">
                 <CheckCircle2 size={15} className="mt-0.5 shrink-0" /> {item}
               </li>
             ))}
-            {healthy.length === 0 ? <li className="text-sm text-zinc-500">Everything needs attention right now — start with the critical list above.</li> : null}
+            {healthy.length === 0 ? <li className="text-sm text-stone-600">Everything needs attention right now — start with the critical list above.</li> : null}
           </ul>
         </Card>
       </div>

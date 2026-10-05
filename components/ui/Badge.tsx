@@ -3,13 +3,13 @@ import type { ReactNode } from 'react';
 export type BadgeTone = 'emerald' | 'amber' | 'red' | 'sky' | 'violet' | 'slate' | 'brand';
 
 const tones: Record<BadgeTone, string> = {
-  emerald: 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/20',
-  amber: 'bg-amber-500/10 text-amber-400 ring-amber-500/25',
-  red: 'bg-red-500/10 text-red-400 ring-red-500/25',
-  sky: 'bg-sky-500/10 text-sky-400 ring-sky-500/25',
-  violet: 'bg-violet-500/10 text-violet-400 ring-violet-500/25',
-  slate: 'bg-white/5 text-zinc-400 ring-white/10',
-  brand: 'bg-brand-500/10 text-brand-300 ring-brand-500/25',
+  emerald: 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20',
+  amber: 'bg-amber-500/10 text-amber-700 ring-amber-500/25',
+  red: 'bg-red-500/10 text-red-700 ring-red-500/25',
+  sky: 'bg-sky-500/10 text-sky-700 ring-sky-500/25',
+  violet: 'bg-violet-500/10 text-violet-700 ring-violet-500/25',
+  slate: 'bg-stone-100 text-stone-600 ring-stone-200',
+  brand: 'bg-brand-500/10 text-brand-600 ring-brand-500/25',
 };
 
 const dots: Record<BadgeTone, string> = {

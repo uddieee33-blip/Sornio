@@ -12,7 +12,7 @@ import { useDukaanStore, type InvoiceLine } from '@/lib/store';
 
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 const statusTone: Record<string, BadgeTone> = { paid: 'emerald', pending: 'amber', partial: 'sky', failed: 'red' };
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -52,7 +52,7 @@ export default function BillingPage() {
       <PageHeader eyebrow="Billing" title="Bills, receipts, and payment flow" />
 
       {message ? (
-        <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+        <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -62,19 +62,19 @@ export default function BillingPage() {
               <div className="no-print pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
               <div className="mb-5 flex items-center justify-between">
                 <div>
-                  <p className="font-display text-lg font-bold text-white print:text-2xl">{state.profile.name}</p>
-                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-zinc-500">Invoice · {selected.id}</p>
+                  <p className="font-display text-lg font-bold text-stone-900 print:text-2xl">{state.profile.name}</p>
+                  <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-600">Invoice · {selected.id}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge tone={statusTone[selected.paymentStatus]} dot>{selected.paymentStatus}</Badge>
                   {selected.paymentStatus !== 'paid' ? (
-                    <button onClick={() => handleMarkPaid(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25">
+                    <button onClick={() => handleMarkPaid(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25">
                       <CheckCircle2 size={13} /> Mark paid
                     </button>
                   ) : null}
                   <button
                     onClick={() => window.print()}
-                    className="no-print inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-zinc-300 ring-1 ring-inset ring-white/[0.08] transition hover:bg-white/[0.1]"
+                    className="no-print inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-semibold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200"
                     title="Print this bill as a physical receipt"
                   >
                     <Printer size={13} /> Print bill
@@ -82,16 +82,16 @@ export default function BillingPage() {
                 </div>
               </div>
 
-              <div className="mb-6 grid gap-3 text-sm text-zinc-400 md:grid-cols-2">
-                <div><span className="font-semibold text-zinc-200">Customer:</span> {selected.customerName}</div>
-                <div><span className="font-semibold text-zinc-200">Phone:</span> {selected.customerPhone ?? '—'}</div>
-                <div><span className="font-semibold text-zinc-200">Date:</span> {formatDate(selected.createdAt)}</div>
-                <div><span className="font-semibold text-zinc-200">Payment:</span> {selected.paymentMethod}</div>
+              <div className="mb-6 grid gap-3 text-sm text-stone-600 md:grid-cols-2">
+                <div><span className="font-semibold text-stone-800">Customer:</span> {selected.customerName}</div>
+                <div><span className="font-semibold text-stone-800">Phone:</span> {selected.customerPhone ?? '—'}</div>
+                <div><span className="font-semibold text-stone-800">Date:</span> {formatDate(selected.createdAt)}</div>
+                <div><span className="font-semibold text-stone-800">Payment:</span> {selected.paymentMethod}</div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-white/[0.07]">
+              <div className="overflow-hidden rounded-2xl border border-stone-200">
                 <table className="min-w-full text-left text-sm">
-                  <thead className="bg-white/[0.03] text-xs uppercase tracking-wide text-zinc-500">
+                  <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
                     <tr>
                       <th className="px-4 py-3 font-semibold">Item</th>
                       <th className="px-4 py-3 font-semibold">Qty</th>
@@ -101,28 +101,28 @@ export default function BillingPage() {
                   </thead>
                   <tbody>
                     {selected.items.map((item) => (
-                      <tr key={item.id} className="border-t border-white/[0.05]">
+                      <tr key={item.id} className="border-t border-stone-200">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-zinc-200">{item.name}</p>
-                          <p className="text-xs text-zinc-500">{item.category}</p>
+                          <p className="font-medium text-stone-800">{item.name}</p>
+                          <p className="text-xs text-stone-600">{item.category}</p>
                         </td>
-                        <td className="px-4 py-3 text-zinc-400 tabular-nums">{item.quantity}</td>
-                        <td className="px-4 py-3 text-zinc-400 tabular-nums">{formatCurrency(item.unitPrice)}</td>
-                        <td className="px-4 py-3 font-semibold text-white tabular-nums">{formatCurrency(item.total)}</td>
+                        <td className="px-4 py-3 text-stone-600 tabular-nums">{item.quantity}</td>
+                        <td className="px-4 py-3 text-stone-600 tabular-nums">{formatCurrency(item.unitPrice)}</td>
+                        <td className="px-4 py-3 font-semibold text-stone-900 tabular-nums">{formatCurrency(item.total)}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
 
-              <div className="mt-6 ml-auto max-w-xs space-y-2 text-sm text-zinc-400">
+              <div className="mt-6 ml-auto max-w-xs space-y-2 text-sm text-stone-600">
                 <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{formatCurrency(selected.subtotal)}</span></div>
                 <div className="flex justify-between"><span>Tax</span><span className="tabular-nums">{formatCurrency(selected.tax)}</span></div>
-                <div className="flex justify-between border-t border-white/10 pt-2 text-base font-bold text-white"><span>Total</span><span className="tabular-nums">{formatCurrency(selected.totalAmount)}</span></div>
+                <div className="flex justify-between border-t border-stone-200 pt-2 text-base font-bold text-stone-900"><span>Total</span><span className="tabular-nums">{formatCurrency(selected.totalAmount)}</span></div>
               </div>
 
               {state.profile.upiId ? (
-                <p className="mt-6 hidden border-t border-dashed border-white/15 pt-4 text-center text-xs text-zinc-500 print:block">
+                <p className="mt-6 hidden border-t border-dashed border-stone-300 pt-4 text-center text-xs text-stone-600 print:block">
                   Pay via UPI: {state.profile.upiId} · Thank you for your business!
                 </p>
               ) : null}
@@ -134,9 +134,9 @@ export default function BillingPage() {
               <CardTitle icon={<Receipt size={17} />}>All invoices</CardTitle>
               <Badge tone="brand" dot>{state.invoices.length}</Badge>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-white/[0.07]">
+            <div className="overflow-hidden rounded-2xl border border-stone-200">
               <table className="min-w-full text-left text-sm">
-                <thead className="bg-white/[0.03] text-xs uppercase tracking-wide text-zinc-500">
+                <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Invoice</th>
                     <th className="px-4 py-3 font-semibold">Customer</th>
@@ -147,16 +147,16 @@ export default function BillingPage() {
                 </thead>
                 <tbody>
                   {state.invoices.map((invoice) => (
-                    <tr key={invoice.id} className={`border-t border-white/[0.05] transition ${invoice.id === selected?.id ? 'bg-brand-500/[0.07]' : 'hover:bg-white/[0.03]'}`}>
+                    <tr key={invoice.id} className={`border-t border-stone-200 transition ${invoice.id === selected?.id ? 'bg-brand-500/[0.07]' : 'hover:bg-stone-50'}`}>
                       <td className="px-4 py-3">
-                        <button onClick={() => setSelectedId(invoice.id)} className="font-semibold text-brand-300 underline-offset-2 hover:underline">{invoice.id}</button>
+                        <button onClick={() => setSelectedId(invoice.id)} className="font-semibold text-brand-600 underline-offset-2 hover:underline">{invoice.id}</button>
                       </td>
-                      <td className="px-4 py-3 text-zinc-300">{invoice.customerName}</td>
-                      <td className="px-4 py-3 font-semibold text-white tabular-nums">{formatCurrency(invoice.totalAmount)}</td>
+                      <td className="px-4 py-3 text-stone-700">{invoice.customerName}</td>
+                      <td className="px-4 py-3 font-semibold text-stone-900 tabular-nums">{formatCurrency(invoice.totalAmount)}</td>
                       <td className="px-4 py-3"><Badge tone={statusTone[invoice.paymentStatus]} dot>{invoice.paymentStatus}</Badge></td>
                       <td className="px-4 py-3 text-right">
                         {invoice.paymentStatus !== 'paid' ? (
-                          <button onClick={() => handleMarkPaid(invoice.id)} className="text-xs font-semibold text-emerald-400 hover:underline">Mark paid</button>
+                          <button onClick={() => handleMarkPaid(invoice.id)} className="text-xs font-semibold text-emerald-700 hover:underline">Mark paid</button>
                         ) : null}
                       </td>
                     </tr>
@@ -177,12 +177,12 @@ export default function BillingPage() {
             </div>
             <div className="mt-4 space-y-3">
               {lines.map((line, index) => (
-                <div key={index} className="grid gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 md:grid-cols-[1.3fr_0.8fr_0.4fr_0.6fr_auto]">
+                <div key={index} className="grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-3.5 md:grid-cols-[1.3fr_0.8fr_0.4fr_0.6fr_auto]">
                   <input value={line.name} onChange={(e) => updateLine(index, { name: e.target.value })} placeholder="Item name" className={inputClass} />
                   <input value={line.category} onChange={(e) => updateLine(index, { category: e.target.value })} placeholder="Category" className={inputClass} />
                   <input type="number" min={1} value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
                   <input type="number" min={0} value={line.unitPrice} onChange={(e) => updateLine(index, { unitPrice: Number(e.target.value || 0) })} className={inputClass} />
-                  <button onClick={() => setLines((current) => current.filter((_, i) => i !== index))} className="flex items-center justify-center rounded-lg p-2 text-zinc-500 transition hover:bg-red-500/10 hover:text-red-400"><Trash2 size={16} /></button>
+                  <button onClick={() => setLines((current) => current.filter((_, i) => i !== index))} className="flex items-center justify-center rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
                 </div>
               ))}
             </div>
@@ -205,14 +205,14 @@ export default function BillingPage() {
             </div>
             <div className="space-y-3">
               {[...state.paymentRecords].reverse().slice(0, 8).map((record) => (
-                <div key={record.id} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5 transition hover:border-brand-400/30 hover:bg-white/[0.05]">
+                <div key={record.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 transition hover:border-brand-400/30 hover:bg-stone-100">
                   <div className="flex items-center justify-between">
-                    <p className="font-semibold text-zinc-200">{record.customerName}</p>
+                    <p className="font-semibold text-stone-800">{record.customerName}</p>
                     <Badge tone={statusTone[record.status] ?? 'slate'} dot>{record.status}</Badge>
                   </div>
-                  <div className="mt-1.5 flex items-center justify-between text-xs text-zinc-500">
+                  <div className="mt-1.5 flex items-center justify-between text-xs text-stone-600">
                     <span>{record.paymentMethod} · {record.gateway}</span>
-                    <span className="font-bold text-white tabular-nums">{formatCurrency(record.amount)}</span>
+                    <span className="font-bold text-stone-900 tabular-nums">{formatCurrency(record.amount)}</span>
                   </div>
                 </div>
               ))}
@@ -227,9 +227,9 @@ export default function BillingPage() {
                 { name: 'Physical receipt', details: 'Print on paper for hand-to-hand delivery.' },
                 { name: 'Both', details: 'Best for retail, cafes, and premium service businesses.' },
               ].map((mode) => (
-                <div key={mode.name} className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5">
-                  <p className="text-sm font-semibold text-zinc-200">{mode.name}</p>
-                  <p className="mt-1 text-xs text-zinc-500">{mode.details}</p>
+                <div key={mode.name} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
+                  <p className="text-sm font-semibold text-stone-800">{mode.name}</p>
+                  <p className="mt-1 text-xs text-stone-600">{mode.details}</p>
                 </div>
               ))}
             </div>

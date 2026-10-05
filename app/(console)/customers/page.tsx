@@ -13,8 +13,8 @@ import { isValidUpiId, normalizeUpiId, upiAccentColor, type BankDetails } from '
 import { ExportButton } from '@/components/export/export-button';
 import { useDukaanStore, type Customer } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-zinc-500';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const emptyForm = {
   name: '',
@@ -105,7 +105,7 @@ export default function CustomersPage() {
             <CardTitle icon={<UserPlus size={17} />}>Add customer</CardTitle>
           </div>
 
-          <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">Details</p>
+          <p className="mb-4 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-600">Details</p>
           <div className="space-y-3">
             <div>
               <span className={labelClass}>Full name *</span>
@@ -127,7 +127,7 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <p className="mb-4 mt-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-zinc-500">
+          <p className="mb-4 mt-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-600">
             <Landmark size={13} /> Bank & UPI — powers their unique QR
           </p>
           <div className="space-y-3">
@@ -135,7 +135,7 @@ export default function CustomersPage() {
               <span className={labelClass}>UPI ID</span>
               <input value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value })} placeholder="name@okhdfcbank" className={`${inputClass} ${upiTouched ? (upiOk ? 'border-emerald-500/50 focus:border-emerald-400' : 'border-amber-500/50 focus:border-amber-400') : ''}`} />
               {upiTouched ? (
-                <p className={`mt-1.5 text-xs font-semibold ${upiOk ? 'text-emerald-400' : 'text-amber-400'}`}>
+                <p className={`mt-1.5 text-xs font-semibold ${upiOk ? 'text-emerald-700' : 'text-amber-700'}`}>
                   {upiOk ? `✓ Valid — QR will pay ${normalizeUpiId(form.upiId)} directly` : 'Expected format: name@bank'}
                 </p>
               ) : null}
@@ -162,13 +162,13 @@ export default function CustomersPage() {
             </div>
           </div>
 
-          <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3.5 text-xs leading-relaxed text-emerald-300">
+          <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3.5 text-xs leading-relaxed text-emerald-700">
             <ShieldCheck size={15} className="mt-0.5 shrink-0" />
             <span>Payments via this QR settle <strong>directly into the customer&apos;s bank</strong>. DukaanOS never holds or routes the money.</span>
           </div>
 
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-400 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-400 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
 
           <div className="mt-5 flex justify-end">
@@ -181,8 +181,8 @@ export default function CustomersPage() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <CardTitle icon={<Users size={17} />}>Directory</CardTitle>
             <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, phone, UPI…" className="w-56 rounded-xl border border-white/10 bg-white/[0.04] py-2 pl-9 pr-3 text-sm text-white placeholder-zinc-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" />
+              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, phone, UPI…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" />
             </div>
           </div>
 
@@ -194,17 +194,17 @@ export default function CustomersPage() {
                 <button
                   key={customer.id}
                   onClick={() => setSelected(customer)}
-                  className="group rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4 text-left transition hover:border-brand-400/30 hover:bg-white/[0.05] hover:shadow-card-hover"
+                  className="group rounded-2xl border border-stone-200 bg-stone-50 p-4 text-left transition hover:border-brand-400/30 hover:bg-stone-100 hover:shadow-card-hover"
                 >
                   <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white shadow-glow-sm">
                       {customer.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}
                     </span>
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-semibold text-white">{customer.name}</p>
-                      <p className="truncate text-xs text-zinc-500">{customer.phone ?? 'No phone'} {customer.email ? `· ${customer.email}` : ''}</p>
+                      <p className="truncate font-semibold text-stone-900">{customer.name}</p>
+                      <p className="truncate text-xs text-stone-600">{customer.phone ?? 'No phone'} {customer.email ? `· ${customer.email}` : ''}</p>
                     </div>
-                    <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${hasUpi ? 'text-black' : 'bg-white/[0.05] text-zinc-600'}`} style={hasUpi ? { background: accent } : undefined} title={hasUpi ? 'UPI QR ready' : 'No UPI ID yet'}>
+                    <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${hasUpi ? 'text-black' : 'bg-stone-100 text-stone-600'}`} style={hasUpi ? { background: accent } : undefined} title={hasUpi ? 'UPI QR ready' : 'No UPI ID yet'}>
                       <QrCode size={17} />
                     </span>
                   </div>
@@ -214,20 +214,20 @@ export default function CustomersPage() {
                         {customer.bank?.upiId}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-white/[0.04] px-2.5 py-1 font-medium text-zinc-500 ring-1 ring-inset ring-white/[0.08]">UPI not set</span>
+                      <span className="rounded-full bg-stone-50 px-2.5 py-1 font-medium text-stone-600 ring-1 ring-inset ring-stone-200">UPI not set</span>
                     )}
-                    <span className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset ${customer.openingBalance > 0 ? 'bg-amber-500/10 text-amber-400 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-400 ring-emerald-500/25'}`}>
+                    <span className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset ${customer.openingBalance > 0 ? 'bg-amber-500/10 text-amber-700 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25'}`}>
                       {customer.openingBalance > 0 ? `${formatCurrency(customer.openingBalance)} due` : 'Settled'}
                     </span>
                   </div>
-                  <p className="mt-3 hidden items-center gap-1 text-xs font-semibold text-brand-300 transition group-hover:flex">
+                  <p className="mt-3 hidden items-center gap-1 text-xs font-semibold text-brand-600 transition group-hover:flex">
                     Open QR & bank details →
                   </p>
                 </button>
               );
             })}
             {visibleCustomers.length === 0 ? (
-              <p className="rounded-2xl bg-white/[0.03] p-6 text-sm text-zinc-500 xl:col-span-2">No customers match “{query}”.</p>
+              <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600 xl:col-span-2">No customers match “{query}”.</p>
             ) : null}
           </div>
         </Card>

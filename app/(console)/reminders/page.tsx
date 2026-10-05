@@ -39,31 +39,31 @@ function ReminderCard({ reminder }: { reminder: MembershipReminder }) {
     <Card className="animate-fade-up">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="font-display text-base font-bold text-white">{reminder.memberName}</p>
-          <p className="mt-0.5 text-xs text-zinc-500">
+          <p className="font-display text-base font-bold text-stone-900">{reminder.memberName}</p>
+          <p className="mt-0.5 text-xs text-stone-600">
             {reminder.planName} · expires {formatDate(reminder.expiryDate)} · {reminder.phone}
           </p>
         </div>
         <Badge tone={tone} dot>{label}</Badge>
       </div>
 
-      <div className="mt-4 rounded-xl bg-white/[0.03] p-3.5 text-sm leading-relaxed text-zinc-300 ring-1 ring-inset ring-white/[0.06]">
+      <div className="mt-4 rounded-xl bg-stone-50 p-3.5 text-sm leading-relaxed text-stone-700 ring-1 ring-inset ring-stone-200">
         {reminder.message}
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {reminder.channels.length === 0 ? (
-          <p className="text-xs text-zinc-500">
+          <p className="text-xs text-stone-600">
             Reminders are switched off — enable SMS/WhatsApp in{' '}
-            <Link href="/settings" className="text-brand-300 hover:underline">Settings</Link>.
+            <Link href="/settings" className="text-brand-600 hover:underline">Settings</Link>.
           </p>
         ) : (
           <>
             <button
               onClick={copy}
-              className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-3.5 py-1.5 text-xs font-semibold text-zinc-300 ring-1 ring-inset ring-white/[0.08] transition hover:bg-white/[0.1]"
+              className="inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-semibold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200"
             >
-              {copied ? <Check size={13} className="text-emerald-400" /> : <Copy size={13} />}
+              {copied ? <Check size={13} className="text-emerald-700" /> : <Copy size={13} />}
               {copied ? 'Copied' : 'Copy message'}
             </button>
             {reminder.whatsappHref ? (
@@ -71,7 +71,7 @@ function ReminderCard({ reminder }: { reminder: MembershipReminder }) {
                 href={reminder.whatsappHref}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-400 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25"
+                className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25"
               >
                 <MessageCircle size={13} /> Send on WhatsApp
               </a>
@@ -79,7 +79,7 @@ function ReminderCard({ reminder }: { reminder: MembershipReminder }) {
             {reminder.smsHref ? (
               <a
                 href={reminder.smsHref}
-                className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 px-3.5 py-1.5 text-xs font-semibold text-sky-400 ring-1 ring-inset ring-sky-500/30 transition hover:bg-sky-500/25"
+                className="inline-flex items-center gap-1.5 rounded-full bg-sky-500/15 px-3.5 py-1.5 text-xs font-semibold text-sky-700 ring-1 ring-inset ring-sky-500/30 transition hover:bg-sky-500/25"
               >
                 <MessageSquare size={13} /> Send SMS
               </a>
@@ -131,7 +131,7 @@ export default function RemindersPage() {
         <div className="space-y-8">
           {today.length > 0 ? (
             <section>
-              <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-400">
+              <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-amber-700">
                 <AlarmClock size={14} /> Ending today ({today.length})
               </h2>
               <div className="grid gap-4 lg:grid-cols-2">
@@ -142,7 +142,7 @@ export default function RemindersPage() {
 
           {soon.length > 0 ? (
             <section>
-              <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-sky-400">
+              <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-sky-700">
                 <BellRing size={14} /> Expiring soon ({soon.length})
               </h2>
               <div className="grid gap-4 lg:grid-cols-2">
@@ -153,7 +153,7 @@ export default function RemindersPage() {
 
           {expired.length > 0 ? (
             <section>
-              <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-red-400">
+              <h2 className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-[0.2em] text-red-700">
                 <BellRing size={14} /> Expired — win them back ({expired.length})
               </h2>
               <div className="grid gap-4 lg:grid-cols-2">
