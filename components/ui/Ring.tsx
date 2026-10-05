@@ -9,7 +9,7 @@ type RingProps = {
   sublabel?: string;
 };
 
-export function Ring({ value, max = 100, size = 112, strokeWidth = 10, color = '#818cf8', track = 'rgba(255,255,255,0.08)', label, sublabel }: RingProps) {
+export function Ring({ value, max = 100, size = 112, strokeWidth = 10, color = '#28623b', track = 'rgba(73,88,63,0.14)', label, sublabel }: RingProps) {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const pct = Math.max(0, Math.min(value / max, 1));

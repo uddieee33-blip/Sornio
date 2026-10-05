@@ -4,9 +4,9 @@ type Variant = 'primary' | 'secondary' | 'ghost' | 'danger';
 
 const variants: Record<Variant, string> = {
   primary: 'bg-brand-gradient text-white shadow-glow hover:brightness-110 active:brightness-95',
-  secondary: 'border border-white/10 bg-white/5 text-zinc-200 hover:bg-white/10 hover:border-white/20',
-  ghost: 'text-zinc-400 hover:bg-white/5 hover:text-white',
-  danger: 'border border-red-500/20 bg-red-500/10 text-red-400 hover:bg-red-500/15',
+  secondary: 'border border-stone-200 bg-white text-stone-700 hover:bg-stone-50 hover:border-stone-300',
+  ghost: 'text-stone-600 hover:bg-stone-100 hover:text-stone-900',
+  danger: 'border border-red-200 bg-red-50 text-red-700 hover:bg-red-100',
 };
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {

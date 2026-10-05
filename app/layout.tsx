@@ -24,7 +24,7 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#0b0d12',
+  themeColor: '#f7f6ef',
   width: 'device-width',
   initialScale: 1,
   // Never block zoom — pinch-to-zoom is an accessibility feature, not a bug.
@@ -33,8 +33,8 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className="dark">
-      <body className="bg-ink text-zinc-200 antialiased">
+    <html lang="en" data-theme="warm">
+      <body className="bg-ink text-stone-800 antialiased">
         {/* Keyboard users land here first and can jump straight to the content. */}
         <a
           href="#main"
