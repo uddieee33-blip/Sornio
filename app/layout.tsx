@@ -25,7 +25,9 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  themeColor: '#061c4d',
+  // Matches `--warm-page` in globals.css so the mobile browser chrome blends
+  // into the warm palette instead of framing it in the old navy.
+  themeColor: '#f7f6ef',
   width: 'device-width',
   initialScale: 1,
   // Never block zoom — pinch-to-zoom is an accessibility feature, not a bug.
