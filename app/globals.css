@@ -6,7 +6,16 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+  --warm-page: #f7f6ef;
+  --warm-surface: #fffefa;
+  --warm-surface-muted: #f3f1e7;
+  --warm-border: #e6e2d6;
+  --warm-border-strong: #d9d3c4;
+  --warm-text: #292e26;
+  --warm-text-secondary: #4f584d;
+  --warm-text-muted: #71796d;
+  --warm-accent: #28623b;
 }
 
 html {
@@ -30,8 +39,8 @@ html,
 body {
   margin: 0;
   padding: 0;
-  background: #0b0d12;
-  color: #e4e4e7;
+  background: var(--warm-page);
+  color: var(--warm-text);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
@@ -65,9 +74,9 @@ table,
 .shimmer {
   background-image: linear-gradient(
     90deg,
-    rgba(255, 255, 255, 0.035) 0%,
-    rgba(255, 255, 255, 0.085) 50%,
-    rgba(255, 255, 255, 0.035) 100%
+    rgba(61, 76, 49, 0.035) 0%,
+    rgba(61, 76, 49, 0.085) 50%,
+    rgba(61, 76, 49, 0.035) 100%
   );
   background-size: 200% 100%;
   animation: dukaan-shimmer 1.6s linear infinite;
@@ -84,7 +93,7 @@ table,
 
 /* One visible, consistent focus treatment for keyboard users. */
 :focus-visible {
-  outline: 2px solid rgba(129, 140, 248, 0.75);
+  outline: 2px solid rgba(40, 98, 59, 0.78);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -98,10 +107,10 @@ table,
   }
 }
 
-/* Text selection picks up the brand colour instead of the OS default blue. */
+/* Text selection picks up the warm saffron accent instead of the OS default. */
 ::selection {
-  background: rgba(99, 102, 241, 0.35);
-  color: #fff;
+  background: rgba(198, 145, 48, 0.28);
+  color: #33260f;
 }
 
 /* Respect the OS "reduce transparency" / low-power preference. */
@@ -114,30 +123,130 @@ table,
   }
 }
 
-/* Slim dark scrollbars */
+/* Slim warm scrollbars */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.14) transparent;
+  scrollbar-color: rgba(73, 88, 63, 0.22) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.14);
+  background: rgba(73, 88, 63, 0.22);
   border-radius: 8px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Dark-friendly native select dropdowns */
+/* Light native select dropdowns */
 select option {
-  background-color: #12151d;
-  color: #e4e4e7;
+  background-color: #fffefa;
+  color: #292e26;
 }
 
-/* ---- Printable receipts (physical, hand-to-hand bills) ---- */
+/*
+ * Warm-light compatibility layer for the original dark utility palette.
+ * Shared classes across the console, landing page, forms, and popovers keep
+ * their layout/interaction behavior while surfaces and text gain light-mode
+ * contrast. New UI should use the warm tokens above directly.
+ */
+html[data-theme='warm'] body {
+  background: var(--warm-page);
+  color: var(--warm-text);
+}
+
+html[data-theme='warm'] [class*='bg-[#'] {
+  background-color: var(--warm-surface) !important;
+}
+
+html[data-theme='warm'] [class*='bg-white/'] {
+  background-color: var(--warm-surface) !important;
+}
+
+html[data-theme='warm'] [class*='hover:bg-white/']:hover {
+  background-color: var(--warm-surface-muted) !important;
+}
+
+html[data-theme='warm'] [class*='border-white'] {
+  border-color: var(--warm-border) !important;
+}
+
+html[data-theme='warm'] [class*='ring-white'] {
+  --tw-ring-color: var(--warm-border-strong) !important;
+}
+
+html[data-theme='warm'] [class~='text-white'] {
+  color: var(--warm-text) !important;
+}
+
+html[data-theme='warm'] [class*='hover:text-white']:hover {
+  color: var(--warm-text) !important;
+}
+
+html[data-theme='warm'] [class*='text-zinc-200'],
+html[data-theme='warm'] [class*='text-zinc-300'] {
+  color: var(--warm-text-secondary) !important;
+}
+
+html[data-theme='warm'] [class*='text-zinc-400'],
+html[data-theme='warm'] [class*='text-zinc-500'],
+html[data-theme='warm'] [class*='text-zinc-600'],
+html[data-theme='warm'] [class*='text-zinc-700'] {
+  color: var(--warm-text-muted) !important;
+}
+
+html[data-theme='warm'] [class*='placeholder-zinc-']::placeholder {
+  color: #858b7f !important;
+  opacity: 1;
+}
+
+html[data-theme='warm'] [class*='text-emerald-'] {
+  color: #23663d !important;
+}
+
+html[data-theme='warm'] [class*='text-amber-'] {
+  color: #86570b !important;
+}
+
+html[data-theme='warm'] [class*='text-red-'] {
+  color: #ad3f36 !important;
+}
+
+html[data-theme='warm'] [class*='text-rose-'] {
+  color: #a83f54 !important;
+}
+
+html[data-theme='warm'] [class*='text-violet-'] {
+  color: #674594 !important;
+}
+
+html[data-theme='warm'] [class*='text-sky-'] {
+  color: #22677f !important;
+}
+
+html[data-theme='warm'] [class*='text-brand-200'] {
+  color: #4e7650 !important;
+}
+
+html[data-theme='warm'] [class~='bg-emerald-500'] {
+  background-color: #28623b !important;
+}
+
+/* Preserve white foregrounds on intentionally filled brand buttons and marks. */
+html[data-theme='warm'] [class~='bg-brand-gradient'][class~='text-white'],
+html[data-theme='warm'] [class~='bg-brand-500'][class~='text-white'],
+html[data-theme='warm'] [class~='bg-emerald-500'][class~='text-white'],
+html[data-theme='warm'] [class~='bg-brand-gradient'] [class~='text-white'],
+html[data-theme='warm'] .group:hover [class*='group-hover:text-white'] {
+  color: #fffefa !important;
+}
+
+html[data-theme='warm'] [class*='shadow-black/'] {
+  --tw-shadow-color: rgba(67, 55, 28, 0.16) !important;
+}
+
 @media print {
   @page { margin: 14mm; }
   body { background: #ffffff !important; }

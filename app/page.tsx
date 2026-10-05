@@ -314,7 +314,7 @@ export default function LandingPage() {
                   <div className="grid h-56 w-56 grid-cols-8 gap-1">
                     {Array.from({ length: 64 }).map((_, i) => {
                       const on = [0, 1, 2, 5, 7, 8, 10, 13, 15, 16, 18, 21, 23, 24, 27, 29, 31, 32, 34, 37, 39, 40, 42, 45, 47, 48, 50, 53, 55, 56, 58, 61, 63].includes(i);
-                      return <span key={i} className={`rounded-[3px] ${on ? 'bg-[#0B0D12]' : 'bg-transparent'}`} />;
+                      return <span key={i} className={`rounded-[3px] ${on ? 'bg-brand-900' : 'bg-transparent'}`} />;
                     })}
                   </div>
                   <p className="mt-4 text-center text-xs font-semibold tracking-wide text-zinc-700">yourbusiness@okhdfcbank</p>

@@ -31,13 +31,13 @@ export default function ComparisonsPage() {
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.06)" vertical={false} />
-              <XAxis dataKey="name" stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} />
-              <YAxis stroke="#71717a" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(value: number) => `₹${(value / 1000).toFixed(0)}k`} />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(255,255,255,0.04)' }} />
-              <Legend wrapperStyle={{ fontSize: 12, color: '#a1a1aa' }} />
-              <Bar dataKey="Previous" fill="rgba(255,255,255,0.14)" radius={[6, 6, 0, 0]} />
-              <Bar dataKey="Current" fill="#818cf8" radius={[6, 6, 0, 0]} />
+              <CartesianGrid stroke="rgba(122,112,83,0.16)" vertical={false} />
+              <XAxis dataKey="name" stroke="#747a6e" fontSize={11} tickLine={false} axisLine={false} />
+              <YAxis stroke="#747a6e" fontSize={11} tickLine={false} axisLine={false} tickFormatter={(value: number) => `₹${(value / 1000).toFixed(0)}k`} />
+              <Tooltip content={<ChartTooltip />} cursor={{ fill: 'rgba(70,84,57,0.07)' }} />
+              <Legend wrapperStyle={{ fontSize: 12, color: '#747a6e' }} />
+              <Bar dataKey="Previous" fill="rgba(76,96,67,0.22)" radius={[6, 6, 0, 0]} />
+              <Bar dataKey="Current" fill="#28623b" radius={[6, 6, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         </div>

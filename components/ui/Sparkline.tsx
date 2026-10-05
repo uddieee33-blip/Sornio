@@ -6,7 +6,7 @@ type SparklineProps = {
   fill?: string;
 };
 
-export function Sparkline({ data, width = 120, height = 36, stroke = '#4f46e5', fill = 'rgba(99,102,241,0.12)' }: SparklineProps) {
+export function Sparkline({ data, width = 120, height = 36, stroke = '#28623b', fill = 'rgba(40,98,59,0.12)' }: SparklineProps) {
   if (data.length < 2) return null;
   const min = Math.min(...data);
   const max = Math.max(...data);

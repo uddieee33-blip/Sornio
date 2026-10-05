@@ -13,21 +13,21 @@ const chipTones: Record<StatTone, string> = {
 };
 
 const sparkTones: Record<StatTone, string> = {
-  emerald: '#34d399',
-  blue: '#38bdf8',
-  violet: '#a78bfa',
-  amber: '#fbbf24',
-  brand: '#818cf8',
-  rose: '#fb7185',
+  emerald: '#287347',
+  blue: '#27728c',
+  violet: '#7457a6',
+  amber: '#a16c1c',
+  brand: '#28623b',
+  rose: '#b84c58',
 };
 
 const fillTones: Record<StatTone, string> = {
-  emerald: 'rgba(52,211,153,0.12)',
-  blue: 'rgba(56,189,248,0.12)',
-  violet: 'rgba(167,139,250,0.12)',
-  amber: 'rgba(251,191,36,0.12)',
-  brand: 'rgba(129,140,248,0.14)',
-  rose: 'rgba(251,113,133,0.12)',
+  emerald: 'rgba(40,115,71,0.12)',
+  blue: 'rgba(39,114,140,0.12)',
+  violet: 'rgba(116,87,166,0.12)',
+  amber: 'rgba(161,108,28,0.12)',
+  brand: 'rgba(40,98,59,0.14)',
+  rose: 'rgba(184,76,88,0.12)',
 };
 
 type StatCardProps = {

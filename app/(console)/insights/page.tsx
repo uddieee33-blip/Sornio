@@ -42,11 +42,11 @@ export default function InsightsPage() {
   }, [financial, state.invoices, state.subscriptions]);
 
   const healthBars = [
-    { label: 'Revenue', score: health.revenueHealth, max: 25, color: '#34d399' },
-    { label: 'Profitability', score: health.profitabilityHealth, max: 25, color: '#818cf8' },
-    { label: 'Cash flow', score: health.cashFlowHealth, max: 20, color: '#38bdf8' },
-    { label: 'Customers', score: health.customerHealth, max: 15, color: '#fbbf24' },
-    { label: 'Membership', score: health.membershipHealth, max: 15, color: '#f472b6' },
+    { label: 'Revenue', score: health.revenueHealth, max: 25, color: '#287347' },
+    { label: 'Profitability', score: health.profitabilityHealth, max: 25, color: '#28623b' },
+    { label: 'Cash flow', score: health.cashFlowHealth, max: 20, color: '#27728c' },
+    { label: 'Customers', score: health.customerHealth, max: 15, color: '#a16c1c' },
+    { label: 'Membership', score: health.membershipHealth, max: 15, color: '#a83f54' },
   ];
 
   const TrendIcon = health.growthTrend === 'down' ? TrendingDown : TrendingUp;
@@ -92,12 +92,12 @@ export default function InsightsPage() {
               <div className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.06]">
                 <p className="text-xs font-medium text-zinc-500">Revenue</p>
                 <p className="mt-1 font-display text-lg font-bold text-white tabular-nums">{formatCurrency(snapshot.totalRevenue)}</p>
-                <Sparkline data={trendSeries(snapshot.totalRevenue, 8, 0.2, 5)} width={140} height={30} stroke="#34d399" fill="rgba(52,211,153,0.12)" />
+                <Sparkline data={trendSeries(snapshot.totalRevenue, 8, 0.2, 5)} width={140} height={30} stroke="#287347" fill="rgba(40,115,71,0.12)" />
               </div>
               <div className="rounded-2xl bg-white/[0.03] p-4 ring-1 ring-inset ring-white/[0.06]">
                 <p className="text-xs font-medium text-zinc-500">Pending payments</p>
                 <p className="mt-1 font-display text-lg font-bold text-white tabular-nums">{formatCurrency(snapshot.pendingPayments)}</p>
-                <Sparkline data={trendSeries(Math.max(snapshot.pendingPayments, 1), 8, 0.3, 6)} width={140} height={30} stroke="#fbbf24" fill="rgba(251,191,36,0.12)" />
+                <Sparkline data={trendSeries(Math.max(snapshot.pendingPayments, 1), 8, 0.3, 6)} width={140} height={30} stroke="#a16c1c" fill="rgba(161,108,28,0.12)" />
               </div>
             </div>
           </Card>

@@ -58,7 +58,7 @@ export default function ReportsPage() {
             <CardTitle icon={<PiggyBank size={17} />}>Expenses · last 14 days</CardTitle>
             <Badge tone="red" dot>{formatCurrency(financials.operatingExpenses)}</Badge>
           </div>
-          <RevenueAreaChart data={expenseSeries(state.transactions)} gradientId="report-exp" color="#fb7185" height={240} />
+          <RevenueAreaChart data={expenseSeries(state.transactions)} gradientId="report-exp" color="#b84c58" height={240} />
         </Card>
 
         <Card className="animate-fade-up">

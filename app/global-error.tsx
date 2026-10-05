@@ -30,20 +30,20 @@ export default function GlobalError({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          background: '#0b0d12',
-          color: '#e4e4e7',
+          background: '#f7f6ef',
+          color: '#292e26',
           fontFamily: 'ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
           padding: '24px',
         }}
       >
         <div style={{ maxWidth: '30rem' }}>
-          <p style={{ margin: 0, fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#818cf8', fontWeight: 700 }}>
+          <p style={{ margin: 0, fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#28623b', fontWeight: 700 }}>
             DukaanOS
           </p>
           <h1 style={{ margin: '12px 0 0', fontSize: '24px', lineHeight: 1.25, fontWeight: 700 }}>
             The app could not start
           </h1>
-          <p style={{ margin: '12px 0 0', fontSize: '14px', lineHeight: 1.6, color: '#a1a1aa' }}>
+          <p style={{ margin: '12px 0 0', fontSize: '14px', lineHeight: 1.6, color: '#596255' }}>
             Your saved records are still on this device and have not been modified. Reloading clears the problem in almost
             every case.
           </p>
@@ -54,7 +54,7 @@ export default function GlobalError({
               padding: '10px 18px',
               borderRadius: '12px',
               border: 'none',
-              background: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 50%, #d946ef 100%)',
+              background: 'linear-gradient(135deg, #1c5835 0%, #2b7045 58%, #875711 100%)',
               color: 'white',
               fontSize: '14px',
               fontWeight: 600,
@@ -63,7 +63,7 @@ export default function GlobalError({
           >
             Reload DukaanOS
           </button>
-          <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#52525b', fontFamily: 'ui-monospace, monospace' }}>
+          <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#73796d', fontFamily: 'ui-monospace, monospace' }}>
             Reference: {error.digest ?? 'local'}
           </p>
         </div>
