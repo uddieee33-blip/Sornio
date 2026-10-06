@@ -11,6 +11,16 @@ const config: Config = {
       colors: {
         ink: '#F7F6EF',
         panel: '#FFFEFA',
+        /**
+         * Portal accent — the colour of the business type currently loaded.
+         * Read from CSS custom properties set by the PortalProvider, so a gym
+         * console can be teal, a cafe amber, and a kirana blue without shipping
+         * a separate stylesheet or re-rendering the tree.
+         */
+        portal: {
+          DEFAULT: 'rgb(var(--portal-accent, 40 98 59) / <alpha-value>)',
+          deep: 'rgb(var(--portal-accent-deep, 17 50 31) / <alpha-value>)',
+        },
         brand: {
           50: '#f1f6ed',
           100: '#e2edd9',

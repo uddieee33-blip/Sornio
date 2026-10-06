@@ -8,6 +8,10 @@ import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
+import { portalIcon } from '@/lib/portals/icons';
+import { disabledModules, portalForTemplate, PORTALS } from '@/lib/portals/registry';
+import { navSectionsFor } from '@/lib/portals/nav';
+import { publishPortal } from '@/lib/portals/sync';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
@@ -89,6 +93,10 @@ export default function OnboardingPage() {
       return;
     }
     actions.applyTemplate(templateId);
+    // Publish the choice before navigating: the console's first server render
+    // then already paints the right navigation, with no flicker. If the call
+    // fails the in-app gate still holds, and the provider retries on mount.
+    void publishPortal(templateId);
     setTimeout(() => router.push('/home'), 600);
   };
 
@@ -151,24 +159,66 @@ export default function OnboardingPage() {
               <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={businessName} onChange={(e) => setBusinessName(e.target.value)} /></div>
               <div>
                 <span className={labelClass}>What kind of business is it?</span>
+                <p className="mb-3 text-xs leading-relaxed text-stone-600">
+                  Pick honestly — this is not a label on a report. It decides which modules exist, what they are called, and what your first
+                  screen asks you. You can change it later without losing a single record.
+                </p>
                 <div className="grid gap-2 sm:grid-cols-2">
                   {businessTemplates.map((template) => {
                     const active = templateId === template.id;
+                    const blueprint = portalForTemplate(template.id);
+                    const TemplateIcon = portalIcon(blueprint.icon);
+                    const leftOut = disabledModules(blueprint.id);
                     return (
                       <button
                         key={template.id}
                         onClick={() => setTemplateId(template.id)}
-                        className={`rounded-2xl p-3.5 text-left ring-1 ring-inset transition ${active ? 'bg-brand-500/[0.12] ring-brand-400/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'}`}
+                        aria-pressed={active}
+                        className={`rounded-2xl p-3.5 text-left ring-1 ring-inset transition ${
+                          active ? 'bg-portal/[0.10] ring-portal/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'
+                        }`}
                       >
-                        <span className="flex items-center justify-between text-sm font-bold text-stone-900">
-                          {template.name}
-                          {active ? <Check size={14} className="text-brand-600" /> : null}
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2 text-sm font-bold text-stone-900">
+                            <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? 'bg-portal-gradient text-white' : 'bg-stone-100 text-stone-600'}`}>
+                              <TemplateIcon size={15} strokeWidth={2.2} />
+                            </span>
+                            {template.name}
+                          </span>
+                          {active ? <Check size={14} className="text-portal" /> : null}
                         </span>
-                        <span className="mt-1 block text-xs leading-relaxed text-stone-600">{template.description}</span>
+                        <span className="mt-2 block text-xs leading-relaxed text-stone-600">{template.promise}</span>
+                        <span className="mt-2 block text-[11px] leading-relaxed text-stone-500">{template.excluded}</span>
+                        {leftOut.length > 0 ? (
+                          <span className="mt-2 flex flex-wrap gap-1">
+                            {leftOut.slice(0, 4).map((item) => (
+                              <span key={item.module} className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-stone-500 ring-1 ring-inset ring-stone-200">
+                                no {item.label.toLowerCase()}
+                              </span>
+                            ))}
+                          </span>
+                        ) : null}
                       </button>
                     );
                   })}
                 </div>
+
+                {templateId ? (
+                  <div className="mt-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
+                    <p className="text-[11px] font-bold uppercase tracking-wide text-stone-500">Your console will open with these sections</p>
+                    <div className="mt-2.5 flex flex-wrap gap-2">
+                      {navSectionsFor(templateId).map((section) => (
+                        <span key={section.title} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 ring-1 ring-inset ring-stone-200">
+                          {section.title}
+                          <span className="text-stone-400">· {section.links.length}</span>
+                        </span>
+                      ))}
+                    </div>
+                    <p className="mt-2.5 text-[11px] leading-relaxed text-stone-500">
+                      {PORTALS.find((portal) => portal.templateId === templateId)?.tagline} — every screen inside uses your trade&apos;s words.
+                    </p>
+                  </div>
+                ) : null}
               </div>
               <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
             </div>

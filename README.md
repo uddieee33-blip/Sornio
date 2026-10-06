@@ -1,6 +1,8 @@
 # DukaanOS
 
-An operating system for small Indian businesses — retail shops, cafes, gyms, salons, and electronics stores. DukaanOS gives owners a single console for billing, inventory, memberships, payments, and AI-driven business intelligence, built around a transaction-driven financial engine where every number is derived from recorded activity.
+An operating system for small Indian businesses — kirana stores, cafes, gyms, salons, boutiques, electronics shops and service studios. DukaanOS gives each of them **their own console**: the same engine underneath, shaped by the business type on top, built around a transaction-driven financial engine where every number is derived from recorded activity.
+
+A gym owner never sees a stock shelf. A kirana owner is never asked to chase memberships. A cafe owner never meets a stylist day-book. That is the whole point of a portal.
 
 ## Stack
 
@@ -18,13 +20,43 @@ npm run dev                  # http://localhost:3000
 
 Apply the database schema to your Supabase project with `supabase/schema.sql`.
 
+## Portals — one engine, one console per business type
+
+A **portal** is not a theme. It is a decision about what a specific kind of business actually needs, made once in `lib/portals/blueprints.ts` and then enforced everywhere:
+
+| Portal | Console carries | Deliberately left out |
+| --- | --- | --- |
+| **Gym & Fitness** | Plans, members, check-ins, renewals, collections, marketing | Inventory, stock shelves, counter billing, suppliers |
+| **Cafe & Restaurant** | Menu, counter, pantry, vendors, covers | Memberships, renewal chasing, appointment book |
+| **Kirana & Grocery** | Counter billing, stock, udhaar khata, vendors | Memberships, appointments, service bookings |
+| **Salon & Spa** | Services, day book, stylists, prepaid packages, follow-ups | Pantry stock, supplier chain |
+| **Electronics & Mobiles** | Catalogue, serial stock, warranty, formal billing | Memberships, day book |
+| **Boutique & Fashion** | Collections, sizes, stock turn, festive campaigns | Memberships, appointment book (switchable) |
+| **Services & Studio** | Service menu, bookings, invoices, follow-ups | Stock shelves, membership plans |
+| **General Business** | Everything, on | Nothing hidden — the honest default |
+
+Each blueprint defines six things, and every screen reads them through `usePortal()`:
+
+1. **Modules** — which of the 27 modules exist at all.
+2. **Navigation** — sections and labels in the trade's own words (`Plans & Members`, `Udhaar Khata`, `Day Book`).
+3. **Vocabulary** — `Members` / `Guests` / `Clients` / `Khata`, `Stock` / `Pantry`, `Counter` / `Front desk`.
+4. **Cockpit** — the headline question, the four figures that answer it, the quick actions, and the one live list that needs attention today (renewals, day book, reorder, udhaar, check-ins).
+5. **Accent** — the console's colour, applied through CSS custom properties.
+6. **`excluded`** — a plain statement of what was left out and how to get it back. Shown in the UI, next to the modules that were dropped.
+
+**How it is enforced (security).** The portal is stored in an `httpOnly`, `SameSite=Lax` cookie (`dukaan.portal`) that only `POST /api/portal` can write. That endpoint accepts a template id from the shipped list (never a portal id), is CSRF-protected by the middleware's double-submit token, rate-limited on its own tight bucket, and requires an owner/manager role when a real session exists. Edge middleware (`middleware.ts`, step 5) refuses any safe request for a module the portal does not carry and redirects it to `/home?locked=<module>`, where the cockpit explains what happened; a client gate covers the same rule for the moment before a cookie is re-issued. A portal value can therefore only ever *hide* a module — it can never unlock one.
+
 ## Product map
+
+Every business gets a subset of these, labelled in its own words — see *Portals* above.
 
 | Route | Purpose |
 | --- | --- |
 | `/` | Landing — tagline, live charts, direct "start your business" flow |
 | `/auth` → `/onboarding` | Sign in → 3-step setup: owner details, business + template, bank/UPI → owner's own collection QR |
-| `/home` | **Owner Cockpit** — greeting, KPIs, what-changed-today, renewals, low stock |
+| `/home` | **Owner Cockpit** — portal-specific: headline, four live figures, the list that needs action today, quick actions |
+| `/check-ins` | Front desk attendance for gyms and studios — one tap per visit, tied to the member record |
+| `/appointments` | The day book for salons, clinics and service studios; completing a slot records the revenue once |
 | `/dashboard` | Business reality dashboard with alerts |
 | `/business` | Business setup with type-specific templates |
 | `/products`, `/inventory`, `/suppliers` | Full catalog CRUD (add/edit/archive), stock, supply chain |
@@ -42,14 +74,25 @@ Apply the database schema to your Supabase project with `supabase/schema.sql`.
 
 ## Architecture
 
+- **`lib/portals/`** — the portal system, pure data first so Edge middleware can enforce what the UI renders:
+  - `types.ts` — `PortalBlueprint`, `ModuleKey`, `MetricKey`, vocabulary, nav, cockpit shapes
+  - `catalogue.ts` — the 27 canonical modules (route, label, icon, keywords, core flag)
+  - `blueprints.ts` — the eight business types: modules, words, navigation, cockpit, accent, what was left out
+  - `registry.ts` — resolution and validation (`portalById`, `portalForTemplate`, `portalHasModule`, `isKnownTemplateId`, …)
+  - `routes.ts` — route policy used by middleware and the client gate (`PORTAL_COOKIE`, `checkPortalAccess`, `routeHrefsFor`)
+  - `icons.ts`, `nav.ts` — icon name → component, blueprint → labelled navigation
+  - `portal-provider.tsx` — `PortalProvider` / `usePortal()`; server-resolved first paint, cookie reconciliation
+  - `metrics.ts` — the cockpit figures, computed only from recorded activity
+  - `sync.ts` — publishes the chosen type to `/api/portal` with the CSRF double-submit token
+- **`app/api/portal/route.ts`** — the single narrowly-scoped server write: validates the template id, re-derives the portal, re-issues the httpOnly cookie.
 - **`lib/models/`** — universal domain models shared across the product:
-  - `business.ts` — business profile, settings, templates, audit events, snapshot adapter
+  - `business.ts` — business profile, settings, templates (derived from the portal blueprints), audit events, snapshot adapter
   - `billing.ts` — invoices, line items, payment records, collection summaries
   - `membership.ts` — plans, members, subscriptions, reminder templates, expiry derivation
   - `insights.ts` — insights, AI tips, and business health scoring shapes
 - **`lib/services/ai-insights.ts`** — `AiInsightsEngine` computes the health score, live insights, and growth tips from snapshots, invoices, and subscriptions.
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
-- **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, and raise/collect invoices; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
+- **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, raise/collect invoices, check members in and out, and run a booking day book; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
 - **`lib/sync/supabase-sync.ts`** — the persistence adapter bridging the live store to the multi-tenant schema. It provisions the owner's `businesses` + `business_members` row, then pushes products, ledger entries, customers, campaigns, audit, and settings, all scoped by `business_id`.
 - **`lib/supabase/`** — Supabase client + config guard (`isSupabaseConfigured`). With placeholder credentials the app stays fully local-first; with real credentials the same code paths sync to the database.
 - **`supabase/schema.sql`** — multi-tenant Postgres schema. Every tenant table carries `business_id` and is protected by row-level security policies scoped to `business_members`.
@@ -122,7 +165,8 @@ security is a first-class layer rather than a header or two.
 | Tenancy | `lib/security/tenant.ts` | One business per scope; every record carries a tenant id |
 | Authorisation | `lib/security/rbac.ts` | Owner / manager / cashier / auditor, 18 permissions |
 | Transport | `lib/security/headers.ts` | Posture-aware CSP, HSTS, framing, permissions policy |
-| Edge | `lib/security/rate-limit.ts` | Sliding-window throttling, pluggable store |
+| Edge | `lib/security/rate-limit.ts` | Sliding-window throttling, pluggable store (dedicated bucket for `/api/portal`) |
+| Portal scoping | `lib/portals/routes.ts` + `middleware.ts` | A business type never reaches a module it does not carry |
 | Request | `lib/security/csrf.ts` | Fetch-metadata + origin allow-list + double-submit token |
 | Input | `lib/security/validation.ts` | Structural validation, clamps, password strength |
 | Output | `lib/security/sanitize.ts` | HTML/CSV/URL escaping for receipts and exports |
@@ -138,8 +182,9 @@ security is a first-class layer rather than a header or two.
 2. **Probe rejection** — `/.env`, `/.git`, `/wp-admin`, … return a blank 404, no detail.
 3. **Rate limiting** — a per-client sliding window per scope (auth, api, reports, page) plus a short burst guard. API and mutating requests get the tight budget; page traffic gets a generous one so the app never throttles its own navigation.
 4. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a double-submit token for `/api/*`.
-5. **Headers** — CSP, HSTS, framing, `Permissions-Policy`, `no-store` on console routes.
-6. **Session refresh** — Supabase only when real credentials exist, lazily imported, never blocking a page load.
+5. **Portal policy** — the portal cookie decides which modules this business runs. A request for a module outside it (inventory in a gym, memberships in a kirana) is answered with a 307 to `/home?locked=<module>` and an `x-dukaan-portal-blocked` header. Only read-only navigation is redirected, so the check can never mask a failed action or loop.
+6. **Headers** — CSP, HSTS, framing, `Permissions-Policy`, `no-store` on console routes.
+7. **Session refresh** — Supabase only when real credentials exist, lazily imported, never blocking a page load.
 
 ### Two postures
 
@@ -167,6 +212,19 @@ states shown in amber rather than hidden.
 ### Performance notes
 
 The same layer is built to stay out of the way: the Supabase SDK is lazily
-imported so Edge middleware stays at ~89 kB instead of ~789 kB, all routes are
-statically prerendered, and hydration/telemetry work is scheduled through
-`lib/perf/idle.ts` so nothing runs mid-interaction.
+imported so Edge middleware stays at ~89 kB instead of ~789 kB, and
+hydration/telemetry work is scheduled through `lib/perf/idle.ts` so nothing runs
+mid-interaction.
+
+The portal system is designed to feel instant rather than merely be fast:
+
+- **No flash of the wrong console.** `app/(console)/layout.tsx` resolves the
+  portal on the server from the cookie, so the first paint already carries the
+  right navigation — the client never repaints a full menu down to a smaller one.
+- **Warm only what this business can open.** Route warm-up consumes
+  `routeHrefsFor(portalId)` and warms the sidebar's own order — a dozen routes
+  for a gym instead of thirty, at one route per idle slice, and none at all on a
+  metered or 2G connection.
+- **Recolouring is a variable, not a re-render.** Accents ship as CSS custom
+  properties (`--portal-accent`, `--portal-accent-deep`), so switching business
+  type repaints the frame with no layout shift and no stylesheet swap.

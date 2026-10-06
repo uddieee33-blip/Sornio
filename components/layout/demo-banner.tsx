@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { FlaskConical, Sprout, X } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
+import { portalForTemplate } from '@/lib/portals/registry';
 
 /**
  * Makes the zero-start / demo-data separation explicit everywhere in the console:
@@ -13,13 +14,19 @@ import { useDukaanStore } from '@/lib/store';
 export function DemoBanner() {
   const { state, actions } = useDukaanStore();
   const [dismissed, setDismissed] = useState(false);
+  // The sample business is a gym, so exploring it switches the console to the
+  // Gym portal. Say so out loud rather than letting an owner wonder where their
+  // modules went.
+  const demoPortal = portalForTemplate(`template-gym`);
 
   if (state.demoMode) {
     return (
       <div className="flex items-center justify-between gap-3 border-b border-amber-500/25 bg-amber-500/[0.08] px-4 py-2 text-xs text-amber-700 md:px-8">
         <p className="flex items-center gap-2 font-semibold">
           <FlaskConical size={14} className="shrink-0" />
-          <span className="truncate">DEMO BUSINESS — sample data for exploration, clearly separated from real records.</span>
+          <span className="truncate">
+            DEMO BUSINESS — sample data in the {demoPortal.name} console, clearly separated from real records.
+          </span>
         </p>
         <button
           onClick={() => {

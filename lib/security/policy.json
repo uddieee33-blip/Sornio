@@ -124,6 +124,10 @@
       "limit": 20,
       "windowMs": 60000
     },
+    "portal": {
+      "limit": 8,
+      "windowMs": 60000
+    },
     "page": {
       "limit": 300,
       "windowMs": 60000

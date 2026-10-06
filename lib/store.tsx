@@ -10,6 +10,7 @@ import {
 } from '@/lib/business-data';
 import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
 import { businessTemplates, defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
+import { portalForTemplate, portalHasModule } from '@/lib/portals/registry';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import { GENESIS_HASH, appendAuditEntry, isChained, type AuditActor, type AuditSeverity } from '@/lib/security/audit';
@@ -83,6 +84,46 @@ export type MarketingCampaign = {
   startDate: string;
 };
 
+/**
+ * A front-desk check-in.
+ *
+ * Gyms, studios and clinics do not sell a transaction and leave — they track who
+ * walked in and when. This is the record behind that: deliberately tiny, tied to
+ * a member record, and never invented (a portal without the check-in module
+ * simply never writes one).
+ */
+export type CheckIn = {
+  id: string;
+  memberId: string;
+  /** Name copied at check-in time, so history survives a renamed member. */
+  name: string;
+  /** ISO timestamp of entry. */
+  at: string;
+  /** ISO timestamp of exit, if the desk recorded one. */
+  outAt?: string;
+  /** Who recorded it — 'Front desk', 'Owner', 'Self'. */
+  by?: string;
+};
+
+/** One slot in a service business's day book (salon, clinic, studio, repairs). */
+export type Appointment = {
+  id: string;
+  customerName: string;
+  phone?: string;
+  /** Service or treatment booked, e.g. "Hair colour". */
+  service?: string;
+  /** Stylist / technician / trainer handling it. */
+  staff?: string;
+  /** ISO timestamp of the slot. */
+  startAt: string;
+  minutes: number;
+  status: 'booked' | 'arrived' | 'done' | 'cancelled';
+  /** Expected or final value, used when the slot is marked done. */
+  amount?: number;
+  notes?: string;
+  createdAt: string;
+};
+
 /** The live business identity — owner, business, and collection details. */
 export type BusinessProfile = {
   name: string;
@@ -112,14 +153,27 @@ export const defaultBusinessProfile: BusinessProfile = {
   timezone: 'Asia/Kolkata',
 };
 
-/** How each business-type template configures the operating modules. */
-const TEMPLATE_PRESETS: Record<string, Partial<BusinessSettings>> = {
-  'template-gym': { allowMemberships: true, allowInventory: false, allowAppointments: false, receiptMode: 'both', sendSmsReminders: true, sendWhatsappReminders: true },
-  'template-cafe': { allowMemberships: true, allowInventory: true, allowAppointments: false, receiptMode: 'both', sendSmsReminders: false, sendWhatsappReminders: true },
-  'template-grocery': { allowMemberships: false, allowInventory: true, allowAppointments: false, receiptMode: 'physical', sendSmsReminders: false, sendWhatsappReminders: false },
-  'template-salon': { allowMemberships: true, allowInventory: false, allowAppointments: true, receiptMode: 'both', sendSmsReminders: true, sendWhatsappReminders: true },
-  'template-electronics': { allowMemberships: false, allowInventory: true, allowAppointments: false, receiptMode: 'digital', sendSmsReminders: false, sendWhatsappReminders: false },
-};
+/**
+ * How each portal configures the operating settings inside the store.
+ *
+ * Derived from the portal blueprint rather than hand-maintained, so the sidebar
+ * and the settings can never disagree: if a gym portal does not carry Inventory,
+ * `allowInventory` is off in the same breath, because both read one definition.
+ */
+function presetForPortal(templateId: string): Partial<BusinessSettings> {
+  const portal = portalForTemplate(templateId);
+  const has = (module: Parameters<typeof portalHasModule>[1]) => portalHasModule(portal.id, module);
+  return {
+    allowMemberships: has('memberships'),
+    allowInventory: has('inventory'),
+    allowAppointments: has('appointments'),
+    allowDigitalReceipts: true,
+    allowPhysicalReceipts: true,
+    receiptMode: has('billing') ? (has('memberships') ? 'both' : 'digital') : 'physical',
+    sendSmsReminders: has('reminders'),
+    sendWhatsappReminders: has('reminders'),
+  };
+}
 
 
 export type StoreState = {
@@ -135,6 +189,10 @@ export type StoreState = {
   reminderTemplates: ReminderTemplate[];
   invoices: Invoice[];
   paymentRecords: PaymentRecord[];
+  /** Front-desk check-ins (gyms, studios, clinics). Empty for other portals. */
+  checkIns: CheckIn[];
+  /** The service day book (salons, studios, repair desks). Empty elsewhere. */
+  appointments: Appointment[];
   settings: BusinessSettings;
   audit: AuditEntry[];
   campaigns: MarketingCampaign[];
@@ -268,6 +326,8 @@ export function buildEmptyState(): StoreState {
     reminderTemplates: [],
     invoices: [],
     paymentRecords: [],
+    checkIns: [],
+    appointments: [],
     settings: defaultBusinessSettings,
     audit: [
       {
@@ -280,6 +340,30 @@ export function buildEmptyState(): StoreState {
     ],
     campaigns: [],
   };
+}
+
+/**
+ * Sample check-ins for the demo gym — a plausible morning at the front desk.
+ * Only ever used inside `buildSeedState` (the clearly-labelled demo business).
+ */
+function buildSampleCheckIns(): CheckIn[] {
+  const at = (hoursAgo: number, minutesAgo = 0) =>
+    new Date(Date.now() - hoursAgo * 3600_000 - minutesAgo * 60_000).toISOString();
+  const roster: { memberId: string; at: string; out?: string }[] = [
+    { memberId: 'member-1', at: at(5, 10), out: at(4, 5) },
+    { memberId: 'member-4', at: at(3, 40) },
+    { memberId: 'member-2', at: at(2, 15) },
+    { memberId: 'member-5', at: at(1, 5), out: at(0, 20) },
+    { memberId: 'member-3', at: at(0, 35) },
+  ];
+  return roster.map((row, index) => ({
+    id: `ci-demo-${index + 1}`,
+    memberId: row.memberId,
+    name: defaultMembers.find((member) => member.id === row.memberId)?.name ?? 'Member',
+    at: row.at,
+    outAt: row.out,
+    by: 'Front desk',
+  }));
 }
 
 /**
@@ -333,6 +417,8 @@ export function buildSeedState(): StoreState {
     reminderTemplates: defaultReminderTemplates,
     invoices: sampleInvoices,
     paymentRecords: samplePaymentRecords,
+    checkIns: buildSampleCheckIns(),
+    appointments: [],
     settings: defaultBusinessSettings,
     audit: [
       { id: 'audit-demo-1', type: 'system', actor: 'System', summary: 'Demo business loaded — sample data, clearly separated from real records.', createdAt: new Date().toISOString() },
@@ -356,6 +442,19 @@ export type StoreActions = {
   addMember: (input: { name: string; phone: string; preferredChannel: Member['preferredChannel'] }) => ActionResult;
   enrollMember: (input: { memberId: string; planId: string; method: PaymentMethod }) => ActionResult;
   renewSubscription: (input: { subscriptionId: string; method: PaymentMethod }) => ActionResult;
+  checkInMember: (input: { memberId: string }) => ActionResult;
+  endCheckIn: (checkInId: string) => ActionResult;
+  addAppointment: (input: {
+    customerName: string;
+    phone?: string;
+    service?: string;
+    staff?: string;
+    startAt: string;
+    minutes?: number;
+    amount?: number;
+    notes?: string;
+  }) => ActionResult;
+  setAppointmentStatus: (appointmentId: string, status: Appointment['status']) => ActionResult;
   createInvoice: (input: { customerName: string; customerPhone?: string; lines: InvoiceLine[]; method: PaymentMethod; taxRate: number }) => ActionResult;
   markInvoicePaid: (invoiceId: string) => ActionResult;
   updateProduct: (productId: string, patch: Partial<Omit<Product, 'id'>>) => ActionResult;
@@ -447,6 +546,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
       products: Array.isArray(parsed.products) ? parsed.products : [],
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
+      checkIns: Array.isArray(parsed.checkIns) ? parsed.checkIns : [],
+      appointments: Array.isArray(parsed.appointments) ? parsed.appointments : [],
     });
 
     const looksValid = (value: StoreState | undefined): value is StoreState =>
@@ -865,6 +966,99 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       return { ok: true };
     },
 
+    checkInMember({ memberId }) {
+      const member = stateRef.current.members.find((item) => item.id === memberId);
+      if (!member) return { ok: false, error: 'Member not found.' };
+      const open = stateRef.current.checkIns.find((entry) => entry.memberId === memberId && !entry.outAt);
+      if (open) return { ok: false, error: `${member.name} is already checked in.` };
+      const entry: CheckIn = {
+        id: newId('ci'),
+        memberId,
+        name: member.name,
+        at: new Date().toISOString(),
+        by: 'Front desk',
+      };
+      setState((current) => ({ ...current, checkIns: [entry, ...current.checkIns].slice(0, 2000) }));
+      track('membership', `${member.name} checked in at the front desk.`, entry.id);
+      return { ok: true };
+    },
+
+    endCheckIn(checkInId) {
+      const entry = stateRef.current.checkIns.find((item) => item.id === checkInId);
+      if (!entry) return { ok: false, error: 'Check-in not found.' };
+      if (entry.outAt) return { ok: false, error: 'That visit is already closed.' };
+      const outAt = new Date().toISOString();
+      setState((current) => ({
+        ...current,
+        checkIns: current.checkIns.map((item) => (item.id === checkInId ? { ...item, outAt } : item)),
+      }));
+      track('membership', `${entry.name} checked out — visit closed.`, checkInId);
+      return { ok: true };
+    },
+
+    addAppointment({ customerName, phone, service, staff, startAt, minutes, amount, notes }) {
+      if (!customerName.trim()) return { ok: false, error: 'A name is required for the booking.' };
+      if (!startAt) return { ok: false, error: 'Pick a date and time.' };
+      const parsed = new Date(startAt);
+      if (Number.isNaN(parsed.getTime())) return { ok: false, error: 'That date and time could not be read.' };
+      if (amount !== undefined && (!Number.isFinite(amount) || amount < 0)) {
+        return { ok: false, error: 'Amount cannot be negative.' };
+      }
+      const appointment: Appointment = {
+        id: newId('apt'),
+        customerName: customerName.trim(),
+        phone: phone?.trim() || undefined,
+        service: service?.trim() || undefined,
+        staff: staff?.trim() || undefined,
+        startAt: parsed.toISOString(),
+        minutes: minutes && minutes > 0 ? Math.min(Math.round(minutes), 720) : 30,
+        status: 'booked',
+        amount: amount ?? 0,
+        notes: notes?.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      setState((current) => ({
+        ...current,
+        appointments: [...current.appointments, appointment].sort((a, b) => a.startAt.localeCompare(b.startAt)),
+      }));
+      track('system', `Booking added for ${appointment.customerName} — ${parsed.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`, appointment.id);
+      return { ok: true };
+    },
+
+    setAppointmentStatus(appointmentId, status) {
+      const appointment = stateRef.current.appointments.find((item) => item.id === appointmentId);
+      if (!appointment) return { ok: false, error: 'Booking not found.' };
+      if (appointment.status === status) return { ok: true };
+
+      // Completing a booking with a value is a real sale — recorded once, and
+      // only when it moves into `done`, so revenue can never double-count.
+      const becomesRevenue = status === 'done' && appointment.status !== 'done' && (appointment.amount ?? 0) > 0;
+      const date = todayISO();
+      setState((current) => ({
+        ...current,
+        appointments: current.appointments.map((item) => (item.id === appointmentId ? { ...item, status } : item)),
+        ...(becomesRevenue
+          ? {
+              transactions: [
+                ...current.transactions,
+                ...buildRevenueTransactions(
+                  `${appointment.service ?? 'Service'} — ${appointment.customerName}`,
+                  appointment.amount ?? 0,
+                  'Cash',
+                  appointment.staff,
+                ).map((tx) => ({ ...tx, date })),
+              ],
+            }
+          : {}),
+      }));
+      if (becomesRevenue) {
+        track('sale', `Booking completed for ${appointment.customerName} — ${formatAuditAmount(appointment.amount ?? 0)} recorded as revenue.`, appointmentId);
+      } else {
+        track('system', `Booking for ${appointment.customerName} marked ${status}.`, appointmentId);
+      }
+      return { ok: true };
+    },
+
     createInvoice({ customerName, customerPhone, lines, method, taxRate }) {
       if (!customerName.trim()) return { ok: false, error: 'Customer name is required.' };
       const validLines = lines.filter((line) => line.name.trim() && line.quantity > 0 && line.unitPrice >= 0);
@@ -1019,7 +1213,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     applyTemplate(templateId) {
       const template = businessTemplates.find((t) => t.id === templateId);
       if (!template) return { ok: false, error: 'Unknown business template.' };
-      const preset = TEMPLATE_PRESETS[templateId] ?? {};
+      const preset = presetForPortal(templateId);
       setState((current) => ({
         ...current,
         profile: { ...current.profile, templateId },

@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { getAlerts, summarizeFinancials } from '@/lib/business-data';
 import { daysUntil } from '@/lib/models/membership';
 import { useDukaanStore } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
 
 type AlertRow = { id: string; severity: 'critical' | 'warning' | 'info'; area: string; title: string; description: string; action: string };
 
@@ -19,6 +20,10 @@ const severityMeta = {
 
 export default function AlertsPage() {
   const { state } = useDukaanStore();
+  const { allows, terms } = usePortal();
+  const carriesPlans = allows('/memberships');
+  const carriesStock = allows('/inventory');
+  const carriesSuppliers = allows('/suppliers');
 
   const { alerts, healthy, lowStockCount } = useMemo(() => {
     const financials = summarizeFinancials(state.transactions);
@@ -26,26 +31,39 @@ export default function AlertsPage() {
     const ok: string[] = [];
 
     // Ledger-driven alerts (stock, receivables, payables)
-    for (const engineAlert of getAlerts(financials, state.products)) {
+    // Only raise what this console can act on: no stock warnings without a
+    // stock screen, no supplier payables without a vendors screen.
+    const engineAlerts = getAlerts(financials, carriesStock ? state.products : []).filter((alert) =>
+      alert.type === 'low-stock' ? carriesStock : alert.type === 'payables' ? carriesSuppliers : true,
+    );
+    for (const engineAlert of engineAlerts) {
       rows.push({
         id: engineAlert.type,
         severity: engineAlert.tone === 'red' ? 'critical' : engineAlert.tone === 'amber' ? 'warning' : 'info',
-        area: engineAlert.type === 'low-stock' ? 'Inventory' : engineAlert.type === 'receivables' ? 'Cash flow' : 'Suppliers',
+        area: engineAlert.type === 'low-stock' ? terms.stock : engineAlert.type === 'receivables' ? 'Cash flow' : 'Suppliers',
         title: engineAlert.type === 'low-stock' ? 'Stock below reorder level' : engineAlert.type === 'receivables' ? 'Money owed by customers' : 'Supplier payables open',
         description: engineAlert.message,
-        action: engineAlert.type === 'low-stock' ? 'Open Inventory and create purchase orders for the flagged items.' : engineAlert.type === 'receivables' ? 'Follow up on the Customers page and request settlement via their UPI QR.' : 'Schedule supplier payouts from the Suppliers page.',
+        action:
+          engineAlert.type === 'low-stock'
+            ? `Open ${terms.stock} and create purchase orders for the flagged items.`
+            : engineAlert.type === 'receivables'
+              ? `Follow up on the ${terms.customers} page and request settlement via their UPI QR.`
+              : 'Schedule supplier payouts from the Vendors page.',
       });
     }
 
-    // Membership renewals
+    // Plan renewals — only for a console that carries plans. A kirana is never
+    // told to chase memberships it does not sell.
     const membersById = new Map(state.members.map((member) => [member.id, member]));
-    const expiring = state.subscriptions.filter((subscription) => { const days = daysUntil(subscription.expiryDate); return days >= 0 && days <= 7; });
-    const expired = state.subscriptions.filter((subscription) => daysUntil(subscription.expiryDate) < 0);
+    const expiring = carriesPlans
+      ? state.subscriptions.filter((subscription) => { const days = daysUntil(subscription.expiryDate); return days >= 0 && days <= 7; })
+      : [];
+    const expired = carriesPlans ? state.subscriptions.filter((subscription) => daysUntil(subscription.expiryDate) < 0) : [];
     if (expired.length > 0) {
       rows.push({
         id: 'members-expired', severity: 'critical', area: 'Memberships', title: `${expired.length} membership${expired.length === 1 ? ' has' : 's have'} expired`,
         description: `${expired.map((subscription) => membersById.get(subscription.memberId)?.name ?? 'Unknown').slice(0, 3).join(', ')}${expired.length > 3 ? '…' : ''} ${expired.length === 1 ? 'has' : 'have'} lapsed. Renewal revenue is at risk.`,
-        action: 'Open Memberships and tap Renew — reminders go out over the member’s preferred channel.',
+        action: `Open ${terms.plans} and tap Renew — reminders go out over the contact’s preferred channel.`,
       });
     }
     if (expiring.length > 0) {
@@ -82,7 +100,7 @@ export default function AlertsPage() {
     if (lowStockProductsCount(state) === 0) ok.push('Every product is above its reorder level.');
 
     return { alerts: rows, healthy: ok, lowStockCount: lowStockProductsCount(state) };
-  }, [state]);
+  }, [state, carriesPlans, carriesStock, carriesSuppliers, terms.plans, terms.stock, terms.customers]);
 
   const criticalCount = alerts.filter((alert) => alert.severity === 'critical').length;
   const warningCount = alerts.filter((alert) => alert.severity === 'warning').length;

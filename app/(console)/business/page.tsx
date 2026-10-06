@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { Building2, Check, QrCode, Save, Sparkles } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -9,6 +10,9 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
+import { portalIcon } from '@/lib/portals/icons';
+import { disabledModules, portalForTemplate } from '@/lib/portals/registry';
+import { usePortal } from '@/lib/portals/portal-provider';
 import { buildUpiDeepLink, isValidUpiId } from '@/lib/upi';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
@@ -16,6 +20,7 @@ const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide tex
 
 export default function BusinessPage() {
   const { state, actions } = useDukaanStore();
+  const { portal, nav } = usePortal();
   const profile = state.profile;
 
   const [name, setName] = useState(profile.name);
@@ -119,35 +124,78 @@ export default function BusinessPage() {
             </div>
           ) : null}
 
+          {/* Which console does this business run? Not a label — the shape
+              of the whole app, and the reason a gym never sees a stock shelf. */}
           <Card className="animate-fade-up h-fit">
-            <div className="mb-5"><CardTitle icon={<Sparkles size={17} />}>Business templates</CardTitle></div>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <CardTitle icon={<Sparkles size={17} />}>Business type &amp; console</CardTitle>
+              <Badge tone="brand" dot>{portal.name}</Badge>
+            </div>
             <p className="mb-4 text-xs leading-relaxed text-stone-600">
-              One engine, every business. Pick your type and DukaanOS configures memberships, inventory,
-              appointments, receipts, and reminders to match how you operate.
+              One engine, every business. Your type decides which modules exist, what they are called, and what each screen asks for — a
+              gym is never shown a stock shelf, a kirana is never asked to chase memberships. Switching reshapes the console instantly and
+              keeps every record exactly where it is.
             </p>
+
+            <div className="mb-5 rounded-2xl bg-portal/[0.07] p-4 ring-1 ring-inset ring-portal/20">
+              <p className="text-[11px] font-bold uppercase tracking-wide text-portal">This console carries</p>
+              <div className="mt-2 flex flex-wrap gap-1.5">
+                {nav.flatMap((section) => section.links).map((link) => (
+                  <span key={link.href} className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold text-stone-700 ring-1 ring-inset ring-stone-200">
+                    {link.label}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-3 text-[11px] leading-relaxed text-stone-600">{portal.excluded}</p>
+            </div>
+
             <div className="space-y-3">
               {businessTemplates.map((template) => {
                 const active = profile.templateId === template.id;
+                const blueprint = portalForTemplate(template.id);
+                const TemplateIcon = portalIcon(blueprint.icon);
+                const leftOut = disabledModules(blueprint.id);
                 return (
                   <button
                     key={template.id}
                     onClick={() => applyTemplate(template.id)}
-                    className={`w-full rounded-2xl p-4 text-left ring-1 ring-inset transition ${active ? 'bg-brand-500/[0.12] ring-brand-400/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'}`}
+                    aria-pressed={active}
+                    className={`w-full rounded-2xl p-4 text-left ring-1 ring-inset transition ${
+                      active ? 'bg-portal/[0.10] ring-portal/35' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'
+                    }`}
                   >
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-bold text-stone-900">{template.name}</span>
+                      <span className="flex items-center gap-2 text-sm font-bold text-stone-900">
+                        <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? 'bg-portal-gradient text-white' : 'bg-stone-100 text-stone-600'}`}>
+                          <TemplateIcon size={15} strokeWidth={2.2} />
+                        </span>
+                        {template.name}
+                      </span>
                       {active ? <Badge tone="brand" dot>Active</Badge> : null}
                     </div>
-                    <p className="mt-1 text-xs leading-relaxed text-stone-600">{template.description}</p>
+                    <p className="mt-2 text-xs leading-relaxed text-stone-600">{template.promise}</p>
+                    <p className="mt-2 text-[11px] leading-relaxed text-stone-500">{template.excluded}</p>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
-                      {template.recommendedModules.map((module) => (
-                        <span key={module} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">{module}</span>
+                      {template.recommendedModules.slice(0, 6).map((module) => (
+                        <span key={module} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+                          {module}
+                        </span>
+                      ))}
+                      {leftOut.slice(0, 3).map((item) => (
+                        <span key={item.module} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-medium text-stone-400 ring-1 ring-inset ring-stone-200 line-through">
+                          {item.label}
+                        </span>
                       ))}
                     </div>
                   </button>
                 );
               })}
             </div>
+
+            <p className="mt-4 text-[11px] leading-relaxed text-stone-500">
+              Your chosen type is also enforced at the edge: a link to a module this console does not carry never renders, it routes back
+              here with an explanation. <Link href="/security" className="font-semibold text-stone-600 underline underline-offset-4">More in the Trust Centre</Link>.
+            </p>
           </Card>
         </div>
       </div>

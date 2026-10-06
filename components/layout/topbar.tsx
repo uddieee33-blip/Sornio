@@ -17,35 +17,9 @@ import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
 import { ChevronRight, Command, Database, Lock, Menu, Search, WifiOff } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 
-const TITLES: Record<string, string> = {
-  '/home': 'Owner Cockpit',
-  '/dashboard': 'Dashboard',
-  '/insights': 'AI Insights',
-  '/alerts': 'Alerts',
-  '/business': 'Business Setup',
-  '/products': 'Products',
-  '/inventory': 'Inventory',
-  '/sales': 'Sales',
-  '/billing': 'Billing',
-  '/payments': 'Payments',
-  '/expenses': 'Expenses',
-  '/transactions': 'Transactions',
-  '/marketing': 'Marketing',
-  '/memberships': 'Memberships',
-  '/reminders': 'Reminders',
-  '/customers': 'Customers',
-  '/suppliers': 'Suppliers',
-  '/team': 'Team & Roles',
-  '/cashflow': 'Cash Flow',
-  '/profitability': 'Profitability',
-  '/reports': 'Reports',
-  '/comparisons': 'Comparisons',
-  '/audit': 'Audit History',
-  '/security': 'Trust Centre',
-  '/settings': 'Settings',
-};
 
 /**
  * Browser connectivity, read as an external store.
@@ -88,7 +62,14 @@ export function Topbar({
   const pathname = usePathname();
   const online = useOnline();
   const { state, syncStatus } = useDukaanStore();
-  const title = TITLES[pathname] ?? 'Console';
+  const { portal, nav } = usePortal();
+
+  // The breadcrumb speaks this trade's language: "Plans & Members" in a gym,
+  // "Udhaar Khata" in a kirana — the same route, the owner's own words.
+  const title =
+    nav.flatMap((section) => section.links).find((link) => link.href === pathname)?.label ??
+    nav[0]?.links[0]?.label ??
+    'Console';
 
   const syncLabel =
     syncStatus === 'local'
@@ -122,8 +103,11 @@ export function Topbar({
         </div>
 
         <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-2 text-sm md:flex">
-          <Link href="/home" className="shrink-0 text-stone-600 transition hover:text-stone-700">
+          <Link href="/home" className="inline-flex shrink-0 items-center gap-1.5 text-stone-600 transition hover:text-stone-700">
             DukaanOS
+            <span className="rounded-full bg-portal/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-portal ring-1 ring-inset ring-portal/20">
+              {portal.name}
+            </span>
           </Link>
           <ChevronRight size={14} className="shrink-0 text-stone-600" />
           <span className="truncate font-semibold text-stone-900">{title}</span>
@@ -168,7 +152,7 @@ export function Topbar({
           </button>
 
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-gradient text-[11px] font-bold text-white shadow-glow-sm"
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-portal-gradient text-[11px] font-bold text-white shadow-glow-sm"
             title={`${state.profile.ownerName ?? 'Owner'} · ${state.demoMode ? 'Demo business' : 'Live business'}`}
           >
             {(state.profile.ownerName ?? state.profile.name ?? 'O').slice(0, 1).toUpperCase()}

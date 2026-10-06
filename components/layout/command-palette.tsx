@@ -11,14 +11,18 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ArrowRight, CornerDownLeft, Search, Sparkles } from 'lucide-react';
-import { ALL_NAV_LINKS, NAV_SECTIONS, type NavLink } from './nav-items';
+import type { LucideIcon } from 'lucide-react';
+import { usePortal } from '@/lib/portals/portal-provider';
+import { PORTAL_ICONS } from '@/lib/portals/icons';
+import { PORTALS } from '@/lib/portals/registry';
+import { useDukaanActions } from '@/lib/store';
 
 type Command = {
   id: string;
   label: string;
   hint?: string;
   group: string;
-  icon: NavLink['icon'];
+  icon: LucideIcon;
   run: () => void;
   keywords?: string;
 };
@@ -46,61 +50,86 @@ function score(query: string, command: Command): number {
 
 export function CommandPalette({ open, onClose }: { open: boolean; onClose: () => void }) {
   const router = useRouter();
+  const { portal, nav, allows } = usePortal();
+  const { applyTemplate } = useDukaanActions();
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const listRef = useRef<HTMLDivElement>(null);
 
   const commands = useMemo<Command[]>(() => {
-    const navCommands: Command[] = ALL_NAV_LINKS.map((link) => ({
-      id: `nav:${link.href}`,
-      label: link.label,
-      hint: NAV_SECTIONS.find((section) => section.links.some((item) => item.href === link.href))?.title,
-      group: 'Go to',
-      icon: link.icon,
-      keywords: link.keywords,
-      run: () => router.push(link.href),
+    // Only this business's modules — a gym should never be able to search its
+    // way into an inventory screen it does not have.
+    const navCommands: Command[] = nav.flatMap((section) =>
+      section.links.map((link) => ({
+        id: `nav:${link.href}`,
+        label: link.label,
+        hint: section.title,
+        group: 'Go to',
+        icon: link.icon,
+        keywords: `${link.keywords} ${portal.name} ${portal.tagline}`,
+        run: () => router.push(link.href),
+      })),
+    );
+
+    // The cockpit's own quick actions come first: they are the jobs this trade
+    // does all day, in the words this trade uses for them.
+    const portalActions: Command[] = portal.cockpit.actions.map((action) => ({
+      id: `portal:${action.href}`,
+      label: action.label,
+      hint: portal.cockpit.eyebrow,
+      group: 'This business',
+      icon: PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general,
+      keywords: `${portal.name} ${action.label}`,
+      run: () => router.push(action.href),
     }));
 
-    const actions: Command[] = [
+    // Cross-business quick actions. Each one is filtered against the portal, so
+    // "Check memberships expiring soon" simply does not exist for a café.
+    const quickActions: (Command & { href: string })[] = [
       {
         id: 'action:sale',
-        label: 'Record a sale',
-        hint: 'Counter billing',
+        href: '/sales',
+        label: `Record a ${portal.terms.saleOne.toLowerCase()}`,
+        hint: portal.terms.sale,
         group: 'Actions',
         icon: Sparkles,
-        keywords: 'new sale sell checkout',
+        keywords: 'new sale sell checkout counter',
         run: () => router.push('/sales'),
       },
       {
         id: 'action:expense',
+        href: '/expenses',
         label: 'Add an expense',
         hint: 'Record money going out',
         group: 'Actions',
         icon: Sparkles,
-        keywords: 'spend bill',
+        keywords: 'spend bill rent salary',
         run: () => router.push('/expenses'),
       },
       {
-        id: 'action:member-expiry',
-        label: 'Check memberships expiring soon',
+        id: 'action:renewals',
+        href: '/reminders',
+        label: 'Chase upcoming renewals',
         hint: 'Stop revenue leakage',
         group: 'Actions',
         icon: Sparkles,
-        keywords: 'renewal expiry reminder gym',
+        keywords: 'renewal expiry reminder package',
         run: () => router.push('/memberships'),
       },
       {
         id: 'action:export',
+        href: '/reports',
         label: 'Export reports',
         hint: 'CSV for your accountant',
         group: 'Actions',
         icon: Sparkles,
-        keywords: 'download csv accountant tax',
+        keywords: 'download csv accountant tax gst',
         run: () => router.push('/reports'),
       },
       {
         id: 'action:trust',
+        href: '/security',
         label: 'Open the Trust Centre',
         hint: 'Encryption, roles, audit chain',
         group: 'Actions',
@@ -109,9 +138,25 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         run: () => router.push('/security'),
       },
     ];
+    const liveActions: Command[] = quickActions.filter((action) => allows(action.href));
 
-    return [...navCommands, ...actions];
-  }, [router]);
+    // Switching console is itself a command: two keystrokes and the app
+    // reshapes around the business the owner actually runs.
+    const portalCommands: Command[] = PORTALS.filter((other) => other.id !== portal.id).map((other) => ({
+      id: `portal-switch:${other.id}`,
+      label: `Switch to ${other.name}`,
+      hint: other.tagline,
+      group: 'Business type',
+      icon: PORTAL_ICONS[other.icon] ?? PORTAL_ICONS.general,
+      keywords: `change portal business type ${other.name} ${other.examples.join(' ')}`,
+      run: () => {
+        applyTemplate(other.templateId);
+        router.push('/home');
+      },
+    }));
+
+    return [...navCommands, ...portalActions, ...liveActions, ...portalCommands];
+  }, [router, nav, portal, allows, applyTemplate]);
 
   const results = useMemo(() => {
     return commands

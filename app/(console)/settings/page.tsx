@@ -6,7 +6,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import Link from 'next/link';
 import { useDukaanStore } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
+import { disabledModules } from '@/lib/portals/registry';
+import { PORTAL_ICONS } from '@/lib/portals/icons';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
@@ -18,7 +22,7 @@ function formatAuditDate(iso: string) {
   return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
-type ToggleKey = 'sendSmsReminders' | 'sendWhatsappReminders' | 'autoGenerateInvoiceNumber' | 'allowDigitalReceipts' | 'allowPhysicalReceipts' | 'allowMemberships' | 'allowInventory' | 'allowAppointments';
+type ToggleKey = 'sendSmsReminders' | 'sendWhatsappReminders' | 'autoGenerateInvoiceNumber' | 'allowDigitalReceipts' | 'allowPhysicalReceipts';
 
 const toggleMeta: Record<ToggleKey, { label: string; description: string }> = {
   sendSmsReminders: { label: 'SMS reminders', description: 'Renewal and payment reminders over SMS.' },
@@ -26,9 +30,6 @@ const toggleMeta: Record<ToggleKey, { label: string; description: string }> = {
   autoGenerateInvoiceNumber: { label: 'Auto invoice numbers', description: 'Sequential invoice numbers on every bill.' },
   allowDigitalReceipts: { label: 'Digital receipts', description: 'Share receipts over SMS or WhatsApp.' },
   allowPhysicalReceipts: { label: 'Physical receipts', description: 'Print paper receipts at checkout.' },
-  allowMemberships: { label: 'Memberships module', description: 'Plans, subscriptions, and renewal automation.' },
-  allowInventory: { label: 'Inventory module', description: 'Stock levels, valuation, and reorder alerts.' },
-  allowAppointments: { label: 'Appointments module', description: 'Bookings and service scheduling.' },
 };
 
 function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
@@ -46,7 +47,10 @@ function Toggle({ on, onClick }: { on: boolean; onClick: () => void }) {
 
 export default function SettingsPage() {
   const { state, actions, syncStatus } = useDukaanStore();
+  const { portal, nav } = usePortal();
   const settings = state.settings;
+  const PortalMark = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
+  const notCarried = disabledModules(portal.id);
 
   const [receiptMode, setReceiptMode] = useState(settings.receiptMode);
   const [taxRate, setTaxRate] = useState(String(settings.taxRate));
@@ -73,7 +77,6 @@ export default function SettingsPage() {
   };
 
   const toggles: ToggleKey[] = ['sendSmsReminders', 'sendWhatsappReminders', 'autoGenerateInvoiceNumber', 'allowDigitalReceipts', 'allowPhysicalReceipts'];
-  const modules: ToggleKey[] = ['allowMemberships', 'allowInventory', 'allowAppointments'];
 
   const securityPosture = [
     { label: 'Content-Security-Policy', detail: 'Every response is locked to this origin — no foreign scripts or frames.', icon: ShieldCheck },
@@ -186,23 +189,56 @@ export default function SettingsPage() {
             </div>
           </Card>
 
-          {/* Modules — live toggles */}
+          {/* Console shape — one source of truth, no contradicting switches */}
           <Card className="animate-fade-up">
-            <div className="mb-5"><CardTitle icon={<SlidersHorizontal size={17} />}>Modules</CardTitle></div>
-            <div className="space-y-3">
-              {modules.map((key) => (
-                <div key={key} className={`flex items-center justify-between rounded-2xl border p-4 transition ${settings[key] ? 'border-emerald-500/25 bg-emerald-500/[0.06]' : 'border-stone-200 bg-stone-50'}`}>
-                  <div>
-                    <p className="text-sm font-semibold text-stone-800">{toggleMeta[key].label}</p>
-                    <p className="text-xs text-stone-600">{toggleMeta[key].description}</p>
-                    <p className={`mt-1.5 text-xs font-semibold ${settings[key] ? 'text-emerald-700' : 'text-stone-600'}`}>{settings[key] ? '● Enabled' : '○ Disabled'}</p>
-                  </div>
-                  <Toggle on={Boolean(settings[key])} onClick={() => flipToggle(key)} />
-                </div>
+            <div className="mb-5 flex items-center justify-between gap-3">
+              <CardTitle icon={<SlidersHorizontal size={17} />}>Console shape</CardTitle>
+              <Badge tone="brand" dot>{portal.name}</Badge>
+            </div>
+            <div className="flex items-start gap-3 rounded-2xl bg-portal/[0.07] p-4 ring-1 ring-inset ring-portal/20">
+              <span className="bg-portal-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-glow-sm">
+                <PortalMark size={18} strokeWidth={2.2} />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-semibold text-stone-900">{portal.tagline}</p>
+                <p className="mt-1 text-xs leading-relaxed text-stone-600">{portal.promise}</p>
+              </div>
+            </div>
+
+            <p className="mt-4 text-[11px] font-bold uppercase tracking-wide text-stone-500">Carried · {nav.flatMap((section) => section.links).length} modules</p>
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {nav.flatMap((section) => section.links).map((link) => (
+                <span key={link.href} className="inline-flex items-center gap-1 rounded-full bg-white px-2.5 py-1 text-[11px] font-semibold text-stone-700 ring-1 ring-inset ring-stone-200">
+                  <link.icon size={11} /> {link.label}
+                </span>
               ))}
             </div>
+
+            {notCarried.length > 0 ? (
+              <>
+                <p className="mt-4 text-[11px] font-bold uppercase tracking-wide text-stone-500">Not carried — on purpose</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {notCarried.map((item) => (
+                    <span key={item.module} className="rounded-full bg-stone-50 px-2.5 py-1 text-[11px] font-medium text-stone-400 ring-1 ring-inset ring-stone-200 line-through">
+                      {item.label}
+                    </span>
+                  ))}
+                </div>
+                <p className="mt-3 text-xs leading-relaxed text-stone-600">{portal.excluded}</p>
+              </>
+            ) : null}
+
+            <p className="mt-3 text-xs leading-relaxed text-stone-600">
+              There is no second switchboard here on purpose: one definition decides the whole console, so the navigation can never
+              promise a module the app does not carry.{' '}
+              <Link href="/business" className="font-semibold text-stone-700 underline underline-offset-4">
+                Change business type in Business Setup
+              </Link>
+              .
+            </p>
+
             <div className="mt-5 flex flex-wrap gap-2">
-              {['Owner', 'Manager', 'Accountant', 'Staff', 'Viewer'].map((role) => (
+              {['Owner', 'Manager', 'Cashier', 'Auditor'].map((role) => (
                 <span key={role} className="rounded-full bg-brand-500/10 px-3.5 py-1.5 text-xs font-semibold text-brand-600 ring-1 ring-inset ring-brand-500/25">{role}</span>
               ))}
             </div>

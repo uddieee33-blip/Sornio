@@ -1,3 +1,6 @@
+import { moduleLabels, PORTALS } from '@/lib/portals/registry';
+import type { PortalId } from '@/lib/portals/types';
+
 export type Business = {
   id: string;
   name: string;
@@ -36,9 +39,15 @@ export type BusinessSettings = {
 export type BusinessTemplate = {
   id: string;
   name: string;
-  category: 'retail' | 'service' | 'fitness' | 'hospitality' | 'electronics' | 'general';
+  category: 'retail' | 'service' | 'fitness' | 'hospitality' | 'electronics' | 'fashion' | 'general';
   description: string;
   recommendedModules: string[];
+  /** The portal this template activates (see lib/portals). */
+  portalId: PortalId;
+  /** What the owner gets, in their words. */
+  promise: string;
+  /** What we deliberately left out, and why. */
+  excluded: string;
 };
 
 export type BusinessSnapshot = {
@@ -76,43 +85,27 @@ export type AuditEvent = {
   createdAt: string;
 };
 
-export const businessTemplates: BusinessTemplate[] = [
-  {
-    id: 'template-gym',
-    name: 'Gym & Fitness',
-    category: 'fitness',
-    description: 'Membership-first operations with renewals, attendance, and automated reminders.',
-    recommendedModules: ['Memberships', 'Renewals', 'Attendance', 'Reminders'],
-  },
-  {
-    id: 'template-cafe',
-    name: 'Cafe & Restaurant',
-    category: 'hospitality',
-    description: 'Fast billing with menu items, orders, and digital or printed receipts.',
-    recommendedModules: ['Menu', 'Billing', 'Receipts', 'Orders'],
-  },
-  {
-    id: 'template-grocery',
-    name: 'Grocery Store',
-    category: 'retail',
-    description: 'Inventory-heavy retail with stock tracking, reorder levels, and quick bills.',
-    recommendedModules: ['Inventory', 'Barcode', 'Stock', 'Bills'],
-  },
-  {
-    id: 'template-salon',
-    name: 'Salon & Spa',
-    category: 'service',
-    description: 'Service catalog with appointments, member packages, and reminders.',
-    recommendedModules: ['Services', 'Appointments', 'Members', 'Reminders'],
-  },
-  {
-    id: 'template-electronics',
-    name: 'Electronics',
-    category: 'electronics',
-    description: 'Catalog sales with warranty tracking, models, and formal invoices.',
-    recommendedModules: ['Catalog', 'Warranty', 'Models', 'Invoices'],
-  },
-];
+/**
+ * Onboarding templates.
+ *
+ * Derived from the portal blueprints rather than written by hand: the card an
+ * owner taps during onboarding and the console they land in are generated from
+ * the same definition, so a template can never promise one thing and deliver
+ * another.
+ */
+export const businessTemplates: BusinessTemplate[] = PORTALS.map((portal) => ({
+  id: portal.templateId,
+  name: portal.name,
+  category: portal.category,
+  description: portal.promise,
+  recommendedModules: moduleLabels(portal.id),
+  portalId: portal.id,
+  promise: portal.promise,
+  excluded: portal.excluded,
+}));
+
+/** Templates that ship with the product (kept for exports and validation). */
+export const TEMPLATE_IDS: string[] = businessTemplates.map((template) => template.id);
 
 export const demoBusiness: Business = {
   id: 'biz-1',

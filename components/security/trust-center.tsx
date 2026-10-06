@@ -30,6 +30,9 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useDukaanStore } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
+import { PORTAL_ICONS } from '@/lib/portals/icons';
+import { disabledModules } from '@/lib/portals/registry';
 import { toChainEvent, verifyChain, type ChainVerification } from '@/lib/security/audit';
 import { PERMISSIONS, ROLE_DESCRIPTIONS, ROLE_LABELS, ROLES, can, type Role } from '@/lib/security/rbac';
 import { vaultStatus } from '@/lib/security/vault';
@@ -71,7 +74,10 @@ function PostureRow({
 
 export function TrustCenter() {
   const { state, hydrated, syncStatus, persistence } = useDukaanStore();
+  const { portal, nav } = usePortal();
   const toast = useToast();
+  const PortalMark = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
+  const scopedOut = disabledModules(portal.id);
   const [verification, setVerification] = useState<ChainVerification | null>(null);
   const [verifying, setVerifying] = useState(false);
 
@@ -201,6 +207,17 @@ export function TrustCenter() {
               detail={`${Math.max(1, Math.round(storage.usedBytes / 1024))} KB used on this device, with a rollback snapshot kept for the last good write.`}
               posture="information"
               aside={<Badge tone="slate">{Math.max(1, Math.round(storage.usedBytes / 1024))} KB</Badge>}
+            />
+            <PostureRow
+              icon={<PortalMark size={16} />}
+              title={`Module scoping — ${portal.name}`}
+              detail={
+                scopedOut.length === 0
+                  ? 'This business type carries every module, so nothing needs to be scoped out. The Edge middleware still decides what each request may reach.'
+                  : `Requests for ${scopedOut.slice(0, 3).map((item) => item.label.toLowerCase()).join(', ')}${scopedOut.length > 3 ? ' and more' : ''} are refused before the page renders — the enforcement lives in Edge middleware, not in hidden buttons. A portal value can only hide modules; it can never unlock one.`
+              }
+              posture="protected"
+              aside={<Badge tone="emerald">{nav.flatMap((section) => section.links).length} modules</Badge>}
             />
             <PostureRow
               icon={<ShieldHalf size={16} />}
