@@ -12,8 +12,22 @@
  */
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
 import type { StoreState } from '@/lib/store';
+import type { StockMovementReason } from '@/lib/inventory';
 
 export type SyncStatus = 'local' | 'idle' | 'syncing' | 'synced' | 'error';
+
+/**
+ * The schema's own vocabulary for a stock movement. The console's reasons are
+ * finer-grained than the table's (`goods-inward` vs `count`), so the mapping is
+ * stated once here rather than guessed at each call site.
+ */
+const SYNC_MOVEMENT_TYPE: Record<StockMovementReason, 'purchase' | 'sale' | 'adjustment' | 'return' | 'opening'> = {
+  opening: 'opening',
+  sale: 'sale',
+  'goods-inward': 'purchase',
+  count: 'adjustment',
+  return: 'return',
+};
 
 export type SyncResult = { ok: boolean; error?: string };
 
@@ -198,6 +212,42 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
     }));
     const { error } = await supabase.from('scan_events').insert(scanRows);
     if (error) return { ok: false, error: `scan_events: ${error.message}` };
+  }
+
+  // ---- Stock ledger (see lib/inventory) ----
+  // The movement history is the shop's proof for every on-hand figure, so it
+  // travels with the data: same signed delta, same balance it produced. Keyed by
+  // the device's movement id, and matched to the item by name (the same way the
+  // rest of this push resolves products) so a re-sync updates rather than
+  // duplicates.
+  const { error: movementDeleteError } = await supabase.from('inventory_movements').delete().eq('business_id', businessId);
+  if (movementDeleteError) return { ok: false, error: `inventory_movements: ${movementDeleteError.message}` };
+  if (state.stockMovements.length > 0) {
+    const productRows = await supabase.from('products').select('id, name').eq('business_id', businessId);
+    const productIdByName = new Map<string, string>((productRows.data ?? []).map((row) => [String(row.name), String(row.id)]));
+    const movementRows = state.stockMovements.slice(0, 2000).flatMap((movement) => {
+      const productId = productIdByName.get(movement.productName);
+      if (!productId) return [];
+      return [
+        {
+          business_id: businessId,
+          product_id: productId,
+          movement_type: SYNC_MOVEMENT_TYPE[movement.reason],
+          quantity: Math.abs(movement.delta),
+          delta: movement.delta,
+          balance_after: movement.balance,
+          reference_text: movement.reference ?? null,
+          movement_key: movement.id,
+          unit: movement.unit ?? null,
+          notes: movement.note,
+          created_at: movement.at,
+        },
+      ];
+    });
+    if (movementRows.length > 0) {
+      const { error } = await supabase.from('inventory_movements').insert(movementRows);
+      if (error) return { ok: false, error: `inventory_movements: ${error.message}` };
+    }
   }
 
   // ---- Fingerprint enrolments (credential ids only — never biometric data) ----

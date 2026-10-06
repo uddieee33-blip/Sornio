@@ -40,6 +40,7 @@ import { getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { resolvePosture } from '@/lib/security/headers';
 import { randomToken } from '@/lib/security/crypto';
+import { isValidUpiId } from '@/lib/upi';
 import {
   PLAN_COOKIE,
   TRIAL_DAYS,
@@ -204,9 +205,16 @@ export async function POST(request: Request) {
       // Reference ties the money to the plan in both directions: the owner
       // quotes it when they pay, support sees it when the code is minted.
       const reference = `DK${planId === 'growth' ? 'G' : planId === 'scale' ? 'S' : 'F'}-${randomToken(3).toUpperCase()}`;
-      const upiId = (process.env.NEXT_PUBLIC_PLANS_UPI_ID ?? '').trim() || null;
+      // The payee is the *deployment's* UPI, read server-side from the
+      // environment — never a value the browser can set, because a payee that
+      // can be edited in devtools is a payee that can be pointed at someone
+      // else. A VPA that does not look like a VPA is treated as not configured
+      // rather than shipped into a QR that sends money nowhere.
+      const configuredUpi = (process.env.NEXT_PUBLIC_PLANS_UPI_ID ?? '').trim();
+      const upiId = isValidUpiId(configuredUpi) ? configuredUpi : null;
       const payeeName = (process.env.NEXT_PUBLIC_PLANS_PAYEE_NAME ?? '').trim() || null;
       const support = (process.env.NEXT_PUBLIC_SUPPORT_WHATSAPP ?? '').replace(/[^\d]/g, '') || null;
+      const misconfiguredUpi = configuredUpi && !upiId ? configuredUpi : null;
 
       const params = new URLSearchParams({
         pa: upiId ?? '',
@@ -234,9 +242,17 @@ export async function POST(request: Request) {
           payeeName,
           upiIntent,
           whatsappHref,
+          // Whether money can actually be collected right now, said plainly so
+          // the owner is never asked to pay an address that does not exist.
+          configured: Boolean(upiId),
+          setupHint: upiId
+            ? null
+            : misconfiguredUpi
+              ? `NEXT_PUBLIC_PLANS_UPI_ID is set to "${misconfiguredUpi}", which is not a valid UPI id (it should look like name@bank). Fix it on the server before collecting plan payments.`
+              : 'NEXT_PUBLIC_PLANS_UPI_ID is not set on this deployment, so no payment can be collected online yet. Set it (and NEXT_PUBLIC_PLANS_PAYEE_NAME + NEXT_PUBLIC_SUPPORT_WHATSAPP) on the server.',
         },
         message: upiId
-          ? 'Pay with any UPI app, then paste the activation code we send you.'
+          ? 'Pay with any UPI app — scan the QR or tap the button — then paste the activation code we send you.'
           : 'Save your reference, pay the platform UPI, and we will send you an activation code.',
       });
     }

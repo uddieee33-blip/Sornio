@@ -20,6 +20,7 @@ import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { PlanBadge } from '@/components/billing/plan-badge';
+import { useCounterLock } from '@/components/security/counter-lock';
 
 
 /**
@@ -66,6 +67,7 @@ export function Topbar({
   const online = useOnline();
   const { state, syncStatus } = useDukaanStore();
   const { portal, nav } = usePortal();
+  const lock = useCounterLock();
 
   // The breadcrumb speaks this trade's language: "Plans & Members" in a gym,
   // "Udhaar Khata" in a kirana — the same route, the owner's own words.
@@ -145,6 +147,22 @@ export function Topbar({
           >
             <Lock size={12} /> Encrypted
           </Link>
+
+          {/* Locking the counter is one tap and always reachable, because the
+              moment a shopkeeper wants to lock up they are already walking
+              away — they will not go hunting through settings. */}
+          {lock.enabled ? (
+            <button
+              type="button"
+              onClick={lock.lockNow}
+              title="Lock the console now — the PIN will be needed to open it again"
+              aria-label="Lock the console now"
+              className="touch-manipulation flex h-11 w-11 items-center justify-center gap-1.5 rounded-xl bg-stone-50 text-[11px] font-bold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 md:h-auto md:w-auto md:px-2.5 md:py-1.5"
+            >
+              <Lock size={13} />
+              <span className="hidden md:inline">Lock</span>
+            </button>
+          ) : null}
 
           {/* Which plan this console runs on, and how long it has left. */}
           <PlanBadge className="hidden sm:inline-flex" />

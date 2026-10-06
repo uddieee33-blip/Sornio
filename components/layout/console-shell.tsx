@@ -26,6 +26,7 @@ import { PortalGate } from './portal-gate';
 import { PlanProvider } from '@/components/billing/plan-provider';
 import { PlanBanner } from '@/components/billing/plan-banner';
 import { RouteWarmup } from '@/components/perf/route-warmup';
+import { CounterLockProvider, CounterLockScreen, useCounterLock } from '@/components/security/counter-lock';
 import { PortalProvider, usePortal } from '@/lib/portals/portal-provider';
 import type { PortalId } from '@/lib/portals/types';
 
@@ -33,6 +34,7 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { portal, accentStyle } = usePortal();
+  const lock = useCounterLock();
 
   const openPalette = useCallback(() => setPaletteOpen(true), []);
   const closePalette = useCallback(() => setPaletteOpen(false), []);
@@ -40,6 +42,11 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
   const closeMobileMenu = useCallback(() => setMobileMenuOpen(false), []);
 
   useCommandHotkey(openPalette);
+
+  // The lock replaces the console rather than covering it: while it is on, the
+  // takings, the khata and the customer list are not in the DOM at all. This
+  // sits after every hook so the order of hooks never depends on the lock.
+  if (lock.locked) return <CounterLockScreen />;
 
   return (
     <div
@@ -77,9 +84,13 @@ export function ConsoleShell({
 }) {
   return (
     <PortalProvider initialPortalId={initialPortalId ?? null}>
-      <PlanProvider>
-        <ConsoleFrame>{children}</ConsoleFrame>
-      </PlanProvider>
+      {/* The lock wraps the frame so the whole console — navigation included —
+          is behind it, and the PIN is checked before any of it renders. */}
+      <CounterLockProvider>
+        <PlanProvider>
+          <ConsoleFrame>{children}</ConsoleFrame>
+        </PlanProvider>
+      </CounterLockProvider>
     </PortalProvider>
   );
 }

@@ -81,6 +81,7 @@ writeFileSync(
         join(root, 'lib/scanning/encoder.ts'),
         join(root, 'lib/scanning/match.ts'),
         join(root, 'lib/scanning/counter.ts'),
+        join(root, 'lib/scanning/device.ts'),
       ],
     },
     null,
@@ -95,6 +96,7 @@ const B = require(join(outDir, 'scanning/barcodes.js'));
 const E = require(join(outDir, 'scanning/encoder.js'));
 const M = require(join(outDir, 'scanning/match.js'));
 const C = require(join(outDir, 'scanning/counter.js'));
+const D = require(join(outDir, 'scanning/device.js'));
 const { demoProducts } = require(join(outDir, 'business-data.js'));
 
 // --- Published GTIN check digits -------------------------------------------
@@ -350,6 +352,34 @@ check('Repeat scans stack on the ticket; weighed lines never merge', () => {
   const corrected = C.setTicketQuantity(ticket, ticket[0].id, 1);
   assertEqual(corrected[0].quantity, 1, 'a cashier can correct the count');
   assertEqual(C.removeTicketLine(corrected, ticket[0].id).length, 1, 'and remove a line');
+});
+
+// --- The device test on the Devices tab --------------------------------------
+check('a scanner is told apart from a person by the gaps between keystrokes', () => {
+  // A keyboard-wedge scanner: ~3 ms between characters.
+  const machine = D.readWedgeBurst('8901234567890', Array.from({ length: 12 }, () => 3));
+  assertEqual(machine.verdict, 'machine', 'a fast, even burst is a scanner');
+  assertEqual(machine.length, 13, 'every character is counted');
+  assert(machine.summary.includes('That was a scanner'), 'and the owner is told plainly');
+
+  // A person typing a 13-digit code: 150 ms apart.
+  const human = D.readWedgeBurst('8901234567890', Array.from({ length: 12 }, () => 150));
+  assertEqual(human.verdict, 'human', 'a slow burst is a person');
+  assert(human.summary.includes('typed by hand'), 'and says so rather than claiming a fault');
+
+  // A Bluetooth scanner on a weak link, or a shop PC under load.
+  const unclear = D.readWedgeBurst('12345', [45, 50, 48, 52]);
+  assertEqual(unclear.verdict, 'unclear', 'in-between speeds are reported as unclear, not rounded to a verdict');
+
+  assertEqual(D.classifyKeystrokes([]), 'unclear', 'no gaps is not evidence of anything');
+  assertEqual(D.WEDGE_MAX_GAP_MS < D.HUMAN_MIN_GAP_MS, true, 'the two thresholds leave room to be uncertain');
+});
+
+check('the scanner test reports the code the way the counter would read it', () => {
+  const machine = D.readWedgeBurst('8901234567890', Array.from({ length: 12 }, () => 2));
+  assertEqual(machine.elapsedMs, 24, 'total time is the sum of the gaps');
+  assertEqual(machine.averageGapMs, 2, 'the average is what decides the verdict');
+  assertEqual(machine.code, '8901234567890', 'the raw code comes back untouched for inspection');
 });
 
 rmSync(outDir, { recursive: true, force: true });

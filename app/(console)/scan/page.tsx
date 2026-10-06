@@ -41,6 +41,7 @@ import {
   ShoppingCart,
   Tag,
   Trash2,
+  Usb,
   Zap,
 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -49,8 +50,10 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { BarcodeScanner, type ScannerRead } from '@/components/scanning/barcode-scanner';
+import { DeviceCheck } from '@/components/scanning/device-check';
 import { LabelSheet, type LabelSpec } from '@/components/scanning/label-sheet';
 import { formatCurrency } from '@/lib/business-data';
+import { describeStockChange } from '@/lib/inventory';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import type { PaymentMethod } from '@/lib/models/billing';
@@ -70,7 +73,7 @@ const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other
 const inputClass =
   'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-portal/20';
 
-type Mode = 'counter' | 'inward' | 'labels';
+type Mode = 'counter' | 'inward' | 'labels' | 'devices';
 
 export default function ScanStationPage() {
   const { state, actions, hydrated } = useDukaanStore();
@@ -201,7 +204,13 @@ export default function ScanStationPage() {
       source: 'scan',
     });
     if (result.ok) {
-      note('ok', `${formatCurrency(total)} billed through the scanner — revenue, stock and cash updated.`);
+      // The shelf change, in units, right where the owner is looking — not
+      // buried on another screen. This is the "108 packets became 105" moment.
+      const changed = (result.stockChanges ?? []).map(describeStockChange);
+      note(
+        'ok',
+        `${formatCurrency(total)} billed through the scanner — revenue, stock and cash updated.${changed.length ? ` ${changed.join(', ')}.` : ''}`,
+      );
       setTicket([]);
       setCustomerName('');
       setLastResult(null);
@@ -282,6 +291,9 @@ export default function ScanStationPage() {
     { id: 'counter', label: 'Counter', icon: ShoppingCart, hint: 'Scan onto a bill' },
     { id: 'inward', label: 'Goods inward', icon: Boxes, hint: 'Scan the delivery in' },
     { id: 'labels', label: 'Labels', icon: Tag, hint: 'Print codes for uncoded goods' },
+    // The tab an owner opens when something is not working — and the tab that
+    // proves the other three work with the hardware on this counter.
+    { id: 'devices', label: 'Devices', icon: Usb, hint: 'Test your scanner, camera and reader' },
   ];
 
   return (
@@ -333,10 +345,15 @@ export default function ScanStationPage() {
         })}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[1.08fr_0.92fr]">
+      {mode === 'devices' ? <DeviceCheck /> : null}
+
+      <div className={`grid gap-6 lg:grid-cols-[1.08fr_0.92fr] ${mode === 'devices' ? 'mt-6' : ''}`}>
         <div className="space-y-6">
+          {/* The live scanner stays mounted in every mode, including the device
+              test: the counter never loses its input because someone opened a
+              diagnostics tab mid-bill. */}
           <BarcodeScanner
-            label={mode === 'inward' ? 'Receive into stock' : mode === 'labels' ? 'Add to the label sheet' : 'Counter scanner'}
+            label={mode === 'inward' ? 'Receive into stock' : mode === 'labels' ? 'Add to the label sheet' : mode === 'devices' ? 'Scanner test — scan anything' : 'Counter scanner'}
             onRead={handleRead}
             onIgnored={(reason) => note('error', reason)}
           />

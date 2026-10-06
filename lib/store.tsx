@@ -16,6 +16,13 @@ import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import { GENESIS_HASH, appendAuditEntry, isChained, type AuditActor, type AuditSeverity } from '@/lib/security/audit';
 import { vaultClear, vaultRead, vaultWrite } from '@/lib/security/vault';
 import { debounce } from '@/lib/perf/idle';
+import {
+  buildMovement,
+  describeStockChange,
+  pushMovements,
+  unitFor,
+  type StockMovement,
+} from '@/lib/inventory';
 import { authorizeCollection } from '@/lib/plans/active';
 import {
   buildSampleSubscriptions,
@@ -214,12 +221,27 @@ export type StoreState = {
   biometricCredentials: BiometricCredential[];
   /** The service day book (salons, studios, repair desks). Empty elsewhere. */
   appointments: Appointment[];
+  /**
+   * The stock ledger — every unit that moved, why, and the on-hand figure it
+   * produced. `product.stock` is the latest balance on this ledger; the ledger
+   * is the explanation for it (see `lib/inventory`).
+   */
+  stockMovements: StockMovement[];
   settings: BusinessSettings;
   audit: AuditEntry[];
   campaigns: MarketingCampaign[];
 };
 
 export type ActionResult = { ok: boolean; error?: string };
+
+/**
+ * What a recorded sale did to the shelves.
+ *
+ * Handed back to the counter so the owner is told what changed — "Kidney beans:
+ * 108 → 105" — instead of being asked to trust a number that moved on another
+ * screen. Every entry is also a line in the stock ledger.
+ */
+export type SaleResult = ActionResult & { stockChanges?: StockMovement[] };
 
 /** Actions that create a catalogue item hand back its id, so the caller can open it. */
 export type ProductActionResult = ActionResult & { productId?: string };
@@ -337,6 +359,79 @@ function methodGateway(method: PaymentMethod): PaymentRecord['gateway'] {
 }
 
 /** A completely new business at zero — the default state of DukaanOS. */
+/**
+ * Sample stock movements for the demo business.
+ *
+ * Built *backwards* from the demo catalogue's final on-hand figure, so the
+ * sample ledger genuinely reconciles: the last balance on each item's history
+ * equals the number the inventory screen shows. A demo that does not add up
+ * would teach an owner to distrust the real one.
+ */
+function buildSampleStockMovements(): StockMovement[] {
+  const daysAgo = (days: number, hour = 10) => {
+    const date = new Date();
+    date.setDate(date.getDate() - days);
+    date.setHours(hour, 0, 0, 0);
+    return date.toISOString();
+  };
+
+  const ledger: StockMovement[] = [];
+  demoProducts.forEach((product, index) => {
+    if (product.itemType !== 'product' || product.stock <= 0) return;
+    const sold = 2 + (index % 4);
+    const received = index % 2 === 0 ? 5 : 0;
+    const opening = Math.max(product.stock - received + sold, sold);
+
+    const steps: { reason: StockMovement['reason']; delta: number; at: string; note: string; reference?: string; before: number }[] = [
+      {
+        reason: 'opening',
+        delta: opening,
+        at: daysAgo(9),
+        note: `Opening count ${opening}${product.unit ? ` ${product.unit}` : ''} — counted when the item was added`,
+        before: 0,
+      },
+    ];
+    let balance = opening;
+    steps.push({
+      reason: 'sale',
+      delta: -sold,
+      at: daysAgo(2, 17),
+      note: `Sold — ${sold} × ${product.name} at the counter`,
+      reference: 'sale-demo',
+      before: balance,
+    });
+    balance -= sold;
+    if (received > 0) {
+      steps.push({
+        reason: 'goods-inward',
+        delta: received,
+        at: daysAgo(1, 11),
+        note: `Goods received from ${product.supplier ?? 'supplier'} — ${received} × ${product.name}`,
+        reference: product.supplier,
+        before: balance,
+      });
+    }
+
+    // Newest first on the ledger, so the array is reversed as it is collected.
+    for (const step of [...steps].reverse()) {
+      const movement = buildMovement({
+        id: `mv-demo-${product.id}-${step.reason}`,
+        productId: product.id,
+        productName: product.name,
+        at: step.at,
+        reason: step.reason,
+        delta: step.delta,
+        balanceBefore: step.before,
+        note: step.note,
+        reference: step.reference,
+        unit: unitFor(product.itemType, product.unit),
+      });
+      if (movement) ledger.push(movement);
+    }
+  });
+  return ledger;
+}
+
 export function buildEmptyState(): StoreState {
   return {
     demoMode: false,
@@ -354,6 +449,7 @@ export function buildEmptyState(): StoreState {
     scanEvents: [],
     biometricCredentials: [],
     appointments: [],
+    stockMovements: [],
     settings: defaultBusinessSettings,
     audit: [
       {
@@ -479,6 +575,11 @@ export function buildSeedState(): StoreState {
       },
     },
     products: demoProducts,
+    // The demo business carries a ledger too — a sample shop where stock moved
+    // with reasons, so an owner can read a movement history before trusting
+    // their own. Nothing here is fiction dressed as the owner's data: it lives
+    // only behind the clearly-marked demo mode.
+    stockMovements: buildSampleStockMovements(),
     transactions: buildSeedLedger(),
     customers: demoCustomers.map((customer, index) => ({
       id: `customer-${index + 1}`,
@@ -529,7 +630,7 @@ export type StoreActions = {
     customerName?: string;
     /** Where the lines came from — a scanned basket is audited as a scan. */
     source?: 'scan' | 'manual';
-  }) => ActionResult;
+  }) => SaleResult;
   recordExpense: (input: { category: string; amount: number; method: PaymentMethod }) => ActionResult;
   addCustomer: (input: { name: string; phone?: string; email?: string; details?: string; bank?: BankDetails }) => ActionResult;
   updateCustomer: (customerId: string, patch: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'details' | 'bank' | 'openingBalance'>>) => ActionResult;
@@ -708,6 +809,9 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       scanEvents: Array.isArray(parsed.scanEvents) ? parsed.scanEvents : [],
       biometricCredentials: Array.isArray(parsed.biometricCredentials) ? parsed.biometricCredentials : [],
       appointments: Array.isArray(parsed.appointments) ? parsed.appointments : [],
+      // Ledgers written before the stock ledger shipped have no movements. They
+      // are reported as "unchained" on the inventory page rather than invented.
+      stockMovements: Array.isArray(parsed.stockMovements) ? parsed.stockMovements : [],
     });
 
     const looksValid = (value: StoreState | undefined): value is StoreState =>
@@ -875,11 +979,30 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       if (input.sellingPrice < 0 || input.cost < 0 || input.stock < 0) {
         return { ok: false, error: 'Prices and stock cannot be negative.' };
       }
+      const productId = newId('p');
+      const name = input.name.trim();
       setState((current) => ({
         ...current,
-        products: [...current.products, { ...input, id: newId('p'), name: input.name.trim() }],
+        products: [...current.products, { ...input, id: productId, name }],
+        // Opening stock is a movement like any other: the first balance on the
+        // item's ledger is the count the owner typed, not an unexplained number.
+        stockMovements: pushMovements(current.stockMovements, [
+          input.itemType === 'product'
+            ? buildMovement({
+                id: newId('mv'),
+                productId,
+                productName: name,
+                at: new Date().toISOString(),
+                reason: 'opening',
+                delta: input.stock,
+                balanceBefore: 0,
+                note: `New item${input.category ? ` in ${input.category}` : ''} — opening count ${input.stock}${input.unit ? ` ${input.unit}` : ''}`,
+                unit: unitFor(input.itemType, input.unit),
+              })
+            : null,
+        ]),
       }));
-      track('product', `Product \"${input.name.trim()}\" added to the catalog.`);
+      track('product', `Product \"${name}\" added to the catalog.`);
       return { ok: true };
     },
 
@@ -916,6 +1039,10 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
       const date = todayISO();
       const label = customerName?.trim() || undefined;
+      const at = new Date().toISOString();
+      const saleReference = newId('sale');
+      /** The ledger lines this sale writes — returned so the counter can show them. */
+      const stockChanges: StockMovement[] = [];
 
       setState((current) => {
         const newTransactions: Transaction[] = buildRevenueTransactions(
@@ -947,9 +1074,31 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // The stock ledger: one line per item that left the shelf, carrying the
+        // balance the owner can go and count. This is what makes "108 became
+        // 105" checkable instead of merely asserted.
+        const movements = validLines.map((line) => {
+          const product = current.products.find((item) => item.id === line.productId);
+          if (!product || product.itemType !== 'product') return null;
+          return buildMovement({
+            id: newId('mv'),
+            productId: product.id,
+            productName: product.name,
+            at,
+            reason: 'sale',
+            delta: -line.quantity,
+            balanceBefore: product.stock,
+            note: `${source === 'scan' ? 'Scanned sale' : 'Sold'} — ${line.quantity} × ${product.name}${label ? ` to ${label}` : ''}`,
+            reference: saleReference,
+            unit: unitFor(product.itemType, product.unit),
+          });
+        });
+        stockChanges.splice(0, stockChanges.length, ...movements.filter((movement): movement is StockMovement => movement !== null));
+
         return {
           ...current,
           transactions: [...current.transactions, ...newTransactions],
+          stockMovements: pushMovements(current.stockMovements, movements),
           products: current.products.map((product) => {
             const line = validLines.find((entry) => entry.productId === product.id);
             if (!line || product.itemType !== 'product') return product;
@@ -964,7 +1113,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ? `Scanned sale of ${formatAuditAmount(total)} recorded via ${method} — ${scannedUnits} line(s) read at the counter${label ? ` for ${label}` : ''}.`
           : `Sale of ${formatAuditAmount(total)} recorded via ${method}${label ? ` for ${label}` : ''}.`,
       );
-      return { ok: true };
+      return { ok: true, stockChanges };
     },
 
     recordPlanEvent(summary) {
@@ -1315,7 +1464,26 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         looseMode: itemType === 'service' ? undefined : looseMode ?? 'none',
         ...(slot === 'barcode' ? { barcode: clean } : { internalCode: clean }),
       };
-      setState((current) => ({ ...current, products: [...current.products, product] }));
+      setState((current) => ({
+        ...current,
+        products: [...current.products, product],
+        // A brand-new item still starts its ledger: the opening count is the
+        // first movement, so the shelf is never a number without a reason.
+        stockMovements: pushMovements(current.stockMovements, [
+          buildMovement({
+            id: newId('mv'),
+            productId,
+            productName: product.name,
+            at: new Date().toISOString(),
+            reason: 'opening',
+            delta: product.stock,
+            balanceBefore: 0,
+            note: `New item created from scanned code ${clean} — opening count ${product.stock}`,
+            reference: clean,
+            unit: unitFor(product.itemType, product.unit),
+          }),
+        ]),
+      }));
       track(
         'product',
         `Item "${product.name}" created from a scanned code (${clean}) — it is billable at the counter immediately.`,
@@ -1338,6 +1506,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       }
 
       const date = todayISO();
+      const at = new Date().toISOString();
       const received = valid.map((line) => {
         const product = stateRef.current.products.find((item) => item.id === line.productId)!;
         const cost = line.cost ?? product.cost;
@@ -1347,6 +1516,25 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
       setState((current) => ({
         ...current,
+        stockMovements: pushMovements(
+          current.stockMovements,
+          received.map((entry) => {
+            const product = current.products.find((item) => item.id === entry.product.id);
+            if (!product) return null;
+            return buildMovement({
+              id: newId('mv'),
+              productId: product.id,
+              productName: product.name,
+              at,
+              reason: 'goods-inward',
+              delta: entry.line.quantity,
+              balanceBefore: product.stock,
+              note: `Goods received${supplier ? ` from ${supplier}` : ''} — ${entry.line.quantity} × ${product.name} at ${formatAuditAmount(entry.cost)}`,
+              reference: supplier,
+              unit: unitFor(product.itemType, product.unit),
+            });
+          }),
+        ),
         products: current.products.map((product) => {
           const entry = received.find((item) => item.product.id === product.id);
           if (!entry) return product;
@@ -1615,13 +1803,40 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       if (patch.stock !== undefined && (patch.stock < 0 || !Number.isFinite(patch.stock))) {
         return { ok: false, error: 'Stock cannot be negative.' };
       }
-      setState((current) => ({
-        ...current,
-        products: current.products.map((product) =>
-          product.id === productId ? { ...product, ...patch, id: productId } : product,
-        ),
-      }));
-      track('product', 'Product details updated (price/cost/stock/status changes are audited).', productId);
+      let corrected: StockMovement | null = null;
+      setState((current) => {
+        const before = current.products.find((product) => product.id === productId);
+        // A hand-typed stock figure is a *correction*, and the ledger says so:
+        // how much was on the shelf, what the owner counted, and the difference.
+        if (before && patch.stock !== undefined && before.itemType === 'product' && patch.stock !== before.stock) {
+          corrected = buildMovement({
+            id: newId('mv'),
+            productId,
+            productName: before.name,
+            at: new Date().toISOString(),
+            reason: 'count',
+            delta: patch.stock - before.stock,
+            balanceBefore: before.stock,
+            note: `Shelf re-counted — figure corrected from ${before.stock} to ${patch.stock}${patch.stock < before.stock ? ' (shortage: damage, breakage or a miscount)' : ''}`,
+            reference: 'Owner correction',
+            unit: unitFor(before.itemType, before.unit),
+          });
+        }
+        return {
+          ...current,
+          products: current.products.map((product) =>
+            product.id === productId ? { ...product, ...patch, id: productId } : product,
+          ),
+          stockMovements: pushMovements(current.stockMovements, [corrected]),
+        };
+      });
+      track(
+        'product',
+        corrected
+          ? `Stock corrected for ${(corrected as StockMovement).productName} — ${describeStockChange(corrected as StockMovement)}.`
+          : 'Product details updated (price/cost/stock/status changes are audited).',
+        productId,
+      );
       return { ok: true };
     },
 
