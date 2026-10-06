@@ -57,7 +57,7 @@ export default function InsightsPage() {
   const TrendIcon = health.growthTrend === 'down' ? TrendingDown : TrendingUp;
 
   return (
-    <div className="mx-auto max-w-6xl p-6 md:p-8">
+    <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-600"><Brain size={14} /> AI Insights</p>

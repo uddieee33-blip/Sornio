@@ -25,7 +25,7 @@ export default function DashboardPage() {
   const spendToday = expensesToday.reduce((sum, tx) => sum + tx.amount, 0);
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <div className="mb-7 flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-600">Owner Cockpit</p>

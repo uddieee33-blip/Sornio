@@ -13,6 +13,7 @@
 import { useCallback, useState, type ReactNode } from 'react';
 import { Sidebar } from './sidebar';
 import { MobileNav } from './mobile-nav';
+import { MobileBottomNav } from './mobile-bottom-nav';
 import { Topbar } from './topbar';
 import { CommandPalette, useCommandHotkey } from './command-palette';
 import { DemoBanner } from './demo-banner';
@@ -42,12 +43,17 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
       <RouteWarmup />
       <Sidebar />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar onOpenCommand={openPalette} onOpenMobileMenu={openMobileMenu} />
+        <Topbar
+          onOpenCommand={openPalette}
+          onOpenMobileMenu={openMobileMenu}
+          mobileMenuOpen={mobileMenuOpen}
+        />
         <DemoBanner />
         <MobileNav open={mobileMenuOpen} onClose={closeMobileMenu} />
-        <main id="main" className="flex-1">
+        <main id="main" className="mobile-content-space min-w-0 flex-1">
           <PortalGate>{children}</PortalGate>
         </main>
+        <MobileBottomNav menuOpen={mobileMenuOpen} onOpenMenu={openMobileMenu} />
       </div>
       <CommandPalette open={paletteOpen} onClose={closePalette} />
     </div>

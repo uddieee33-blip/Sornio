@@ -10,7 +10,7 @@ export default function SuppliersPage() {
   const totalPayable = demoSuppliers.reduce((sum, supplier) => sum + supplier.payable, 0);
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="People"
         title="Suppliers"

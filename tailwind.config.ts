@@ -48,7 +48,7 @@ const config: Config = {
         'inner-top': 'inset 0 1px 0 0 rgba(255,255,255,0.92)',
       },
       backgroundImage: {
-        'brand-gradient': 'linear-gradient(135deg, #1c5835 0%, #2b7045 58%, #875711 100%)',
+        'brand-gradient': 'linear-gradient(135deg, #347549 0%, #2f7548 58%, #93661d 100%)',
         'page-glow':
           'radial-gradient(1000px 600px at 82% -10%, rgba(198,155,75,0.12), transparent 62%), radial-gradient(900px 520px at 0% 110%, rgba(49,111,65,0.09), transparent 62%)',
         // Sweeps left→right; paired with background-size for shimmer skeletons.
@@ -68,12 +68,17 @@ const config: Config = {
           '0%': { backgroundPosition: '-200% 0' },
           '100%': { backgroundPosition: '200% 0' },
         },
+        'slide-in-left': {
+          '0%': { opacity: '0', transform: 'translateX(-0.75rem)' },
+          '100%': { opacity: '1', transform: 'translateX(0)' },
+        },
       },
       animation: {
         'fade-up': 'fade-up 0.45s cubic-bezier(0.22, 1, 0.36, 1) both',
         'fade-in': 'fade-in 0.4s ease-out both',
         // 1.6s sweep: visible enough to read as "working", slow enough not to nag.
         shimmer: 'shimmer 1.6s linear infinite',
+        'slide-in-left': 'slide-in-left 0.24s cubic-bezier(0.22, 1, 0.36, 1) both',
       },
     },
   },

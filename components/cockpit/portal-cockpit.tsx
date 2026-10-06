@@ -336,7 +336,7 @@ export function PortalCockpit() {
   const tiles = portal.cockpit.tiles.map((tile) => ({ ...tile, reading: resolveMetric(tile.metric, context) }));
 
   return (
-    <div className="relative p-6 md:p-8">
+    <div className="relative p-4 sm:p-6 md:p-8">
       <Suspense fallback={null}>
         <LockedNotice />
       </Suspense>
@@ -346,7 +346,7 @@ export function PortalCockpit() {
       {/* Hero — this business's own colour, question, and words. */}
       <div className="animate-fade-up portal-transition relative overflow-hidden rounded-3xl border border-stone-200 bg-panel shadow-card">
         <div className="portal-wash absolute inset-0" />
-        <div className="relative p-6 md:p-8">
+        <div className="relative p-4 sm:p-6 md:p-8">
           <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
             <div className="max-w-xl">
               <p className="inline-flex items-center gap-2 rounded-full bg-portal/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-portal ring-1 ring-inset ring-portal/25">

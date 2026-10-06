@@ -48,7 +48,7 @@ export default function ProfitabilityPage() {
   const netMargin = financials.revenue > 0 ? (financials.netProfit / financials.revenue) * 100 : 0;
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Money"
         title="Profitability"

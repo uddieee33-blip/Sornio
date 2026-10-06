@@ -61,7 +61,7 @@ export default function BusinessPage() {
   const upiValid = upiId.trim() !== '' && isValidUpiId(upiId.trim());
 
   return (
-    <div className="mx-auto max-w-6xl p-6 md:p-8">
+    <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Business Setup"
         title="Build your business profile"

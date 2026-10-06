@@ -61,34 +61,34 @@ export function PortalGate({ children }: { children: React.ReactNode }) {
   const missing = disabledModules(portal.id);
 
   return (
-    <div className="mx-auto max-w-3xl p-6 md:p-10">
+    <div className="mx-auto max-w-3xl p-4 sm:p-6 md:p-10">
       <div className="animate-fade-up overflow-hidden rounded-3xl bg-white ring-1 ring-stone-200 shadow-card">
-        <div className="portal-surface relative px-6 py-8 text-white md:px-9">
-          <div className="flex items-center gap-3">
+        <div className="portal-surface relative px-4 py-6 text-white sm:px-6 md:px-9 md:py-8">
+          <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 ring-1 ring-inset ring-white/25">
               <Icon size={22} />
             </span>
-            <div>
+            <div className="min-w-0">
               <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-white/70">{portal.tagline}</p>
               <h1 className="font-display text-xl font-bold md:text-2xl">{heading}</h1>
             </div>
           </div>
         </div>
 
-        <div className="space-y-6 p-6 md:p-9">
+        <div className="space-y-6 p-4 sm:p-6 md:p-9">
           <p className="text-sm leading-relaxed text-stone-600">{body}</p>
 
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/business"
-              className="bg-portal-gradient portal-glow inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
+              className="touch-manipulation bg-portal-gradient portal-glow inline-flex min-h-11 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold text-white transition hover:brightness-110"
             >
               <Settings2 size={16} /> {mustChooseType ? 'Choose your business type' : 'Open Business Setup'}
             </Link>
             <button
               type="button"
               onClick={() => router.push('/home')}
-              className="inline-flex items-center gap-2 rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-900 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200"
+              className="touch-manipulation inline-flex min-h-11 items-center gap-2 rounded-xl bg-stone-100 px-4 py-2.5 text-sm font-semibold text-stone-900 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200"
             >
               <Lock size={15} /> Back to {nav[0]?.links[0]?.label ?? 'the cockpit'}
             </button>

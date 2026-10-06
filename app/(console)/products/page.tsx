@@ -162,7 +162,7 @@ export default function ProductsPage() {
   const selectedStats = selected ? productStats.get(selected.id) : undefined;
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Catalog"
         title="Products & Services"
@@ -372,7 +372,7 @@ export default function ProductsPage() {
                       setMessage({ tone: result.ok ? 'ok' : 'error', text: result.ok ? 'Internal code minted — print its label from the Scan Station.' : result.error ?? 'Could not mint a code.' });
                       if (result.ok) setSelected(null);
                     }}
-                    className="rounded-lg bg-stone-900 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:brightness-110"
+                    className="touch-manipulation min-h-11 rounded-lg bg-portal-gradient px-2.5 py-1.5 text-[11px] font-bold text-white shadow-glow-sm transition hover:brightness-110"
                   >
                     Mint internal code
                   </button>
