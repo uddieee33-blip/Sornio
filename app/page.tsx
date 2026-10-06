@@ -755,7 +755,7 @@ export default function LandingPage() {
             <div>
               <span className="font-display text-sm font-bold text-stone-900">DukaanOS</span>
               <p className="text-[10px] font-medium tracking-[0.08em] text-brand-600">Smarter Business. Bigger Dreams.</p>
-              <p className="text-[11px] text-stone-600">Available in 22 Indian languages · हिन्दी · ਪੰਜਾਬੀ · मराठी · বাংলা · தமிழ்…</p>
+              <p className="text-[11px] text-stone-600">English + all 22 scheduled Indian languages · हिन्दी · ਪੰਜਾਬੀ · मराठी · বাংলা · தமிழ்…</p>
             </div>
           </div>
           <p className="text-xs text-stone-600">Billing · Inventory · Memberships · UPI QR · AI insights — for Indian businesses.</p>

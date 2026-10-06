@@ -239,6 +239,33 @@ are deciding whether to trust it: **108 packets of kidney beans, three sold,
 becomes 105** — then a delivery, a re-count, an oversell clamp, a tampered
 figure and the ledger cap.
 
+## Languages — the whole product, not one tagline
+
+DukaanOS ships in **English plus all 22 languages in the Eighth Schedule of the
+Constitution of India**: Assamese, Bengali, Bodo, Dogri, Gujarati, Hindi,
+Kannada, Kashmiri, Konkani, Maithili, Malayalam, Manipuri (Meitei), Marathi,
+Nepali, Odia, Punjabi, Sanskrit, Santali, Sindhi, Tamil, Telugu, and Urdu.
+
+The language picker is available on both the public site and every console
+screen. A selection persists on the device and updates visible copy, dynamic
+status/error messages, form placeholders, tooltips, and accessibility labels.
+Urdu, Kashmiri, and Sindhi also switch the document to right-to-left direction.
+Locale files are static same-origin assets, so the running app never sends shop
+copy or customer data to a translation service.
+
+The catalogue workflow is deliberately testable:
+
+```bash
+npm run i18n:extract   # rebuild locales/en.json from every TS/TSX screen
+npm run i18n:generate  # maintainer task: generate the 22 static catalogues
+npm run verify:i18n    # exact key, interpolation-slot, and coverage checks
+```
+
+`lib/i18n.tsx` applies those catalogues to authored copy while preserving live
+values such as customer names, amounts, and product codes. New UI copy is picked
+up by the syntax-tree extractor; CI then refuses a locale with missing phrases
+or broken dynamic placeholders.
+
 ## Architecture
 
 - **`lib/portals/`** — the portal system, pure data first so Edge middleware can enforce what the UI renders:

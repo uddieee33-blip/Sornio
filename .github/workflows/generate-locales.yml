@@ -1,0 +1,45 @@
+name: Generate complete locale catalogues
+
+on:
+  push:
+    branches:
+      - arena/cc22b3f8-dukaanos
+    paths:
+      - .github/workflows/generate-locales.yml
+      - locales/en.json
+      - locales/curated.json
+      - scripts/translate-catalog.mjs
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-dukaanos-locales
+  cancel-in-progress: false
+
+jobs:
+  translate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/cc22b3f8-dukaanos
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Generate all 22 locale catalogues
+        env:
+          I18N_CONCURRENCY: '3'
+        run: node scripts/translate-catalog.mjs
+      - name: Verify catalogue completeness
+        run: node scripts/verify-i18n.mjs
+      - name: Commit generated locale assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/locales
+          git commit -m "Add complete translations for all 22 scheduled Indian languages"
+          git push origin HEAD:arena/cc22b3f8-dukaanos
