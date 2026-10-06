@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import Link from 'next/link';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
+import { CaptureReadinessCard } from '@/components/scanning/capture-readiness';
 import { disabledModules } from '@/lib/portals/registry';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 
@@ -188,6 +189,9 @@ export default function SettingsPage() {
               ))}
             </div>
           </Card>
+
+          {/* What this device can actually do for this trade. */}
+          <CaptureReadinessCard />
 
           {/* Console shape — one source of truth, no contradicting switches */}
           <Card className="animate-fade-up">

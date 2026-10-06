@@ -7,7 +7,7 @@
 
 import { CORE_MODULES, entryForHref, MODULE_CATALOGUE } from './catalogue';
 import { DEFAULT_PORTAL_ID, PORTAL_BLUEPRINTS } from './blueprints';
-import type { ModuleKey, PortalBlueprint, PortalId } from './types';
+import type { CaptureChannel, ModuleKey, PortalBlueprint, PortalCapture, PortalId } from './types';
 
 const BY_ID = new Map<PortalId, PortalBlueprint>(PORTAL_BLUEPRINTS.map((portal) => [portal.id, portal]));
 const BY_TEMPLATE = new Map<string, PortalBlueprint>(PORTAL_BLUEPRINTS.map((portal) => [portal.templateId, portal]));
@@ -72,6 +72,31 @@ export function disabledModules(id: unknown): { module: ModuleKey; label: string
 /** The template id used by onboarding / business setup for a portal. */
 export function templateIdForPortal(id: unknown): string {
   return portalById(id).templateId;
+}
+
+/**
+ * How this trade reads a code or a finger at its desk.
+ *
+ * The screens read this instead of hard-coding "gyms have a fingerprint pad":
+ * the `/check-ins` kiosk appears because the blueprint says the trade uses a
+ * fingerprint, and the `/scan` station explains what this trade scans and why
+ * the other channels were left out.
+ */
+export function captureForPortal(id: unknown): PortalCapture {
+  return portalById(id).capture;
+}
+
+/** Every channel any shipped trade uses — for the setup and trust screens. */
+export const ALL_CAPTURE_CHANNELS: CaptureChannel[] = ['barcode', 'qr', 'fingerprint', 'keypad'];
+
+/** Does this trade use a channel at all? Cheap, and reads well at the call site. */
+export function portalUsesChannel(id: unknown, channel: CaptureChannel): boolean {
+  return captureForPortal(id).channels.includes(channel);
+}
+
+/** The scan station is a module like any other: the edge enforces it either way. */
+export function portalScans(id: unknown): boolean {
+  return portalHasModule(id, 'scan');
 }
 
 /** Human labels for a portal's modules, in this trade's words (setup screen). */

@@ -32,6 +32,7 @@ export const MODULE_CATALOGUE: CatalogueEntry[] = [
   { module: 'alerts', href: '/alerts', label: 'Alerts', icon: 'alerts', keywords: 'warnings stock expiry attention' },
   { module: 'business', href: '/business', label: 'Business Setup', icon: 'business', keywords: 'profile portal template type switch', core: true },
   { module: 'catalog', href: '/products', label: 'Products', icon: 'catalog', keywords: 'catalog items price cost menu services' },
+  { module: 'scan', href: '/scan', label: 'Scan Station', icon: 'scan', keywords: 'barcode barcodes scan scanner qr label code sticker imei weigh scale' },
   { module: 'inventory', href: '/inventory', label: 'Inventory', icon: 'inventory', keywords: 'stock levels pantry shelves reorder' },
   { module: 'checkins', href: '/check-ins', label: 'Check-ins', icon: 'checkins', keywords: 'attendance floor entry today who is in' },
   { module: 'appointments', href: '/appointments', label: 'Appointments', icon: 'appointments', keywords: 'bookings day book calendar slot' },

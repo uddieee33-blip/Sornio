@@ -16,6 +16,27 @@ export type Product = {
   sku?: string;
   /** Unit of measure, e.g. pcs, kg, hour */
   unit?: string;
+  /**
+   * The printed retail barcode — EAN-13, EAN-8, UPC-A or the ITF-14 case code
+   * on a carton — or a supplier's own Code 128 reference. This is the code the
+   * scanner at the counter reads (see `lib/scanning`).
+   */
+  barcode?: string;
+  /**
+   * The shop's own scannable code, for everything that will never carry a
+   * manufacturer barcode: loose grain, house brands, stitched stock, spare
+   * parts. Minted by DukaanOS with a check digit, printed as Code 128.
+   */
+  internalCode?: string;
+  /**
+   * How this item is read when there is nothing to scan:
+   * `weight` — the counter scale prints the weight onto an in-store label;
+   * `price`  — the scale prints the amount instead;
+   * `none`   — a plain packet or piece.
+   */
+  looseMode?: 'none' | 'weight' | 'price';
+  /** For loose items: the shop's short counter number used on weigh-scale labels. */
+  scaleNumber?: number;
 };
 
 /** A sold line item recorded on the sale transaction for full traceability. */
@@ -38,10 +59,14 @@ export type Transaction = {
 export const emptyTransactions: Transaction[] = [];
 
 export const demoProducts: Product[] = [
-  { id: 'p1', name: 'Organic Soap', category: 'Personal Care', itemType: 'product', sellingPrice: 280, cost: 130, stock: 18, reorderLevel: 8, status: 'Active', supplier: 'Urban Goods Co.' },
-  { id: 'p2', name: 'Signature Tea', category: 'Food', itemType: 'product', sellingPrice: 120, cost: 56, stock: 32, reorderLevel: 10, status: 'Active', supplier: 'Fresh Harvest' },
+  { id: 'p1', name: 'Organic Soap', category: 'Personal Care', itemType: 'product', sellingPrice: 280, cost: 130, stock: 18, reorderLevel: 8, status: 'Active', supplier: 'Urban Goods Co.', sku: 'SOAP-001', unit: 'pcs', barcode: '8901234567890' },
+  { id: 'p2', name: 'Signature Tea', category: 'Food', itemType: 'product', sellingPrice: 120, cost: 56, stock: 32, reorderLevel: 10, status: 'Active', supplier: 'Fresh Harvest', sku: 'TEA-500', unit: 'pcs', barcode: '8902345678901' },
   { id: 'p3', name: 'Web Design Package', category: 'Services', itemType: 'service', sellingPrice: 15000, cost: 6500, stock: 0, reorderLevel: 0, status: 'Active', supplier: 'Creative Studio' },
-  { id: 'p4', name: 'Bamboo Mug', category: 'Home', itemType: 'product', sellingPrice: 499, cost: 260, stock: 12, reorderLevel: 15, status: 'Inactive', supplier: 'Daily Needs Supply' },
+  { id: 'p4', name: 'Bamboo Mug', category: 'Home', itemType: 'product', sellingPrice: 499, cost: 260, stock: 12, reorderLevel: 15, status: 'Inactive', supplier: 'Daily Needs Supply', sku: 'MUG-01', unit: 'pcs', barcode: '8903456789012' },
+  // A loose item, so the demo shows the other half of scanning: no barcode on
+  // the sack, a DukaanOS internal code on the scale label, weight carried in
+  // the code itself.
+  { id: 'p5', name: 'Loose Almonds', category: 'Dry Fruit', itemType: 'product', sellingPrice: 900, cost: 640, stock: 12, reorderLevel: 4, status: 'Active', supplier: 'Fresh Harvest', unit: 'kg', internalCode: 'DK000000042', looseMode: 'weight', scaleNumber: 1 },
 ];
 
 // Demo transactions for testing

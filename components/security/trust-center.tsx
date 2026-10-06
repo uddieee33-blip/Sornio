@@ -350,6 +350,18 @@ export function TrustCenter() {
           DukaanOS is not one: customers pay you directly.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
+          <strong className="font-semibold text-stone-700">No fingerprints either.</strong> The fingerprint pad at a
+          front desk uses the sensor the device already has, through the browser&apos;s WebAuthn API. The sensor matches
+          the finger in hardware and returns a credential id; that id is all this app ever stores — never an image, never
+          a template, never a hash of one. Deleting the enrolment is the whole of forgetting the finger, and a finger can
+          only ever record a visit: it cannot move money.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-stone-600">
+          Camera scanning is the same idea in the other direction: barcodes are decoded on the device by the browser
+          itself, frames are never uploaded, and there is no server-side image pipeline to upload them to. On a browser
+          with no built-in decoder, DukaanOS says so and the counter keeps working on a hardware scanner or the keypad.
+        </p>
+        <p className="mt-3 text-sm leading-relaxed text-stone-600">
           Diagnostics are scrubbed before they leave a module — phone numbers, emails, UPI ids, tokens, and any 13–19 digit
           sequence are masked on the way in, so a bug report can never contain a customer’s identity.
         </p>

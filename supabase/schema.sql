@@ -507,3 +507,72 @@ ALTER TABLE marketing_campaigns ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Business members manage marketing campaigns" ON marketing_campaigns
   FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
   WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- ============================================================================
+-- Increment 8: scanning & capture (barcodes at the counter, fingers at the desk)
+--
+-- Two records live here. `scan_events` is the log of what a counter actually
+-- read — including the reads that matched nothing, which is the queue of items
+-- still waiting for a code. `biometric_credentials` stores the *credential id*
+-- a platform authenticator returns and nothing else: no fingerprint image, no
+-- template, no biometric hash exists in this schema, because the WebAuthn API
+-- never exposes one (see lib/scanning/fingerprint.ts). Deleting the row is the
+-- whole of "forget this finger".
+-- ============================================================================
+
+ALTER TABLE products ADD COLUMN IF NOT EXISTS barcode TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS internal_code TEXT;
+ALTER TABLE products ADD COLUMN IF NOT EXISTS loose_mode TEXT CHECK (loose_mode IN ('none','weight','price'));
+ALTER TABLE products ADD COLUMN IF NOT EXISTS scale_number INTEGER;
+
+-- One code, one item — per shop. A duplicate here would make a scan ambiguous.
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_barcode_unique
+  ON products (business_id, UPPER(barcode)) WHERE barcode IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_products_internal_code_unique
+  ON products (business_id, UPPER(internal_code)) WHERE internal_code IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS scan_events (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  code TEXT NOT NULL,
+  symbology TEXT,
+  source TEXT NOT NULL CHECK (source IN ('wedge','camera','manual','import')),
+  context TEXT NOT NULL CHECK (context IN ('counter','inward','catalog','label','link')),
+  outcome TEXT NOT NULL CHECK (outcome IN ('matched','ambiguous','unmatched','invalid')),
+  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+  product_name TEXT,
+  quantity NUMERIC(12,3),
+  scanned_by TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS biometric_credentials (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  member_id UUID NOT NULL REFERENCES members(id) ON DELETE CASCADE,
+  -- The authenticator's credential id (base64url). Not a biometric template:
+  -- the sensor keeps the finger, this row only remembers which member it was.
+  credential_id TEXT NOT NULL,
+  attachment TEXT NOT NULL DEFAULT 'platform' CHECK (attachment IN ('platform')),
+  label TEXT,
+  use_count INTEGER NOT NULL DEFAULT 0,
+  last_used_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  UNIQUE (business_id, credential_id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_scan_events_business_id ON scan_events (business_id);
+CREATE INDEX IF NOT EXISTS idx_scan_events_code ON scan_events (business_id, code);
+CREATE INDEX IF NOT EXISTS idx_biometric_credentials_business_id ON biometric_credentials (business_id);
+CREATE INDEX IF NOT EXISTS idx_biometric_credentials_member_id ON biometric_credentials (member_id);
+
+ALTER TABLE scan_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE biometric_credentials ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Business members manage scan events" ON scan_events
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+CREATE POLICY "Business members manage biometric credentials" ON biometric_credentials
+  FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
+  WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));

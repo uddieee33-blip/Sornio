@@ -116,6 +116,11 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
       reorder_level: product.reorderLevel,
       sku: product.sku ?? null,
       unit: product.unit ?? null,
+      // The codes a counter scanner reads, and how a loose item is weighed.
+      barcode: product.barcode ?? null,
+      internal_code: product.internalCode ?? null,
+      loose_mode: product.looseMode ?? null,
+      scale_number: product.scaleNumber ?? null,
       active: product.status === 'Active',
     }));
     const { error } = await supabase.from('products').insert(rows);
@@ -172,6 +177,59 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
     if (error) return { ok: false, error: `marketing_campaigns: ${error.message}` };
   }
 
+  // ---- Scan events (the counter's read log, including unmatched codes) ----
+  const { error: scanDeleteError } = await supabase.from('scan_events').delete().eq('business_id', businessId);
+  if (scanDeleteError) return { ok: false, error: `scan_events: ${scanDeleteError.message}` };
+  if (state.scanEvents.length > 0) {
+    const scanRows = state.scanEvents.slice(0, 500).map((event) => ({
+      business_id: businessId,
+      code: event.code,
+      symbology: event.symbology,
+      source: event.source,
+      context: event.context,
+      outcome: event.outcome,
+      // Product ids are minted client-side and re-created on push, so the
+      // readable name travels with the row; the link is best-effort.
+      product_id: null,
+      product_name: event.productName ?? null,
+      quantity: event.quantity ?? null,
+      scanned_by: event.by ?? null,
+      created_at: event.at,
+    }));
+    const { error } = await supabase.from('scan_events').insert(scanRows);
+    if (error) return { ok: false, error: `scan_events: ${error.message}` };
+  }
+
+  // ---- Fingerprint enrolments (credential ids only — never biometric data) ----
+  const { error: biometricDeleteError } = await supabase.from('biometric_credentials').delete().eq('business_id', businessId);
+  if (biometricDeleteError) return { ok: false, error: `biometric_credentials: ${biometricDeleteError.message}` };
+  if (state.biometricCredentials.length > 0) {
+    const memberRows = await supabase.from('members').select('id, name').eq('business_id', businessId);
+    const memberIdByName = new Map<string, string>(
+      (memberRows.data ?? []).map((row) => [String(row.name), String(row.id)]),
+    );
+    const biometricRows = state.biometricCredentials.flatMap((credential) => {
+      const memberId = memberIdByName.get(credential.memberName);
+      if (!memberId) return [];
+      return [
+        {
+          business_id: businessId,
+          member_id: memberId,
+          credential_id: credential.credentialId,
+          attachment: credential.attachment,
+          label: credential.label,
+          use_count: credential.useCount,
+          last_used_at: credential.lastUsedAt ?? null,
+          created_at: credential.createdAt,
+        },
+      ];
+    });
+    if (biometricRows.length > 0) {
+      const { error } = await supabase.from('biometric_credentials').insert(biometricRows);
+      if (error) return { ok: false, error: `biometric_credentials: ${error.message}` };
+    }
+  }
+
   // ---- Audit log (append-only) ----
   if (state.audit.length > 0) {
     const auditRows = state.audit.slice(0, 50).map((entry) => ({
@@ -217,14 +275,33 @@ export async function pullStateFromSupabase(): Promise<{ ok: boolean; error?: st
   const cached = getCachedBusinessId();
   if (!cached) return { ok: false, error: 'No business connected on this device yet.' };
 
-  const [{ data: productRows }, { data: txRows }, { data: customerRows }] = await Promise.all([
-    supabase.from('products').select('*').eq('business_id', cached),
-    supabase.from('transactions').select('*').eq('business_id', cached).order('created_at', { ascending: true }),
-    supabase.from('customers').select('*').eq('business_id', cached),
-  ]);
+  const [{ data: productRows }, { data: txRows }, { data: customerRows }, { data: scanRows }, { data: credentialRows }] =
+    await Promise.all([
+      supabase.from('products').select('*').eq('business_id', cached),
+      supabase.from('transactions').select('*').eq('business_id', cached).order('created_at', { ascending: true }),
+      supabase.from('customers').select('*').eq('business_id', cached),
+      // Capture records: the scan log and the enrolled credential ids. Both are
+      // additive to the catalogue above, so a missing table (an older project
+      // that has not run Increment 8 yet) must not turn the whole pull into an
+      // error — the summary simply says they are not there.
+      supabase.from('scan_events').select('code, outcome').eq('business_id', cached),
+      supabase.from('biometric_credentials').select('member_id, credential_id, use_count').eq('business_id', cached),
+    ]);
+
+  const products = productRows ?? [];
+  const coded = products.filter(
+    (row) => (typeof row.barcode === 'string' && row.barcode !== '') || (typeof row.internal_code === 'string' && row.internal_code !== ''),
+  ).length;
+  const unmatched = (scanRows ?? []).filter((row) => row.outcome === 'unmatched').length;
+
+  const capture: string[] = [];
+  if (coded > 0) capture.push(`, ${coded} carrying a scannable code`);
+  if (scanRows) capture.push(`, ${scanRows.length} scans on record${unmatched > 0 ? ` (${unmatched} still waiting for a code)` : ''}`);
+  if (credentialRows) capture.push(`, ${credentialRows.length} fingerprint enrolment${credentialRows.length === 1 ? '' : 's'}`);
+  if (scanRows === null && credentialRows === null) capture.push('; no capture tables found — run the scanning section of supabase/schema.sql');
 
   return {
     ok: true,
-    summary: `Found ${(productRows?.length ?? 0)} products, ${(txRows?.length ?? 0)} ledger entries, ${(customerRows?.length ?? 0)} customers for this business.`,
+    summary: `Found ${products.length} products${capture.join('')}, ${(txRows?.length ?? 0)} ledger entries, ${(customerRows?.length ?? 0)} customers for this business.`,
   };
 }

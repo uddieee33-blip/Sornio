@@ -10,7 +10,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowRight, CornerDownLeft, Search, Sparkles } from 'lucide-react';
+import { ArrowRight, CornerDownLeft, ScanBarcode, Search, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
@@ -96,6 +96,18 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
         icon: Sparkles,
         keywords: 'new sale sell checkout counter',
         run: () => router.push('/sales'),
+      },
+      {
+        // Only exists for a trade whose desk actually scans — the portal filter
+        // below drops it from a gym or a salon without a word.
+        id: 'action:scan',
+        href: '/scan',
+        label: `Scan at the ${portal.capture.label.toLowerCase()}`,
+        hint: portal.capture.what,
+        group: 'Actions',
+        icon: ScanBarcode,
+        keywords: 'scan barcode scanner packet label weigh loose qr imei counter',
+        run: () => router.push('/scan'),
       },
       {
         id: 'action:expense',

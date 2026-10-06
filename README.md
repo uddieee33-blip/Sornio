@@ -59,7 +59,8 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 | `/appointments` | The day book for salons, clinics and service studios; completing a slot records the revenue once |
 | `/dashboard` | Business reality dashboard with alerts |
 | `/business` | Business setup with type-specific templates |
-| `/products`, `/inventory`, `/suppliers` | Full catalog CRUD (add/edit/archive), stock, supply chain |
+| `/scan` | **Scan Station** — counter scan, goods-inward scan, unmatched-code triage, printable labels (only for trades that scan) |
+| `/products`, `/inventory`, `/suppliers` | Full catalog CRUD (add/edit/archive), barcode capture, stock, supply chain |
 | `/sales`, `/billing`, `/payments`, `/expenses` | Money in and money out (Cash/UPI/Card/Bank Transfer/Other) |
 | `/cashflow`, `/profitability` | Cash movements by account · margins & per-product profit |
 | `/transactions`, `/reports`, `/comparisons` | Ledger traceability and analysis |
@@ -71,6 +72,97 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 | `/audit` | Real, timestamped audit history of every financial change |
 | `/insights` | AI business health score, insights, growth tips |
 | `/alerts`, `/settings` | Notifications, interactive preferences, audit trail |
+
+## Scanning & capture — barcodes at the counter, fingers at the desk
+
+Scanning is not a feature bolted onto billing; it is how a counter is *meant* to
+work. So it is declared per trade in the same blueprint that decides everything
+else, and it is enforced the same way: the **Scan Station** is a module, so a
+trade that does not scan cannot reach it (middleware → `/home?locked=scan`).
+
+| Trade | Capture at the desk | Prints labels for |
+| --- | --- | --- |
+| **Kirana & Grocery** | Barcode scanner, typed code | Shelf and loose-item labels |
+| **Cafe & Restaurant** | Barcode scanner, typed code | Packaged and loose items |
+| **Electronics & Mobiles** | Barcode scanner, typed code | Serial / IMEI and shelf labels |
+| **Boutique & Fashion** | Barcode scanner, typed code | Size and shelf labels |
+| **General Business** | Barcode, fingerprint, typed code | Everything |
+| **Gym & Fitness** | **Fingerprint pad**, typed lookup | — a gym's desk reads fingers, not packets |
+| **Salon & Spa** | Typed lookup | — services are billed, not scanned |
+| **Services & Studio** | QR / job tags, typed lookup | Job tags |
+
+### At the counter
+
+A code gets in one of three ways, and all three end in the same resolver
+(`lib/scanning/match.ts`), so a scanned bill and a typed bill are the same bill:
+
+1. **Handheld scanner (keyboard wedge)** — the channel most Indian shops already
+   own. A USB or Bluetooth scanner *is* a keyboard that types very fast, so
+   there is nothing to pair, no driver, and no browser permission to grant. The
+   scanner bar detects the typing burst and commits on `Enter`.
+2. **Camera** — decoded **on the device** by the browser's own `BarcodeDetector`.
+   No frame is ever uploaded: DukaanOS has no server-side image pipeline.
+3. **Typed** — the fallback that always works, and it is validated exactly like a
+   scan. A GTIN whose check digit fails is refused with the reason shown, so a
+   mistyped code never becomes a wrong bill.
+
+A read resolves to exactly one of four answers, and the counter never guesses:
+
+- **matched** — one item claims the code; it is added, and scanning the same
+  packet again stacks the line (`3 ×`) instead of making a second line.
+- **ambiguous** — two items claim the same code. Both are named and the bill
+  waits for the catalogue to be fixed; the wrong item would move the wrong stock.
+- **unmatched** — nobody claims it yet. This is the most useful outcome in the
+  feature: the shop is telling the owner which packet still needs a code on
+  file, and the Scan Station turns that into one tap ("attach this code").
+- **invalid** — a check digit failed, so it is a misread.
+
+### Loose goods, house brands, and labels you can print
+
+Anything that will never carry a manufacturer barcode — loose grain, a house
+brand, stitched stock, spare parts — gets a **DukaanOS internal code**
+(`DK` + 8 digits + a Luhn check, printed as Code 128), minted on the device.
+A weigh-scale item also gets a **scale number**, and the label the shop prints
+for it is a real **in-store EAN-13** (`2` + unit + item + weight/price + check
+digit), which means an ordinary retail scanner reads it — no proprietary scale
+protocol, no cloud, no font, no image. Labels render as pure SVG (`BarcodeSvg`),
+so printing works offline.
+
+Weight labels bill weight, price labels bill exactly the amount the scale
+printed (`₹ ÷ selling price`), and neither can be edited into the wrong figure at
+the counter. Repeat scans of a weighed packet never merge — two weighings are
+two weights.
+
+### Fingerprint check-in at the gym
+
+The gym desk uses the sensor the device already has, through **WebAuthn
+(platform authenticator)**. The sensor matches the finger in hardware and returns
+a **credential id**; that id is the only thing DukaanOS stores. No fingerprint
+image, no template, no hash of one, nothing to leak — and a finger can only ever
+record a visit, never move money. Enrolment is per member and per device, a
+member can be un-enrolled from the same screen, and if the device has no reader
+the kiosk says so plainly and the front desk keeps working on phone lookup.
+
+### Camera permission is scoped, not global
+
+Barcode scanning needs the camera and fingerprint check-in needs the WebAuthn
+API, but neither is a reason to hand the whole console those capabilities.
+`lib/security/policy.json` grants them **per route**: `camera=(self)` only on
+`/scan`, `/sales` and `/products`; `publickey-credentials-create/get=(self)` only
+on `/check-ins`; everything else in the app keeps `camera=()` and the rest of the
+deny-by-default list. Middleware (`buildPermissionsPolicy(pathname)`) and
+`next.config.js` both read that one file, so the two layers cannot disagree.
+
+### Verified, not claimed
+
+`npm run verify:scanning` compiles the pure scanning modules with the project's
+own TypeScript and checks them against published examples — GTIN check digits for
+known EAN-13/EAN-8/UPC-A/ITF-14 codes, an EAN-13 round-trip decode, Code 128
+start/switch/stop patterns and the specification's worked check-symbol example,
+Luhn internal codes, the in-store label round trip, and the scan → ticket path
+(matched, ambiguous, unmatched, invalid; stacking; weighed lines). Nothing in
+that script talks to the network, and nothing is mocked: it runs the same code
+the counter runs.
 
 ## Architecture
 
@@ -91,6 +183,14 @@ Every business gets a subset of these, labelled in its own words — see *Portal
   - `membership.ts` — plans, members, subscriptions, reminder templates, expiry derivation
   - `insights.ts` — insights, AI tips, and business health scoring shapes
 - **`lib/services/ai-insights.ts`** — `AiInsightsEngine` computes the health score, live insights, and growth tips from snapshots, invoices, and subscriptions.
+- **`lib/scanning/`** — the capture layer, pure data first so the counter logic is testable without a browser:
+  - `types.ts` — `CaptureChannel`, `ScanSource`, `ScanContext`, `ScanOutcome`, `ScanEvent`, `BiometricCredential`, `CaptureReadiness`
+  - `barcodes.ts` — reading: GTIN check digits, internal codes (Luhn), in-store weigh/price labels, symbology guessing, plain-language profiling
+  - `encoder.ts` — printing: EAN-13 / EAN-8 / UPC-A / Code 128 (automatic set C), module geometry, quiet zones, captions
+  - `match.ts` — code → catalogue resolution (`matched` / `ambiguous` / `unmatched` / `invalid`) with weigh-label quantities
+  - `counter.ts` — the scan ticket: stacking rules, weighed lines, totals
+  - `device.ts`, `fingerprint.ts` — what this device can do, and WebAuthn enrol/verify (credential ids only)
+  - `components/scanning/` — the wedge/camera/typed scanner, the printable label sheet, the SVG barcode, the fingerprint pad, the readiness card
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
 - **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, raise/collect invoices, check members in and out, and run a booking day book; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
 - **`lib/sync/supabase-sync.ts`** — the persistence adapter bridging the live store to the multi-tenant schema. It provisions the owner's `businesses` + `business_members` row, then pushes products, ledger entries, customers, campaigns, audit, and settings, all scoped by `business_id`.
@@ -112,6 +212,8 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 
 `supabase/schema.sql` defines a multi-tenant relational schema — 26 tables, every business-owned record carrying `business_id`, with primary keys, foreign keys, indexes, constraints, and `created_at`/`updated_at` timestamps. Highlights: `businesses`, `business_members`, `customers`, `suppliers`, `categories`, `products`, `sales`, `sale_items`, `payment_methods`, `payments`, `expenses`, `inventory_movements`, `transactions`, `audit_logs`, `invoices`, `membership_plans`, `members`, `membership_subscriptions`, `marketing_campaigns`, and more.
 
+**Capture records** (Increment 8 of the schema) extend the same multi-tenant model: `products` gains `barcode`, `internal_code`, `loose_mode`, and `scale_number` with per-business uniqueness on both codes, and two new tables record how a counter works — `scan_events` (what was read, where, and what came of it) and `biometric_credentials` (a member's WebAuthn credential id and use count — never a fingerprint).
+
 **Row Level Security** is enabled on every tenant table with policies scoped to `business_members` — one business can never read or write another business's rows.
 
 ## Persistence & sync (local-first)
@@ -119,7 +221,7 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 The store is **local-first by design**, so the console works fully even before a Supabase project is connected:
 
 - **No Supabase credentials** → all data lives in `localStorage`; Settings shows **"Local demo mode"**, and `/auth` runs a clearly-labelled demo sign-in. Nothing touches the network.
-- **Real Supabase credentials + a signed-in owner** → the adapter in `lib/sync/supabase-sync.ts` provisions the tenant and **debounced-pushes** products, ledger transactions, customers, marketing campaigns, the audit trail, and settings to Postgres. Settings shows the live sync status and a **Sync now** action, and `/auth` performs real Supabase sign-in / sign-up.
+- **Real Supabase credentials + a signed-in owner** → the adapter in `lib/sync/supabase-sync.ts` provisions the tenant and **debounced-pushes** products (with their barcodes and internal codes), ledger transactions, customers, marketing campaigns, the audit trail, settings, the scan log, and fingerprint enrolments to Postgres. Settings shows the live sync status and a **Sync now** action, and `/auth` performs real Supabase sign-in / sign-up.
 
 Every failure is reported as a status, never as a crash — the app always keeps working on the local copy.
 
@@ -141,9 +243,15 @@ Never commit real credentials; `.env*` is gitignored.
 npm install
 cp .env.example .env.local   # add your Supabase URL + anon key
 npm run dev                  # http://localhost:3000
+
+npm run typecheck            # no type errors
+npm run lint                 # no lint problems
+npm run verify:scanning      # the barcode engine, checked against published examples
 ```
 
 Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy to Vercel with the same environment variables.
+
+**Scanning needs nothing installed.** A handheld USB/Bluetooth scanner works on any device because it types like a keyboard; camera scanning uses the browser's own decoder where it exists (Chrome/Android); the fingerprint pad uses the device's sensor through WebAuthn. On an older browser the counter still works on the wedge and typed entry — the app says which channels this device has in **Settings → How this counter captures**.
 
 ## Assumptions
 
@@ -164,7 +272,7 @@ security is a first-class layer rather than a header or two.
 | Identity | `lib/security/session.ts` | HMAC-signed, expiring, rotating session claims |
 | Tenancy | `lib/security/tenant.ts` | One business per scope; every record carries a tenant id |
 | Authorisation | `lib/security/rbac.ts` | Owner / manager / cashier / auditor, 18 permissions |
-| Transport | `lib/security/headers.ts` | Posture-aware CSP, HSTS, framing, permissions policy |
+| Transport | `lib/security/headers.ts` | Posture-aware CSP, HSTS, framing, and a `Permissions-Policy` granted per route (camera only where scanning happens, WebAuthn only at the gym desk) |
 | Edge | `lib/security/rate-limit.ts` | Sliding-window throttling, pluggable store (dedicated bucket for `/api/portal`) |
 | Portal scoping | `lib/portals/routes.ts` + `middleware.ts` | A business type never reaches a module it does not carry |
 | Request | `lib/security/csrf.ts` | Fetch-metadata + origin allow-list + double-submit token |
@@ -202,12 +310,37 @@ the money. Diagnostics are scrubbed through `redact()` first, so phone numbers,
 emails, UPI ids, tokens, and 13–19 digit sequences are masked before anything
 leaves a module.
 
+### Fingerprints and camera frames
+
+The fingerprint pad is the one place where it is worth being unusually precise:
+
+- The finger is matched **inside the device's sensor**. DukaanOS calls the
+  browser's WebAuthn API and receives a credential id; it never receives an
+  image, a template, or a hash of one, and there is no code path that could
+  store any of them.
+- An enrolment is a single row keyed to one member and one credential id.
+  Deleting it forgets the finger completely.
+- A fingerprint can only ever **record a visit**. It cannot bill, cannot move
+  money, and cannot be used as a password anywhere else in the app.
+- Camera scanning is decoded by the browser on the device. Frames are not
+  uploaded, and there is no server endpoint that accepts an image.
+
+Settings shows the same facts against the real device: **How this counter
+captures** asks the browser what it can do (wedge, camera, on-device decoder,
+fingerprint sensor) and says which channels are ready here, which are not, and
+what the fallback is.
+
 ### Verify it yourself
 
 Open **Trust Centre** (`/security`) in the console. It reports the live posture
 — whether storage is encrypted on this device, whether the audit chain
 verifies, and which role may do what — computed at render time, with degraded
 states shown in amber rather than hidden.
+
+For the scanning engine specifically, run `npm run verify:scanning`: it compiles
+the pure modules and checks them against published barcode examples, the
+scan → ticket path, and the shipped demo catalogue. It prints one line per group
+and exits non-zero on the first disagreement.
 
 ### Performance notes
 

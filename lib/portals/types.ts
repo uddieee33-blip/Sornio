@@ -35,6 +35,7 @@ export type ModuleKey =
   | 'alerts'
   | 'business'
   | 'catalog'
+  | 'scan'
   | 'inventory'
   | 'checkins'
   | 'appointments'
@@ -74,6 +75,8 @@ export type IconName =
   | 'alerts'
   | 'business'
   | 'catalog'
+  | 'scan'
+  | 'fingerprint'
   | 'inventory'
   | 'checkins'
   | 'appointments'
@@ -201,6 +204,33 @@ export type PortalCockpit = {
   };
 };
 
+/** How a counter can capture an identifier — the channels a blueprint chooses from. */
+export type CaptureChannel = 'barcode' | 'qr' | 'keypad' | 'fingerprint';
+
+/**
+ * How this trade captures an identifier at its desk.
+ *
+ * This is the scanning half of a portal, decided once per business type and
+ * enforced like everything else: a gym's console offers a fingerprint pad and
+ * never a barcode counter, a kirana's counter offers the scanner and says
+ * plainly that it has no fingerprint pad. The `note` is shown in the product, so
+ * the omission is a statement rather than a gap.
+ */
+export type PortalCapture = {
+  /** Where the setup screen files this under, e.g. "Counter scanner", "Front-desk pad". */
+  label: string;
+  /** What the trade actually reads, in its own words. */
+  what: string;
+  /** The channels this desk uses. Order matters: the first is the default. */
+  channels: ('barcode' | 'qr' | 'keypad' | 'fingerprint')[];
+  /** Why the channels that are missing are missing. Shown to the owner. */
+  note: string;
+  /** Symbologies that show up in this trade, named as the labels name them. */
+  symbologies: string[];
+  /** The jobs the scanner is put to, linked to the screens that do them. */
+  jobs: { href: string; label: string }[];
+};
+
 export type PortalBlueprint = {
   id: PortalId;
   /** The onboarding template this portal belongs to (`template-gym`, …). */
@@ -220,6 +250,8 @@ export type PortalBlueprint = {
   /** Real-world businesses this portal was designed with. */
   examples: string[];
   accent: PortalAccent;
+  /** How this trade reads a code or a finger at the desk. */
+  capture: PortalCapture;
   /** Modules switched on. Core modules are always on and are not listed here. */
   modules: ModuleKey[];
   terms: PortalVocabulary;

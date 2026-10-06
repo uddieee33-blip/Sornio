@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Building2, Check, QrCode, Save, Sparkles } from 'lucide-react';
+import { Building2, Check, Fingerprint, QrCode, Save, ScanBarcode, Sparkles } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -16,6 +16,14 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { buildUpiDeepLink, isValidUpiId } from '@/lib/upi';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+
+/** The words an owner uses for each capture channel, not the API's words. */
+const CHANNEL_LABELS: Record<'barcode' | 'qr' | 'keypad' | 'fingerprint', string> = {
+  barcode: 'Barcode scanner',
+  qr: 'QR / job tags',
+  keypad: 'Typed entry',
+  fingerprint: 'Fingerprint pad',
+};
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 export default function BusinessPage() {
@@ -147,6 +155,27 @@ export default function BusinessPage() {
                 ))}
               </div>
               <p className="mt-3 text-[11px] leading-relaxed text-stone-600">{portal.excluded}</p>
+
+              {/* How this desk captures a code or a finger. Decided by the
+                  blueprint, so the omission is stated rather than discovered. */}
+              <div className="mt-3 rounded-xl bg-white p-3 ring-1 ring-inset ring-stone-200">
+                <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-stone-600">
+                  {portal.capture.channels.includes('fingerprint') ? <Fingerprint size={12} /> : <ScanBarcode size={12} />}
+                  {portal.capture.label}
+                </p>
+                <p className="mt-1 text-[11px] leading-relaxed text-stone-600">{portal.capture.what}</p>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  {portal.capture.channels.map((channel) => (
+                    <span key={channel} className="rounded-full bg-portal/[0.08] px-2 py-0.5 text-[10px] font-semibold text-portal ring-1 ring-inset ring-portal/20">
+                      {CHANNEL_LABELS[channel]}
+                    </span>
+                  ))}
+                </div>
+                {portal.capture.symbologies.length > 0 ? (
+                  <p className="mt-2 font-mono text-[10px] leading-relaxed text-stone-500">{portal.capture.symbologies.join(' · ')}</p>
+                ) : null}
+                <p className="mt-2 text-[11px] leading-relaxed text-stone-500">{portal.capture.note}</p>
+              </div>
             </div>
 
             <div className="space-y-3">
@@ -175,6 +204,13 @@ export default function BusinessPage() {
                     </div>
                     <p className="mt-2 text-xs leading-relaxed text-stone-600">{template.promise}</p>
                     <p className="mt-2 text-[11px] leading-relaxed text-stone-500">{template.excluded}</p>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      {blueprint.capture.channels.map((channel) => (
+                        <span key={channel} className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">
+                          {CHANNEL_LABELS[channel]}
+                        </span>
+                      ))}
+                    </div>
                     <div className="mt-2.5 flex flex-wrap gap-1.5">
                       {template.recommendedModules.slice(0, 6).map((module) => (
                         <span key={module} className="rounded-full bg-stone-100 px-2 py-0.5 text-[10px] font-semibold text-stone-600 ring-1 ring-inset ring-stone-200">

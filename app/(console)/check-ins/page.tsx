@@ -17,6 +17,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { FingerprintPad } from '@/components/scanning/fingerprint-pad';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 
@@ -28,7 +29,10 @@ const todayKey = () => new Date().toISOString().slice(0, 10);
 
 export default function CheckInsPage() {
   const { state, actions, hydrated } = useDukaanStore();
-  const { terms } = usePortal();
+  const { terms, portal } = usePortal();
+  // The blueprint decides, not this page: a gym's desk reads fingers, a
+  // general store's desk may too, a café's never does.
+  const usesFingerprint = portal.capture.channels.includes('fingerprint');
   const [query, setQuery] = useState('');
   const [flash, setFlash] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
 
@@ -64,7 +68,11 @@ export default function CheckInsPage() {
       <PageHeader
         eyebrow={`${terms.desk} · attendance`}
         title="Who is in right now"
-        subtitle={`One tap records a visit against the ${terms.customerOne.toLowerCase()}'s own record — no paper register, no double entry, and the history stays with them.`}
+        subtitle={
+          usesFingerprint
+            ? `A finger on the pad records the visit against the ${terms.customerOne.toLowerCase()}'s own record — and the desk list below still works when the pad is not there.`
+            : `One tap records a visit against the ${terms.customerOne.toLowerCase()}'s own record — no paper register, no double entry, and the history stays with them.`
+        }
       />
 
       {flash ? (
@@ -100,6 +108,12 @@ export default function CheckInsPage() {
           <p className="mt-0.5 text-[11px] text-stone-600">searchable below</p>
         </div>
       </div>
+
+      {usesFingerprint ? (
+        <div className="mb-6">
+          <FingerprintPad />
+        </div>
+      ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <Card className="animate-fade-up h-fit">
