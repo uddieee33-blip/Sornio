@@ -338,7 +338,7 @@ export function BarcodeScanner({
               type="button"
               onClick={commit}
               disabled={disabled || !draft.trim()}
-              className="shrink-0 rounded-lg bg-stone-900 px-3 py-1.5 text-[11px] font-bold text-white transition hover:brightness-110 disabled:opacity-40"
+              className="touch-manipulation min-h-11 shrink-0 rounded-lg bg-portal-gradient px-3 py-1.5 text-[11px] font-bold text-white shadow-glow-sm transition hover:brightness-110 disabled:opacity-40"
             >
               Read it
             </button>

@@ -20,7 +20,7 @@ export default function ComparisonsPage() {
   }));
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Analysis" title="Comparisons" subtitle="Compare the current period against the previous one using real recorded activity." />
 
       <Card className="animate-fade-up mb-6">

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Lock, X } from 'lucide-react';
@@ -14,20 +14,50 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   const { state, hydrated, persistence } = useDukaanStore();
   const { portal, nav } = usePortal();
   const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
+  const panelRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     if (!open) return;
 
+    const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
+    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleDialogKeys = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        onClose();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+
+      const panel = panelRef.current;
+      const focusable = panel?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      );
+      if (!panel || !focusable?.length) {
+        event.preventDefault();
+        panel?.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !panel.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-    document.addEventListener('keydown', closeOnEscape);
+    document.addEventListener('keydown', handleDialogKeys);
 
     return () => {
+      window.cancelAnimationFrame(focusFrame);
       document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', closeOnEscape);
+      document.removeEventListener('keydown', handleDialogKeys);
+      if (previouslyFocused?.isConnected) previouslyFocused.focus();
     };
   }, [open, onClose]);
 
@@ -48,14 +78,16 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
         type="button"
         aria-label="Close navigation menu"
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-black/65 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 cursor-default bg-stone-900/40 backdrop-blur-sm animate-fade-in"
       />
       <aside
         id="mobile-navigation"
         role="dialog"
         aria-modal="true"
         aria-labelledby="mobile-navigation-title"
-        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2.5rem))] flex-col border-r border-stone-200 bg-panel shadow-float animate-fade-in"
+        ref={panelRef}
+        tabIndex={-1}
+        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2rem))] flex-col border-r border-stone-200 bg-panel shadow-float animate-slide-in-left"
       >
         <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4">
           <Link href="/home" onClick={onClose} className="flex items-center gap-3">
@@ -70,10 +102,11 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
             </span>
           </Link>
           <button
+            ref={closeButtonRef}
             type="button"
             onClick={onClose}
             aria-label="Close navigation menu"
-            className="flex h-9 w-9 items-center justify-center rounded-xl text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
+            className="touch-manipulation flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-stone-600 transition hover:bg-stone-100 hover:text-stone-900"
           >
             <X size={18} />
           </button>
@@ -105,7 +138,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
                       href={item.href}
                       onClick={onClose}
                       aria-current={active ? 'page' : undefined}
-                      className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                      className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                         active
                           ? 'bg-portal/10 text-portal ring-1 ring-inset ring-portal/25'
                           : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'

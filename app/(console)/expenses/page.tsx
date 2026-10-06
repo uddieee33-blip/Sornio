@@ -37,7 +37,7 @@ export default function ExpensesPage() {
   };
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Operations" title="Expenses" subtitle="Record operating expenses — they immediately reduce profit and cash in every report." />
 
       <div className="grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">

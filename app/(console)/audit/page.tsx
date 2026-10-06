@@ -24,7 +24,7 @@ export default function AuditPage() {
   const visible = state.audit.filter((entry) => filter === 'all' || entry.type === filter);
 
   return (
-    <div className="mx-auto max-w-5xl p-6 md:p-8">
+    <div className="mx-auto max-w-5xl p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Analysis"
         title="Audit History"

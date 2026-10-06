@@ -101,7 +101,7 @@ export default function RemindersPage() {
 
   if (!state.settings.allowMemberships) {
     return (
-      <div className="mx-auto max-w-6xl p-6 md:p-8">
+      <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
         <PageHeader eyebrow="Growth" title="Reminders" subtitle="Personalized renewal nudges for your members." />
         <EmptyState
           icon={Dumbbell}
@@ -113,7 +113,7 @@ export default function RemindersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-6xl p-6 md:p-8">
+    <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Growth"
         title="Reminders"

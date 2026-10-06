@@ -14,7 +14,7 @@ export default function InventoryPage() {
   const lowStockCount = products.filter((product) => product.status === 'Active' && product.stock <= product.reorderLevel).length;
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Operations"
         title="Inventory"

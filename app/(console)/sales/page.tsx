@@ -98,7 +98,7 @@ export default function SalesPage() {
   };
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Operations" title="Sales" subtitle="Record multi-line sales. Revenue, cash, and inventory update everywhere automatically." />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">

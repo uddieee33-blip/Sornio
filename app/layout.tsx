@@ -30,6 +30,7 @@ export const viewport: Viewport = {
   themeColor: '#f7f6ef',
   width: 'device-width',
   initialScale: 1,
+  viewportFit: 'cover',
   // Never block zoom — pinch-to-zoom is an accessibility feature, not a bug.
   maximumScale: 5,
 };

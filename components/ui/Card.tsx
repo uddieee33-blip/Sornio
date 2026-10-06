@@ -8,7 +8,7 @@ type CardProps = {
 };
 
 export function Card({ children, className = '', hover = false, padded = true }: CardProps) {
-  const base = 'rounded-2xl bg-white ring-1 ring-stone-200 shadow-card backdrop-blur-sm';
+  const base = 'min-w-0 rounded-2xl bg-white ring-1 ring-stone-200 shadow-card backdrop-blur-sm';
   const hoverCls = hover ? 'transition-all duration-300 hover:-translate-y-0.5 hover:bg-stone-50 hover:ring-brand-400/30 hover:shadow-card-hover' : '';
   const pad = padded ? 'p-5 md:p-6' : '';
   return <div className={`${base} ${hoverCls} ${pad} ${className}`}>{children}</div>;

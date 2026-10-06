@@ -15,7 +15,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
-import { ChevronRight, Command, Database, Lock, Menu, Search, WifiOff } from 'lucide-react';
+import { ChevronRight, Command, Database, Lock, Menu, Search, WifiOff, X } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
@@ -55,9 +55,11 @@ function useOnline(): boolean {
 export function Topbar({
   onOpenCommand,
   onOpenMobileMenu,
+  mobileMenuOpen,
 }: {
   onOpenCommand: () => void;
   onOpenMobileMenu: () => void;
+  mobileMenuOpen: boolean;
 }) {
   const pathname = usePathname();
   const online = useOnline();
@@ -83,22 +85,26 @@ export function Topbar({
             : 'Local-first';
 
   return (
-    <header className="sticky top-0 z-40 border-b border-stone-200 bg-panel/85 backdrop-blur-xl">
-      <div className="flex items-center gap-3 px-4 py-3 md:px-8">
-        <div className="flex min-w-0 items-center gap-2 md:hidden">
-          <Link href="/home" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
-            <BrandIcon size={36} className="h-9 w-9 shrink-0 rounded-xl shadow-glow-sm" />
-            <span className="font-display text-sm font-bold tracking-tight text-stone-900">DukaanOS</span>
+    <header className="mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/85 backdrop-blur-xl">
+      <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 md:px-8">
+        <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+          <Link href="/home" aria-label="DukaanOS home" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+            <BrandIcon size={36} className="h-9 w-9 rounded-xl shadow-glow-sm" />
           </Link>
+          <div className="min-w-0 flex-1 leading-tight">
+            <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-portal">{portal.name}</p>
+            <p className="truncate font-display text-sm font-bold tracking-tight text-stone-900">{title}</p>
+          </div>
           <button
             type="button"
             onClick={onOpenMobileMenu}
-            aria-label="Open navigation menu"
+            aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
             aria-haspopup="dialog"
+            aria-expanded={mobileMenuOpen}
             aria-controls="mobile-navigation"
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700 transition hover:bg-stone-100 hover:text-stone-900"
+            className="touch-manipulation flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-stone-200 bg-stone-50 text-stone-700 transition hover:bg-stone-100 hover:text-stone-900"
           >
-            <Menu size={17} />
+            {mobileMenuOpen ? <X size={18} /> : <Menu size={18} />}
           </button>
         </div>
 
@@ -113,7 +119,7 @@ export function Topbar({
           <span className="truncate font-semibold text-stone-900">{title}</span>
         </nav>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
           {!online ? (
             <span
               className="hidden items-center gap-1.5 rounded-full bg-amber-500/10 px-2.5 py-1 text-[11px] font-bold text-amber-700 ring-1 ring-inset ring-amber-500/25 sm:flex"
@@ -140,8 +146,9 @@ export function Topbar({
           </Link>
 
           <button
+            type="button"
             onClick={onOpenCommand}
-            className="group flex items-center gap-2 rounded-xl bg-stone-50 px-2.5 py-1.5 text-xs font-medium text-stone-600 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-800"
+            className="touch-manipulation group flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-stone-50 text-xs font-medium text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 md:h-auto md:w-auto md:justify-start md:px-2.5 md:py-1.5"
             aria-label="Open the command palette"
           >
             <Search size={14} />
@@ -152,7 +159,7 @@ export function Topbar({
           </button>
 
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-xl bg-portal-gradient text-[11px] font-bold text-white shadow-glow-sm"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-portal-gradient text-[11px] font-bold text-white shadow-glow-sm"
             title={`${state.profile.ownerName ?? 'Owner'} · ${state.demoMode ? 'Demo business' : 'Live business'}`}
           >
             {(state.profile.ownerName ?? state.profile.name ?? 'O').slice(0, 1).toUpperCase()}

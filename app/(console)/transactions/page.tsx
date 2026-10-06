@@ -62,7 +62,7 @@ export default function TransactionsPage() {
   });
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Ledger"
         title="Transactions"

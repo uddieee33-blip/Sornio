@@ -48,7 +48,7 @@ export default function BillingPage() {
   };
 
   return (
-    <div className="mx-auto max-w-6xl p-6 md:p-8">
+    <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Billing" title="Bills, receipts, and payment flow" />
 
       {message ? (
@@ -89,7 +89,7 @@ export default function BillingPage() {
                 <div><span className="font-semibold text-stone-800">Payment:</span> {selected.paymentMethod}</div>
               </div>
 
-              <div className="overflow-hidden rounded-2xl border border-stone-200">
+              <div className="overflow-x-auto rounded-2xl border border-stone-200">
                 <table className="min-w-full text-left text-sm">
                   <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
                     <tr>
@@ -134,7 +134,7 @@ export default function BillingPage() {
               <CardTitle icon={<Receipt size={17} />}>All invoices</CardTitle>
               <Badge tone="brand" dot>{state.invoices.length}</Badge>
             </div>
-            <div className="overflow-hidden rounded-2xl border border-stone-200">
+            <div className="overflow-x-auto rounded-2xl border border-stone-200">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
                   <tr>

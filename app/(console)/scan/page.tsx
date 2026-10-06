@@ -285,7 +285,7 @@ export default function ScanStationPage() {
   ];
 
   return (
-    <div className="mx-auto max-w-6xl p-6 md:p-8">
+    <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow={`${portal.capture.label} · ${scannedToday.length} scan${scannedToday.length === 1 ? '' : 's'} today`}
         title="Scan Station"
@@ -628,7 +628,7 @@ export default function ScanStationPage() {
                   ) : null}
                   <Link
                     href={`/products?code=${encodeURIComponent(lastResult.profile.code)}`}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-stone-900 px-3 py-1.5 text-[11px] font-bold text-white transition hover:brightness-110"
+                    className="touch-manipulation inline-flex min-h-11 items-center gap-1.5 rounded-lg bg-portal-gradient px-3 py-1.5 text-[11px] font-bold text-white shadow-glow-sm transition hover:brightness-110"
                   >
                     <PackagePlus size={12} /> Create this item in the catalogue
                   </Link>

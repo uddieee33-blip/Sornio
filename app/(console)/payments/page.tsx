@@ -29,7 +29,7 @@ export default function PaymentsPage() {
   const byMethod = paymentsByMethod(state.transactions);
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Billing" title="Payment methods" subtitle="How money actually moves in and out — recorded per transaction." />
 
       <div className="grid gap-4 sm:grid-cols-3 animate-fade-up">

@@ -29,7 +29,7 @@ export default function CashFlowPage() {
     .slice(0, 12);
 
   return (
-    <div className="p-6 md:p-8">
+    <div className="p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Money"
         title="Cash Flow"
