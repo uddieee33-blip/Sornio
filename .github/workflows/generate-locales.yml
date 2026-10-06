@@ -36,14 +36,11 @@ jobs:
         run: |
           set -o pipefail
           node scripts/translate-catalog.mjs 2>&1 | tee translation-error.log
-      - name: Preserve generator diagnostics on failure
+      - name: Surface generator diagnostics on failure
         if: failure()
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add translation-error.log
-          git commit -m "Record locale generator diagnostics"
-          git push origin HEAD:arena/cc22b3f8-dukaanos
+          message="$(tail -n 25 translation-error.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')"
+          echo "::error title=Locale catalogue generation failed::$message"
       - name: Verify catalogue completeness
         run: node scripts/verify-i18n.mjs
       - name: Commit generated locale assets
