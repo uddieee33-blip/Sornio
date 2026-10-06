@@ -1,14 +1,18 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, Tag, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { BarcodeScanner } from '@/components/scanning/barcode-scanner';
 import { formatCurrency, type Product } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
+import { describeCode, isValidGtin, looksLikeCode } from '@/lib/scanning';
+import { useSearchParams } from 'next/navigation';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
@@ -18,7 +22,18 @@ type SortKey = 'name' | 'sellingPrice' | 'stock' | 'margin';
 const emptyForm = {
   name: '', itemType: 'product', category: 'General', description: '', sellingPrice: '0', cost: '0',
   taxRate: '0', stock: '0', reorderLevel: '0', sku: '', unit: 'pcs', supplier: '', status: 'Active',
+  barcode: '', looseMode: 'none',
 };
+
+/**
+ * Where a scanned code belongs. A GTIN or a supplier label is read off a
+ * printed packet, so it goes in the barcode field; a code DukaanOS minted itself
+ * belongs in the internal field. One field on screen, the right slot in the
+ * catalogue.
+ */
+function codeSlot(code: string): 'barcode' | 'internalCode' {
+  return /^DK\d{9}$/.test(code.trim().toUpperCase()) ? 'internalCode' : 'barcode';
+}
 
 function marginPct(product: Product): number {
   return product.sellingPrice > 0 ? ((product.sellingPrice - product.cost) / product.sellingPrice) * 100 : 0;
@@ -26,6 +41,7 @@ function marginPct(product: Product): number {
 
 export default function ProductsPage() {
   const { state, actions } = useDukaanStore();
+  const { portal } = usePortal();
   const [form, setForm] = useState(emptyForm);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [query, setQuery] = useState('');
@@ -35,6 +51,24 @@ export default function ProductsPage() {
   const [selected, setSelected] = useState<Product | null>(null);
 
   const categories = useMemo(() => Array.from(new Set(state.products.map((p) => p.category))).sort(), [state.products]);
+
+  /**
+   * Arriving from the scan station with an unknown code: prefill it, so the item
+   * is registered once and scans itself from the next bill. Adjusting state
+   * during render (rather than in an effect) is React's documented pattern for
+   * deriving state from props, and it keeps this off the effect path entirely.
+   */
+  const searchParams = useSearchParams();
+  const scannedCode = (searchParams.get('code') ?? '').trim();
+  const [appliedCode, setAppliedCode] = useState('');
+  if (scannedCode && scannedCode !== appliedCode) {
+    setAppliedCode(scannedCode);
+    setForm((current) => ({ ...current, barcode: scannedCode }));
+    setMessage({
+      tone: 'ok',
+      text: `Code ${scannedCode} filled in from the scan station. Name the item and save — then it scans itself at the counter.`,
+    });
+  }
 
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
@@ -70,6 +104,29 @@ export default function ProductsPage() {
   }, [state.transactions]);
 
   const handleSubmit = () => {
+    // A code is validated before it is stored, exactly as the counter would
+    // validate it: a mistyped barcode in the catalogue is a misread waiting to
+    // happen on every future bill.
+    const code = form.barcode.trim();
+    if (code) {
+      if (!looksLikeCode(code)) {
+        setMessage({ tone: 'error', text: 'That barcode does not look right — it should be at least three printable characters.' });
+        return;
+      }
+      const gtinShaped = [8, 12, 13, 14].includes(code.length) && /^\d+$/.test(code);
+      if (gtinShaped && !isValidGtin(code)) {
+        setMessage({ tone: 'error', text: 'That retail barcode’s check digit does not match — scan the packet again, or type the digits printed under the bars.' });
+        return;
+      }
+      const clash = state.products.find(
+        (product) => [product.barcode, product.internalCode].some((existing) => existing && existing.trim().toUpperCase() === code.toUpperCase()),
+      );
+      if (clash) {
+        setMessage({ tone: 'error', text: `${clash.name} already carries ${code}. Two items can never share a code — clear it there first.` });
+        return;
+      }
+    }
+
     const result = actions.addProduct({
       name: form.name,
       category: form.category.trim() || 'General',
@@ -84,9 +141,18 @@ export default function ProductsPage() {
       taxRate: Number(form.taxRate || 0),
       sku: form.sku.trim() || undefined,
       unit: form.unit.trim() || undefined,
+      ...(form.barcode
+        ? codeSlot(form.barcode) === 'internalCode'
+          ? { internalCode: form.barcode }
+          : { barcode: form.barcode }
+        : {}),
+      ...(form.itemType === 'product' && form.looseMode !== 'none' ? { looseMode: form.looseMode as 'weight' | 'price' } : {}),
     });
     if (result.ok) {
-      setMessage({ tone: 'ok', text: `${form.name.trim()} saved — it is now available in Sales, Inventory, Profitability, and Reports.` });
+      setMessage({
+        tone: 'ok',
+        text: `${form.name.trim()} saved${code ? ' with its code' : ''} — it is now available in Sales, Inventory, Profitability, and Reports.`,
+      });
       setForm(emptyForm);
     } else {
       setMessage({ tone: 'error', text: result.error ?? 'Could not add item.' });
@@ -106,6 +172,23 @@ export default function ProductsPage() {
 
       <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
         {/* Add item */}
+        <div className="space-y-6">
+        {portal.capture.channels.includes('barcode') ? (
+          <BarcodeScanner
+            label="Register a code"
+            autoFocus={false}
+            onRead={(read) => {
+              const profile = describeCode(read.code);
+              setForm((current) => ({ ...current, barcode: profile.code }));
+              setMessage({
+                tone: profile.valid ? 'ok' : 'error',
+                text: profile.valid
+                  ? `${profile.note} Now name the item and save.`
+                  : profile.note,
+              });
+            }}
+          />
+        ) : null}
         <Card className="animate-fade-up h-fit">
           <div className="mb-5"><CardTitle icon={<PackagePlus size={17} />}>Add Item</CardTitle></div>
           <div className="grid gap-4 md:grid-cols-2">
@@ -128,6 +211,32 @@ export default function ProductsPage() {
               </>
             ) : null}
             <div><span className={labelClass}>SKU / Item Code (optional)</span><input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })} className={inputClass} placeholder="SOAP-001" /></div>
+            <div className="md:col-span-2">
+              <span className={labelClass}>Barcode (scan the packet, or type it)</span>
+              <div className="relative">
+                <Tag size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+                <input
+                  value={form.barcode}
+                  onChange={(e) => setForm({ ...form, barcode: e.target.value })}
+                  className={`${inputClass} pl-9 font-mono`}
+                  placeholder="8901234567890 — or a DukaanOS code like DK000000018"
+                />
+              </div>
+              <p className="mt-1.5 text-[11px] leading-relaxed text-stone-600">
+                A retail code is checked before it is saved. No barcode on the packet? Save the item, then mint an internal code and print the
+                label from the Scan Station — every scanner in the shop will read it.
+              </p>
+            </div>
+            {form.itemType === 'product' ? (
+              <div>
+                <span className={labelClass}>Sold loose?</span>
+                <select value={form.looseMode} onChange={(e) => setForm({ ...form, looseMode: e.target.value })} className={inputClass}>
+                  <option value="none">No — packets and pieces</option>
+                  <option value="weight">Yes — the scale prints the weight</option>
+                  <option value="price">Yes — the scale prints the price</option>
+                </select>
+              </div>
+            ) : null}
             <div><span className={labelClass}>Supplier (optional)</span><input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Urban Goods Co." /></div>
             <div><span className={labelClass}>Status</span>
               <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
@@ -142,6 +251,7 @@ export default function ProductsPage() {
             <Button onClick={handleSubmit}><PackagePlus size={16} /> Save item</Button>
           </div>
         </Card>
+        </div>
 
         {/* Product list */}
         <Card className="animate-fade-up">
@@ -195,7 +305,18 @@ export default function ProductsPage() {
                       <tr key={product.id} onClick={() => setSelected(product)} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
                         <td className="px-4 py-3">
                           <p className="font-medium text-stone-800">{product.name}</p>
-                          <p className="text-xs text-stone-600">{product.itemType === 'service' ? 'Service' : 'Product'}{product.sku ? ` · ${product.sku}` : ''}</p>
+                          <p className="text-xs text-stone-600">
+                            {product.itemType === 'service' ? 'Service' : 'Product'}
+                            {product.sku ? ` · ${product.sku}` : ''}
+                          </p>
+                          {product.barcode || product.internalCode ? (
+                            <p className="mt-0.5 font-mono text-[10px] text-stone-500">
+                              {product.barcode ?? product.internalCode}
+                              {product.looseMode && product.looseMode !== 'none' ? ' · loose by weight' : ''}
+                            </p>
+                          ) : (
+                            <p className="mt-0.5 text-[10px] font-semibold text-amber-700">no code — cannot be scanned yet</p>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-stone-600">{product.category}</td>
                         <td className="px-4 py-3 text-right font-semibold text-stone-900 tabular-nums">{formatCurrency(product.sellingPrice)}</td>
@@ -227,6 +348,37 @@ export default function ProductsPage() {
             </div>
 
             {selected.description ? <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">{selected.description}</p> : null}
+
+            <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl bg-stone-50 p-3 ring-1 ring-inset ring-stone-200">
+              {selected.barcode || selected.internalCode ? (
+                <>
+                  <Badge tone="emerald" dot>Scannable</Badge>
+                  <span className="font-mono text-xs font-semibold text-stone-900">{selected.barcode ?? selected.internalCode}</span>
+                  <span className="text-[11px] text-stone-600">
+                    {selected.barcode ? 'retail barcode' : 'DukaanOS internal code'}
+                    {selected.looseMode && selected.looseMode !== 'none' ? ' · sold loose' : ''}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <Badge tone="amber" dot>No code yet</Badge>
+                  <span className="text-[11px] leading-relaxed text-stone-600">
+                    This item cannot be scanned at the counter. Mint an internal code, print its label once, and it scans like anything else.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const result = actions.mintInternalCode(selected.id);
+                      setMessage({ tone: result.ok ? 'ok' : 'error', text: result.ok ? 'Internal code minted — print its label from the Scan Station.' : result.error ?? 'Could not mint a code.' });
+                      if (result.ok) setSelected(null);
+                    }}
+                    className="rounded-lg bg-stone-900 px-2.5 py-1.5 text-[11px] font-bold text-white transition hover:brightness-110"
+                  >
+                    Mint internal code
+                  </button>
+                </>
+              )}
+            </div>
 
             <div className="mt-5 grid grid-cols-2 gap-3">
               {[

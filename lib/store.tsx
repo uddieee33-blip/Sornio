@@ -35,6 +35,19 @@ import {
   type PaymentMethod,
   type PaymentRecord,
 } from '@/lib/models/billing';
+import {
+  buildInternalCode,
+  guessSymbology,
+  isValidGtin,
+  looksLikeCode,
+  normalizeCode,
+  type BarcodeSymbology,
+  type BiometricCredential,
+  type ScanContext,
+  type ScanEvent,
+  type ScanOutcome,
+  type ScanSource,
+} from '@/lib/scanning';
 
 export type Customer = {
   id: string;
@@ -191,6 +204,13 @@ export type StoreState = {
   paymentRecords: PaymentRecord[];
   /** Front-desk check-ins (gyms, studios, clinics). Empty for other portals. */
   checkIns: CheckIn[];
+  /** Every code read at a counter or a shelf — including the ones that matched nothing. */
+  scanEvents: ScanEvent[];
+  /**
+   * Fingers enrolled at this business's desks. A credential id only: there is
+   * no fingerprint here, and there cannot be one (see lib/scanning/fingerprint).
+   */
+  biometricCredentials: BiometricCredential[];
   /** The service day book (salons, studios, repair desks). Empty elsewhere. */
   appointments: Appointment[];
   settings: BusinessSettings;
@@ -199,6 +219,9 @@ export type StoreState = {
 };
 
 export type ActionResult = { ok: boolean; error?: string };
+
+/** Actions that create a catalogue item hand back its id, so the caller can open it. */
+export type ProductActionResult = ActionResult & { productId?: string };
 
 export type SaleLine = { productId: string; quantity: number; rate: number };
 export type InvoiceLine = { name: string; category: string; quantity: number; unitPrice: number };
@@ -327,6 +350,8 @@ export function buildEmptyState(): StoreState {
     invoices: [],
     paymentRecords: [],
     checkIns: [],
+    scanEvents: [],
+    biometricCredentials: [],
     appointments: [],
     settings: defaultBusinessSettings,
     audit: [
@@ -340,6 +365,67 @@ export function buildEmptyState(): StoreState {
     ],
     campaigns: [],
   };
+}
+
+/**
+ * Sample scans for the demo counter: two that matched (one packet, one weighed
+ * label) and one that did not — because showing only the happy path would teach
+ * an owner nothing about what the scanner does when it meets an unknown packet.
+ */
+function buildSampleScanEvents(): ScanEvent[] {
+  const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString();
+  const events: ScanEvent[] = [
+    {
+      id: 'scan-demo-1',
+      code: '8901234567890',
+      symbology: 'EAN-13',
+      source: 'wedge',
+      context: 'counter',
+      outcome: 'matched',
+      productId: 'p1',
+      productName: 'Organic Soap',
+      quantity: 1,
+      at: at(42),
+      by: 'Counter',
+    },
+    {
+      id: 'scan-demo-2',
+      code: '2100001030001',
+      symbology: 'EAN-13',
+      source: 'wedge',
+      context: 'counter',
+      outcome: 'matched',
+      productId: 'p5',
+      productName: 'Loose Almonds',
+      quantity: 3,
+      at: at(27),
+      by: 'Counter',
+    },
+    {
+      id: 'scan-demo-3',
+      code: '8905678901234',
+      symbology: 'EAN-13',
+      source: 'wedge',
+      context: 'counter',
+      outcome: 'unmatched',
+      at: at(11),
+      by: 'Counter',
+    },
+    {
+      id: 'scan-demo-4',
+      code: '8903456789012',
+      symbology: 'EAN-13',
+      source: 'camera',
+      context: 'inward',
+      outcome: 'matched',
+      productId: 'p4',
+      productName: 'Bamboo Mug',
+      quantity: 6,
+      at: at(4),
+      by: 'Counter',
+    },
+  ];
+  return events;
 }
 
 /**
@@ -418,6 +504,8 @@ export function buildSeedState(): StoreState {
     invoices: sampleInvoices,
     paymentRecords: samplePaymentRecords,
     checkIns: buildSampleCheckIns(),
+    scanEvents: buildSampleScanEvents(),
+    biometricCredentials: [],
     appointments: [],
     settings: defaultBusinessSettings,
     audit: [
@@ -434,7 +522,13 @@ export function buildSeedState(): StoreState {
 export type StoreActions = {
   addProduct: (input: Omit<Product, 'id'>) => ActionResult;
   toggleProductStatus: (productId: string) => void;
-  recordSale: (input: { lines: SaleLine[]; method: PaymentMethod; customerName?: string }) => ActionResult;
+  recordSale: (input: {
+    lines: SaleLine[];
+    method: PaymentMethod;
+    customerName?: string;
+    /** Where the lines came from — a scanned basket is audited as a scan. */
+    source?: 'scan' | 'manual';
+  }) => ActionResult;
   recordExpense: (input: { category: string; amount: number; method: PaymentMethod }) => ActionResult;
   addCustomer: (input: { name: string; phone?: string; email?: string; details?: string; bank?: BankDetails }) => ActionResult;
   updateCustomer: (customerId: string, patch: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'details' | 'bank' | 'openingBalance'>>) => ActionResult;
@@ -444,6 +538,46 @@ export type StoreActions = {
   renewSubscription: (input: { subscriptionId: string; method: PaymentMethod }) => ActionResult;
   checkInMember: (input: { memberId: string }) => ActionResult;
   endCheckIn: (checkInId: string) => ActionResult;
+  // ---- Scanning (see lib/scanning) ----
+  /** Record a read — including, and especially, the ones that matched nothing. */
+  recordScan: (input: {
+    code: string;
+    source: ScanSource;
+    context: ScanContext;
+    outcome: ScanOutcome;
+    symbology?: BarcodeSymbology;
+    productId?: string;
+    productName?: string;
+    quantity?: number;
+    by?: string;
+  }) => void;
+  /** Attach a scanned code to an existing item. Refuses a code another item already claims. */
+  assignCode: (input: { productId: string; code: string }) => ActionResult;
+  /** Mint a DukaanOS internal code for an item that will never carry a printed one. */
+  mintInternalCode: (productId: string) => ProductActionResult;
+  /** Turn an unknown scanned code into a catalogue item in one step. */
+  createProductFromScan: (input: {
+    code: string;
+    name: string;
+    category: string;
+    itemType: 'product' | 'service';
+    sellingPrice: number;
+    cost: number;
+    stock: number;
+    reorderLevel: number;
+    unit?: string;
+    taxRate?: number;
+    looseMode?: 'none' | 'weight' | 'price';
+  }) => ProductActionResult;
+  /** Goods inward: scans that raise stock at the purchase price they came in at. */
+  recordStockInward: (input: {
+    lines: { productId: string; quantity: number; cost?: number }[];
+    supplier?: string;
+  }) => ActionResult;
+  // ---- Fingerprint check-in (gym & fitness) ----
+  enrollBiometric: (input: { memberId: string; credentialId: string; label: string }) => ActionResult;
+  revokeBiometric: (credentialId: string) => ActionResult;
+  checkInWithBiometric: (input: { credentialId: string }) => ActionResult;
   addAppointment: (input: {
     customerName: string;
     phone?: string;
@@ -547,6 +681,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       products: Array.isArray(parsed.products) ? parsed.products : [],
       customers: Array.isArray(parsed.customers) ? parsed.customers : [],
       checkIns: Array.isArray(parsed.checkIns) ? parsed.checkIns : [],
+      scanEvents: Array.isArray(parsed.scanEvents) ? parsed.scanEvents : [],
+      biometricCredentials: Array.isArray(parsed.biometricCredentials) ? parsed.biometricCredentials : [],
       appointments: Array.isArray(parsed.appointments) ? parsed.appointments : [],
     });
 
@@ -734,7 +870,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       }));
     },
 
-    recordSale({ lines, method, customerName }) {
+    recordSale({ lines, method, customerName, source }) {
       const validLines = lines.filter((line) => line.quantity > 0 && line.rate >= 0);
       if (validLines.length === 0) return { ok: false, error: 'Add at least one line with a quantity.' };
 
@@ -754,7 +890,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
       setState((current) => {
         const newTransactions: Transaction[] = buildRevenueTransactions(
-          `Sale of ${validLines.length} item(s)`,
+          source === 'scan' ? `Counter scan — ${validLines.length} item(s)` : `Sale of ${validLines.length} item(s)`,
           total,
           method,
           label,
@@ -792,7 +928,13 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           }),
         };
       });
-      track('sale', `Sale of ${formatAuditAmount(total)} recorded via ${method}${label ? ` for ${label}` : ''}.`);
+      const scannedUnits = validLines.filter((line) => line.quantity > 0).length;
+      track(
+        'sale',
+        source === 'scan'
+          ? `Scanned sale of ${formatAuditAmount(total)} recorded via ${method} — ${scannedUnits} line(s) read at the counter${label ? ` for ${label}` : ''}.`
+          : `Sale of ${formatAuditAmount(total)} recorded via ${method}${label ? ` for ${label}` : ''}.`,
+      );
       return { ok: true };
     },
 
@@ -993,6 +1135,284 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         checkIns: current.checkIns.map((item) => (item.id === checkInId ? { ...item, outAt } : item)),
       }));
       track('membership', `${entry.name} checked out — visit closed.`, checkInId);
+      return { ok: true };
+    },
+
+    // ------------------------------------------------------------- scanning --
+    /**
+     * Park a read in the scan log. Deliberately not an audit entry: a busy
+     * counter scans hundreds of times a day and the audit trail is for things
+     * that move money, stock or people. The *bill* a scan produces is audited by
+     * `recordSale`; the *link* a scan creates is audited by `assignCode`.
+     */
+    recordScan({ code, source, context, outcome, symbology, productId, productName, quantity, by }) {
+      const event: ScanEvent = {
+        id: newId('scan'),
+        code: normalizeCode(code),
+        symbology: symbology ?? guessSymbology(code),
+        source,
+        context,
+        outcome,
+        productId,
+        productName,
+        quantity,
+        at: new Date().toISOString(),
+        by: by ?? 'Counter',
+      };
+      setState((current) => ({ ...current, scanEvents: [event, ...current.scanEvents].slice(0, 2000) }));
+    },
+
+    assignCode({ productId, code }) {
+      const product = stateRef.current.products.find((item) => item.id === productId);
+      if (!product) return { ok: false, error: 'Item not found.' };
+
+      const clean = normalizeCode(code);
+      if (!looksLikeCode(clean)) {
+        return { ok: false, error: 'That does not look like a barcode. Scan it again, or type at least three characters.' };
+      }
+      const gtinShaped = [8, 12, 13, 14].includes(clean.length) && /^\d+$/.test(clean);
+      if (gtinShaped && !isValidGtin(clean)) {
+        return { ok: false, error: 'That is shaped like a retail barcode but its check digit does not match — usually a misread. Scan the label again.' };
+      }
+
+      const clash = stateRef.current.products.find(
+        (item) =>
+          item.id !== productId &&
+          [item.barcode, item.internalCode].some(
+            (existing) => existing && existing.trim().toUpperCase() === clean.toUpperCase(),
+          ),
+      );
+      if (clash) {
+        return {
+          ok: false,
+          error: `${clash.name} already carries ${clean}. Two items can never share a code — clear it there first, then link it here.`,
+        };
+      }
+
+      // Codes DukaanOS minted live in the internal slot; anything read off a
+      // printed label — GTIN or supplier Code 128 — belongs in the barcode slot,
+      // because that is the one a scanner fills.
+      const slot: 'barcode' | 'internalCode' = /^DK\d{9}$/.test(clean) ? 'internalCode' : 'barcode';
+      setState((current) => ({
+        ...current,
+        products: current.products.map((item) =>
+          item.id === productId ? { ...item, [slot]: clean } : item,
+        ),
+      }));
+      track(
+        'product',
+        `${slot === 'barcode' ? 'Barcode' : 'Internal code'} ${clean} ${product.barcode || product.internalCode ? 'replaced' : 'linked'} on "${product.name}" — the counter can scan it from now on.`,
+        productId,
+      );
+      return { ok: true };
+    },
+
+    mintInternalCode(productId) {
+      const product = stateRef.current.products.find((item) => item.id === productId);
+      if (!product) return { ok: false, error: 'Item not found.' };
+
+      const taken = new Set(
+        stateRef.current.products
+          .flatMap((item) => [item.barcode, item.internalCode])
+          .filter((value): value is string => Boolean(value))
+          .map((value) => value.toUpperCase()),
+      );
+      let sequence = Math.max(stateRef.current.products.length, 1);
+      let code = buildInternalCode(sequence);
+      while (taken.has(code) && sequence < 99_999_999) {
+        sequence += 1;
+        code = buildInternalCode(sequence);
+      }
+      if (taken.has(code)) return { ok: false, error: 'All internal codes are in use. This catalogue has outgrown eight digits.' };
+
+      const scaleNumber = /^DK(\d{8})\d$/.exec(code)?.[1];
+      setState((current) => ({
+        ...current,
+        products: current.products.map((item) =>
+          item.id === productId
+            ? {
+                ...item,
+                internalCode: code,
+                // A loose item needs a short counter number for weigh-scale labels.
+                scaleNumber: item.scaleNumber ?? (scaleNumber ? Number(scaleNumber) % 99_999 : undefined),
+              }
+            : item,
+        ),
+      }));
+      track('product', `Internal code ${code} minted for "${product.name}" — print it once and the counter can scan it.`, productId);
+      return { ok: true, productId };
+    },
+
+    createProductFromScan({ code, name, category, itemType, sellingPrice, cost, stock, reorderLevel, unit, taxRate, looseMode }) {
+      if (!name.trim()) return { ok: false, error: 'Give the item a name first — the code alone cannot be billed.' };
+      if (sellingPrice < 0 || cost < 0 || stock < 0) return { ok: false, error: 'Prices and stock cannot be negative.' };
+
+      const clean = normalizeCode(code);
+      if (!looksLikeCode(clean)) return { ok: false, error: 'That does not look like a code. Scan the label again.' };
+      const gtinShaped = [8, 12, 13, 14].includes(clean.length) && /^\d+$/.test(clean);
+      if (gtinShaped && !isValidGtin(clean)) {
+        return { ok: false, error: 'That code is shaped like a retail barcode but its check digit does not match — check the label before saving it.' };
+      }
+
+      const clash = stateRef.current.products.find((item) =>
+        [item.barcode, item.internalCode].some((existing) => existing && existing.trim().toUpperCase() === clean.toUpperCase()),
+      );
+      if (clash) return { ok: false, error: `${clash.name} already carries ${clean}. Link the code there instead of creating a second item.` };
+
+      const productId = newId('p');
+      const slot: 'barcode' | 'internalCode' = /^DK\d{9}$/.test(clean) ? 'internalCode' : 'barcode';
+      const product: Product = {
+        id: productId,
+        name: name.trim(),
+        category: category.trim() || 'General',
+        itemType,
+        sellingPrice,
+        cost,
+        stock: itemType === 'service' ? 0 : stock,
+        reorderLevel: itemType === 'service' ? 0 : reorderLevel,
+        status: 'Active',
+        taxRate,
+        unit: unit?.trim() || undefined,
+        looseMode: itemType === 'service' ? undefined : looseMode ?? 'none',
+        ...(slot === 'barcode' ? { barcode: clean } : { internalCode: clean }),
+      };
+      setState((current) => ({ ...current, products: [...current.products, product] }));
+      track(
+        'product',
+        `Item "${product.name}" created from a scanned code (${clean}) — it is billable at the counter immediately.`,
+        productId,
+      );
+      return { ok: true, productId };
+    },
+
+    recordStockInward({ lines, supplier }) {
+      const valid = lines.filter((line) => line.quantity > 0);
+      if (valid.length === 0) return { ok: false, error: 'Scan at least one item to receive.' };
+
+      for (const line of valid) {
+        const product = stateRef.current.products.find((item) => item.id === line.productId);
+        if (!product) return { ok: false, error: 'An item in this delivery is not in the catalogue any more.' };
+        if (product.itemType === 'service') return { ok: false, error: `${product.name} is a service — it has no stock to receive.` };
+        if (line.cost !== undefined && (line.cost < 0 || !Number.isFinite(line.cost))) {
+          return { ok: false, error: 'Purchase price cannot be negative.' };
+        }
+      }
+
+      const date = todayISO();
+      const received = valid.map((line) => {
+        const product = stateRef.current.products.find((item) => item.id === line.productId)!;
+        const cost = line.cost ?? product.cost;
+        return { line, product, cost, value: line.quantity * cost };
+      });
+      const totalValue = received.reduce((sum, entry) => sum + entry.value, 0);
+
+      setState((current) => ({
+        ...current,
+        products: current.products.map((product) => {
+          const entry = received.find((item) => item.product.id === product.id);
+          if (!entry) return product;
+          return {
+            ...product,
+            stock: product.stock + entry.line.quantity,
+            // A delivery at a new purchase price updates cost — audited below.
+            cost: entry.cost,
+          };
+        }),
+        transactions: [
+          ...current.transactions,
+          ...received.map((entry) => ({
+            id: newId('t'),
+            type: 'stock_adjustment' as const,
+            description: `Goods received — ${entry.product.name}${supplier ? ` (${supplier})` : ''}`,
+            amount: entry.value,
+            direction: 'in' as const,
+            account: 'inventory' as const,
+            date,
+          })),
+        ],
+      }));
+
+      const repriced = received.filter((entry) => entry.cost !== entry.product.cost);
+      track(
+        'product',
+        `Goods inward — ${valid.length} item(s) added to stock${supplier ? ` from ${supplier}` : ''}, ${formatAuditAmount(totalValue)} at purchase cost${
+          repriced.length > 0 ? `. Cost price updated on ${repriced.map((entry) => entry.product.name).join(', ')}` : ''
+        }.`,
+      );
+      return { ok: true };
+    },
+
+    // -------------------------------------------------- fingerprint check-in --
+    enrollBiometric({ memberId, credentialId, label }) {
+      const member = stateRef.current.members.find((item) => item.id === memberId);
+      if (!member) return { ok: false, error: 'Choose a member to enrol first.' };
+      if (!credentialId) return { ok: false, error: 'The reader did not return a credential — try again.' };
+      const duplicate = stateRef.current.biometricCredentials.find(
+        (item) => item.credentialId === credentialId && item.memberId === memberId,
+      );
+      if (duplicate) return { ok: false, error: `${member.name} is already enrolled on this device.` };
+
+      const credential: BiometricCredential = {
+        id: newId('bio'),
+        memberId,
+        memberName: member.name,
+        credentialId,
+        attachment: 'platform',
+        label: label.trim() || 'This device',
+        createdAt: new Date().toISOString(),
+        useCount: 0,
+      };
+      setState((current) => ({
+        ...current,
+        biometricCredentials: [credential, ...current.biometricCredentials].slice(0, 2000),
+      }));
+      track(
+        'membership',
+        `${member.name} enrolled a fingerprint on ${credential.label}. Only a credential id was stored — the finger itself never left the device.`,
+        credential.id,
+      );
+      return { ok: true };
+    },
+
+    revokeBiometric(credentialId) {
+      const credential = stateRef.current.biometricCredentials.find((item) => item.credentialId === credentialId);
+      if (!credential) return { ok: false, error: 'That enrolment is not on file.' };
+      setState((current) => ({
+        ...current,
+        biometricCredentials: current.biometricCredentials.filter((item) => item.credentialId !== credentialId),
+      }));
+      track('membership', `${credential.memberName}'s fingerprint enrolment was removed. Nothing biometric was ever stored to delete.`, credential.id);
+      return { ok: true };
+    },
+
+    checkInWithBiometric({ credentialId }) {
+      const credential = stateRef.current.biometricCredentials.find((item) => item.credentialId === credentialId);
+      if (!credential) {
+        return { ok: false, error: 'That finger is not enrolled on this device. Enrol it once at the front desk.' };
+      }
+      const member = stateRef.current.members.find((item) => item.id === credential.memberId);
+      if (!member) return { ok: false, error: 'This enrolment belongs to a member who is no longer on file.' };
+      const open = stateRef.current.checkIns.find((entry) => entry.memberId === member.id && !entry.outAt);
+      if (open) return { ok: false, error: `${member.name} is already checked in.` };
+
+      const at = new Date().toISOString();
+      const entry: CheckIn = {
+        id: newId('ci'),
+        memberId: member.id,
+        name: member.name,
+        at,
+        by: 'Fingerprint · front desk',
+      };
+      setState((current) => ({
+        ...current,
+        checkIns: [entry, ...current.checkIns].slice(0, 2000),
+        biometricCredentials: current.biometricCredentials.map((item) =>
+          item.credentialId === credentialId
+            ? { ...item, lastUsedAt: at, useCount: item.useCount + 1 }
+            : item,
+        ),
+      }));
+      track('membership', `${member.name} checked in with a fingerprint at the front desk.`, entry.id);
       return { ok: true };
     },
 

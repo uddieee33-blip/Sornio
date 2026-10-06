@@ -6,8 +6,11 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { BarcodeScanner, type ScannerRead } from '@/components/scanning/barcode-scanner';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore, type SaleLine } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
+import { resolveScan } from '@/lib/scanning';
 import type { PaymentMethod } from '@/lib/models/billing';
 
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
@@ -15,7 +18,11 @@ const inputClass = 'rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 t
 
 export default function SalesPage() {
   const { state, actions } = useDukaanStore();
+  const { portal } = usePortal();
   const sellableProducts = state.products.filter((product) => product.status === 'Active');
+  // The counter scanner is part of this trade's desk — a gym's enrolment desk
+  // never grows one (see the portal blueprint's `capture`).
+  const scansAtThisDesk = portal.capture.channels.includes('barcode');
 
   const [lines, setLines] = useState<SaleLine[]>([]);
   const [method, setMethod] = useState<PaymentMethod>('Cash');
@@ -54,11 +61,51 @@ export default function SalesPage() {
 
   const recentSales = [...state.transactions].filter((tx) => tx.type === 'sale').reverse().slice(0, 6);
 
+  /**
+   * A scan at this counter adds a line at the catalogue price — the same line a
+   * cashier would have typed, and the same `recordSale` path records it. An
+   * unknown code is reported with its closest matches rather than guessed at.
+   */
+  const handleScan = (read: ScannerRead) => {
+    const resolution = resolveScan(read.code, state.products);
+    actions.recordScan({
+      code: resolution.profile.code,
+      source: read.source,
+      context: 'counter',
+      outcome: resolution.status,
+      symbology: resolution.profile.symbology,
+      productId: resolution.status === 'matched' ? resolution.product.id : undefined,
+      productName: resolution.status === 'matched' ? resolution.product.name : undefined,
+    });
+
+    if (resolution.status === 'matched') {
+      setLines((current) => {
+        const index = current.findIndex((line) => line.productId === resolution.product.id);
+        if (index >= 0 && resolution.via !== 'loose') {
+          return current.map((line, position) =>
+            position === index ? { ...line, quantity: line.quantity + resolution.quantity } : line,
+          );
+        }
+        return [
+          ...current,
+          { productId: resolution.product.id, quantity: resolution.quantity, rate: resolution.product.sellingPrice },
+        ];
+      });
+      setMessage({ tone: 'ok', text: resolution.reason });
+      return;
+    }
+    setMessage({ tone: 'error', text: resolution.reason });
+  };
+
   return (
     <div className="p-6 md:p-8">
       <PageHeader eyebrow="Operations" title="Sales" subtitle="Record multi-line sales. Revenue, cash, and inventory update everywhere automatically." />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
+        <div className="space-y-6">
+        {scansAtThisDesk ? (
+          <BarcodeScanner onRead={handleScan} label={`${portal.terms.desk} scanner`} onIgnored={(reason) => setMessage({ tone: 'error', text: reason })} />
+        ) : null}
         <Card className="animate-fade-up h-fit">
           <div className="mb-5 flex items-center justify-between">
             <CardTitle icon={<ShoppingCart size={17} />}>Record a sale</CardTitle>
@@ -127,6 +174,7 @@ export default function SalesPage() {
             <Button onClick={handleRecord}><Zap size={16} /> Record sale</Button>
           </div>
         </Card>
+        </div>
 
         <Card className="animate-fade-up h-fit">
           <div className="mb-5 flex items-center justify-between">

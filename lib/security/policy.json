@@ -71,10 +71,6 @@
       "value": "strict-origin-when-cross-origin"
     },
     {
-      "key": "Permissions-Policy",
-      "value": "accelerometer=(), autoplay=(), camera=(), clipboard-read=(), display-capture=(), encrypted-media=(), fullscreen=(self), geolocation=(), gyroscope=(), hid=(), idle-detection=(), magnetometer=(), microphone=(), midi=(), payment=(), picture-in-picture=(), publickey-credentials-get=(), screen-wake-lock=(), serial=(), usb=(), xr-spatial-tracking=()"
-    },
-    {
       "key": "Cross-Origin-Opener-Policy",
       "value": "same-origin"
     },
@@ -159,5 +155,62 @@
     "/cgi-bin",
     "/server-status",
     "/.DS_Store"
-  ]
+  ],
+  "permissions": {
+    "features": {
+      "accelerometer": [],
+      "autoplay": [],
+      "camera": [],
+      "clipboard-read": [],
+      "display-capture": [],
+      "encrypted-media": [],
+      "fullscreen": [
+        "self"
+      ],
+      "geolocation": [],
+      "gyroscope": [],
+      "hid": [],
+      "idle-detection": [],
+      "magnetometer": [],
+      "microphone": [],
+      "midi": [],
+      "payment": [],
+      "picture-in-picture": [],
+      "publickey-credentials-create": [],
+      "publickey-credentials-get": [],
+      "screen-wake-lock": [],
+      "serial": [],
+      "usb": [],
+      "xr-spatial-tracking": []
+    },
+    "capture": [
+      {
+        "label": "Camera barcode scanning",
+        "surfaces": [
+          "/scan",
+          "/sales",
+          "/products"
+        ],
+        "grants": {
+          "camera": [
+            "self"
+          ]
+        }
+      },
+      {
+        "label": "Fingerprint check-in (WebAuthn)",
+        "surfaces": [
+          "/check-ins"
+        ],
+        "grants": {
+          "publickey-credentials-create": [
+            "self"
+          ],
+          "publickey-credentials-get": [
+            "self"
+          ]
+        }
+      }
+    ]
+  }
 }

@@ -66,7 +66,7 @@ export async function middleware(request: NextRequest) {
   const probe = policy.probePaths.find((candidate) => pathname === candidate || pathname.startsWith(`${candidate}/`));
   if (probe) {
     return applyHeaders(new NextResponse(null, { status: 404 }), [
-      ...buildBaselineHeaders(posture),
+      ...buildBaselineHeaders(posture, pathname),
       { key: REQUEST_ID_HEADER, value: requestId },
       policy.noStore,
     ]);
@@ -110,7 +110,7 @@ export async function middleware(request: NextRequest) {
         },
       }),
       [
-        ...buildBaselineHeaders(posture),
+        ...buildBaselineHeaders(posture, pathname),
         ...buildFramingHeaders(posture),
         ...Object.entries(rateLimitHeaders(throttled)).map(([key, value]) => ({ key, value })),
         { key: REQUEST_ID_HEADER, value: requestId },
@@ -138,7 +138,7 @@ export async function middleware(request: NextRequest) {
           headers: { 'content-type': 'application/json' },
         }),
         [
-          ...buildBaselineHeaders(posture),
+          ...buildBaselineHeaders(posture, pathname),
           ...buildFramingHeaders(posture),
           { key: REQUEST_ID_HEADER, value: requestId },
           policy.noStore,
@@ -155,7 +155,7 @@ export async function middleware(request: NextRequest) {
     if (!verdict.allowed) {
       const target = new URL(verdict.redirectTo, request.url);
       return applyHeaders(NextResponse.redirect(target, 307), [
-        ...buildBaselineHeaders(posture),
+        ...buildBaselineHeaders(posture, pathname),
         ...buildFramingHeaders(posture),
         { key: REQUEST_ID_HEADER, value: requestId },
         { key: 'x-dukaan-portal-blocked', value: verdict.module },
@@ -193,7 +193,7 @@ export async function middleware(request: NextRequest) {
 
   // ---- 7. Response hardening. ----
   applyHeaders(response, [
-    ...buildBaselineHeaders(posture),
+    ...buildBaselineHeaders(posture, pathname),
     ...buildFramingHeaders(posture),
     cacheHeaderFor(pathname),
     { key: REQUEST_ID_HEADER, value: requestId },

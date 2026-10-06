@@ -49,13 +49,41 @@ function buildCsp() {
 
 const CSP = buildCsp();
 
+/**
+ * Permissions-Policy for a set of capture surfaces, from `policy.json`.
+ *
+ * Static responses bypass middleware, so the same rules have to be expressed
+ * here as path patterns — otherwise `/scan` would be granted the camera by the
+ * middleware and then have it stripped again by this config, in whichever order
+ * the two layers happen to apply.
+ */
+function permissionsPolicyFor(surfaces) {
+  const grants = {};
+  for (const rule of policy.permissions.capture) {
+    if (!rule.surfaces.some((surface) => surfaces.includes(surface))) continue;
+    Object.assign(grants, rule.grants);
+  }
+  return Object.entries(policy.permissions.features)
+    .map(([feature, allowlist]) => `${feature}=(${(grants[feature] ?? allowlist).join(' ')})`)
+    .join(', ');
+}
+
 const securityHeaders = [
   { key: 'Content-Security-Policy', value: CSP },
+  { key: 'Permissions-Policy', value: permissionsPolicyFor([]) },
   ...policy.headers,
   isLockdownDeployment()
     ? policy.hsts
     : { key: 'Strict-Transport-Security', value: 'max-age=0' },
 ];
+
+/** One entry per capture surface, with sub-paths, so the grant is exact. */
+const captureHeaders = policy.permissions.capture.flatMap((rule) =>
+  rule.surfaces.flatMap((surface) => [
+    { source: surface, headers: [{ key: 'Permissions-Policy', value: permissionsPolicyFor([surface]) }] },
+    { source: `${surface}/:path*`, headers: [{ key: 'Permissions-Policy', value: permissionsPolicyFor([surface]) }] },
+  ]),
+);
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -116,6 +144,9 @@ const nextConfig = {
     return [
       // Everything.
       { source: '/:path*', headers: securityHeaders },
+      // Capture surfaces re-grant only what they need. Declared after the
+      // blanket rule so it wins for the paths above.
+      ...captureHeaders,
       // The console holds business records — never let a proxy or disk cache it.
       {
         source: '/(home|dashboard|products|inventory|sales|billing|payments|expenses|transactions|customers|suppliers|memberships|reminders|marketing|reports|comparisons|profitability|cashflow|insights|alerts|audit|team|settings|business)/:path*',

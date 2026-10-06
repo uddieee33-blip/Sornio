@@ -69,9 +69,51 @@ export function buildFramingHeaders(posture: SecurityPosture = resolvePosture())
   return [{ key: 'Content-Security-Policy', value: buildContentSecurityPolicy(posture) }];
 }
 
+/**
+ * Permissions-Policy, composed from the feature list in `policy.json`.
+ *
+ * Every feature is denied by default. A few screens genuinely need the camera
+ * (barcode scanning) or the platform authenticator (fingerprint check-in), and
+ * those are granted *only on their own routes* by the `capture` rules. The rest
+ * of the console — reports, cash flow, customer records — stays locked, so a
+ * scanner is never a reason for the whole app to hold camera access.
+ */
+export function buildPermissionsPolicy(pathname?: string): string {
+  const features: Record<string, string[]> = policy.permissions.features;
+  const grants = permissionGrantsFor(pathname);
+  return Object.entries(features)
+    .map(([feature, allowlist]) => `${feature}=(${(grants[feature] ?? allowlist).join(' ')})`)
+    .join(', ');
+}
+
+/** Features granted on this path, over and above the deny-by-default list. */
+export function permissionGrantsFor(pathname?: string): Record<string, string[]> {
+  const grants: Record<string, string[]> = {};
+  if (!pathname) return grants;
+  const path = normalizePathname(pathname);
+  for (const rule of policy.permissions.capture) {
+    const applies = rule.surfaces.some((surface) => path === surface || path.startsWith(`${surface}/`));
+    if (!applies) continue;
+    for (const [feature, allowlist] of Object.entries(rule.grants)) grants[feature] = allowlist;
+  }
+  return grants;
+}
+
+function normalizePathname(pathname: string): string {
+  const withoutQuery = pathname.split('?')[0].split('#')[0];
+  if (withoutQuery.length > 1 && withoutQuery.endsWith('/')) return withoutQuery.slice(0, -1);
+  return withoutQuery;
+}
+
 /** Everything that goes on literally every response. */
-export function buildBaselineHeaders(posture: SecurityPosture = resolvePosture()): HeaderPair[] {
-  const headers: HeaderPair[] = [...policy.headers];
+export function buildBaselineHeaders(
+  posture: SecurityPosture = resolvePosture(),
+  pathname?: string,
+): HeaderPair[] {
+  const headers: HeaderPair[] = [
+    ...policy.headers,
+    { key: 'Permissions-Policy', value: buildPermissionsPolicy(pathname) },
+  ];
   if (posture === 'strict') {
     headers.push(policy.hsts);
   } else {
