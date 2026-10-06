@@ -1,0 +1,53 @@
+name: Generate Bodo and Kashmiri catalogues
+
+on:
+  push:
+    branches:
+      - arena/cc22b3f8-dukaanos
+    paths:
+      - .github/workflows/generate-low-resource-locales.yml
+      - scripts/translate-low-resource.py
+
+permissions:
+  contents: write
+
+concurrency:
+  group: generate-dukaanos-low-resource-locales
+  cancel-in-progress: false
+
+jobs:
+  translate:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: arena/cc22b3f8-dukaanos
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+          cache: pip
+      - name: Install IndicTrans2 inference dependencies
+        run: |
+          python -m pip install --disable-pip-version-check --index-url https://download.pytorch.org/whl/cpu 'torch>=2.5'
+          python -m pip install --disable-pip-version-check 'transformers>=4.51,<5' sentencepiece 'indictranstoolkit==1.1.1'
+      - name: Generate Bodo and Kashmiri catalogues
+        run: |
+          set -o pipefail
+          python scripts/translate-low-resource.py 2>&1 | tee translation-error.log
+      - name: Surface generator diagnostics on failure
+        if: failure()
+        run: |
+          message="$(tail -n 25 translation-error.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')"
+          echo "::error title=IndicTrans2 catalogue generation failed::$message"
+      - name: Verify all 22 locale catalogues
+        run: node scripts/verify-i18n.mjs
+      - name: Commit generated locale assets
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add public/locales/brx.json public/locales/ks.json
+          git commit -m "Add Bodo and Kashmiri translations with IndicTrans2"
+          git push origin HEAD:arena/cc22b3f8-dukaanos
