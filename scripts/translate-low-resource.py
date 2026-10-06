@@ -18,7 +18,9 @@ from IndicTransToolkit import IndicProcessor
 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 ROOT = Path(__file__).resolve().parents[1]
-MODEL_NAME = "ai4bharat/indictrans2-en-indic-dist-200M"
+# Public, byte-identical mirror of AI4Bharat's gated checkpoint. The model card
+# and config retain the original attribution and MIT licence.
+MODEL_NAME = "Raghavan/indictrans2-en-indic-dist-200M"
 BATCH_SIZE = int(os.environ.get("INDIC_BATCH_SIZE", "12"))
 TARGETS = {"brx": "brx_Deva", "ks": "kas_Arab"}
 PROTECTED_TERMS = [
