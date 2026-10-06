@@ -15,7 +15,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useSyncExternalStore } from 'react';
-import { ChevronRight, Command, Database, Lock, Menu, Search, WifiOff, X } from 'lucide-react';
+import { ChevronRight, Command, Database, Lock, Menu, Search, UserRound, WifiOff, X } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
@@ -166,6 +166,16 @@ export function Topbar({
 
           {/* Which plan this console runs on, and how long it has left. */}
           <PlanBadge className="hidden sm:inline-flex" />
+
+          {/* Who is sitting at this console — one tap to hand it over. */}
+          <Link
+            href="/settings"
+            title="Who is using this app? Switch role in Settings."
+            className="hidden items-center gap-1.5 rounded-full bg-brand-500/[0.08] px-2.5 py-1 text-[11px] font-bold text-brand-600 ring-1 ring-inset ring-brand-500/20 transition hover:bg-brand-500/[0.14] sm:flex"
+          >
+            <UserRound size={12} />
+            {state.settings.activeRole === 'manager' ? 'Manager' : state.settings.activeRole === 'desk' ? 'Front desk' : 'Owner'}
+          </Link>
 
           <button
             type="button"

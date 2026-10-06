@@ -303,6 +303,119 @@ html[data-theme='warm'] [class*='shadow-black/'] {
   .print-area table thead th { color: #3f3f46 !important; }
 }
 
+/* ---------- Desk collection motion ---------- */
+
+/* Method panels glide in when the desk switches between Cash / UPI / Card / Bank. */
+@keyframes collect-panel-in {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-collect-panel {
+  animation: collect-panel-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Method cards rise in with a stagger (each card sets its own animation-delay). */
+@keyframes collect-rise {
+  0% {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-collect-rise {
+  animation: collect-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The collection modal and success receipt pop in with a little overshoot. */
+@keyframes collect-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.94) translateY(8px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.005) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.animate-collect-pop {
+  animation: collect-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* The success tick blooms after the receipt lands. */
+@keyframes collect-success {
+  0% {
+    opacity: 0;
+    transform: scale(0.55);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.animate-collect-success {
+  animation: collect-success 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+}
+
+/* A soft breathing ring around the UPI QR — it is the thing to look at. */
+@keyframes collect-qr-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(40, 98, 59, 0.22), 0 8px 24px -16px rgba(75, 62, 34, 0.22);
+  }
+  50% {
+    box-shadow: 0 0 0 9px rgba(40, 98, 59, 0), 0 8px 24px -16px rgba(75, 62, 34, 0.22);
+  }
+}
+
+.qr-pulse {
+  animation: collect-qr-pulse 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .qr-pulse,
+  .animate-collect-panel,
+  .animate-collect-rise,
+  .animate-collect-pop,
+  .animate-collect-success {
+    animation: none !important;
+  }
+}
+
+/* Folded-away disclosures (Settings → Advanced) unfurl instead of snapping. */
+.disclosure-body {
+  animation: collect-panel-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+/* Thin scrollbars stay out of the way inside the collection modal. */
+.no-scrollbar {
+  scrollbar-width: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 /* ---------- Portal surfaces ---------- */
 
 /* The business type's own colour, used for the console frame and cockpit. */

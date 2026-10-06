@@ -2,12 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Building2, Check, Fingerprint, QrCode, Save, ScanBarcode, Sparkles } from 'lucide-react';
+import { Building2, Check, Fingerprint, Lock, QrCode, Save, ScanBarcode, Sparkles } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { useOwnerGate } from '@/components/settings/owner-gate';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
 import { portalIcon } from '@/lib/portals/icons';
@@ -29,13 +30,19 @@ const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide tex
 export default function BusinessPage() {
   const { state, actions } = useDukaanStore();
   const { portal, nav } = usePortal();
+  const { role, modal: gateModal, requestOwner } = useOwnerGate();
   const profile = state.profile;
+  const gated = role !== 'owner';
 
   const [name, setName] = useState(profile.name);
   const [description, setDescription] = useState(profile.description);
   const [currency, setCurrency] = useState(profile.currency);
   const [timezone, setTimezone] = useState(profile.timezone);
   const [upiId, setUpiId] = useState(profile.upiId ?? '');
+  const [bankName, setBankName] = useState(profile.bank?.bankName ?? '');
+  const [accountHolder, setAccountHolder] = useState(profile.bank?.accountHolder ?? '');
+  const [accountNumber, setAccountNumber] = useState(profile.bank?.accountNumber ?? '');
+  const [ifsc, setIfsc] = useState(profile.bank?.ifsc ?? '');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [templateFlash, setTemplateFlash] = useState<string | null>(null);
 
@@ -45,17 +52,39 @@ export default function BusinessPage() {
   };
 
   const saveProfile = () => {
-    const result = actions.updateProfile({ name, description, currency, timezone, upiId: upiId.trim() || undefined });
-    flash(result.ok ? 'ok' : 'error', result.ok ? 'Business profile saved — receipts and reminders now use it.' : result.error ?? 'Could not save.');
+    // The profile carries the collection UPI ID — whoever edits it reroutes
+    // the shop's money. Non-owners prove ownership with the password first.
+    requestOwner('This profile carries your collection UPI ID and bank details — the owner password confirms the change.', () => {
+      const result = actions.updateProfile({
+        name,
+        description,
+        currency,
+        timezone,
+        upiId: upiId.trim() || undefined,
+        bank: {
+          upiId: upiId.trim() || undefined,
+          bankName: bankName.trim() || undefined,
+          accountHolder: accountHolder.trim() || undefined,
+          accountNumber: accountNumber.trim() || undefined,
+          ifsc: ifsc.trim().toUpperCase() || undefined,
+        },
+      });
+      flash(result.ok ? 'ok' : 'error', result.ok ? 'Business profile saved — receipts, reminders, and the desk collection panels now use it.' : result.error ?? 'Could not save.');
+    });
   };
 
   const applyTemplate = (templateId: string) => {
-    const result = actions.applyTemplate(templateId);
-    if (result.ok) {
-      const template = businessTemplates.find((t) => t.id === templateId);
-      setTemplateFlash(`"${template?.name}" applied — modules and defaults are now configured for this business type.`);
-      setTimeout(() => setTemplateFlash(null), 3200);
-    }
+    if (!templateId) return;
+    requestOwner('Switching business type reshapes the whole console — the owner password confirms it.', () => {
+      const result = actions.applyTemplate(templateId);
+      if (result.ok) {
+        const template = businessTemplates.find((t) => t.id === templateId);
+        setTemplateFlash(`"${template?.name}" applied — modules and defaults are now configured for this business type.`);
+        setTimeout(() => setTemplateFlash(null), 3200);
+      } else {
+        flash('error', result.error ?? 'Could not switch business type.');
+      }
+    });
   };
 
   const upiValid = upiId.trim() !== '' && isValidUpiId(upiId.trim());
@@ -79,7 +108,7 @@ export default function BusinessPage() {
         <Card className="animate-fade-up h-fit">
           <div className="mb-5 flex items-center justify-between">
             <CardTitle icon={<Building2 size={17} />}>Business details</CardTitle>
-            <Button variant="secondary" onClick={saveProfile}><Save size={15} /> Save</Button>
+            <Button variant="secondary" onClick={saveProfile}>{gated ? <Lock size={15} /> : <Save size={15} />} Save</Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={name} onChange={(e) => setName(e.target.value)} /></div>
@@ -95,13 +124,21 @@ export default function BusinessPage() {
           </div>
 
           <div className="mt-5 rounded-2xl border border-brand-500/20 bg-brand-500/[0.06] p-4">
-            <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-brand-700"><QrCode size={15} /> Your collection UPI ID</p>
-            <p className="mb-3 text-xs text-stone-600">Your own bank&apos;s UPI ID — payments land directly in your account, no middleman. The QR below is generated from it.</p>
+            <p className="mb-1 flex items-center gap-2 text-sm font-semibold text-brand-700"><QrCode size={15} /> Your collection details</p>
+            <p className="mb-3 text-xs text-stone-600">Your own bank&apos;s UPI ID and account — payments land directly in your account, no middleman. The desk shows the QR for UPI and these account details for bank transfers.</p>
             <div className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
-              <input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+              <div className="space-y-3">
+                <div><span className={labelClass}>UPI ID</span><input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} /></div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div><span className={labelClass}>Bank name</span><input className={inputClass} placeholder="HDFC Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} /></div>
+                  <div><span className={labelClass}>Account holder</span><input className={inputClass} placeholder="As printed on the passbook" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} /></div>
+                  <div><span className={labelClass}>Account number</span><input className={inputClass} placeholder="Digits only" inputMode="numeric" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></div>
+                  <div><span className={labelClass}>IFSC</span><input className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} /></div>
+                </div>
+              </div>
               {upiValid ? (
                 <div className="flex flex-col items-center gap-1.5">
-                  <div className="rounded-xl bg-white p-2 shadow-card">
+                  <div className="qr-pulse rounded-xl bg-white p-2">
                     <QRCodeCanvas
                       value={buildUpiDeepLink({ payeeVpa: upiId.trim(), payeeName: name.trim() || 'My Business' })}
                       size={220}
@@ -235,6 +272,7 @@ export default function BusinessPage() {
           </Card>
         </div>
       </div>
+      {gateModal}
     </div>
   );
 }

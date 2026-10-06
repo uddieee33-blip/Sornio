@@ -1,7 +1,8 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import { Plus, ShoppingCart, Trash2, Zap } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Banknote, Plus, ShoppingCart, Trash2, Zap } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -29,6 +30,7 @@ export default function SalesPage() {
   const [method, setMethod] = useState<PaymentMethod>('Cash');
   const [customerName, setCustomerName] = useState('');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [limitHit, setLimitHit] = useState(false);
 
   const total = useMemo(() => lines.reduce((sum, line) => sum + line.quantity * line.rate, 0), [lines]);
 
@@ -49,8 +51,9 @@ export default function SalesPage() {
     updateLine(index, { productId, rate: product ? product.sellingPrice : 0 });
   };
 
-  const handleRecord = () => {
-    const result = actions.recordSale({ lines, method, customerName });
+  const handleRecord = (methodOverride?: PaymentMethod) => {
+    const used = methodOverride ?? method;
+    const result = actions.recordSale({ lines, method: used, customerName });
     if (result.ok) {
       // Say what the sale did to the shelves, in units the owner can go and
       // count: "Kidney beans — 108 → 105". A stock figure that changes without
@@ -58,11 +61,13 @@ export default function SalesPage() {
       const changed = (result.stockChanges ?? []).map(describeStockChange);
       setMessage({
         tone: 'ok',
-        text: `Sale of ${formatCurrency(total)} recorded via ${method}.${changed.length ? ` Stock updated — ${changed.join(', ')}.` : ''}`,
+        text: `Sale of ${formatCurrency(total)} recorded via ${used}.${changed.length ? ` Stock updated — ${changed.join(', ')}.` : ''}`,
       });
+      setLimitHit(false);
       setLines([]);
       setCustomerName('');
     } else {
+      setLimitHit(result.code === 'collection-limit');
       setMessage({ tone: 'error', text: result.error ?? 'Could not record sale.' });
     }
   };
@@ -162,7 +167,7 @@ export default function SalesPage() {
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
               <div className="flex flex-wrap gap-2">
                 {METHODS.map((option) => (
-                  <button key={option} onClick={() => setMethod(option)} className={`rounded-full px-3.5 py-2 text-xs font-semibold transition ${method === option ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-900'}`}>
+                  <button key={option} onClick={() => { setMethod(option); setLimitHit(false); }} className={`rounded-full px-3.5 py-2 text-xs font-semibold transition ${method === option ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-900'}`}>
                     {option}
                   </button>
                 ))}
@@ -175,11 +180,32 @@ export default function SalesPage() {
           </div>
 
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <div className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>
+              <p>{message.text}</p>
+              {message.tone === 'error' && limitHit && method !== 'Cash' ? (
+                <div className="mt-2.5 flex flex-wrap gap-2">
+                  <button
+                    onClick={() => {
+                      setMethod('Cash');
+                      handleRecord('Cash');
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:brightness-110 active:scale-95"
+                  >
+                    <Banknote size={13} /> Record it in cash instead
+                  </button>
+                  <Link
+                    href="/subscription"
+                    className="inline-flex items-center gap-1 rounded-lg bg-white/70 px-3 py-1.5 text-xs font-bold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-white"
+                  >
+                    Remove the limit <ArrowRight size={12} />
+                  </Link>
+                </div>
+              ) : null}
+            </div>
           ) : null}
 
           <div className="mt-5 flex justify-end">
-            <Button onClick={handleRecord}><Zap size={16} /> Record sale</Button>
+            <Button onClick={() => handleRecord()}><Zap size={16} /> Record sale</Button>
           </div>
         </Card>
         </div>

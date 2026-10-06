@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { BellRing, CalendarClock, CreditCard, Crown, Dumbbell, Plus, RefreshCcw, UserPlus, Users } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, Banknote, BellRing, CalendarClock, CreditCard, Crown, Dumbbell, Plus, RefreshCcw, UserPlus, Users } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { usePlan } from '@/components/billing/plan-provider';
 import { daysUntil } from '@/lib/models/membership';
 import type { PaymentMethod } from '@/lib/models/billing';
 import { useDukaanStore } from '@/lib/store';
@@ -29,13 +31,17 @@ function formatDate(iso: string) {
 
 export default function MembershipsPage() {
   const { state, actions } = useDukaanStore();
+  const { usage } = usePlan();
   const membersById = new Map(state.members.map((member) => [member.id, member]));
   const plansById = new Map(state.plans.map((plan) => [plan.id, plan]));
 
   const [planForm, setPlanForm] = useState({ name: '', type: 'monthly', durationMonths: '1', price: '' });
   const [memberForm, setMemberForm] = useState({ name: '', phone: '', preferredChannel: 'both' });
   const [enroll, setEnroll] = useState({ memberId: '', planId: '', method: 'UPI' as PaymentMethod });
+  const [renewMethod, setRenewMethod] = useState<PaymentMethod>('UPI');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  /** When the free UPI allowance runs out mid-collection, this offers the way out instead of a dead end. */
+  const [gateOffer, setGateOffer] = useState<null | { kind: 'enroll'; memberId: string; planId: string; amount: number } | { kind: 'renew'; subscriptionId: string; amount: number }>(null);
 
   const activeCount = state.subscriptions.filter((subscription) => subscription.status === 'active' || subscription.status === 'expiring_soon').length;
   const renewalQueue = state.subscriptions
@@ -63,21 +69,71 @@ export default function MembershipsPage() {
     if (result.ok) setMemberForm({ name: '', phone: '', preferredChannel: 'both' });
   };
 
-  const handleEnroll = () => {
+  const handleEnroll = (methodOverride?: PaymentMethod) => {
     const memberId = enroll.memberId || state.members[0]?.id;
     const planId = enroll.planId || state.plans[0]?.id;
-    const result = actions.enrollMember({ memberId, planId, method: enroll.method });
+    const method = methodOverride ?? enroll.method;
+    const result = actions.enrollMember({ memberId, planId, method });
     const member = membersById.get(memberId);
     const plan = plansById.get(planId);
-    setMessage(result.ok ? { tone: 'ok', text: `${member?.name} enrolled in ${plan?.name}. Revenue recorded via ${enroll.method}.` } : { tone: 'error', text: result.error ?? 'Could not enroll member.' });
+    if (result.ok) {
+      setGateOffer(null);
+      setMessage({ tone: 'ok', text: `${member?.name} enrolled in ${plan?.name}. Revenue recorded via ${method}.` });
+      return;
+    }
+    if (result.code === 'collection-limit') {
+      setGateOffer({ kind: 'enroll', memberId, planId, amount: plan?.price ?? 0 });
+      setMessage({ tone: 'error', text: result.error ?? 'The free UPI allowance for this month is used up.' });
+      return;
+    }
+    setMessage({ tone: 'error', text: result.error ?? 'Could not enroll member.' });
   };
 
-  const handleRenew = (subscriptionId: string) => {
+  const handleRenew = (subscriptionId: string, methodOverride?: PaymentMethod) => {
     const subscription = state.subscriptions.find((item) => item.id === subscriptionId);
     const member = subscription ? membersById.get(subscription.memberId) : undefined;
     const plan = subscription ? plansById.get(subscription.planId) : undefined;
-    const result = actions.renewSubscription({ subscriptionId, method: 'UPI' });
-    setMessage(result.ok ? { tone: 'ok', text: `${member?.name}'s ${plan?.name} renewed for ${plan?.durationMonths} month(s).` } : { tone: 'error', text: result.error ?? 'Could not renew.' });
+    const method = methodOverride ?? renewMethod;
+    const result = actions.renewSubscription({ subscriptionId, method });
+    if (result.ok) {
+      setGateOffer(null);
+      setMessage({ tone: 'ok', text: `${member?.name}'s ${plan?.name} renewed for ${plan?.durationMonths} month(s) — paid via ${method}.` });
+      return;
+    }
+    if (result.code === 'collection-limit') {
+      setGateOffer({ kind: 'renew', subscriptionId, amount: plan?.price ?? 0 });
+      setMessage({ tone: 'error', text: result.error ?? 'The free UPI allowance for this month is used up.' });
+      return;
+    }
+    setMessage({ tone: 'error', text: result.error ?? 'Could not renew.' });
+  };
+
+  const retryGateOfferInCash = () => {
+    if (!gateOffer) return;
+    if (gateOffer.kind === 'enroll') {
+      setEnroll((current) => ({ ...current, memberId: gateOffer.memberId, planId: gateOffer.planId, method: 'Cash' }));
+      const result = actions.enrollMember({ memberId: gateOffer.memberId, planId: gateOffer.planId, method: 'Cash' });
+      const member = membersById.get(gateOffer.memberId);
+      const plan = plansById.get(gateOffer.planId);
+      if (result.ok) {
+        setGateOffer(null);
+        setMessage({ tone: 'ok', text: `${member?.name} enrolled in ${plan?.name} — collected in cash.` });
+      } else {
+        setMessage({ tone: 'error', text: result.error ?? 'Could not enroll member.' });
+      }
+      return;
+    }
+    const result = actions.renewSubscription({ subscriptionId: gateOffer.subscriptionId, method: 'Cash' });
+    const subscription = state.subscriptions.find((item) => item.id === gateOffer.subscriptionId);
+    const member = subscription ? membersById.get(subscription.memberId) : undefined;
+    const plan = subscription ? plansById.get(subscription.planId) : undefined;
+    if (result.ok) {
+      setGateOffer(null);
+      setRenewMethod('Cash');
+      setMessage({ tone: 'ok', text: `${member?.name}'s ${plan?.name} renewed — collected in cash.` });
+    } else {
+      setMessage({ tone: 'error', text: result.error ?? 'Could not renew.' });
+    }
   };
 
   return (
@@ -89,7 +145,47 @@ export default function MembershipsPage() {
       />
 
       {message ? (
-        <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+        <p className={`mb-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+      ) : null}
+
+      {gateOffer ? (
+        <div className="animate-collect-panel mb-6 flex flex-col gap-3 rounded-2xl border border-amber-500/30 bg-amber-500/[0.07] p-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-2.5">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25">
+              <Banknote size={17} />
+            </span>
+            <div>
+              <p className="text-sm font-bold text-stone-900">The member is here — don&apos;t send them away</p>
+              <p className="mt-0.5 text-xs leading-relaxed text-stone-600">
+                UPI is capped for this month{gateOffer.amount > 0 ? `, but the ₹${gateOffer.amount.toLocaleString('en-IN')} can still be collected in cash right now` : ', but cash still works right now'} — nothing is lost either way.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 flex-wrap gap-2">
+            <Button onClick={retryGateOfferInCash}><Banknote size={15} /> Collect in cash</Button>
+            <Link
+              href="/subscription"
+              className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:border-brand-400/40 hover:bg-stone-50"
+            >
+              See plans <ArrowRight size={14} />
+            </Link>
+          </div>
+        </div>
+      ) : null}
+
+      {usage.allowance !== null ? (
+        <div className="mb-6 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-2xl border border-stone-200 bg-white px-4 py-3">
+          <p className="text-xs font-semibold text-stone-700">
+            Free UPI collections this month: <span className="font-bold text-stone-900 tabular-nums">{usage.upiCollections} of {usage.allowance} used</span>
+          </p>
+          <div className="h-2 min-w-32 flex-1 overflow-hidden rounded-full bg-stone-100">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${usage.overAllowance ? 'bg-amber-500' : 'bg-brand-gradient'}`}
+              style={{ width: `${Math.min(100, Math.round((usage.upiCollections / Math.max(usage.allowance, 1)) * 100))}%` }}
+            />
+          </div>
+          <Link href="/subscription" className="text-xs font-semibold text-brand-600 hover:underline">Remove the limit</Link>
+        </div>
       ) : null}
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
@@ -130,9 +226,19 @@ export default function MembershipsPage() {
           </Card>
 
           <Card className="animate-fade-up">
-            <div className="mb-5 flex items-center justify-between">
+            <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
               <CardTitle icon={<Dumbbell size={17} />}>Subscriptions</CardTitle>
-              <Badge tone="violet" dot>{state.subscriptions.length}</Badge>
+              <div className="flex items-center gap-2">
+                <Badge tone="violet" dot>{state.subscriptions.length}</Badge>
+                <select
+                  value={renewMethod}
+                  onChange={(e) => setRenewMethod(e.target.value as PaymentMethod)}
+                  title="How renewal payments arrive"
+                  className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-xs font-semibold text-stone-700 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20"
+                >
+                  {METHODS.map((option) => <option key={option} value={option}>Renew via {option}</option>)}
+                </select>
+              </div>
             </div>
             <div className="space-y-3">
               {state.subscriptions.map((subscription) => {
@@ -188,7 +294,7 @@ export default function MembershipsPage() {
                   {METHODS.map((option) => <option key={option} value={option}>{option}</option>)}
                 </select>
               </div>
-              <Button className="w-full" onClick={handleEnroll}><CreditCard size={16} /> Enroll & collect payment</Button>
+              <Button className="w-full" onClick={() => handleEnroll()}><CreditCard size={16} /> Enroll & collect payment</Button>
             </div>
 
             <div className="mt-6 border-t border-stone-200 pt-5">
