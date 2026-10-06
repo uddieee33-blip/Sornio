@@ -4,13 +4,16 @@ import { useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Lock, X } from 'lucide-react';
-import { NAV_SECTIONS } from './nav-items';
 import { useDukaanStore } from '@/lib/store';
 import { BrandIcon } from '@/components/ui/BrandLogo';
+import { usePortal } from '@/lib/portals/portal-provider';
+import { PORTAL_ICONS } from '@/lib/portals/icons';
 
 export function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const { state, hydrated, persistence } = useDukaanStore();
+  const { portal, nav } = usePortal();
+  const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
 
   useEffect(() => {
     if (!open) return;
@@ -61,8 +64,8 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
               <span id="mobile-navigation-title" className="block font-display text-sm font-bold text-stone-900">
                 DukaanOS
               </span>
-              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-600">
-                Owner Console
+              <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-portal">
+                {portal.name}
               </span>
             </span>
           </Link>
@@ -76,8 +79,18 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
           </button>
         </div>
 
+        <div className="mx-4 mt-4 flex items-start gap-3 rounded-2xl bg-portal/[0.07] p-3.5 ring-1 ring-inset ring-portal/20">
+          <span className="bg-portal-gradient mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white">
+            <PortalIcon size={17} strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <p className="truncate text-sm font-bold text-stone-900">{businessName}</p>
+            <p className="truncate text-[11px] leading-snug text-stone-600">{portal.tagline}</p>
+          </div>
+        </div>
+
         <nav aria-label="Main navigation" className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
-          {NAV_SECTIONS.map((section) => (
+          {nav.map((section) => (
             <section key={section.title} aria-label={section.title}>
               <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
                 {section.title}
@@ -94,15 +107,15 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
                       aria-current={active ? 'page' : undefined}
                       className={`group flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                         active
-                          ? 'bg-brand-500/10 text-brand-600 ring-1 ring-inset ring-brand-500/25'
+                          ? 'bg-portal/10 text-portal ring-1 ring-inset ring-portal/25'
                           : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
                       }`}
                     >
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 group-hover:text-stone-700'}`}>
+                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-portal-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 group-hover:text-stone-700'}`}>
                         <Icon size={16} strokeWidth={2.1} />
                       </span>
                       <span className="flex-1">{item.label}</span>
-                      {active ? <span className="h-1.5 w-1.5 rounded-full bg-brand-300" /> : null}
+                      {active ? <span className="h-1.5 w-1.5 rounded-full bg-portal" /> : null}
                     </Link>
                   );
                 })}

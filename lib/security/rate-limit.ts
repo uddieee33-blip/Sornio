@@ -119,6 +119,11 @@ export function ruleForPath(
   if (pathname.startsWith('/api/auth') || pathname.startsWith('/auth')) {
     return { scope: 'auth', rule: table.auth };
   }
+  // Portal switching reshapes the whole console: it gets its own tight bucket
+  // rather than sharing the general API budget.
+  if (pathname.startsWith('/api/portal')) {
+    return { scope: 'portal', rule: table.portal };
+  }
   if (pathname.startsWith('/api')) {
     return { scope: 'api', rule: table.api };
   }

@@ -7,8 +7,11 @@
  *
  *   owner    — full control, including people, money settings, and deletion
  *   manager  — day-to-day operations and reporting, no people/settings
- *   cashier  — billing and collections only
+ *   cashier  — billing, collections, attendance and the day book
  *   auditor  — read-only across the business
+ *
+ * `portal.switch` is deliberately owner/manager only: reshaping the console is a
+ * configuration decision, not a counter action.
  */
 
 export const ROLES = ['owner', 'manager', 'cashier', 'auditor'] as const;
@@ -21,6 +24,9 @@ export const PERMISSIONS = [
   'products.manage',
   'sales.create',
   'sales.view',
+  'attendance.manage',
+  'appointments.manage',
+  'portal.switch',
   'expenses.manage',
   'customers.view',
   'customers.manage',
@@ -51,6 +57,9 @@ export const ROLE_MATRIX: Record<Role, Permission[]> = {
     'customers.view',
     'customers.manage',
     'memberships.manage',
+    'attendance.manage',
+    'appointments.manage',
+    'portal.switch',
     'reports.view',
     'reports.export',
     'audit.view',
@@ -64,8 +73,38 @@ export const ROLE_MATRIX: Record<Role, Permission[]> = {
     'customers.view',
     'customers.manage',
     'memberships.manage',
+    'attendance.manage',
+    'appointments.manage',
   ],
   auditor: ['business.view', 'products.view', 'sales.view', 'customers.view', 'reports.view', 'audit.view'],
+};
+
+/**
+ * Human labels for the permission matrix. Kept next to the permission list so a
+ * UI can never show a capability the engine does not actually enforce.
+ */
+export const PERMISSION_LABELS: Record<Permission, string> = {
+  'business.view': 'View business profile',
+  'business.edit': 'Edit business profile',
+  'products.view': 'View catalog',
+  'products.manage': 'Manage catalog',
+  'sales.create': 'Record sales',
+  'sales.view': 'View sales',
+  'attendance.manage': 'Check members in and out',
+  'appointments.manage': 'Manage the day book',
+  'portal.switch': 'Change business type / portal',
+  'expenses.manage': 'Record expenses',
+  'customers.view': 'View customers',
+  'customers.manage': 'Manage customers',
+  'memberships.manage': 'Manage plans & renewals',
+  'reports.view': 'View reports',
+  'reports.export': 'Export reports',
+  'audit.view': 'View audit history',
+  'team.manage': 'Invite & manage team',
+  'settings.manage': 'Change settings',
+  'billing.manage': 'Raise & collect invoices',
+  'data.reset': 'Reset business data',
+  'data.export': 'Download a full backup',
 };
 
 export const ROLE_LABELS: Record<Role, string> = {

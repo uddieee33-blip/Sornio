@@ -10,6 +10,7 @@ import { formatCurrency } from '@/lib/business-data';
 import { toBusinessSnapshot } from '@/lib/models/business';
 import { AiInsightsEngine } from '@/lib/services/ai-insights';
 import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
 import { trendSeries } from '@/lib/trend';
 
 const insightTones: Record<string, { badge: 'sky' | 'red' | 'amber' | 'emerald'; label: string }> = {
@@ -23,7 +24,9 @@ const trendLabels: Record<string, string> = { up: 'Trending up', down: 'Trending
 
 export default function InsightsPage() {
   const { state } = useDukaanStore();
+  const { allows, terms } = usePortal();
   const financial = useFinancialSnapshot();
+  const carriesPlans = allows('/memberships');
 
   const { health, insights, tips, snapshot } = useMemo(() => {
     const pendingPayments = state.invoices
@@ -41,12 +44,14 @@ export default function InsightsPage() {
     };
   }, [financial, state.invoices, state.subscriptions]);
 
+  // A business that does not sell plans is not scored on them. The health
+  // score is honest about what this console actually carries.
   const healthBars = [
     { label: 'Revenue', score: health.revenueHealth, max: 25, color: '#287347' },
     { label: 'Profitability', score: health.profitabilityHealth, max: 25, color: '#28623b' },
     { label: 'Cash flow', score: health.cashFlowHealth, max: 20, color: '#27728c' },
-    { label: 'Customers', score: health.customerHealth, max: 15, color: '#a16c1c' },
-    { label: 'Membership', score: health.membershipHealth, max: 15, color: '#a83f54' },
+    { label: `${terms.customers}`, score: health.customerHealth, max: 15, color: '#a16c1c' },
+    ...(carriesPlans ? [{ label: terms.plans, score: health.membershipHealth, max: 15, color: '#a83f54' }] : []),
   ];
 
   const TrendIcon = health.growthTrend === 'down' ? TrendingDown : TrendingUp;
@@ -57,7 +62,9 @@ export default function InsightsPage() {
         <div>
           <p className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-brand-600"><Brain size={14} /> AI Insights</p>
           <h1 className="mt-2 font-display text-2xl font-bold tracking-tight text-stone-900 md:text-3xl">Business intelligence</h1>
-          <p className="mt-2 max-w-2xl text-sm text-stone-600">Health, insights, and growth tips regenerate from live invoices, subscriptions, and the ledger.</p>
+          <p className="mt-2 max-w-2xl text-sm text-stone-600">
+            Health, insights and growth tips regenerate from your live ledger{carriesPlans ? `, ${terms.plans.toLowerCase()}` : ''} and invoices.
+          </p>
         </div>
         <Badge tone={health.growthTrend === 'down' ? 'red' : 'emerald'} dot>
           <span className="inline-flex items-center gap-1"><TrendIcon size={13} /> {trendLabels[health.growthTrend]}</span>
@@ -166,7 +173,9 @@ export default function InsightsPage() {
               );
             })}
             {insights.length === 0 ? (
-              <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">No insights yet. Record sales and memberships to generate intelligence.</p>
+              <p className="rounded-2xl bg-stone-50 p-4 text-sm text-stone-600">
+                No insights yet. Record {terms.sale.toLowerCase()} and payments to generate intelligence.
+              </p>
             ) : null}
           </div>
         </Card>

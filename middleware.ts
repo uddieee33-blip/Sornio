@@ -7,8 +7,10 @@
  *   2. Abuse probes        → known scanner paths answered with 404, no detail.
  *   3. Rate limit          → per-fingerprint sliding window, before any work.
  *   4. CSRF                → fetch-metadata + origin + double-submit token.
- *   5. Security headers    → posture-aware CSP/HSTS/framing on the response.
- *   6. Session refresh     → Supabase only when real credentials are present.
+ *   5. Portal policy       → a business type never renders a module it does not
+ *                            carry (inventory in a gym, memberships in a kirana).
+ *   6. Security headers    → posture-aware CSP/HSTS/framing on the response.
+ *   7. Session refresh     → Supabase only when real credentials are present.
  *
  * Everything here is Edge-safe (Web Crypto, no Node built-ins) and every
  * failure path degrades to "serve the page" rather than "show an error".
@@ -17,6 +19,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 
 import policy from '@/lib/security/policy.json';
+import { checkPortalAccess, PORTAL_COOKIE } from '@/lib/portals/routes';
 import {
   buildBaselineHeaders,
   buildFramingHeaders,
@@ -144,7 +147,24 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 5. Session refresh (only with real credentials; never blocking). ----
+  // ---- 5. Portal policy: the module this route belongs to must be live. ----
+  // Read-only navigation only: an API call or a write is never redirected, so
+  // this can never mask a failed action or turn into a loop.
+  if (isSafeMethod(method)) {
+    const verdict = checkPortalAccess(request.cookies.get(PORTAL_COOKIE)?.value, pathname);
+    if (!verdict.allowed) {
+      const target = new URL(verdict.redirectTo, request.url);
+      return applyHeaders(NextResponse.redirect(target, 307), [
+        ...buildBaselineHeaders(posture),
+        ...buildFramingHeaders(posture),
+        { key: REQUEST_ID_HEADER, value: requestId },
+        { key: 'x-dukaan-portal-blocked', value: verdict.module },
+        policy.noStore,
+      ]);
+    }
+  }
+
+  // ---- 6. Session refresh (only with real credentials; never blocking). ----
   const response = NextResponse.next({ request: { headers: request.headers } });
 
   if (supabaseConfigured) {
@@ -171,7 +191,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 6. Response hardening. ----
+  // ---- 7. Response hardening. ----
   applyHeaders(response, [
     ...buildBaselineHeaders(posture),
     ...buildFramingHeaders(posture),

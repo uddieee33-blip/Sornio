@@ -7,9 +7,14 @@ import { Card } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
+import { usePortal } from '@/lib/portals/portal-provider';
 
-const filters = ['all', 'sales', 'payments', 'expenses', 'memberships', 'adjustments'] as const;
-type FilterId = (typeof filters)[number];
+/**
+ * Filter tabs are built from the console this business runs: a plans tab only
+ * exists where plans exist, and a stock tab only where stock does.
+ */
+const BASE_FILTERS = ['all', 'sales', 'payments', 'expenses'] as const;
+type FilterId = (typeof BASE_FILTERS)[number] | 'memberships' | 'adjustments';
 
 const filterLabels: Record<FilterId, string> = {
   all: 'Everything',
@@ -24,8 +29,8 @@ const typeMeta: Record<string, { label: string; tone: BadgeTone }> = {
   sale: { label: 'Sale', tone: 'emerald' },
   payment: { label: 'Payment', tone: 'brand' },
   expense: { label: 'Expense', tone: 'red' },
-  membership_revenue: { label: 'Membership', tone: 'violet' },
-  membership_payment: { label: 'Membership paid', tone: 'sky' },
+  membership_revenue: { label: 'Plan', tone: 'violet' },
+  membership_payment: { label: 'Plan paid', tone: 'sky' },
   stock_adjustment: { label: 'Stock', tone: 'slate' },
   transfer: { label: 'Transfer', tone: 'amber' },
 };
@@ -34,8 +39,16 @@ const accountLabels: Record<string, string> = { cash: 'Cash', bank: 'Bank', reve
 
 export default function TransactionsPage() {
   const { state } = useDukaanStore();
+  const { allows } = usePortal();
   const [filter, setFilter] = useState<FilterId>('all');
   const [account, setAccount] = useState('all');
+
+  // Only offer the tabs this console has records for.
+  const filters: FilterId[] = [
+    ...BASE_FILTERS,
+    ...(allows('/memberships') ? (['memberships'] as const) : []),
+    ...(allows('/inventory') ? (['adjustments'] as const) : []),
+  ];
 
   const sorted = [...state.transactions].sort((a, b) => b.date.localeCompare(a.date) || b.id.localeCompare(a.id));
   const visible = sorted.filter((tx) => {
