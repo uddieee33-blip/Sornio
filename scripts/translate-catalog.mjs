@@ -158,10 +158,12 @@ async function translateBatch(batch, target) {
           tld,
         },
       );
-      if (!Array.isArray(results) || results.length !== batch.length || results.some((result) => !result?.text)) {
+      if (!Array.isArray(results) || results.length !== batch.length) {
         throw new Error(`Translation RPC returned ${results?.length ?? 0}/${batch.length} results`);
       }
-      return results.map((result) => result.text);
+      const empty = results.filter((result) => !result?.text).length;
+      if (empty) console.warn(`[${target}] ${empty}/${batch.length} technical fragments were returned unchanged`);
+      return results.map((result, index) => result?.text || batch[index].protected.value);
     } catch (error) {
       lastError = error;
       const delay = Math.min(30_000, 1_500 * 2 ** attempt) + Math.round(Math.random() * 500);
