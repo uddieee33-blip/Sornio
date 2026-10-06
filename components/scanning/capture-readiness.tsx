@@ -124,6 +124,16 @@ export function CaptureReadinessCard() {
       </div>
 
       <p className="text-sm leading-relaxed text-stone-600">{portal.capture.what}</p>
+
+      {/* Frames get the camera only if the app that embedded them said so, and
+          most do not. Named here, on every screen the card appears on, so an
+          owner never reads "camera blocked" as "the software is broken". */}
+      {readiness?.embedded ? (
+        <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 text-xs leading-relaxed text-amber-900">
+          This page is inside another app&apos;s frame, which is not allowed to open the camera. Your handheld scanner and
+          typed entry work here — open DukaanOS in its own tab for camera scans.
+        </p>
+      ) : null}
       <div className="mt-2.5 flex flex-wrap gap-1.5">
         {channels.map((channel) => (
           <span

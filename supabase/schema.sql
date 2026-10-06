@@ -159,6 +159,20 @@ CREATE TABLE IF NOT EXISTS inventory_movements (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- The stock ledger (see lib/inventory). A movement is signed and carries the
+-- balance it produced, so "108 packets became 105" is checkable on any device
+-- rather than being a number only the counter's own browser can explain.
+ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS delta NUMERIC(12,3);
+ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS balance_after NUMERIC(12,3);
+ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS reference_text TEXT;
+ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS unit TEXT;
+-- The id the device minted for this movement, so a re-sync updates the same
+-- ledger line instead of writing a second, contradictory one.
+ALTER TABLE inventory_movements ADD COLUMN IF NOT EXISTS movement_key TEXT;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_inventory_movements_movement_key
+  ON inventory_movements (business_id, movement_key) WHERE movement_key IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_inventory_movements_product ON inventory_movements (product_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS transactions (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,

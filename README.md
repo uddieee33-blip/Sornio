@@ -154,16 +154,90 @@ on `/check-ins`; everything else in the app keeps `camera=()` and the rest of th
 deny-by-default list. Middleware (`buildPermissionsPolicy(pathname)`) and
 `next.config.js` both read that one file, so the two layers cannot disagree.
 
+### The Devices tab — proving it works on *your* counter
+
+`/scan → Devices` exists because "the scanner is not working" is almost always
+one of six things, and all six are answerable on the device in front of the
+owner instead of over a support call:
+
+1. **Test box.** Scan or type into it and DukaanOS times every keystroke, so it
+   can say whether the read came from a machine or a person
+   (`classifyKeystrokes` in `lib/scanning/device.ts` — a wedge emits a whole code
+   under 40 ms per character; a human never beats 60 ms for thirteen of them).
+   The readout gives the raw code, the guessed symbology and whether a retail
+   check digit validates.
+2. **Embedded frame.** A page inside another app's frame only gets the camera if
+   the parent delegated it — preview panes and social webviews usually do not.
+   That case is named, with an "open in its own tab" button, instead of being
+   reported as a broken scanner.
+3. **Camera blocked in browser settings.** Detected through
+   `Permissions.query` where the browser supports it, with the fix in the
+   sentence.
+4. **No decoder in this browser.** Safari and Firefox ship no `BarcodeDetector`;
+   the tab says so and points at the wedge and the keypad rather than pretending.
+5. **No on-device sensor** for fingerprints — with the way out below.
+6. **Nothing plugged in** — which the test box shows, because nothing arrives.
+
+The live scanner field stays mounted in every mode, including the test: opening
+diagnostics mid-bill never loses the counter's input.
+
+### Plugged-in readers, not just built-in sensors
+
+A front desk should use the sensor in the tablet, and enrolment defaults to the
+**platform authenticator** for exactly that reason. Shops also buy USB readers
+and security keys, and a browser can reach those through WebAuthn's
+**cross-platform** attachment — so `enrollFingerprint({ attachment })` accepts
+`'platform'` (default), `'cross-platform'` or `'any'`. Refusing to talk to a
+reader the shop already owns would be a limitation of ours, not of their
+hardware. Enrolment also refuses to run inside a frame, because WebAuthn binds a
+credential to an origin and an origin inside a preview frame is not the counter.
+
 ### Verified, not claimed
 
 `npm run verify:scanning` compiles the pure scanning modules with the project's
 own TypeScript and checks them against published examples — GTIN check digits for
 known EAN-13/EAN-8/UPC-A/ITF-14 codes, an EAN-13 round-trip decode, Code 128
 start/switch/stop patterns and the specification's worked check-symbol example,
-Luhn internal codes, the in-store label round trip, and the scan → ticket path
-(matched, ambiguous, unmatched, invalid; stacking; weighed lines). Nothing in
-that script talks to the network, and nothing is mocked: it runs the same code
-the counter runs.
+Luhn internal codes, the in-store label round trip, the scan → ticket path
+(matched, ambiguous, unmatched, invalid; stacking; weighed lines), and the
+wedge-vs-human timing the Devices tab reports. Nothing in that script talks to
+the network, and nothing is mocked: it runs the same code the counter runs.
+
+## Inventory — every unit that moved, and why
+
+An owner who is told "the computer says 105" will go and count the shelf. If the
+number is right but unexplained, they stop trusting it; if it is wrong, they
+stop using the software. So stock is never a column that gets overwritten — every
+change writes a **movement**, and `product.stock` is simply the latest balance on
+that ledger (`lib/inventory`):
+
+| Reason | Written by | What it says |
+| --- | --- | --- |
+| `opening` | adding an item, creating one from a scan | the count the owner typed |
+| `sale` | `recordSale` — typed *or* scanned, one path | "Sold — 3 × Kidney beans", and 108 → 105 |
+| `goods-inward` | Scan Station → Goods inward | the delivery, the supplier and the purchase price |
+| `count` | the owner correcting a stock figure | the old number, the new one, and the difference |
+| `return` | a returned or cancelled sale | stock coming back to the shelf |
+
+The arithmetic is pure and unit-safe (`balanceAfter` clamps at zero, weighed
+goods keep three decimals without float dust, a zero change writes no line at
+all), the ledger is capped at 20,000 lines and ordered by time rather than by
+arrival, and **the counter says what changed** the moment a sale is recorded —
+"Kidney beans: 108 → 105 packets" lands in the same sentence as the total, on
+both `/sales` and the Scan Station. `/inventory` shows each item's full history,
+a shop-wide movement list, and a reconciliation badge: for every item, the last
+ledger balance is compared with the on-hand figure, and any disagreement is named
+per item. Items written before the ledger shipped are listed as *unchecked*
+rather than quietly assumed to be fine.
+
+The ledger syncs to `inventory_movements` (see `supabase/schema.sql`), keyed by
+the movement id the device minted, so a re-sync updates a line instead of writing
+a contradictory second one.
+
+`npm run verify:inventory` runs the exact scenario an owner describes when they
+are deciding whether to trust it: **108 packets of kidney beans, three sold,
+becomes 105** — then a delivery, a re-count, an oversell clamp, a tampered
+figure and the ledger cap.
 
 ## Architecture
 
@@ -350,10 +424,24 @@ Server-only (never shipped to the browser):
 - `DUKAANOS_SESSION_SECRET` — signs session tokens **and the plan cookie**
 - `DUKAANOS_ACTIVATION_SECRET` — signs activation codes; with it unset, activation is disabled rather than guessable
 
-Selling DukaanOS to owners:
-- `NEXT_PUBLIC_PLANS_UPI_ID` — the platform's own UPI id, shown on Your Plan
-- `NEXT_PUBLIC_PLANS_PAYEE_NAME`
+Selling DukaanOS to owners — **this is how the platform gets paid**:
+- `NEXT_PUBLIC_PLANS_UPI_ID` — the platform's own UPI id (VPA, e.g.
+  `dukaanos@okhdfcbank`). It is read **server-side** and validated with the same
+  NPCI VPA check the customer QRs use; if it is missing or malformed, the API
+  reports `payment.configured: false` with the exact reason and `/subscription`
+  says so out loud instead of asking an owner to pay an address that cannot
+  receive.
+- `NEXT_PUBLIC_PLANS_PAYEE_NAME` — the name shown in the payer's UPI app
 - `NEXT_PUBLIC_SUPPORT_WHATSAPP` — the number that answers "I have paid"
+
+With a valid VPA set, `/subscription` renders a **scannable UPI QR** built from
+the same `upi://pay?...` intent as the deep link, carrying the amount and the
+payment reference — so a second device scans it and the payer types nothing. The
+reference (`DKG-…`) is what support quotes when minting the activation code:
+
+```bash
+npm run mint:activation -- --plan growth --months 3 --reference DKG-XXXXXX
+```
 
 Never commit real credentials; `.env*` is gitignored.
 
@@ -366,9 +454,11 @@ npm run dev                  # http://localhost:3000
 
 npm run typecheck            # no type errors
 npm run lint                 # no lint problems
-npm run verify               # both verification suites, below
+npm run verify               # all four verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
+npm run verify:inventory     # 108 packets minus three really is 105
+npm run verify:lock          # the counter PIN: hashing, lockout, storage
 
 # sell a plan by hand — the exact command that turns a UPI payment into access
 DUKAANOS_ACTIVATION_SECRET=… npm run mint:activation -- --plan growth --months 3 --reference UPI-482910
@@ -406,6 +496,7 @@ security is a first-class layer rather than a header or two.
 | Input | `lib/security/validation.ts` | Structural validation, clamps, password strength |
 | Output | `lib/security/sanitize.ts` | HTML/CSV/URL escaping for receipts and exports |
 | Storage | `lib/security/vault.ts` | AES-GCM-256 at rest, integrity envelope, rollback snapshot |
+| Device | `lib/security/lock.ts` + `components/security/counter-lock.tsx` | The counter lock: a PIN hashed with PBKDF2-SHA256 (120k rounds, per-install salt), idle auto-lock, growing lockout after five wrong tries |
 | Evidence | `lib/security/audit.ts` | SHA-256 hash-chained, tamper-evident history |
 | Privacy | `lib/security/redact.ts` | PII/secret scrubbing before anything is logged |
 | Observability | `lib/security/monitor.ts` | Bounded, redacted error + Web Vitals telemetry |
@@ -438,6 +529,42 @@ the money. Diagnostics are scrubbed through `redact()` first, so phone numbers,
 emails, UPI ids, tokens, and 13–19 digit sequences are masked before anything
 leaves a module.
 
+### The counter lock
+
+Local-first means the shop's ledger is on the shop's device, which means the
+biggest hole in a shop is not a server — it is the tablet sitting on the counter
+while the owner serves a customer. So the console carries its own lock:
+
+- **A 6-digit PIN**, refused if it is a run of digits, a repeated digit, or one
+  of the usual suspects (`123456`, `112233`) — with the reason given, not just a
+  red box.
+- **PBKDF2-SHA256, 120,000 rounds, per-install random salt.** The PIN itself is
+  never stored, never logged, never sent anywhere, and the comparison is
+  constant-time.
+- **Five wrong tries pause the keypad** — 30 seconds, doubling to a 15-minute
+  ceiling — and the pause is enforced *before* the hash is computed, so the
+  correct PIN cannot be used to walk around it. Waits are computed from the
+  clock, so closing the tab does not clear one.
+- **Auto-lock on idleness**, at 1 / 5 / 15 / 60 minutes or never, configurable
+  from the Trust Centre; leaving the tab in the background past the limit locks
+  on return. `Lock` in the top bar locks it immediately.
+- **The lock replaces the console, it does not cover it.** While locked the
+  shell renders the keypad *instead of* the sidebar, top bar and page, so the
+  day's takings are not sitting in the DOM behind a blur.
+- **Stated limits.** This stops a passer-by, not somebody who takes the device
+  home and opens developer tools. The card says so, and points at the real
+  answer for that threat: a Supabase account, which lives on the server and
+  cannot be rewritten on the device. A forgotten PIN is not a dead end either —
+  the honest way back in is to clear the lock on that device and say so, which
+  the UI charges one typed word for.
+
+`npm run verify:lock` runs the real PBKDF2 in Node and asserts the things a
+feel-test cannot see: the PIN never appears in what is written to disk, two
+installs with the same PIN produce different hashes, five wrong tries pause the
+keypad *including for the correct PIN*, the pause clears only with time, corrupt
+storage reads as "no lock" rather than crashing, and a device that cannot store
+the lock is told rather than deceived.
+
 ### Fingerprints and camera frames
 
 The fingerprint pad is the one place where it is worth being unusually precise:
@@ -467,8 +594,14 @@ states shown in amber rather than hidden.
 
 For the scanning engine specifically, run `npm run verify:scanning`: it compiles
 the pure modules and checks them against published barcode examples, the
-scan → ticket path, and the shipped demo catalogue. It prints one line per group
-and exits non-zero on the first disagreement.
+scan → ticket path, the wedge-vs-human timing the Devices tab reports, and the
+shipped demo catalogue. It prints one line per group and exits non-zero on the
+first disagreement.
+
+The other three suites work the same way, on the modules they cover:
+`npm run verify:inventory` (108 packets − 3 = 105, and everything that could
+quietly break that), `npm run verify:lock` (the PIN, its hashing and its
+lockout), and `npm run verify:billing` (the plan lifecycle and the paywall).
 
 ### Performance notes
 
