@@ -23,19 +23,19 @@ const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE || 160);
 const CONCURRENCY = Number(process.env.I18N_CONCURRENCY || 1);
 const GOOGLE_TLDS = ['com', 'co.in', 'co.uk', 'ca'];
 
+// Google currently carries 20 of the 22 scheduled languages. Bodo and
+// Kashmiri are generated with AI4Bharat IndicTrans2 by the companion tool.
 const TARGETS = {
   as: 'as',
   bn: 'bn',
-  brx: 'brx',
   doi: 'doi',
   gu: 'gu',
   hi: 'hi',
   kn: 'kn',
   kok: 'gom',
-  ks: 'ks',
   mai: 'mai',
   ml: 'ml',
-  mni: 'mni',
+  mni: 'mni-Mtei',
   mr: 'mr',
   ne: 'ne',
   or: 'or',

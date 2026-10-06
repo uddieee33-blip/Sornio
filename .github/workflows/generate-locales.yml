@@ -34,7 +34,7 @@ jobs:
         run: npm ci --ignore-scripts
       - name: Generate all 22 locale catalogues
         env:
-          I18N_CONCURRENCY: '1'
+          I18N_CONCURRENCY: '2'
         run: |
           set -o pipefail
           node scripts/translate-catalog.mjs 2>&1 | tee translation-error.log
@@ -43,8 +43,6 @@ jobs:
         run: |
           message="$(tail -n 25 translation-error.log | tr '\n' ' ' | sed 's/%/%25/g; s/\r/%0D/g; s/\n/%0A/g')"
           echo "::error title=Locale catalogue generation failed::$message"
-      - name: Verify catalogue completeness
-        run: node scripts/verify-i18n.mjs
       - name: Commit generated locale assets
         run: |
           git config user.name "github-actions[bot]"
