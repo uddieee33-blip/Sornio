@@ -16,6 +16,7 @@
 import { useCallback, useMemo, useState } from 'react';
 import {
   AlertTriangle,
+  BadgeIndianRupee,
   CheckCircle2,
   Database,
   Fingerprint,
@@ -31,6 +32,7 @@ import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
+import { usePlan } from '@/components/billing/plan-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { disabledModules } from '@/lib/portals/registry';
 import { toChainEvent, verifyChain, type ChainVerification } from '@/lib/security/audit';
@@ -75,6 +77,7 @@ function PostureRow({
 export function TrustCenter() {
   const { state, hydrated, syncStatus, persistence } = useDukaanStore();
   const { portal, nav } = usePortal();
+  const { entitlement, usage, synced } = usePlan();
   const toast = useToast();
   const PortalMark = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
   const scopedOut = disabledModules(portal.id);
@@ -218,6 +221,21 @@ export function TrustCenter() {
               }
               posture="protected"
               aside={<Badge tone="emerald">{nav.flatMap((section) => section.links).length} modules</Badge>}
+            />
+            <PostureRow
+              icon={<BadgeIndianRupee size={16} />}
+              title={`Plan & entitlement — ${entitlement.plan.name}`}
+              detail={
+                entitlement.fullAccess
+                  ? `Every module this business type carries is open. The plan's own limits (${usage.allowance === null ? 'unlimited collections' : `${usage.allowance} UPI collections a month`}) are enforced at the edge and again at the moment a collection is recorded — a limit can never corrupt a ledger.`
+                  : 'The paid automations are paused and everything already recorded stays readable, exportable and printable. A lapsed plan can hide a module; it can never lock a record, and it can never grant one.'
+              }
+              posture={entitlement.state === 'expired' ? 'attention' : 'protected'}
+              aside={
+                <Badge tone={!synced ? 'slate' : entitlement.fullAccess ? 'emerald' : entitlement.state === 'expired' ? 'amber' : 'slate'}>
+                  {!synced ? 'unverified' : entitlement.state}
+                </Badge>
+              }
             />
             <PostureRow
               icon={<ShieldHalf size={16} />}

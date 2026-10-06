@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { CheckCircle2, CreditCard, FilePlus2, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { ArrowRight, BadgeIndianRupee, CheckCircle2, CreditCard, FilePlus2, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
@@ -49,7 +50,19 @@ export default function BillingPage() {
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
-      <PageHeader eyebrow="Billing" title="Bills, receipts, and payment flow" />
+      <PageHeader
+        eyebrow="Billing"
+        title="Bills, receipts, and payment flow"
+        subtitle="These are the bills you raise for your customers. What DukaanOS costs you is a separate thing, and it lives in one place."
+        actions={
+          <Link
+            href="/subscription"
+            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:border-brand-400/40 hover:bg-stone-50"
+          >
+            <BadgeIndianRupee size={15} /> Your DukaanOS plan <ArrowRight size={14} />
+          </Link>
+        }
+      />
 
       {message ? (
         <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>

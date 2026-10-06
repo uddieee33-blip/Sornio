@@ -72,6 +72,7 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 | `/audit` | Real, timestamped audit history of every financial change |
 | `/insights` | AI business health score, insights, growth tips |
 | `/alerts`, `/settings` | Notifications, interactive preferences, audit trail |
+| `/subscription` | **Your Plan** — what this console costs, what it has used, what a lapsed plan does, and the UPI path to switch it on |
 
 ## Scanning & capture — barcodes at the counter, fingers at the desk
 
@@ -177,6 +178,15 @@ the counter runs.
   - `metrics.ts` — the cockpit figures, computed only from recorded activity
   - `sync.ts` — publishes the chosen type to `/api/portal` with the CSRF double-submit token
 - **`app/api/portal/route.ts`** — the single narrowly-scoped server write: validates the template id, re-derives the portal, re-issues the httpOnly cookie.
+- **`lib/plans/`** — the paid product, pure data first so the edge can enforce it:
+  - `catalogue.ts` — the four plans, their prices, limits, and exactly which modules each unlocks
+  - `lifecycle.ts` — `trialing → active → grace → expired → free`, resolved from dates only
+  - `routes.ts` — route policy used by middleware and the console (`checkPlanAccess`, `lockedModulesFor`)
+  - `usage.ts` — the free monthly allowance, counted from the ledger (UPI money in; cash never)
+  - `cookie.ts` — the signed, httpOnly `dukaan.plan` cookie the server issues and verifies
+  - `activation.ts` — `DKS1-…` codes: plan, months, reference and expiry inside one HMAC
+  - `active.ts`, `client.ts` — what the console believes, and the one endpoint that changes it
+- **`app/api/subscription/route.ts`** — the only place a plan can change: CSRF + origin checked, its own tight rate-limit bucket, owner/manager role required when a real session exists, and *nothing* grantable except the free plan or a signature-verified code.
 - **`lib/models/`** — universal domain models shared across the product:
   - `business.ts` — business profile, settings, templates (derived from the portal blueprints), audit events, snapshot adapter
   - `billing.ts` — invoices, line items, payment records, collection summaries
@@ -191,6 +201,7 @@ the counter runs.
   - `counter.ts` — the scan ticket: stacking rules, weighed lines, totals
   - `device.ts`, `fingerprint.ts` — what this device can do, and WebAuthn enrol/verify (credential ids only)
   - `components/scanning/` — the wedge/camera/typed scanner, the printable label sheet, the SVG barcode, the fingerprint pad, the readiness card
+- **`lib/perf/clock.ts`** — the wall clock as an external store (`useSyncExternalStore`), so plan countdowns never read time during render and hydration stays identical.
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
 - **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, raise/collect invoices, check members in and out, and run a booking day book; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
 - **`lib/sync/supabase-sync.ts`** — the persistence adapter bridging the live store to the multi-tenant schema. It provisions the owner's `businesses` + `business_members` row, then pushes products, ledger entries, customers, campaigns, audit, and settings, all scoped by `business_id`.
@@ -198,6 +209,8 @@ the counter runs.
 - **`supabase/schema.sql`** — multi-tenant Postgres schema. Every tenant table carries `business_id` and is protected by row-level security policies scoped to `business_members`.
 
 ## Principles
+
+**Paid, and honest about it.** The free plan is free forever and cannot lapse; the paid plan is enforced at the edge and cannot be talked around. What a business is never asked to accept: cash metered, records held hostage, an auto-debit mandate, a cut of its collections, or a landing page full of proof we made up. The prices, the limits and the locks are all in one file, and the lock is on the *paid* path only.
 
 1. **Start at zero → record reality → calculate reality** — a new business opens with every balance at ₹0 (cash, bank, UPI, receivables, revenue, COGS, profit, inventory, payables). Nothing is fabricated; every figure moves only when real activity is recorded.
 2. **Real data only** — metrics come from the transaction ledger, never hardcoded dashboards.
@@ -208,11 +221,111 @@ the counter runs.
 7. **One engine, every business** — business-type templates (`lib/models/business.ts`) configure modules for gyms, cafés, groceries, salons, electronics, and any other business.
 8. **Direct UPI, no middleman** — each owner's own bank UPI ID generates their collection QR; receipts print as physical bills, and membership renewals get personalized SMS/WhatsApp drafts.
 
+## Pricing & entitlements — what is paid, and how it is enforced
+
+DukaanOS is sold, and the sale is enforced like every other decision in this
+product: once, as data, at the edge, before a page renders.
+
+### The plans
+
+| Plan | Price | Opens | Limits |
+| --- | --- | --- | --- |
+| **Starter** | ₹0 forever | The whole counter: billing, receipts, stock, suppliers, udhaar khata, Scan Station, UPI QR, ledger, reports, audit chain, Trust Centre, your plan | 25 UPI collections/month · 200 items · 2 seats · 1 branch |
+| **Full trial** | ₹0, 3 days | Every module, no card, no mandate — it simply ends | — |
+| **Growth** | ₹499/month · ₹999/quarter · ₹4,990/year | Everything in Starter, unlimited, **plus** the automations: memberships & renewals, reminders, check-ins, day book, marketing, margins, comparisons | 10 seats · 1 branch |
+| **Scale** | ₹1,999/quarter · ₹6,999/year | Everything in Growth, unlimited | Multi-branch · unlimited seats · priority support |
+
+Every price, limit and module list on both surfaces comes from one place —
+`lib/plans/catalogue.ts`. The landing page renders it, the console sells from
+it, and Edge middleware enforces it, so a promise cannot drift from a product.
+
+### The lifecycle — derived from dates, never stored as a flag
+
+```
+record ──┬─ trialing ───── trial ends ─┐
+         ├─ active ── period ends ─► grace ── 7 days ──► expired
+         └─ free ───────────────────────────────► free  (cannot lapse)
+```
+
+`resolveEntitlement(record, now)` (`lib/plans/lifecycle.ts`) is pure: it takes
+the record and a timestamp and returns what a business may do. Nothing is
+stored as "active", so a stale cookie, a rolled-back device clock, or a
+forgotten database row cannot extend a plan. Grace exists because a shop should
+never be cut off mid-Saturday over a payment that clears on Monday — a paid plan
+whose period ended keeps every module for seven days while the owner renews.
+
+### Where it is enforced
+
+| Layer | Module | What it does |
+| --- | --- | --- |
+| Edge | `middleware.ts` (step 6) + `lib/plans/routes.ts` | A module this plan does not carry is never served: a 307 to `/subscription?locked=<module>`, with `x-dukaan-plan-blocked` and `x-dukaan-plan-state` headers. Read-only navigation only — a write is never redirected. |
+| Recording | `lib/plans/usage.ts` + `lib/store.tsx` | The free plan's one real limit — 25 UPI collections a month — is checked where money is recorded, before a single line is written. |
+| Surface | `components/billing/plan-{provider,badge,banner}.tsx` | The owner is told exactly what is paused, in the console's own trade words, and where to fix it. |
+| Server | `app/api/subscription/route.ts` | The only place a plan can change. |
+
+### What a lapsed plan does — and refuses to do
+
+Expiry drops a business to the free plan. **Nothing is deleted, nothing is
+locked away, and the shop never stops working**: billing, cash entries, the
+collection QR, stock, reports, exports and the audit chain all continue, on any
+plan. Only the paid automations pause, and they return the moment a plan is
+active. Locking a business out of its own ledger would be extortion, not
+pricing, so the always-open list (`cockpit`, `business`, `team`, `audit`,
+`security`, `settings`, `subscription`) is added on top of whatever a plan
+carries — a plan may only ever *remove* a module, never grant one.
+
+**Cash is never metered.** A shop at its free allowance can still bill in cash,
+record the sale, print the bill and keep the books. The limit is on the paid
+path only, and the count comes from the ledger itself — the same transactions
+the owner is looking at, reset by the calendar rather than by a job we run.
+
+### The plan cookie, and what tampering buys
+
+The chosen plan reaches the edge as `dukaan.plan`: `base64url(payload).base64url(hmacSha256(payload))`,
+signed with `DUKAANOS_SESSION_SECRET`, `httpOnly`, `SameSite=Lax`. Anything that
+does not verify is treated as *no record*, which resolves to the free plan.
+Tampering therefore cannot unlock a paid module — the worst it can do is drop a
+paying business to the free plan, which is why the server re-issues a verified
+record on every successful call.
+
+### Turning a payment into a plan
+
+DukaanOS collects its own price the way it asks every business to collect: a
+direct UPI payment, with a reference in the note. There is no gateway, no
+mandate and no card on file.
+
+1. The owner taps **Continue with Growth** → the server returns a reference, the
+   amount, a `upi://pay` intent and a WhatsApp link. Nothing is granted.
+2. They pay. The operator mints a code tied to that payment:
+   `npm run mint:activation -- --plan growth --months 3 --reference UPI-482910`.
+3. They paste the code into **Your Plan**. The server verifies the HMAC — plan,
+   months, reference and expiry are all inside the signature — and only then
+   issues the paid cookie. Renewals on the same plan stack; an upgrade starts
+   from today; the price locks for 12 months from activation.
+
+Nobody can grant a plan by asking: `choose-plan` accepts only the free plan, a
+trial can be started once, and `activate` needs a signature that only a holder
+of `DUKAANOS_ACTIVATION_SECRET` (server-only) can produce. With that secret
+unset, activation is **off**, not open.
+
+### Verify it, don't believe it
+
+`npm run verify:billing` compiles the pure plan modules with the project's own
+TypeScript and asserts the things a business would be furious to discover we got
+wrong: that a lapsed plan never locks a shop out of its own records, that no
+plan can name a module the catalogue does not contain, that expiry is derived
+from dates so a rolled-back clock extends nothing, that tampered cookies and
+activation codes are worth nothing, that the allowance counts UPI money and
+never cash, and that renewals stack, upgrades start today and the price lock is
+really twelve months.
+
 ## Database foundation (Supabase Postgres)
 
-`supabase/schema.sql` defines a multi-tenant relational schema — 26 tables, every business-owned record carrying `business_id`, with primary keys, foreign keys, indexes, constraints, and `created_at`/`updated_at` timestamps. Highlights: `businesses`, `business_members`, `customers`, `suppliers`, `categories`, `products`, `sales`, `sale_items`, `payment_methods`, `payments`, `expenses`, `inventory_movements`, `transactions`, `audit_logs`, `invoices`, `membership_plans`, `members`, `membership_subscriptions`, `marketing_campaigns`, and more.
+`supabase/schema.sql` defines a multi-tenant relational schema — 29 tables, every business-owned record carrying `business_id`, with primary keys, foreign keys, indexes, constraints, and `created_at`/`updated_at` timestamps. Highlights: `businesses`, `business_members`, `customers`, `suppliers`, `categories`, `products`, `sales`, `sale_items`, `payment_methods`, `payments`, `expenses`, `inventory_movements`, `transactions`, `audit_logs`, `invoices`, `membership_plans`, `members`, `membership_subscriptions`, `marketing_campaigns`, and more.
 
 **Capture records** (Increment 8 of the schema) extend the same multi-tenant model: `products` gains `barcode`, `internal_code`, `loose_mode`, and `scale_number` with per-business uniqueness on both codes, and two new tables record how a counter works — `scan_events` (what was read, where, and what came of it) and `biometric_credentials` (a member's WebAuthn credential id and use count — never a fingerprint).
+
+**Platform billing** (Increment 9) is kept out of the tenant's own books, because mixing our revenue into a business's ledger would corrupt both: `platform_subscriptions` (which plan a business is on, when its period ends, how it was granted, and the payment reference it came from) and `platform_payment_requests` (what an owner asked to buy, and its UPI reference). A business may read its own plan and *request* a payment — RLS gives members `select` plus `insert`-as-`requested` and nothing else, so **activation is not reachable from a browser**, only from the operator side.
 
 **Row Level Security** is enabled on every tenant table with policies scoped to `business_members` — one business can never read or write another business's rows.
 
@@ -234,6 +347,13 @@ Browser-safe:
 Server-only (never shipped to the browser):
 - `SUPABASE_SERVICE_ROLE_KEY` (if used for admin operations)
 - `NEXT_PUBLIC_APP_URL`
+- `DUKAANOS_SESSION_SECRET` — signs session tokens **and the plan cookie**
+- `DUKAANOS_ACTIVATION_SECRET` — signs activation codes; with it unset, activation is disabled rather than guessable
+
+Selling DukaanOS to owners:
+- `NEXT_PUBLIC_PLANS_UPI_ID` — the platform's own UPI id, shown on Your Plan
+- `NEXT_PUBLIC_PLANS_PAYEE_NAME`
+- `NEXT_PUBLIC_SUPPORT_WHATSAPP` — the number that answers "I have paid"
 
 Never commit real credentials; `.env*` is gitignored.
 
@@ -246,7 +366,12 @@ npm run dev                  # http://localhost:3000
 
 npm run typecheck            # no type errors
 npm run lint                 # no lint problems
+npm run verify               # both verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
+npm run verify:billing       # the plan lifecycle, the locks, and the money
+
+# sell a plan by hand — the exact command that turns a UPI payment into access
+DUKAANOS_ACTIVATION_SECRET=… npm run mint:activation -- --plan growth --months 3 --reference UPI-482910
 ```
 
 Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy to Vercel with the same environment variables.
@@ -257,7 +382,8 @@ Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy
 
 - The live demo runs the full domain model client-side (`lib/store.tsx`) so every flow is exercisable without a live Supabase project; the schema is ready for server-side wiring.
 - Accounting is a general-purpose calculation layer, not jurisdiction-specific tax/legal advice.
-- Trial/billing for DukaanOS itself is structured to be added later; no payment is required to run this version.
+- DukaanOS's own billing is **shipped**, not deferred: a free plan that cannot lapse, a 3-day full trial, three paid plans, a signed plan cookie enforced at the edge, and activation codes minted from a verified payment. What is deliberately *not* built is an auto-debit mandate — there is no card on file anywhere in this product, by design.
+- On a local-first install (no Supabase), the console runs on the owner's own device, so the entitlement gate there is a commitment encoded in software, not DRM. That is said plainly rather than dressed up; the hosted path enforces it server-side, where it can be.
 
 ## Security architecture
 
@@ -275,6 +401,7 @@ security is a first-class layer rather than a header or two.
 | Transport | `lib/security/headers.ts` | Posture-aware CSP, HSTS, framing, and a `Permissions-Policy` granted per route (camera only where scanning happens, WebAuthn only at the gym desk) |
 | Edge | `lib/security/rate-limit.ts` | Sliding-window throttling, pluggable store (dedicated bucket for `/api/portal`) |
 | Portal scoping | `lib/portals/routes.ts` + `middleware.ts` | A business type never reaches a module it does not carry |
+| Entitlement | `lib/plans/` + `middleware.ts` | A plan that is not being paid for never reaches the paid automations — and expiry still never locks a business out of its own books |
 | Request | `lib/security/csrf.ts` | Fetch-metadata + origin allow-list + double-submit token |
 | Input | `lib/security/validation.ts` | Structural validation, clamps, password strength |
 | Output | `lib/security/sanitize.ts` | HTML/CSV/URL escaping for receipts and exports |
@@ -291,8 +418,9 @@ security is a first-class layer rather than a header or two.
 3. **Rate limiting** — a per-client sliding window per scope (auth, api, reports, page) plus a short burst guard. API and mutating requests get the tight budget; page traffic gets a generous one so the app never throttles its own navigation.
 4. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a double-submit token for `/api/*`.
 5. **Portal policy** — the portal cookie decides which modules this business runs. A request for a module outside it (inventory in a gym, memberships in a kirana) is answered with a 307 to `/home?locked=<module>` and an `x-dukaan-portal-blocked` header. Only read-only navigation is redirected, so the check can never mask a failed action or loop.
-6. **Headers** — CSP, HSTS, framing, `Permissions-Policy`, `no-store` on console routes.
-7. **Session refresh** — Supabase only when real credentials exist, lazily imported, never blocking a page load.
+6. **Plan policy** — the signed plan cookie decides whether this route is served. A module the plan does not carry (memberships on the free plan, anything after a lapsed period) is answered with a 307 to `/subscription?locked=<module>` and an `x-dukaan-plan-blocked` header. Read-only navigation only, exactly like the portal check, so it can never mask a failed action.
+7. **Headers** — CSP, HSTS, framing, `Permissions-Policy`, `no-store` on console routes.
+8. **Session refresh** — Supabase only when real credentials exist, lazily imported, never blocking a page load.
 
 ### Two postures
 

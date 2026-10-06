@@ -19,6 +19,7 @@ import { ChevronRight, Command, Database, Lock, Menu, Search, WifiOff, X } from 
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
+import { PlanBadge } from '@/components/billing/plan-badge';
 
 
 /**
@@ -144,6 +145,9 @@ export function Topbar({
           >
             <Lock size={12} /> Encrypted
           </Link>
+
+          {/* Which plan this console runs on, and how long it has left. */}
+          <PlanBadge className="hidden sm:inline-flex" />
 
           <button
             type="button"

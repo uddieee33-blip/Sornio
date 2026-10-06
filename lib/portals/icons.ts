@@ -9,6 +9,7 @@
 
 import {
   ArrowLeftRight,
+  BadgeIndianRupee,
   BarChart3,
   Bell,
   BellRing,
@@ -88,6 +89,7 @@ export const PORTAL_ICONS: Record<IconName, LucideIcon> = {
   audit: ScrollText,
   security: ShieldCheck,
   settings: Settings,
+  plan: BadgeIndianRupee,
 };
 
 export function portalIcon(name: IconName): LucideIcon {

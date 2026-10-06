@@ -16,6 +16,7 @@ import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import { GENESIS_HASH, appendAuditEntry, isChained, type AuditActor, type AuditSeverity } from '@/lib/security/audit';
 import { vaultClear, vaultRead, vaultWrite } from '@/lib/security/vault';
 import { debounce } from '@/lib/perf/idle';
+import { authorizeCollection } from '@/lib/plans/active';
 import {
   buildSampleSubscriptions,
   defaultMembers,
@@ -599,6 +600,12 @@ export type StoreActions = {
   startFreshBusiness: () => void;
   syncNow: () => Promise<void>;
   updateSettings: (patch: Partial<BusinessSettings>) => ActionResult;
+  /**
+   * Writes a plan change into the same hash-chained audit history as every
+   * other financial decision — including ours. `summary` is the owner-facing
+   * sentence; nothing about a plan is recorded that a business may not read.
+   */
+  recordPlanEvent: (summary: string) => void;
   resetDemo: () => void;
 };
 
@@ -622,6 +629,23 @@ const StoreStateContext = createContext<Omit<StoreContextValue, 'actions'> | nul
 const StoreActionsContext = createContext<StoreActions | null>(null);
 
 /** Build the revenue + payment transaction pair for a completed sale. */
+/**
+ * The plan's one real limit, enforced where money is recorded.
+ *
+ * Counting is done from the ledger itself (`lib/plans/usage.ts`), so the number
+ * the owner sees and the number that gates them are the same number. Only the
+ * metered (UPI/bank) path is gated: a shop at its free allowance can always
+ * keep billing in cash, and nothing already recorded is ever touched.
+ */
+function meterCollection(
+  method: PaymentMethod,
+  transactions: Transaction[],
+  timeZone: string,
+): ActionResult {
+  const refusal = authorizeCollection(method, transactions, timeZone);
+  return refusal ?? { ok: true };
+}
+
 function buildRevenueTransactions(description: string, amount: number, method: PaymentMethod, customerLabel?: string): Transaction[] {
   const date = todayISO();
   return [
@@ -885,6 +909,11 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       const total = validLines.reduce((sum, line) => sum + line.quantity * line.rate, 0);
       if (total <= 0) return { ok: false, error: 'Sale total must be greater than zero.' };
 
+      // The plan gate sits before anything is written: a refused collection
+      // leaves the ledger exactly as it was, so a limit can never corrupt books.
+      const metered = meterCollection(method, stateRef.current.transactions, stateRef.current.profile.timezone);
+      if (!metered.ok) return metered;
+
       const date = todayISO();
       const label = customerName?.trim() || undefined;
 
@@ -936,6 +965,12 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           : `Sale of ${formatAuditAmount(total)} recorded via ${method}${label ? ` for ${label}` : ''}.`,
       );
       return { ok: true };
+    },
+
+    recordPlanEvent(summary) {
+      // The plan itself is our own financial decision, so it lands in the same
+      // tamper-evident history as the owner's — one chain, no exceptions.
+      track('settings', summary.slice(0, 240));
     },
 
     recordExpense({ category, amount, method }) {
@@ -1058,6 +1093,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       const member = stateRef.current.members.find((item) => item.id === memberId);
       if (!plan) return { ok: false, error: 'Choose a plan.' };
       if (!member) return { ok: false, error: 'Choose a member.' };
+      const metered = meterCollection(method, stateRef.current.transactions, stateRef.current.profile.timezone);
+      if (!metered.ok) return metered;
       const now = new Date();
       const expiryDate = addMonths(now, plan.durationMonths);
       setState((current) => ({
@@ -1089,6 +1126,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       const subscription = stateRef.current.subscriptions.find((item) => item.id === subscriptionId);
       const plan = subscription ? stateRef.current.plans.find((item) => item.id === subscription.planId) : undefined;
       if (!subscription || !plan) return { ok: false, error: 'Subscription not found.' };
+      const metered = meterCollection(method, stateRef.current.transactions, stateRef.current.profile.timezone);
+      if (!metered.ok) return metered;
       const member = stateRef.current.members.find((item) => item.id === subscription.memberId);
       const now = new Date();
       const expiryDate = addMonths(now, plan.durationMonths);
@@ -1523,6 +1562,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       const invoice = stateRef.current.invoices.find((item) => item.id === invoiceId);
       if (!invoice) return { ok: false, error: 'Invoice not found.' };
       if (invoice.paymentStatus === 'paid') return { ok: false, error: 'Invoice is already paid.' };
+      const metered = meterCollection(invoice.paymentMethod, stateRef.current.transactions, stateRef.current.profile.timezone);
+      if (!metered.ok) return metered;
       const date = todayISO();
       setState((current) => ({
         ...current,

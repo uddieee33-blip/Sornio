@@ -43,7 +43,9 @@ export const LANGUAGES: { code: LanguageCode; name: string; native: string }[] =
 export type I18nKey =
   | 'nav.signIn' | 'nav.openConsole' | 'nav.charts' | 'nav.upi' | 'nav.features' | 'nav.security' | 'nav.pricing'
   | 'hero.badge' | 'hero.titleA' | 'hero.titleB' | 'hero.sub' | 'hero.ctaStart' | 'hero.ctaConsole'
-  | 'charts.sample' | 'zeroStart.line';
+  | 'charts.sample' | 'zeroStart.line'
+  | 'nav.why' | 'nav.compare' | 'nav.faq' | 'hero.promise'
+  | 'why.title' | 'why.sub' | 'compare.title' | 'compare.sub' | 'faq.title' | 'pricing.sub';
 
 type Dictionary = Partial<Record<I18nKey, string>>;
 
@@ -63,6 +65,16 @@ const en: Dictionary = {
   'hero.ctaConsole': 'Peek at the live console',
   'charts.sample': 'Sample data only — never real or fabricated business numbers',
   'zeroStart.line': 'Every new business starts at zero. Every rupee on your dashboard appears only when you record a real sale or expense.',
+  'nav.why': 'Why pay',
+  'nav.compare': 'Compare',
+  'nav.faq': 'Questions',
+  'hero.promise': 'Free plan forever · 3-day full trial · Growth ₹499/month · No card, no auto-debit',
+  'why.title': 'Why owners pay for this',
+  'why.sub': 'Not for a dashboard. For the money the dashboard finds.',
+  'compare.title': 'Free forever, or paid and automated',
+  'compare.sub': 'The same console either way. What changes is how much it chases for you.',
+  'faq.title': 'Straight answers',
+  'pricing.sub': 'Prices are per business — not per bill, not per counter, and never a cut of what you collect.',
 };
 
 const hi: Dictionary = {
@@ -81,6 +93,16 @@ const hi: Dictionary = {
   'hero.ctaConsole': 'लाइव कंसोल देखें',
   'charts.sample': 'सिर्फ़ सैंपल डेटा — कभी भी असली या मनगढ़ंत आँकड़े नहीं',
   'zeroStart.line': 'हर नया कारोबार शून्य से शुरू होता है। डैशबोर्ड का हर रुपया तभी दिखता है जब आप असली बिक्री या खर्च दर्ज करते हैं।',
+  'nav.why': 'क्यों भुगतान करें',
+  'nav.compare': 'तुलना',
+  'nav.faq': 'सवाल',
+  'hero.promise': 'स्टार्टर प्लान हमेशा मुफ़्त · 3 दिन का पूरा ट्रायल · ग्रोथ ₹499/महीना · न कार्ड, न ऑटो-डेबिट',
+  'why.title': 'कारोबारी इसके लिए भुगतान क्यों करते हैं',
+  'why.sub': 'डैशबोर्ड के लिए नहीं — उस पैसे के लिए जो डैशबोर्ड ढूँढ़ देता है।',
+  'compare.title': 'हमेशा मुफ़्त, या भुगतान के साथ पूरा ऑटोमेशन',
+  'compare.sub': 'कंसोल दोनों में एक ही है। बदलता है तो बस यह कि वह आपके लिए कितना काम खुद करता है।',
+  'faq.title': 'सीधे जवाब',
+  'pricing.sub': 'कीमत पूरे कारोबार की है — हर बिल या काउंटर की नहीं, और आपकी कलेक्शन से कोई हिस्सा नहीं।',
 };
 
 const pa: Dictionary = {

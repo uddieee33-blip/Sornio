@@ -54,6 +54,10 @@ export const MODULE_CATALOGUE: CatalogueEntry[] = [
   { module: 'audit', href: '/audit', label: 'Audit History', icon: 'audit', keywords: 'log changes trace verify chain', core: true },
   { module: 'security', href: '/security', label: 'Trust Centre', icon: 'security', keywords: 'security encryption privacy rbac backup', core: true },
   { module: 'settings', href: '/settings', label: 'Settings', icon: 'settings', keywords: 'preferences language currency receipts', core: true },
+  // The platform's own billing. Core, like the Trust Centre: a business must
+  // always be able to see what it is paying for and change it. A portal can
+  // hide a shelf; it can never hide the invoice.
+  { module: 'subscription', href: '/subscription', label: 'Your Plan', icon: 'plan', keywords: 'plan pricing upgrade pay billing subscription invoice trial lock', core: true },
 ];
 
 const BY_MODULE = new Map<ModuleKey, CatalogueEntry>(MODULE_CATALOGUE.map((entry) => [entry.module, entry]));

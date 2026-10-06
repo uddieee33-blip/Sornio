@@ -576,3 +576,88 @@ CREATE POLICY "Business members manage scan events" ON scan_events
 CREATE POLICY "Business members manage biometric credentials" ON biometric_credentials
   FOR ALL USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()))
   WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- ============================================================================
+-- Increment 9 — what the business pays DukaanOS
+--
+-- The plan layer is enforced at the edge from a signed cookie, and this is the
+-- record that cookie is derived from: one row per business saying which plan it
+-- is on, when that period ends, how it was granted, and which payment it came
+-- from. Two properties matter, and both are deliberate:
+--
+--   * The state is a *derived* value, never a flag anyone sets. The console and
+--     middleware recompute it from the dates below against the current time, so
+--     a stale row can never extend a plan.
+--   * A business may *read* its own plan and *request* a payment, and nothing
+--     more. Marking a request paid — which is what grants a plan — is not
+--     available to the browser at all: RLS gives members select + insert on
+--     requests only, so activation happens through the service role (the
+--     operator minting an activation code, or a payment webhook), never from a
+--     client that could be edited in devtools.
+--
+-- `platform_payments` is the receipt book: one row per rupee the platform was
+-- paid, kept separate from the business's own `payments`, because mixing our
+-- revenue into a tenant's ledger would corrupt both.
+-- ============================================================================
+
+CREATE TABLE IF NOT EXISTS platform_subscriptions (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL CHECK (plan_id IN ('trial','starter','growth','scale')),
+  started_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- NULL renews_at means "no period" (the free plan, or an unused trial).
+  renews_at TIMESTAMPTZ,
+  trial_ends_at TIMESTAMPTZ,
+  trial_used_at TIMESTAMPTZ,
+  price_locked_until TIMESTAMPTZ,
+  activated_by TEXT NOT NULL DEFAULT 'self' CHECK (activated_by IN ('self','activation-code','provider')),
+  -- The payment this plan came from (UPI txn id, bank UTR, receipt number).
+  reference TEXT,
+  notes TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- One live plan per business: a second row would be a second truth.
+  UNIQUE (business_id)
+);
+
+CREATE TABLE IF NOT EXISTS platform_payment_requests (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  plan_id TEXT NOT NULL CHECK (plan_id IN ('growth','scale')),
+  interval TEXT NOT NULL CHECK (interval IN ('month','quarter','year')),
+  amount NUMERIC(12,2) NOT NULL CHECK (amount > 0),
+  -- Quoted by the owner in the UPI note; unique so one payment maps to one plan.
+  reference TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'requested' CHECK (status IN ('requested','paid','cancelled')),
+  requested_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  note TEXT,
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  settled_at TIMESTAMPTZ,
+  UNIQUE (reference)
+);
+
+CREATE INDEX IF NOT EXISTS idx_platform_subscriptions_business_id ON platform_subscriptions (business_id);
+CREATE INDEX IF NOT EXISTS idx_platform_subscriptions_renews_at ON platform_subscriptions (renews_at);
+CREATE INDEX IF NOT EXISTS idx_platform_payment_requests_business_id ON platform_payment_requests (business_id);
+CREATE INDEX IF NOT EXISTS idx_platform_payment_requests_status ON platform_payment_requests (status);
+
+ALTER TABLE platform_subscriptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE platform_payment_requests ENABLE ROW LEVEL SECURITY;
+
+-- Read your own plan. Never write it: the cookie is issued from this row by the
+-- server, not by the browser.
+CREATE POLICY "Business members read their own plan" ON platform_subscriptions
+  FOR SELECT USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- Request a payment: insert only, and only as 'requested'. A member cannot mark
+-- their own request paid, cannot change the amount, and cannot delete the record
+-- of what they asked for.
+CREATE POLICY "Business members request a plan payment" ON platform_payment_requests
+  FOR INSERT WITH CHECK (
+    status = 'requested'
+    AND settled_at IS NULL
+    AND business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid())
+  );
+
+CREATE POLICY "Business members read their payment requests" ON platform_payment_requests
+  FOR SELECT USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));

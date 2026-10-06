@@ -124,6 +124,11 @@ export function ruleForPath(
   if (pathname.startsWith('/api/portal')) {
     return { scope: 'portal', rule: table.portal };
   }
+  // Plans are money: their own bucket, tighter than the portal's, so guessing
+  // activation codes or hammering the endpoint costs far more than it is worth.
+  if (pathname.startsWith('/api/subscription')) {
+    return { scope: 'plan', rule: table.plan };
+  }
   if (pathname.startsWith('/api')) {
     return { scope: 'api', rule: table.api };
   }
