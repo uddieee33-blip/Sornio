@@ -15,7 +15,10 @@ const ROOT = process.cwd();
 const SOURCE_FILE = path.join(ROOT, 'locales', 'en.json');
 const CURATED_FILE = path.join(ROOT, 'locales', 'curated.json');
 const OUTPUT_DIRECTORY = path.join(ROOT, 'public', 'locales');
-const MAX_ENCODED_BATCH = 6_200;
+// The unofficial web endpoint rejects long request lines on some edges even
+// though other Google frontends allow 8 KB. Staying below 2 KB is slower but
+// reliable on both maintainer machines and GitHub's hosted runners.
+const MAX_ENCODED_BATCH = 1_750;
 const CONCURRENCY = Number(process.env.I18N_CONCURRENCY || 3);
 
 const TARGETS = {
