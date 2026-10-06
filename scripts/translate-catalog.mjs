@@ -79,7 +79,11 @@ function protect(source) {
   // Deliberately meaningless consonant runs survive transliteration models.
   // Human-looking markers such as DUKAANOS_SLOT are transliterated by Assamese
   // and a few other low-resource models, even when wrapped in underscores.
-  let value = source.replace(/\{\{(\d+)\}\}/g, (_, index) => `ZXQJS${index}JQXZ`);
+  // Google treats ICU-style brace placeholders as non-linguistic markup and
+  // keeps them in place (including when it reorders the surrounding sentence).
+  // Keeping {{0}} intact is more reliable than an opaque token, which a model
+  // may decide to omit together with a parenthetical phrase.
+  let value = source;
   const terms = [];
 
   for (const term of PROTECTED_TERMS) {
@@ -97,7 +101,6 @@ function restore(translated, protectedPhrase) {
   protectedPhrase.terms.forEach((term, index) => {
     value = value.replace(new RegExp(`ZXQJT${index}JQXZ`, 'gi'), term);
   });
-  value = value.replace(/ZXQJS(\d+)JQXZ/gi, '{{$1}}');
   return value.replace(/\s+/g, ' ').trim();
 }
 
