@@ -402,6 +402,11 @@ html[data-theme='warm'] [class*='shadow-black/'] {
   }
 }
 
+/* Folded-away disclosures (Settings → Advanced) unfurl instead of snapping. */
+.disclosure-body {
+  animation: collect-panel-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
 /* Thin scrollbars stay out of the way inside the collection modal. */
 .no-scrollbar {
   scrollbar-width: none;

@@ -188,11 +188,45 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
       ) : null}
 
       {lockedFromUrl ? (
-        <div className="mb-5 flex items-start gap-2.5 rounded-xl bg-amber-500/[0.08] px-3.5 py-3 text-sm text-amber-800 ring-1 ring-inset ring-amber-500/25">
-          <Lock size={15} className="mt-0.5 shrink-0" />
-          <span>
-            <strong>{portalLabelFor(lockedFromUrl)}</strong> is part of {planById('growth').name}, so it is paused on your current plan. Your records for it are untouched — everything reappears the moment a plan is active.
-          </span>
+        <div className="animate-collect-panel mb-5 overflow-hidden rounded-2xl border border-amber-500/30 bg-gradient-to-br from-amber-500/[0.10] to-transparent p-5">
+          <div className="flex items-start gap-3">
+            <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-700 ring-1 ring-inset ring-amber-500/25">
+              <Lock size={18} />
+            </span>
+            <div className="min-w-0">
+              <h2 className="font-display text-base font-bold text-stone-900">
+                {portalLabelFor(lockedFromUrl)} needs {planById('growth').name}
+              </h2>
+              <p className="mt-1 text-sm leading-relaxed text-stone-600">
+                It is paused on your current plan — but a customer standing at the desk should never leave unpaid.
+                Your records for it are untouched, and everything reappears the moment a plan is active.
+              </p>
+            </div>
+          </div>
+          <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
+            {!trialUsed ? (
+              <Button onClick={() => void startTrial()} disabled={busy}>
+                <Sparkles size={15} /> {busy ? 'Starting…' : 'Unlock it now — 3-day free trial'}
+              </Button>
+            ) : (
+              <Link
+                href="#plans"
+                className="touch-manipulation inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
+              >
+                <Sparkles size={15} /> See {planById('growth').name} plans
+              </Link>
+            )}
+            <Link
+              href="/billing"
+              className="touch-manipulation inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition-all duration-200 hover:border-brand-400/40 hover:bg-stone-50 active:scale-[0.98]"
+            >
+              <HandCoins size={15} className="text-emerald-700" /> Collect this payment anyway
+            </Link>
+          </div>
+          <p className="mt-3 flex items-start gap-1.5 text-xs leading-relaxed text-stone-600">
+            <Receipt size={13} className="mt-0.5 shrink-0" />
+            Billing is free forever: raise an invoice for the fee and collect it at the desk by UPI, card, cash, or bank transfer — no plan needed to take your customer&apos;s money.
+          </p>
         </div>
       ) : null}
 

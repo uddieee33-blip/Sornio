@@ -32,9 +32,21 @@ export type BusinessSettings = {
   allowAppointments: boolean;
   allowDigitalReceipts: boolean;
   allowPhysicalReceipts: boolean;
+  /**
+   * Who is sitting at this console right now.
+   *
+   * `owner` changes anything. `manager` runs the day (sales, billing,
+   * collections, members) but changing settings needs the owner's PIN.
+   * `desk` is the front counter: billing and collections only — settings,
+   * business profile, and data reset all need the owner's PIN.
+   */
+  activeRole: StaffRole;
   createdAt: string;
   updatedAt: string;
 };
+
+/** The three hats one console wears through a day. */
+export type StaffRole = 'owner' | 'manager' | 'desk';
 
 export type BusinessTemplate = {
   id: string;
@@ -138,6 +150,7 @@ export const defaultBusinessSettings: BusinessSettings = {
   allowAppointments: false,
   allowDigitalReceipts: true,
   allowPhysicalReceipts: true,
+  activeRole: 'owner',
   createdAt: '2026-09-01T09:00:00.000Z',
   updatedAt: '2026-10-02T09:00:00.000Z',
 };

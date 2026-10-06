@@ -142,6 +142,7 @@ export function CollectPaymentPanel({
   const [utr, setUtr] = useState('');
   const [showAccount, setShowAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
   const [settled, setSettled] = useState(false);
   const qrWrapRef = useRef<HTMLDivElement>(null);
 
@@ -183,6 +184,7 @@ export function CollectPaymentPanel({
 
   const confirm = () => {
     setError(null);
+    setErrorCode(null);
     if (method === 'Cash') {
       if (!Number.isFinite(tenderedValue) || tenderedValue < due) {
         setError(`Cash in hand (₹${tenderedValue.toLocaleString('en-IN')}) is less than the ₹${due.toLocaleString('en-IN')} due.`);
@@ -210,6 +212,7 @@ export function CollectPaymentPanel({
       setSettled(true);
     } else {
       setError(result.error ?? 'Could not settle this invoice.');
+      setErrorCode(result.code ?? null);
     }
   };
 
@@ -295,6 +298,7 @@ export function CollectPaymentPanel({
               onClick={() => {
                 setMethod(option);
                 setError(null);
+                setErrorCode(null);
               }}
               style={{ animationDelay: `${index * 60}ms` }}
               className={`animate-collect-rise group rounded-2xl border p-3.5 text-left transition-all duration-200 active:scale-[0.97] ${
@@ -540,9 +544,30 @@ export function CollectPaymentPanel({
       </div>
 
       {error ? (
-        <p className="animate-collect-panel mt-4 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-sm text-red-700 ring-1 ring-inset ring-red-500/20">
-          {error}
-        </p>
+        <div className="animate-collect-panel mt-4 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-sm text-red-700 ring-1 ring-inset ring-red-500/20">
+          <p>{error}</p>
+          {errorCode === 'collection-limit' && method !== 'Cash' ? (
+            <div className="mt-2.5 flex flex-wrap gap-2">
+              <button
+                onClick={() => {
+                  setMethod('Cash');
+                  setTendered(String(invoice.totalAmount));
+                  setError(null);
+                  setErrorCode(null);
+                }}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-bold text-white transition hover:brightness-110 active:scale-95"
+              >
+                <Banknote size={13} /> Switch to Cash & collect now
+              </button>
+              <Link
+                href="/subscription"
+                className="inline-flex items-center gap-1 rounded-lg bg-white/70 px-3 py-1.5 text-xs font-bold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-white"
+              >
+                Remove the limit <ArrowRight size={12} />
+              </Link>
+            </div>
+          ) : null}
+        </div>
       ) : null}
 
       <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

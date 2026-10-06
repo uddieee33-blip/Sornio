@@ -9,7 +9,7 @@ import {
   type Transaction,
 } from '@/lib/business-data';
 import { isValidUpiId, normalizeUpiId, type BankDetails } from '@/lib/upi';
-import { businessTemplates, defaultBusinessSettings, type BusinessSettings } from '@/lib/models/business';
+import { businessTemplates, defaultBusinessSettings, type BusinessSettings, type StaffRole } from '@/lib/models/business';
 import { portalForTemplate, portalHasModule } from '@/lib/portals/registry';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
@@ -232,7 +232,16 @@ export type StoreState = {
   campaigns: MarketingCampaign[];
 };
 
-export type ActionResult = { ok: boolean; error?: string };
+export type ActionResult = {
+  ok: boolean;
+  error?: string;
+  /**
+   * Machine-readable refusal reason, so the UI can offer the right way out
+   * instead of a dead-end sentence. `collection-limit` means the plan's free
+   * UPI allowance ran out — cash still works, and the plan page removes it.
+   */
+  code?: 'collection-limit';
+};
 
 /**
  * What a recorded sale did to the shelves.
@@ -707,6 +716,12 @@ export type StoreActions = {
   syncNow: () => Promise<void>;
   updateSettings: (patch: Partial<BusinessSettings>) => ActionResult;
   /**
+   * Switch who is sitting at this console. The PIN check for switching *up*
+   * lives in the UI (it owns the counter-lock PIN); the store just records
+   * the change it was asked for, on the audit trail like everything else.
+   */
+  setActiveRole: (role: StaffRole) => ActionResult;
+  /**
    * Writes a plan change into the same hash-chained audit history as every
    * other financial decision — including ours. `summary` is the owner-facing
    * sentence; nothing about a plan is recorded that a business may not read.
@@ -749,7 +764,8 @@ function meterCollection(
   timeZone: string,
 ): ActionResult {
   const refusal = authorizeCollection(method, transactions, timeZone);
-  return refusal ?? { ok: true };
+  if (!refusal) return { ok: true };
+  return { ok: false, error: refusal.error, code: 'collection-limit' };
 }
 
 function buildRevenueTransactions(description: string, amount: number, method: PaymentMethod, customerLabel?: string): Transaction[] {
@@ -804,7 +820,9 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       ...parsed,
       demoMode: parsed.demoMode ?? false,
       profile: parsed.profile ?? defaultBusinessProfile,
-      settings: parsed.settings ?? defaultBusinessSettings,
+      // Older saves predate newer switches (roles, receipt flags): defaults
+      // fill the gaps so a returning business never reads `undefined`.
+      settings: { ...defaultBusinessSettings, ...(parsed.settings ?? {}) },
       audit: Array.isArray(parsed.audit) ? parsed.audit : [],
       campaigns: Array.isArray(parsed.campaigns) ? parsed.campaigns : [],
       transactions: Array.isArray(parsed.transactions) ? parsed.transactions : [],
@@ -1784,6 +1802,19 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         ],
       }));
       track('invoice', `Invoice ${invoiceId} settled via ${settledMethod} — revenue and cash updated.`, invoiceId);
+      return { ok: true };
+    },
+
+    setActiveRole(role) {
+      if (role !== 'owner' && role !== 'manager' && role !== 'desk') {
+        return { ok: false, error: 'Unknown role.' };
+      }
+      const label = role === 'owner' ? 'Owner' : role === 'manager' ? 'Manager' : 'Front desk';
+      setState((current) => ({
+        ...current,
+        settings: { ...current.settings, activeRole: role, updatedAt: new Date().toISOString() },
+      }));
+      track('settings', `Console handed to the ${label} — settings changes now follow the ${label.toLowerCase()} rules.`);
       return { ok: true };
     },
 
