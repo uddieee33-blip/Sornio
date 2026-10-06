@@ -692,7 +692,12 @@ export type StoreActions = {
   }) => ActionResult;
   setAppointmentStatus: (appointmentId: string, status: Appointment['status']) => ActionResult;
   createInvoice: (input: { customerName: string; customerPhone?: string; lines: InvoiceLine[]; method: PaymentMethod; taxRate: number }) => ActionResult;
-  markInvoicePaid: (invoiceId: string) => ActionResult;
+  /**
+   * Settle an invoice. The desk may pass the method the money actually arrived
+   * by (the front-desk collection flow) — otherwise the method already on the
+   * invoice is used.
+   */
+  markInvoicePaid: (invoiceId: string, method?: PaymentMethod) => ActionResult;
   updateProduct: (productId: string, patch: Partial<Omit<Product, 'id'>>) => ActionResult;
   addCampaign: (input: { name: string; channel: MarketingCampaign['channel']; spend: number; notes?: string }) => ActionResult;
   updateProfile: (patch: Partial<BusinessProfile>) => ActionResult;
@@ -1746,16 +1751,19 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       return { ok: true };
     },
 
-    markInvoicePaid(invoiceId) {
+    markInvoicePaid(invoiceId, method) {
       const invoice = stateRef.current.invoices.find((item) => item.id === invoiceId);
       if (!invoice) return { ok: false, error: 'Invoice not found.' };
       if (invoice.paymentStatus === 'paid') return { ok: false, error: 'Invoice is already paid.' };
-      const metered = meterCollection(invoice.paymentMethod, stateRef.current.transactions, stateRef.current.profile.timezone);
+      // The method the money actually arrived by wins over whatever the
+      // invoice was raised with — the desk knows, the paper only guessed.
+      const settledMethod = method ?? invoice.paymentMethod;
+      const metered = meterCollection(settledMethod, stateRef.current.transactions, stateRef.current.profile.timezone);
       if (!metered.ok) return metered;
       const date = todayISO();
       setState((current) => ({
         ...current,
-        invoices: current.invoices.map((item) => (item.id === invoiceId ? { ...item, paymentStatus: 'paid' } : item)),
+        invoices: current.invoices.map((item) => (item.id === invoiceId ? { ...item, paymentStatus: 'paid', paymentMethod: settledMethod } : item)),
         paymentRecords: [
           ...current.paymentRecords,
           {
@@ -1764,18 +1772,18 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
             invoiceId,
             customerName: invoice.customerName,
             amount: invoice.totalAmount,
-            paymentMethod: invoice.paymentMethod,
+            paymentMethod: settledMethod,
             status: 'paid',
             paymentDate: new Date().toISOString(),
-            gateway: methodGateway(invoice.paymentMethod),
+            gateway: methodGateway(settledMethod),
           },
         ],
         transactions: [
           ...current.transactions,
-          ...buildRevenueTransactions(`Invoice ${invoice.id}`, invoice.totalAmount, invoice.paymentMethod, invoice.customerName).map((tx) => ({ ...tx, date })),
+          ...buildRevenueTransactions(`Invoice ${invoice.id}`, invoice.totalAmount, settledMethod, invoice.customerName).map((tx) => ({ ...tx, date })),
         ],
       }));
-      track('invoice', `Invoice ${invoiceId} marked paid — revenue and cash updated.`, invoiceId);
+      track('invoice', `Invoice ${invoiceId} settled via ${settledMethod} — revenue and cash updated.`, invoiceId);
       return { ok: true };
     },
 

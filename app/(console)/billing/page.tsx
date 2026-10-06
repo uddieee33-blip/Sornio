@@ -2,11 +2,12 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, BadgeIndianRupee, CheckCircle2, CreditCard, FilePlus2, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
+import { ArrowRight, BadgeIndianRupee, CheckCircle2, CreditCard, FilePlus2, HandCoins, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { CollectPaymentModal } from '@/components/payments/collect-payment';
 import { formatCurrency } from '@/lib/business-data';
 import type { PaymentMethod } from '@/lib/models/billing';
 import { useDukaanStore, type InvoiceLine } from '@/lib/store';
@@ -25,6 +26,7 @@ export default function BillingPage() {
   const [form, setForm] = useState({ customerName: '', customerPhone: '', method: 'UPI' as PaymentMethod, taxRate: '0' });
   const [lines, setLines] = useState<InvoiceLine[]>([{ name: '', category: 'General', quantity: 1, unitPrice: 0 }]);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [collectingId, setCollectingId] = useState<string | null>(null);
 
   const selected = state.invoices.find((invoice) => invoice.id === selectedId) ?? state.invoices[0];
 
@@ -78,12 +80,17 @@ export default function BillingPage() {
                   <p className="font-display text-lg font-bold text-stone-900 print:text-2xl">{state.profile.name}</p>
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-600">Invoice · {selected.id}</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={statusTone[selected.paymentStatus]} dot>{selected.paymentStatus}</Badge>
                   {selected.paymentStatus !== 'paid' ? (
-                    <button onClick={() => handleMarkPaid(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25">
-                      <CheckCircle2 size={13} /> Mark paid
-                    </button>
+                    <>
+                      <button onClick={() => setCollectingId(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow-sm transition hover:brightness-110 active:scale-95">
+                        <HandCoins size={13} /> Collect payment
+                      </button>
+                      <button onClick={() => handleMarkPaid(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25 active:scale-95">
+                        <CheckCircle2 size={13} /> Quick mark paid
+                      </button>
+                    </>
                   ) : null}
                   <button
                     onClick={() => window.print()}
@@ -169,7 +176,9 @@ export default function BillingPage() {
                       <td className="px-4 py-3"><Badge tone={statusTone[invoice.paymentStatus]} dot>{invoice.paymentStatus}</Badge></td>
                       <td className="px-4 py-3 text-right">
                         {invoice.paymentStatus !== 'paid' ? (
-                          <button onClick={() => handleMarkPaid(invoice.id)} className="text-xs font-semibold text-emerald-700 hover:underline">Mark paid</button>
+                          <button onClick={() => { setSelectedId(invoice.id); setCollectingId(invoice.id); }} className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25 active:scale-95">
+                            <HandCoins size={12} /> Collect
+                          </button>
                         ) : null}
                       </td>
                     </tr>
@@ -249,6 +258,13 @@ export default function BillingPage() {
           </Card>
         </div>
       </div>
+
+      {collectingId ? (
+        (() => {
+          const collecting = state.invoices.find((invoice) => invoice.id === collectingId);
+          return collecting ? <CollectPaymentModal invoice={collecting} onClose={() => setCollectingId(null)} /> : null;
+        })()
+      ) : null}
     </div>
   );
 }
