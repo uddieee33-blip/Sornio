@@ -124,6 +124,10 @@
       "limit": 8,
       "windowMs": 60000
     },
+    "plan": {
+      "limit": 12,
+      "windowMs": 60000
+    },
     "page": {
       "limit": 300,
       "windowMs": 60000

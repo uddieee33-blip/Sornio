@@ -149,7 +149,7 @@ const nextConfig = {
       ...captureHeaders,
       // The console holds business records — never let a proxy or disk cache it.
       {
-        source: '/(home|dashboard|products|inventory|sales|billing|payments|expenses|transactions|customers|suppliers|memberships|reminders|marketing|reports|comparisons|profitability|cashflow|insights|alerts|audit|team|settings|business)/:path*',
+        source: '/(home|dashboard|products|inventory|sales|billing|payments|expenses|transactions|customers|suppliers|memberships|reminders|marketing|reports|comparisons|profitability|cashflow|insights|alerts|audit|team|settings|business|subscription|check-ins|appointments|scan)/:path*',
         headers: [policy.noStore],
       },
       // Immutable assets.

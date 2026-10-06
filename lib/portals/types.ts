@@ -56,7 +56,8 @@ export type ModuleKey =
   | 'comparisons'
   | 'audit'
   | 'security'
-  | 'settings';
+  | 'settings'
+  | 'subscription';
 
 export type IconName =
   // business-type marks
@@ -97,7 +98,8 @@ export type IconName =
   | 'comparisons'
   | 'audit'
   | 'security'
-  | 'settings';
+  | 'settings'
+  | 'plan';
 
 /** A cockpit figure a portal can feature, resolved live from the ledger. */
 export type MetricKey =

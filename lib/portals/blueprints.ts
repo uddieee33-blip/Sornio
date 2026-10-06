@@ -122,7 +122,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -229,7 +229,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -337,7 +337,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -443,7 +443,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team', label: 'Stylists & Roles' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team', label: 'Stylists & Roles' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -549,7 +549,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -656,7 +656,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -759,7 +759,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Platform',
-        links: [{ href: '/business' }, { href: '/team' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/business' }, { href: '/team' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {
@@ -867,7 +867,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Analysis',
-        links: [{ href: '/reports' }, { href: '/comparisons' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
+        links: [{ href: '/reports' }, { href: '/comparisons' }, { href: '/subscription' }, { href: '/audit' }, { href: '/security' }, { href: '/settings' }],
       },
     ],
     cockpit: {

@@ -9,8 +9,11 @@
  *   4. CSRF                → fetch-metadata + origin + double-submit token.
  *   5. Portal policy       → a business type never renders a module it does not
  *                            carry (inventory in a gym, memberships in a kirana).
- *   6. Security headers    → posture-aware CSP/HSTS/framing on the response.
- *   7. Session refresh     → Supabase only when real credentials are present.
+ *   6. Plan policy         → a plan that is not being paid for does not render
+ *                            the paid automations; expiry drops a business to
+ *                            the free plan, never to a locked door.
+ *   7. Security headers    → posture-aware CSP/HSTS/framing on the response.
+ *   8. Session refresh     → Supabase only when real credentials are present.
  *
  * Everything here is Edge-safe (Web Crypto, no Node built-ins) and every
  * failure path degrades to "serve the page" rather than "show an error".
@@ -31,6 +34,7 @@ import {
 import { clientFingerprint, consume, rateLimitHeaders, ruleForPath, type RateLimitRule } from '@/lib/security/rate-limit';
 import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
 import { randomToken } from '@/lib/security/crypto';
+import { PLAN_COOKIE, checkPlanAccess, openPlanRecord, resolveEntitlement } from '@/lib/plans';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 const RATE_TABLE = policy.rateLimits as unknown as Record<string, RateLimitRule>;
@@ -164,7 +168,30 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 6. Session refresh (only with real credentials; never blocking). ----
+  // ---- 6. Plan policy: the paid modules need a plan that is currently paid. ----
+  // Same shape and the same safety rules as the portal check above: read-only
+  // navigation only (a write is never redirected), and the always-open modules
+  // (ledger, audit, trust centre, settings, and Your Plan itself) are added on
+  // top of whatever the plan carries — so a lapsed business can always read its
+  // own books and always reach the page that fixes it.
+  if (isSafeMethod(method)) {
+    const record = await openPlanRecord(request.cookies.get(PLAN_COOKIE)?.value);
+    const entitlement = resolveEntitlement(record, Date.now());
+    const verdict = checkPlanAccess(entitlement, pathname);
+    if (!verdict.allowed) {
+      const target = new URL(verdict.redirectTo, request.url);
+      return applyHeaders(NextResponse.redirect(target, 307), [
+        ...buildBaselineHeaders(posture, pathname),
+        ...buildFramingHeaders(posture),
+        { key: REQUEST_ID_HEADER, value: requestId },
+        { key: 'x-dukaan-plan-blocked', value: verdict.module },
+        { key: 'x-dukaan-plan-state', value: entitlement.state },
+        policy.noStore,
+      ]);
+    }
+  }
+
+  // ---- 7. Session refresh (only with real credentials; never blocking). ----
   const response = NextResponse.next({ request: { headers: request.headers } });
 
   if (supabaseConfigured) {
@@ -191,7 +218,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 7. Response hardening. ----
+  // ---- 8. Response hardening. ----
   applyHeaders(response, [
     ...buildBaselineHeaders(posture, pathname),
     ...buildFramingHeaders(posture),

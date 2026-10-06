@@ -65,6 +65,38 @@ export function base64ToUtf8(input: string): string {
   return decoder.decode(bytes);
 }
 
+/** URL-safe base64 — cookie-safe, header-safe, and never needs escaping. */
+export function base64UrlEncode(input: string): string {
+  return utf8ToBase64(input).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export function base64UrlDecode(input: string): string {
+  const padded = input.replace(/-/g, '+').replace(/_/g, '/');
+  const pad = padded.length % 4 === 0 ? '' : '='.repeat(4 - (padded.length % 4));
+  return base64ToUtf8(padded + pad);
+}
+
+/**
+ * HMAC-SHA256 over a message, base64url encoded.
+ *
+ * One signing primitive shared by sessions, the plan cookie, and activation
+ * codes: a second implementation is a second place to get it wrong.
+ */
+export async function hmacSha256Base64Url(secret: string, message: string): Promise<string> {
+  const key = await globalThis.crypto.subtle.importKey(
+    'raw',
+    encoder.encode(secret),
+    { name: 'HMAC', hash: 'SHA-256' },
+    false,
+    ['sign', 'verify'],
+  );
+  const signature = await globalThis.crypto.subtle.sign('HMAC', key, encoder.encode(message));
+  const bytes = new Uint8Array(signature);
+  let binary = '';
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
 /** SHA-256 fingerprint of any string payload. */
 export async function sha256Hex(input: string): Promise<string> {
   const digest = await globalThis.crypto.subtle.digest('SHA-256', encoder.encode(input));
