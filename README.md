@@ -256,9 +256,10 @@ copy or customer data to a translation service.
 The catalogue workflow is deliberately testable:
 
 ```bash
-npm run i18n:extract   # rebuild locales/en.json from every TS/TSX screen
-npm run i18n:generate  # maintainer task: generate the 22 static catalogues
-npm run verify:i18n    # exact key, interpolation-slot, and coverage checks
+npm run i18n:extract                # rebuild English from every TS/TSX screen
+npm run i18n:generate               # generate the 20 Google-supported catalogues
+npm run i18n:generate:low-resource  # generate Bodo + Kashmiri with IndicTrans2
+npm run verify:i18n                 # exact key, slot, and coverage checks for all 22
 ```
 
 `lib/i18n.tsx` applies those catalogues to authored copy while preserving live

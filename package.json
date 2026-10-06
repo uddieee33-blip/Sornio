@@ -13,6 +13,7 @@
     "verify:inventory": "node scripts/verify-inventory.mjs",
     "i18n:extract": "node scripts/extract-i18n.mjs",
     "i18n:generate": "node scripts/translate-catalog.mjs",
+    "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",
     "verify:i18n": "node scripts/verify-i18n.mjs",
     "verify:lock": "node scripts/verify-lock.mjs",
     "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:i18n",
