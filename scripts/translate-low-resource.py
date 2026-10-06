@@ -8,20 +8,16 @@ Indian languages, and runs only as a maintainer tool; no model ships to users.
 
 from __future__ import annotations
 
+import importlib.util
 import json
-import os
 import re
 from pathlib import Path
 
-import torch
-from IndicTransToolkit import IndicProcessor
-from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
+from huggingface_hub import snapshot_download
 
 ROOT = Path(__file__).resolve().parents[1]
-# Public, byte-identical mirror of AI4Bharat's gated checkpoint. The model card
-# and config retain the original attribution and MIT licence.
-MODEL_NAME = "Raghavan/indictrans2-en-indic-dist-200M"
-BATCH_SIZE = int(os.environ.get("INDIC_BATCH_SIZE", "12"))
+MODEL_REPOSITORY = "remiai3/TRANSLATION_MODELS"
+MODEL_SUBDIRECTORY = "indictrans2-en-indic-dist-200M-ONNX-int8"
 TARGETS = {"brx": "brx_Deva", "ks": "kas_Arab"}
 PROTECTED_TERMS = [
     "DukaanOS",
@@ -102,52 +98,40 @@ def main() -> None:
     sources = sorted(source_catalogue, key=lambda item: item.casefold())
     protected = [protect(source) for source in sources]
 
-    torch.set_num_threads(max(1, os.cpu_count() or 2))
-    print(f"Loading {MODEL_NAME} for {len(sources)} phrases…", flush=True)
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    model = AutoModelForSeq2SeqLM.from_pretrained(MODEL_NAME, trust_remote_code=True)
-    model.eval()
-    processor = IndicProcessor(inference=True)
+    print(f"Downloading the public IndicTrans2 INT8 bundle for {len(sources)} phrases…", flush=True)
+    snapshot = Path(
+        snapshot_download(
+            repo_id=MODEL_REPOSITORY,
+            allow_patterns=[f"{MODEL_SUBDIRECTORY}/*"],
+        )
+    )
+    model_directory = snapshot / MODEL_SUBDIRECTORY
+    module_spec = importlib.util.spec_from_file_location(
+        "dukaanos_indictrans_onnx",
+        model_directory / "translate.py",
+    )
+    if module_spec is None or module_spec.loader is None:
+        raise RuntimeError("Could not load the IndicTrans2 ONNX inference helper")
+    module = importlib.util.module_from_spec(module_spec)
+    module_spec.loader.exec_module(module)
+    model = module.IndicTransONNX(model_directory)
 
     output_directory = ROOT / "public" / "locales"
     output_directory.mkdir(parents=True, exist_ok=True)
 
     for code, target in TARGETS.items():
         translated_all: list[str] = []
-        batch_count = (len(sources) + BATCH_SIZE - 1) // BATCH_SIZE
-        for start in range(0, len(sources), BATCH_SIZE):
-            batch_number = start // BATCH_SIZE + 1
-            batch = [item[0] for item in protected[start : start + BATCH_SIZE]]
-            prepared = processor.preprocess_batch(
-                batch,
-                src_lang="eng_Latn",
-                tgt_lang=target,
-                visualize=False,
-            )
-            inputs = tokenizer(
-                prepared,
-                padding="longest",
-                truncation=True,
-                max_length=256,
-                return_tensors="pt",
-            )
-            with torch.inference_mode():
-                generated = model.generate(
-                    **inputs,
-                    use_cache=True,
-                    min_length=0,
-                    max_length=256,
-                    num_beams=1,
-                    num_return_sequences=1,
+        for index, (value, _) in enumerate(protected, start=1):
+            translated_all.append(
+                model.translate(
+                    value,
+                    src_lang="eng_Latn",
+                    tgt_lang=target,
+                    max_new_tokens=256,
                 )
-            decoded = tokenizer.batch_decode(
-                generated,
-                skip_special_tokens=True,
-                clean_up_tokenization_spaces=True,
             )
-            translated_all.extend(processor.postprocess_batch(decoded, lang=target))
-            if batch_number % 10 == 0 or batch_number == batch_count:
-                print(f"[{code}] {batch_number}/{batch_count} batches", flush=True)
+            if index % 50 == 0 or index == len(sources):
+                print(f"[{code}] {index}/{len(sources)} phrases", flush=True)
 
         if len(translated_all) != len(sources):
             raise RuntimeError(f"[{code}] model returned {len(translated_all)}/{len(sources)} phrases")
