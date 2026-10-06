@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/Button';
 import { BarcodeScanner, type ScannerRead } from '@/components/scanning/barcode-scanner';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore, type SaleLine } from '@/lib/store';
+import { describeStockChange } from '@/lib/inventory';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { resolveScan } from '@/lib/scanning';
 import type { PaymentMethod } from '@/lib/models/billing';
@@ -51,7 +52,14 @@ export default function SalesPage() {
   const handleRecord = () => {
     const result = actions.recordSale({ lines, method, customerName });
     if (result.ok) {
-      setMessage({ tone: 'ok', text: `Sale of ${formatCurrency(total)} recorded via ${method}.` });
+      // Say what the sale did to the shelves, in units the owner can go and
+      // count: "Kidney beans — 108 → 105". A stock figure that changes without
+      // a sentence next to it is the thing shopkeepers stop trusting.
+      const changed = (result.stockChanges ?? []).map(describeStockChange);
+      setMessage({
+        tone: 'ok',
+        text: `Sale of ${formatCurrency(total)} recorded via ${method}.${changed.length ? ` Stock updated — ${changed.join(', ')}.` : ''}`,
+      });
       setLines([]);
       setCustomerName('');
     } else {

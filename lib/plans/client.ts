@@ -34,10 +34,16 @@ export type PaymentInstructions = {
   /** Payee UPI id, when the deployment configured one. */
   upiId: string | null;
   payeeName: string | null;
-  /** `upi://pay?...` intent — opens any UPI app on the phone. */
+  /** `upi://pay?...` intent — opens any UPI app on the phone, and encodes the QR. */
   upiIntent: string | null;
   /** Support channel, so "I have paid" is one tap away. */
   whatsappHref: string | null;
+  /**
+   * Whether the deployment can actually be paid right now. False means the
+   * platform's UPI id is missing or malformed, and `setupHint` says which.
+   */
+  configured?: boolean;
+  setupHint?: string | null;
 };
 
 export type PlanResponse = {

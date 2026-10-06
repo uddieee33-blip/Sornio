@@ -27,7 +27,7 @@
  *     error (`NotAllowedError`). The UI must not claim to know which happened.
  */
 
-import { platformAuthenticatorAvailable } from './device';
+import { isEmbedded, platformAuthenticatorAvailable } from './device';
 
 export type FingerprintFailure =
   | 'unsupported'
@@ -120,21 +120,56 @@ export async function isFingerprintAvailable(): Promise<boolean> {
  * platform refuses a re-enrolment of the same sensor rather than silently
  * issuing a second id for the same finger.
  */
+export type AuthenticatorAttachment = 'platform' | 'cross-platform' | 'any';
+
 export async function enrollFingerprint(input: {
   memberId: string;
   memberName: string;
   /** Shown by the platform prompt, so the member knows which app is asking. */
   businessName: string;
   excludeCredentialIds?: string[];
+  /**
+   * Which reader to use.
+   *
+   * `platform` is the sensor built into the device — a phone, a tablet, a
+   * Windows Hello laptop. That is what a front desk should use.
+   *
+   * `cross-platform` is a *separate* reader: a USB/NFC security key, or the USB
+   * fingerprint readers that present themselves to the OS as an authenticator.
+   * Shops do buy these, and refusing to talk to one because it is not built in
+   * would be a limitation of ours, not of their hardware.
+   *
+   * `any` lets the browser offer whatever it has, including the phone-as-key
+   * flows. Kept explicit rather than the default, because a desk that silently
+   * demanded a phone would be a worse front desk.
+   */
+  attachment?: AuthenticatorAttachment;
 }): Promise<FingerprintResult<{ credentialId: string; label: string }>> {
+  const attachment = input.attachment ?? 'platform';
   if (!isBrowserAuthAvailable()) {
     return { ok: false, code: 'unsupported', error: 'This browser cannot talk to a fingerprint sensor.' };
   }
-  if (!(await isFingerprintAvailable())) {
+  // Only the built-in sensor can be checked in advance. An external reader is
+  // discovered by the ceremony itself (`getClientCapabilities` is not shipped
+  // everywhere yet), so for those we let the browser answer.
+  if (attachment === 'platform' && !(await isFingerprintAvailable())) {
     return {
       ok: false,
       code: 'unsupported',
-      error: 'No fingerprint sensor is reachable on this device. Enrol the member from the tablet or phone that has one.',
+      error:
+        'This device has no fingerprint sensor of its own. Plug in your USB reader or security key and choose “Use a plugged-in reader”, or enrol the member from the tablet or phone that has a sensor.',
+    };
+  }
+
+  // WebAuthn binds credentials to an origin. A preview frame, a webview and a
+  // real tab are different origins, so the enrolment must happen where the desk
+  // will actually use it — said out loud instead of failing obscurely later.
+  if (isEmbedded()) {
+    return {
+      ok: false,
+      code: 'unsupported',
+      error:
+        'This page is inside another app’s frame, so the fingerprint would be bound to that frame and would not work at your counter. Open DukaanOS in its own tab and enrol there.',
     };
   }
 
@@ -156,7 +191,7 @@ export async function enrollFingerprint(input: {
           { type: 'public-key', alg: -257 },
         ],
         authenticatorSelection: {
-          authenticatorAttachment: 'platform',
+          ...(attachment === 'any' ? {} : { authenticatorAttachment: attachment }),
           userVerification: 'required',
           residentKey: 'preferred',
         },

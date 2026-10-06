@@ -21,6 +21,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { QRCodeCanvas } from 'qrcode.react';
 import {
   AlertTriangle,
   ArrowRight,
@@ -359,9 +360,36 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
             {payment.upiId ? (
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-700">2</span>
-                <span>
+                <span className="min-w-0">
                   Pay to <strong className="font-mono text-stone-900">{payment.upiId}</strong>
                   {payment.payeeName ? ` (${payment.payeeName})` : ''} in any UPI app.
+                  {/* The QR is the part that works from a counter: scan it with
+                      the phone that has the money in it, while the console stays
+                      open on the machine in front of you. It encodes the same
+                      signed amount + reference as the tap-through button. */}
+                  {payment.upiIntent ? (
+                    <span className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-start">
+                      <span className="w-fit rounded-2xl border border-stone-200 bg-white p-3">
+                        <QRCodeCanvas
+                          value={payment.upiIntent}
+                          size={360}
+                          level="M"
+                          fgColor="#0B0D12"
+                          bgColor="#ffffff"
+                          style={{ width: 168, height: 168 }}
+                        />
+                        <span className="mt-2 block text-center text-[11px] font-semibold text-stone-600">
+                          Scan with any UPI app
+                        </span>
+                      </span>
+                      <span className="text-xs text-stone-600">
+                        <strong className="block text-stone-800">₹{payment.amount.toLocaleString('en-IN')} for {payment.planName}</strong>
+                        The QR already carries the amount and reference{' '}
+                        <span className="font-mono text-stone-900">{payment.reference}</span>, so you never type it into the app.
+                        Use the button below if the console and the paying phone are the same device.
+                      </span>
+                    </span>
+                  ) : null}
                   <span className="mt-2 flex flex-wrap gap-2">
                     {payment.upiIntent ? (
                       <a
@@ -422,6 +450,17 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
               </li>
             ) : null}
           </ol>
+          {/* The deployment's own collection state, stated instead of implied.
+              An owner must never be told to pay an address that cannot receive. */}
+          {payment.configured === false ? (
+            <div className="mt-4 flex gap-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3.5 text-xs leading-relaxed text-amber-900">
+              <AlertTriangle size={16} className="mt-0.5 shrink-0" />
+              <span>
+                <strong>Online payment is not switched on for this deployment yet.</strong>{' '}
+                {payment.setupHint} Until then, use the reference above with whatever payment method you already have, and the plan is activated the same way — by a signed code.
+              </span>
+            </div>
+          ) : null}
           <p className="mt-4 rounded-xl bg-stone-50 px-3.5 py-3 text-xs leading-relaxed text-stone-600 ring-1 ring-inset ring-stone-200">
             Nothing is charged automatically — no mandate, no card saved, no recurring debit. When this period ends you either pay again or drop to the free plan, and the free plan keeps every record.
           </p>
