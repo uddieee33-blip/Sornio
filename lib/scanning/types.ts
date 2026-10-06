@@ -113,4 +113,11 @@ export type CaptureReadiness = {
   wedge: { available: true; note: string };
   /** A fingerprint sensor is reachable through WebAuthn on this device. */
   fingerprint: { available: boolean; reason?: string };
+  /**
+   * This page is running inside another app's frame, which changes what the
+   * browser will hand over — cameras in particular. Reported so the console can
+   * offer "open in its own tab" instead of letting the owner think the scanner
+   * is broken.
+   */
+  embedded: boolean;
 };

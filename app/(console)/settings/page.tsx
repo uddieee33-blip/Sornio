@@ -10,6 +10,7 @@ import Link from 'next/link';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { CaptureReadinessCard } from '@/components/scanning/capture-readiness';
+import { EnvSetup } from '@/components/settings/env-setup';
 import { disabledModules } from '@/lib/portals/registry';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 
@@ -150,6 +151,12 @@ export default function SettingsPage() {
               </div>
             )}
           </Card>
+
+          {/* Environment setup — where the deployer's own settings go.
+              Placed here rather than buried in a README because "why is my
+              payment QR missing" is answered on this page, per variable, for
+              this deployment. */}
+          <EnvSetup />
 
           {/* Billing defaults — editable */}
           <Card className="animate-fade-up">

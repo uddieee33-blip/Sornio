@@ -10,7 +10,9 @@
     "typecheck": "tsc --noEmit",
     "verify:scanning": "node scripts/verify-scanning.mjs",
     "verify:billing": "node scripts/verify-billing.mjs",
-    "verify": "npm run verify:scanning && npm run verify:billing",
+    "verify:inventory": "node scripts/verify-inventory.mjs",
+    "verify:lock": "node scripts/verify-lock.mjs",
+    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock",
     "mint:activation": "node scripts/mint-activation.mjs"
   },
   "dependencies": {
