@@ -30,9 +30,11 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install generator dependency
+        run: npm ci --ignore-scripts
       - name: Generate all 22 locale catalogues
         env:
-          I18N_CONCURRENCY: '3'
+          I18N_CONCURRENCY: '1'
         run: |
           set -o pipefail
           node scripts/translate-catalog.mjs 2>&1 | tee translation-error.log

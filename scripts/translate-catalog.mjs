@@ -3,23 +3,25 @@
 /**
  * Generate static DukaanOS locale catalogues from locales/en.json.
  *
- * This is a maintainer tool, never runtime application code. It batches copy
- * through Google Translate's public web endpoint, validates every dynamic slot,
- * overlays the small set of human-reviewed phrases in curated.json, and writes
- * deterministic JSON files consumed from /public/locales by the app.
+ * This is a maintainer tool, never runtime application code. It uses Google's
+ * batched web translation RPC so each phrase remains an independent unit,
+ * validates every dynamic slot, overlays the human-reviewed phrases in
+ * curated.json, and writes deterministic JSON consumed from /public/locales.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { batchTranslate } = require('google-translate-api-x');
 
 const ROOT = process.cwd();
 const SOURCE_FILE = path.join(ROOT, 'locales', 'en.json');
 const CURATED_FILE = path.join(ROOT, 'locales', 'curated.json');
 const OUTPUT_DIRECTORY = path.join(ROOT, 'public', 'locales');
-// The unofficial web endpoint rejects long request lines on some edges even
-// though other Google frontends allow 8 KB. Staying below 2 KB is slower but
-// reliable on both maintainer machines and GitHub's hosted runners.
-const MAX_ENCODED_BATCH = 1_750;
-const CONCURRENCY = Number(process.env.I18N_CONCURRENCY || 3);
+const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE || 80);
+const CONCURRENCY = Number(process.env.I18N_CONCURRENCY || 1);
+const GOOGLE_TLDS = ['com', 'co.in', 'co.uk', 'ca'];
 
 const TARGETS = {
   as: 'as',
@@ -73,10 +75,6 @@ const PROTECTED_TERMS = [
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
-function marker(index) {
-  return `__DUKAANOS_ITEM_${String(index).padStart(4, '0')}__`;
-}
-
 function protect(source) {
   let value = source.replace(/\{\{(\d+)\}\}/g, (_, index) => `__DUKAANOS_SLOT_${index}__`);
   const terms = [];
@@ -104,85 +102,40 @@ function dynamicSlots(value) {
   return [...value.matchAll(/\{\{(\d+)\}\}/g)].map((match) => match[1]).sort().join(',');
 }
 
-function translatedText(payload) {
-  if (!Array.isArray(payload?.[0])) throw new Error('Unexpected translation response');
-  return payload[0].map((segment) => segment?.[0] ?? '').join('');
-}
-
-async function requestTranslation(text, target, attempt = 0) {
-  const query = new URLSearchParams({ client: 'gtx', sl: 'en', tl: target, dt: 't', q: text });
-  const url = `https://translate.googleapis.com/translate_a/single?${query}`;
-
-  try {
-    const response = await fetch(url, {
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': 'DukaanOS locale catalogue generator',
-      },
-    });
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    return translatedText(await response.json());
-  } catch (error) {
-    if (attempt >= 5) throw error;
-    const delay = 600 * 2 ** attempt + Math.round(Math.random() * 300);
-    await sleep(delay);
-    return requestTranslation(text, target, attempt + 1);
-  }
-}
-
-function makeBatches(entries) {
-  const batches = [];
-  let current = [];
-  let encodedLength = 0;
-
-  for (const entry of entries) {
-    const addition = encodeURIComponent(`${marker(entry.index)}\n${entry.protected.value}\n`).length;
-    if (current.length > 0 && encodedLength + addition > MAX_ENCODED_BATCH) {
-      batches.push(current);
-      current = [];
-      encodedLength = 0;
-    }
-    current.push(entry);
-    encodedLength += addition;
-  }
-
-  if (current.length > 0) batches.push(current);
-  return batches;
-}
-
-function splitBatchResult(result, batch) {
-  const markerPattern = /__DUKAANOS_ITEM_(\d{4})__/gi;
-  const found = [...result.matchAll(markerPattern)];
-  if (found.length !== batch.length) return null;
-
-  const output = new Map();
-  for (let index = 0; index < found.length; index += 1) {
-    const start = (found[index].index ?? 0) + found[index][0].length;
-    const end = found[index + 1]?.index ?? result.length;
-    output.set(Number(found[index][1]), result.slice(start, end).trim());
-  }
-  return output;
+function chunk(items, size) {
+  const result = [];
+  for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
+  return result;
 }
 
 async function translateBatch(batch, target) {
-  const text = batch.map((entry) => `${marker(entry.index)}\n${entry.protected.value}`).join('\n');
-  const result = await requestTranslation(text, target);
-  const split = splitBatchResult(result, batch);
-  if (split) return split;
-
-  // A translation engine may occasionally alter a delimiter. Bisecting keeps
-  // the run deterministic without throwing away all the successful batches.
-  if (batch.length > 1) {
-    const middle = Math.ceil(batch.length / 2);
-    const [left, right] = await Promise.all([
-      translateBatch(batch.slice(0, middle), target),
-      translateBatch(batch.slice(middle), target),
-    ]);
-    return new Map([...left, ...right]);
+  let lastError;
+  for (let attempt = 0; attempt < 8; attempt += 1) {
+    const tld = GOOGLE_TLDS[attempt % GOOGLE_TLDS.length];
+    try {
+      const results = await batchTranslate(
+        batch.map((entry) => entry.protected.value),
+        {
+          from: 'en',
+          to: target,
+          forceFrom: true,
+          forceTo: true,
+          rejectOnPartialFail: true,
+          tld,
+        },
+      );
+      if (!Array.isArray(results) || results.length !== batch.length || results.some((result) => !result?.text)) {
+        throw new Error(`Translation RPC returned ${results?.length ?? 0}/${batch.length} results`);
+      }
+      return results.map((result) => result.text);
+    } catch (error) {
+      lastError = error;
+      const delay = Math.min(30_000, 1_500 * 2 ** attempt) + Math.round(Math.random() * 500);
+      console.warn(`[${target}] batch retry ${attempt + 1}/8 via google.${tld}: ${error instanceof Error ? error.message : error}`);
+      await sleep(delay);
+    }
   }
-
-  const one = await requestTranslation(batch[0].protected.value, target);
-  return new Map([[batch[0].index, one]]);
+  throw lastError;
 }
 
 async function parallelMap(items, limit, operation) {
@@ -193,7 +146,8 @@ async function parallelMap(items, limit, operation) {
       const index = next;
       next += 1;
       results[index] = await operation(items[index], index);
-      await sleep(120);
+      // Be polite to a free web endpoint and avoid shared-runner rate limits.
+      await sleep(500);
     }
   };
   await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
@@ -202,22 +156,22 @@ async function parallelMap(items, limit, operation) {
 
 async function generateLocale(code, target, sources, curated) {
   const entries = sources.map((source, index) => ({ index, source, protected: protect(source) }));
-  const batches = makeBatches(entries);
+  const batches = chunk(entries, BATCH_SIZE);
   let complete = 0;
 
   const translatedBatches = await parallelMap(batches, CONCURRENCY, async (batch) => {
     const result = await translateBatch(batch, target);
     complete += 1;
-    if (complete % 10 === 0 || complete === batches.length) {
+    if (complete % 5 === 0 || complete === batches.length) {
       console.log(`[${code}] ${complete}/${batches.length} batches`);
     }
     return result;
   });
 
-  const raw = new Map(translatedBatches.flatMap((batch) => [...batch]));
+  const raw = translatedBatches.flat();
   const catalogue = {};
   for (const entry of entries) {
-    const translated = restore(raw.get(entry.index) ?? '', entry.protected);
+    const translated = restore(raw[entry.index] ?? '', entry.protected);
     if (!translated) throw new Error(`[${code}] Empty translation for: ${entry.source}`);
     if (dynamicSlots(translated) !== dynamicSlots(entry.source)) {
       throw new Error(`[${code}] Dynamic slots changed for: ${entry.source}\nReceived: ${translated}`);
@@ -250,8 +204,7 @@ for (const code of requested) {
 }
 
 await fs.mkdir(OUTPUT_DIRECTORY, { recursive: true });
-// Translate locales sequentially to avoid rate limiting. Phrases within each
-// locale are still processed concurrently in small, validated batches.
+// Locales run sequentially; phrases inside each locale use bounded concurrency.
 for (const code of requested) {
   await generateLocale(code, TARGETS[code], sources, curated[code]);
 }
