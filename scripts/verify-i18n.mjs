@@ -55,7 +55,7 @@ for (const code of CODES) {
     }
     if (value.toLocaleLowerCase() === key.toLocaleLowerCase()) unchanged += 1;
     if (slots(value) !== slots(key)) brokenSlots += 1;
-    if (/__DUKAANOS_(?:ITEM|SLOT|TERM)_/i.test(value)) brokenTokens += 1;
+    if (/__DUKAANOS_(?:ITEM|SLOT|TERM)_|ZXQJ[ST]\d+JQXZ/i.test(value)) brokenTokens += 1;
   }
   if (unchanged / sourceKeys.length > 0.45) fail(`${code}: ${unchanged} phrases still equal English`);
   if (brokenSlots) fail(`${code}: ${brokenSlots} dynamic phrases lost interpolation slots`);

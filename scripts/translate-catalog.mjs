@@ -19,7 +19,7 @@ const ROOT = process.cwd();
 const SOURCE_FILE = path.join(ROOT, 'locales', 'en.json');
 const CURATED_FILE = path.join(ROOT, 'locales', 'curated.json');
 const OUTPUT_DIRECTORY = path.join(ROOT, 'public', 'locales');
-const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE || 80);
+const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE || 160);
 const CONCURRENCY = Number(process.env.I18N_CONCURRENCY || 1);
 const GOOGLE_TLDS = ['com', 'co.in', 'co.uk', 'ca'];
 
@@ -76,12 +76,15 @@ const PROTECTED_TERMS = [
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
 function protect(source) {
-  let value = source.replace(/\{\{(\d+)\}\}/g, (_, index) => `__DUKAANOS_SLOT_${index}__`);
+  // Deliberately meaningless consonant runs survive transliteration models.
+  // Human-looking markers such as DUKAANOS_SLOT are transliterated by Assamese
+  // and a few other low-resource models, even when wrapped in underscores.
+  let value = source.replace(/\{\{(\d+)\}\}/g, (_, index) => `ZXQJS${index}JQXZ`);
   const terms = [];
 
   for (const term of PROTECTED_TERMS) {
     if (!value.includes(term)) continue;
-    const token = `__DUKAANOS_TERM_${terms.length}__`;
+    const token = `ZXQJT${terms.length}JQXZ`;
     value = value.replaceAll(term, token);
     terms.push(term);
   }
@@ -92,9 +95,9 @@ function protect(source) {
 function restore(translated, protectedPhrase) {
   let value = translated;
   protectedPhrase.terms.forEach((term, index) => {
-    value = value.replace(new RegExp(`__DUKAANOS_TERM_${index}__`, 'gi'), term);
+    value = value.replace(new RegExp(`ZXQJT${index}JQXZ`, 'gi'), term);
   });
-  value = value.replace(/__DUKAANOS_SLOT_(\d+)__/gi, '{{$1}}');
+  value = value.replace(/ZXQJS(\d+)JQXZ/gi, '{{$1}}');
   return value.replace(/\s+/g, ' ').trim();
 }
 
