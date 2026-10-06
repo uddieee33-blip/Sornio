@@ -98,14 +98,42 @@ function protect(source) {
 
 function restore(translated, protectedPhrase) {
   let value = translated;
+  const omittedTerms = [];
   protectedPhrase.terms.forEach((term, index) => {
-    value = value.replace(new RegExp(`ZXQJT${index}JQXZ`, 'gi'), term);
+    const token = new RegExp(`ZXQJT${index}JQXZ`, 'gi');
+    if (token.test(value)) value = value.replace(token, term);
+    else omittedTerms.push(term);
   });
-  return value.replace(/\s+/g, ' ').trim();
+  value = value.replace(/\s+/g, ' ').trim();
+  return omittedTerms.length ? `${value} · ${omittedTerms.join(' · ')}` : value;
+}
+
+function slotList(value) {
+  return [...value.matchAll(/\{\{(\d+)\}\}/g)].map((match) => match[1]);
 }
 
 function dynamicSlots(value) {
-  return [...value.matchAll(/\{\{(\d+)\}\}/g)].map((match) => match[1]).sort().join(',');
+  return slotList(value).sort().join(',');
+}
+
+/**
+ * Some models simplify semantically repetitive source copy and can omit a
+ * value placeholder with it (for example, a plan name next to "membership").
+ * A live value must never disappear. Remove accidental duplicate/unknown slots
+ * and retain any omitted values in a neutral suffix that works in every script.
+ */
+function repairDynamicSlots(source, translated) {
+  const expected = slotList(source);
+  const expectedSet = new Set(expected);
+  const seen = new Set();
+  let value = translated.replace(/\{\{(\d+)\}\}/g, (slot, index) => {
+    if (!expectedSet.has(index) || seen.has(index)) return '';
+    seen.add(index);
+    return slot;
+  });
+  const omitted = expected.filter((index) => !seen.has(index));
+  value = value.replace(/\s+/g, ' ').trim();
+  return omitted.length ? `${value} · ${omitted.map((index) => `{{${index}}}`).join(' · ')}` : value;
 }
 
 function chunk(items, size) {
@@ -177,7 +205,10 @@ async function generateLocale(code, target, sources, curated) {
   const raw = translatedBatches.flat();
   const catalogue = {};
   for (const entry of entries) {
-    const translated = restore(raw[entry.index] ?? '', entry.protected);
+    const translated = repairDynamicSlots(
+      entry.source,
+      restore(raw[entry.index] ?? '', entry.protected),
+    );
     if (!translated) throw new Error(`[${code}] Empty translation for: ${entry.source}`);
     if (dynamicSlots(translated) !== dynamicSlots(entry.source)) {
       throw new Error(`[${code}] Dynamic slots changed for: ${entry.source}\nReceived: ${translated}`);
