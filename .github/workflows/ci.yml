@@ -45,6 +45,14 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
+      # Includes `verify:i18n`, which first re-extracts every user-facing
+      # phrase from the source tree and fails if locales/en.json no longer
+      # matches it. Copy added to a screen without a catalogue regeneration
+      # ships as English to all 22 scheduled languages; this is the step that
+      # stops that reaching a shop counter.
+      - name: Verify blueprints, theme, security and localisation
+        run: npm run verify
+
       - name: Build
         run: npm run build
 

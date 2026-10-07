@@ -294,8 +294,32 @@ for (const file of sourceFiles()) {
 
 const sorted = [...phrases.keys()].sort((a, b) => a.localeCompare(b, 'en'));
 const catalogue = Object.fromEntries(sorted.map((phrase) => [phrase, phrase]));
-fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
-fs.writeFileSync(OUTPUT, `${JSON.stringify(catalogue, null, 2)}\n`);
-
+const serialised = `${JSON.stringify(catalogue, null, 2)}\n`;
 const templates = sorted.filter((phrase) => phrase.includes('{{')).length;
+
+// `--check` is the guard against the failure this project keeps hitting: a
+// feature ships new copy, nobody re-runs the extractor, and every non-English
+// shopkeeper reads that screen in English while the locale checks stay green
+// because they only compare catalogues against a stale en.json.
+if (process.argv.includes('--check')) {
+  const current = fs.existsSync(OUTPUT) ? JSON.parse(fs.readFileSync(OUTPUT, 'utf8')) : {};
+  const added = sorted.filter((phrase) => !(phrase in current));
+  const removed = Object.keys(current).filter((phrase) => !phrases.has(phrase));
+
+  if (added.length || removed.length) {
+    console.error(`${path.relative(ROOT, OUTPUT)} is out of date with the source tree.`);
+    for (const phrase of added.slice(0, 15)) console.error(`  + ${phrase.slice(0, 100)}`);
+    if (added.length > 15) console.error(`  + …and ${added.length - 15} more new phrase(s)`);
+    for (const phrase of removed.slice(0, 15)) console.error(`  - ${phrase.slice(0, 100)}`);
+    if (removed.length > 15) console.error(`  - …and ${removed.length - 15} retired phrase(s)`);
+    console.error(`\n${added.length} new and ${removed.length} retired phrase(s). Run: npm run i18n:extract && npm run i18n:generate`);
+    process.exit(1);
+  }
+
+  console.log(`Source tree and ${path.relative(ROOT, OUTPUT)} agree on all ${sorted.length} phrases.`);
+  process.exit(0);
+}
+
+fs.mkdirSync(path.dirname(OUTPUT), { recursive: true });
+fs.writeFileSync(OUTPUT, serialised);
 console.log(`Extracted ${sorted.length} English UI phrases (${templates} dynamic templates) to ${path.relative(ROOT, OUTPUT)}.`);

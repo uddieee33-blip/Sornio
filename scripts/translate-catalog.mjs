@@ -7,6 +7,13 @@
  * batched web translation RPC so each phrase remains an independent unit,
  * validates every dynamic slot, overlays the human-reviewed phrases in
  * curated.json, and writes deterministic JSON consumed from /public/locales.
+ *
+ * The run is incremental by default. A release that adds twelve phrases to one
+ * screen should cost twelve translations, not 2,000 — reusing what is already
+ * on disk keeps every reviewed line stable, keeps the diff readable, and makes
+ * "the catalogue drifted again" a one-minute fix instead of an afternoon. A
+ * phrase is sent to the service only when it is new and has no curated entry;
+ * pass I18N_FORCE=1 to retranslate a locale from scratch.
  */
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -21,6 +28,7 @@ const CURATED_FILE = path.join(ROOT, 'locales', 'curated.json');
 const OUTPUT_DIRECTORY = path.join(ROOT, 'public', 'locales');
 const BATCH_SIZE = Number(process.env.I18N_BATCH_SIZE || 160);
 const CONCURRENCY = Number(process.env.I18N_CONCURRENCY || 1);
+const FORCE = process.env.I18N_FORCE === '1';
 const GOOGLE_TLDS = ['com', 'co.in', 'co.uk', 'ca'];
 
 // Google currently carries 20 of the 22 scheduled languages. Bodo and
@@ -190,8 +198,47 @@ async function parallelMap(items, limit, operation) {
   return results;
 }
 
+/** Translations already published for this locale, reused unless forced. */
+async function readExisting(code) {
+  if (FORCE) return {};
+  try {
+    const existing = JSON.parse(await fs.readFile(path.join(OUTPUT_DIRECTORY, `${code}.json`), 'utf8'));
+    return existing && typeof existing === 'object' ? existing : {};
+  } catch {
+    return {};
+  }
+}
+
 async function generateLocale(code, target, sources, curated) {
-  const entries = sources.map((source, index) => ({ index, source, protected: protect(source) }));
+  const existing = await readExisting(code);
+  const settled = new Map();
+
+  for (const source of sources) {
+    // A reviewed phrase always wins, even over a translation already on disk.
+    const curatedValue = curated?.[source];
+    if (typeof curatedValue === 'string' && curatedValue.trim()) {
+      settled.set(source, curatedValue);
+      continue;
+    }
+    const previous = existing[source];
+    // Reuse only what is intact: a value that lost a slot gets another go.
+    if (typeof previous === 'string' && previous.trim() && dynamicSlots(previous) === dynamicSlots(source)) {
+      settled.set(source, previous);
+    }
+  }
+
+  const live = new Set(sources);
+  const pending = sources.filter((source) => !settled.has(source));
+  const reused = sources.length - pending.length;
+  const stale = Object.keys(existing).filter((source) => !live.has(source)).length;
+
+  if (!pending.length) {
+    console.log(`[${code}] nothing new to translate (${reused} phrases reused)`);
+  } else {
+    console.log(`[${code}] ${pending.length} new phrase${pending.length === 1 ? '' : 's'} to translate, ${reused} reused`);
+  }
+
+  const entries = pending.map((source, index) => ({ index, source, protected: protect(source) }));
   const batches = chunk(entries, BATCH_SIZE);
   let complete = 0;
 
@@ -205,7 +252,6 @@ async function generateLocale(code, target, sources, curated) {
   });
 
   const raw = translatedBatches.flat();
-  const catalogue = {};
   for (const entry of entries) {
     const translated = repairDynamicSlots(
       entry.source,
@@ -215,13 +261,19 @@ async function generateLocale(code, target, sources, curated) {
     if (dynamicSlots(translated) !== dynamicSlots(entry.source)) {
       throw new Error(`[${code}] Dynamic slots changed for: ${entry.source}\nReceived: ${translated}`);
     }
-    catalogue[entry.source] = curated?.[entry.source] ?? translated;
+    settled.set(entry.source, translated);
   }
+
+  // Written in source order so the file is a readable diff, and so phrases
+  // retired from the product leave the catalogue instead of lingering.
+  const catalogue = {};
+  for (const source of sources) catalogue[source] = settled.get(source);
 
   const changed = sources.filter((source) => catalogue[source].toLocaleLowerCase() !== source.toLocaleLowerCase()).length;
   if (changed / sources.length < 0.55) {
     throw new Error(`[${code}] Only ${changed}/${sources.length} phrases changed; refusing an incomplete locale.`);
   }
+  if (stale) console.log(`[${code}] dropped ${stale} phrase${stale === 1 ? '' : 's'} no longer in the product`);
 
   await fs.writeFile(
     path.join(OUTPUT_DIRECTORY, `${code}.json`),
