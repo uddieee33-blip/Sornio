@@ -22,6 +22,7 @@ import { BrandIcon } from '@/components/ui/BrandLogo';
 import { PlanBadge } from '@/components/billing/plan-badge';
 import { useCounterLock } from '@/components/security/counter-lock';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
+import { PaintSwitcher } from '@/components/theme/paint-switcher';
 
 
 /**
@@ -164,6 +165,10 @@ export function Topbar({
               <span className="hidden md:inline">Lock</span>
             </button>
           ) : null}
+
+          {/* The sun goes down every day; repainting the console for it should
+              never be four taps through Settings. */}
+          <PaintSwitcher />
 
           {/* Language belongs in the console too, not only on the marketing page. */}
           <LanguagePicker compact />

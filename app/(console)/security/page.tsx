@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { DeviceLockCard } from '@/components/security/device-lock-card';
 import { TrustCenter } from '@/components/security/trust-center';
+import { SecurityScore } from '@/components/security/security-score';
 
 export const metadata: Metadata = {
   title: 'Trust Centre — DukaanOS',
@@ -19,6 +20,12 @@ export default function SecurityPage() {
       {/* The lock comes first because it is the control an owner can act on in
           the next ten seconds. Everything under it is evidence. */}
       <DeviceLockCard />
+      {/* The score answers "am I safe right now?" in one number and names the
+          gaps. The Trust Centre below it explains the machinery — which only
+          matters to an owner once they know whether it is switched on. */}
+      <div className="mb-6">
+        <SecurityScore />
+      </div>
       <TrustCenter />
     </div>
   );

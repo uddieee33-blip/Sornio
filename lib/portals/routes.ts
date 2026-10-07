@@ -59,10 +59,24 @@ export type PortalAccessVerdict =
  * Blocked links land on the cockpit (which explains what happened) rather than
  * a bare 404 — an owner who taps a stale bookmark should be told why, not left
  * staring at an error page.
+ *
+ * `revealAll` is the Everything On switch (`lib/portals/master.ts`). It is a
+ * second, *signed* input precisely because it moves in the opposite direction
+ * to the portal cookie: the portal cookie can only ever hide a module, so it
+ * needs no integrity; revealing one does. The caller is responsible for having
+ * verified the signature — this function only applies the decision, and it
+ * applies it to the portal layer alone. The plan check is a separate step in
+ * the middleware and does not see this flag, which is what keeps "show me
+ * everything" from ever meaning "give me everything".
  */
-export function checkPortalAccess(portalId: unknown, pathname: string): PortalAccessVerdict {
+export function checkPortalAccess(
+  portalId: unknown,
+  pathname: string,
+  options: { revealAll?: boolean } = {},
+): PortalAccessVerdict {
   const moduleKey = moduleForPath(pathname);
   if (!moduleKey) return { allowed: true };
+  if (options.revealAll) return { allowed: true };
   if (portalHasModule(portalId, moduleKey)) return { allowed: true };
   return { allowed: false, module: moduleKey, redirectTo: `/home?${LOCKED_PARAM}=${moduleKey}` };
 }
@@ -77,6 +91,11 @@ export function routeHrefsFor(portalId: unknown): string[] {
     }
   }
   return hrefs;
+}
+
+/** Every governed route, for warm-up when Everything On is live. */
+export function allRouteHrefs(): string[] {
+  return MODULE_CATALOGUE.map((entry) => entry.href);
 }
 
 /** The module label a portal uses in its own words (for the blocked notice). */

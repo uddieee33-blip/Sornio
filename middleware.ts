@@ -5,15 +5,21 @@
  *
  *   1. Request id          → every response is traceable to one line in a log.
  *   2. Abuse probes        → known scanner paths answered with 404, no detail.
- *   3. Rate limit          → per-fingerprint sliding window, before any work.
- *   4. CSRF                → fetch-metadata + origin + double-submit token.
- *   5. Portal policy       → a business type never renders a module it does not
- *                            carry (inventory in a gym, memberships in a kirana).
- *   6. Plan policy         → a plan that is not being paid for does not render
+ *   3. Penalty box         → a fingerprint that keeps earning 429s is refused
+ *                            before any work at all is done for it.
+ *   4. Rate limit          → per-fingerprint sliding window.
+ *   5. CSRF                → fetch-metadata + origin + double-submit token.
+ *   6. Portal policy       → a business type never renders a module it does not
+ *                            carry (inventory in a gym, memberships in a
+ *                            kirana), unless the signed Everything On switch is
+ *                            live.
+ *   7. Plan policy         → a plan that is not being paid for does not render
  *                            the paid automations; expiry drops a business to
- *                            the free plan, never to a locked door.
- *   7. Security headers    → posture-aware CSP/HSTS/framing on the response.
- *   8. Session refresh     → Supabase only when real credentials are present.
+ *                            the free plan, never to a locked door. This step
+ *                            deliberately cannot see the Everything On value.
+ *   8. Security headers    → posture-aware CSP (nonce + strict-dynamic in
+ *                            production), HSTS, framing, permissions, reporting.
+ *   9. Session refresh     → Supabase only when real credentials are present.
  *
  * Everything here is Edge-safe (Web Crypto, no Node built-ins) and every
  * failure path degrades to "serve the page" rather than "show an error".
@@ -23,6 +29,7 @@ import { NextRequest, NextResponse } from 'next/server';
 
 import policy from '@/lib/security/policy.json';
 import { checkPortalAccess, PORTAL_COOKIE } from '@/lib/portals/routes';
+import { MASTER_COOKIE, masterRevealActive, openMasterRecord } from '@/lib/portals/master';
 import {
   buildBaselineHeaders,
   buildFramingHeaders,
@@ -31,13 +38,40 @@ import {
   resolvePosture,
   type HeaderPair,
 } from '@/lib/security/headers';
-import { clientFingerprint, consume, rateLimitHeaders, ruleForPath, type RateLimitRule } from '@/lib/security/rate-limit';
+import {
+  clientFingerprint,
+  consume,
+  penaltyRemainingMs,
+  rateLimitHeaders,
+  recordThrottle,
+  ruleForPath,
+  type AbuseRule,
+  type RateLimitRule,
+} from '@/lib/security/rate-limit';
 import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
 import { randomToken } from '@/lib/security/crypto';
 import { PLAN_COOKIE, checkPlanAccess, openPlanRecord, resolveEntitlement } from '@/lib/plans';
 
 const REQUEST_ID_HEADER = 'x-request-id';
+const NONCE_HEADER = 'x-nonce';
+
+/**
+ * The only paths allowed to skip the double-submit CSRF token.
+ *
+ * Kept as a named constant rather than an inline condition so that adding one
+ * is a visible, reviewable act — `npm run verify:security` fails the build if
+ * this list ever grows beyond the single entry below. Exemptions are the kind
+ * of thing that get added at 7pm under a deadline and are never removed.
+ *
+ * `/api/report` qualifies because the *browser* posts violation reports, by
+ * itself, with no token it could carry and no origin we control. Requiring one
+ * would not make the endpoint safer; it would mean never hearing about a CSP
+ * violation again. It is compensated for elsewhere: its own tight bucket, a
+ * hard body limit, and a handler that writes nothing.
+ */
+const CSRF_EXEMPT_PATHS = ['/api/report'] as const;
 const RATE_TABLE = policy.rateLimits as unknown as Record<string, RateLimitRule>;
+const ABUSE_RULE = policy.abuse as unknown as AbuseRule;
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY ?? '';
@@ -61,6 +95,17 @@ export async function middleware(request: NextRequest) {
   const requestId = request.headers.get(REQUEST_ID_HEADER) ?? randomToken(8);
   const posture = resolvePosture();
 
+  /**
+   * One nonce per response, minted here because this is the only place that
+   * runs before the HTML exists. In strict posture it replaces
+   * `script-src 'unsafe-inline'` entirely: Next.js reads the CSP off the
+   * *request* headers and stamps this value onto every script tag it emits,
+   * so the browser runs our bundle and nothing else. An injected script has no
+   * nonce and cannot learn one — the header that carried it is long gone by
+   * the time an XSS payload executes.
+   */
+  const nonce = randomToken(16);
+
   // ---- 1. Static assets: long-lived cache, minimal headers, no work. ----
   if (pathname.startsWith('/_next/static') || pathname.startsWith('/_next/image') || pathname === '/favicon.ico') {
     return applyHeaders(NextResponse.next(), buildStaticAssetHeaders());
@@ -76,7 +121,6 @@ export async function middleware(request: NextRequest) {
     ]);
   }
 
-  // ---- 3. Rate limiting, per scope + client fingerprint. ----
   const ip =
     request.headers.get('x-forwarded-for') ??
     request.headers.get('x-real-ip') ??
@@ -88,6 +132,30 @@ export async function middleware(request: NextRequest) {
     sessionHint: request.cookies.get(CSRF_COOKIE)?.value?.slice(0, 24),
   });
 
+  // ---- 3. Penalty box: refuse a known-abusive fingerprint up front. ----
+  // This is before the rate limiter on purpose. Once a client has proved it
+  // ignores `Retry-After`, the cheapest possible answer is the right one —
+  // a map lookup and a 429, with no window arithmetic and no cookie parsing.
+  const penalty = penaltyRemainingMs(fingerprint);
+  if (penalty > 0) {
+    return applyHeaders(
+      new NextResponse('Too many requests. Please wait and try again.', {
+        status: 429,
+        headers: {
+          'content-type': 'text/plain; charset=utf-8',
+          'retry-after': String(Math.ceil(penalty / 1000)),
+        },
+      }),
+      [
+        ...buildBaselineHeaders(posture, pathname),
+        ...buildFramingHeaders(posture, nonce),
+        { key: REQUEST_ID_HEADER, value: requestId },
+        policy.noStore,
+      ],
+    );
+  }
+
+  // ---- 4. Rate limiting, per scope + client fingerprint. ----
   const { scope, rule } = ruleForPath(pathname, RATE_TABLE);
   const decision = consume(`${scope}:${fingerprint}`, rule);
 
@@ -101,6 +169,12 @@ export async function middleware(request: NextRequest) {
 
   if (!decision.allowed || !burst.allowed) {
     const throttled = decision.allowed ? burst : decision;
+    // Count the strike. A shop reads `Retry-After` and slows down; a script
+    // comes straight back, and four of those inside five minutes buys it a
+    // doubling penalty instead of another cheap 429.
+    const served = recordThrottle(fingerprint, ABUSE_RULE);
+    const retryAfter = served > 0 ? Math.ceil(served / 1000) : throttled.retryAfter;
+
     const isApi = pathname.startsWith('/api/');
     const body = isApi
       ? JSON.stringify({ error: 'Too many requests. Please slow down.', requestId })
@@ -110,12 +184,12 @@ export async function middleware(request: NextRequest) {
         status: 429,
         headers: {
           'content-type': isApi ? 'application/json' : 'text/plain; charset=utf-8',
-          'retry-after': String(throttled.retryAfter),
+          'retry-after': String(retryAfter),
         },
       }),
       [
         ...buildBaselineHeaders(posture, pathname),
-        ...buildFramingHeaders(posture),
+        ...buildFramingHeaders(posture, nonce),
         ...Object.entries(rateLimitHeaders(throttled)).map(([key, value]) => ({ key, value })),
         { key: REQUEST_ID_HEADER, value: requestId },
         policy.noStore,
@@ -123,7 +197,7 @@ export async function middleware(request: NextRequest) {
     );
   }
 
-  // ---- 4. CSRF on mutating requests. ----
+  // ---- 5. CSRF on mutating requests. ----
   const csrfToken = request.cookies.get(CSRF_COOKIE)?.value ?? issueCsrfToken();
   if (!isSafeMethod(method)) {
     const allowedHosts = [request.headers.get('host') ?? '', 'localhost', '127.0.0.1'];
@@ -131,8 +205,14 @@ export async function middleware(request: NextRequest) {
       checkFetchMetadata(request.headers),
       checkOrigin(request.headers, allowedHosts.filter(Boolean)),
       // The double-submit token is enforced for API routes; page-level form
-      // posts are covered by the origin + fetch-metadata layers above.
-      pathname.startsWith('/api/') ? checkDoubleSubmit(request.headers, request.cookies.get(CSRF_COOKIE)?.value) : { ok: true as const },
+      // posts are covered by the origin + fetch-metadata layers above. The
+      // violation-report endpoint is the one exception: a browser posts those
+      // itself, with no token and no origin we control, so requiring one would
+      // simply mean never hearing about a CSP violation. It is unauthenticated
+      // by nature, which is why it has its own tight bucket and writes nothing.
+      pathname.startsWith('/api/') && !CSRF_EXEMPT_PATHS.some((exempt) => pathname.startsWith(exempt))
+        ? checkDoubleSubmit(request.headers, request.cookies.get(CSRF_COOKIE)?.value)
+        : { ok: true as const },
     ];
     const failed = verdicts.find((verdict) => !verdict.ok);
     if (failed && !failed.ok) {
@@ -143,7 +223,7 @@ export async function middleware(request: NextRequest) {
         }),
         [
           ...buildBaselineHeaders(posture, pathname),
-          ...buildFramingHeaders(posture),
+          ...buildFramingHeaders(posture, nonce),
           { key: REQUEST_ID_HEADER, value: requestId },
           policy.noStore,
         ],
@@ -151,16 +231,23 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 5. Portal policy: the module this route belongs to must be live. ----
+  // ---- 6. Portal policy: the module this route belongs to must be live. ----
   // Read-only navigation only: an API call or a write is never redirected, so
   // this can never mask a failed action or turn into a loop.
+  //
+  // Everything On (`lib/portals/master.ts`) is read here and *only* here. It is
+  // signed, it expires, and it is deliberately out of scope for step 7 — so it
+  // can reveal a module the trade's portal hid, and can never reveal one the
+  // business has not paid for.
   if (isSafeMethod(method)) {
-    const verdict = checkPortalAccess(request.cookies.get(PORTAL_COOKIE)?.value, pathname);
+    const master = await openMasterRecord(request.cookies.get(MASTER_COOKIE)?.value);
+    const revealAll = masterRevealActive(master);
+    const verdict = checkPortalAccess(request.cookies.get(PORTAL_COOKIE)?.value, pathname, { revealAll });
     if (!verdict.allowed) {
       const target = new URL(verdict.redirectTo, request.url);
       return applyHeaders(NextResponse.redirect(target, 307), [
         ...buildBaselineHeaders(posture, pathname),
-        ...buildFramingHeaders(posture),
+        ...buildFramingHeaders(posture, nonce),
         { key: REQUEST_ID_HEADER, value: requestId },
         { key: 'x-dukaan-portal-blocked', value: verdict.module },
         policy.noStore,
@@ -168,7 +255,7 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 6. Plan policy: the paid modules need a plan that is currently paid. ----
+  // ---- 7. Plan policy: the paid modules need a plan that is currently paid. ----
   // Same shape and the same safety rules as the portal check above: read-only
   // navigation only (a write is never redirected), and the always-open modules
   // (ledger, audit, trust centre, settings, and Your Plan itself) are added on
@@ -182,7 +269,7 @@ export async function middleware(request: NextRequest) {
       const target = new URL(verdict.redirectTo, request.url);
       return applyHeaders(NextResponse.redirect(target, 307), [
         ...buildBaselineHeaders(posture, pathname),
-        ...buildFramingHeaders(posture),
+        ...buildFramingHeaders(posture, nonce),
         { key: REQUEST_ID_HEADER, value: requestId },
         { key: 'x-dukaan-plan-blocked', value: verdict.module },
         { key: 'x-dukaan-plan-state', value: entitlement.state },
@@ -191,8 +278,19 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 7. Session refresh (only with real credentials; never blocking). ----
-  const response = NextResponse.next({ request: { headers: request.headers } });
+  // ---- 8. Session refresh (only with real credentials; never blocking). ----
+  //
+  // The nonce is pushed onto the *request* headers as well as the response.
+  // That is how Next.js learns about it: the framework reads the inbound CSP
+  // and stamps the matching nonce onto every script tag it renders. Without
+  // this line a strict policy would block the app's own bundle.
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(NONCE_HEADER, nonce);
+  const framing = buildFramingHeaders(posture, nonce);
+  const csp = framing.find((header) => header.key === 'Content-Security-Policy');
+  if (csp) requestHeaders.set('content-security-policy', csp.value);
+
+  const response = NextResponse.next({ request: { headers: requestHeaders } });
 
   if (supabaseConfigured) {
     try {
@@ -218,12 +316,13 @@ export async function middleware(request: NextRequest) {
     }
   }
 
-  // ---- 8. Response hardening. ----
+  // ---- 9. Response hardening. ----
   applyHeaders(response, [
     ...buildBaselineHeaders(posture, pathname),
-    ...buildFramingHeaders(posture),
+    ...framing,
     cacheHeaderFor(pathname),
     { key: REQUEST_ID_HEADER, value: requestId },
+    { key: NONCE_HEADER, value: nonce },
     { key: 'Vary', value: 'Accept-Encoding' },
     // Transparent throttling: clients can see the budget they have left.
     ...Object.entries(rateLimitHeaders(decision)).map(([key, value]) => ({ key, value })),

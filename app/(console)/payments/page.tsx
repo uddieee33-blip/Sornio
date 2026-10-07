@@ -110,9 +110,9 @@ export default function PaymentsPage() {
       </Card>
 
       <div className="grid gap-4 sm:grid-cols-3 animate-fade-up">
-        <StatCard label="Received" value={formatCurrency(received)} icon={Banknote} tone="brand" />
-        <StatCard label="Pending (card/online)" value={formatCurrency(pendingAmount)} icon={CreditCard} tone="amber" />
-        <StatCard label="UPI share of receipts" value={`${upiShare}%`} icon={Smartphone} tone="emerald" />
+        <StatCard index={0} label="Received" value={formatCurrency(received)} numeric={received} format={formatCurrency} sensitive icon={Banknote} tone="brand" />
+        <StatCard index={1} label="Pending (card/online)" value={formatCurrency(pendingAmount)} numeric={pendingAmount} format={formatCurrency} sensitive icon={CreditCard} tone="amber" />
+        <StatCard index={2} label="UPI share of receipts" value={`${upiShare}%`} icon={Smartphone} tone="emerald" />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">

@@ -729,6 +729,13 @@ export type StoreActions = {
    * sentence; nothing about a plan is recorded that a business may not read.
    */
   recordPlanEvent: (summary: string) => void;
+  /**
+   * Writes a change to the *shape* of the console — Everything On, a paint, a
+   * privacy screen — into the same hash-chained history. Reshaping a console
+   * is not a financial act, but "why does this screen exist now?" is a
+   * question an owner asks their records, so the records answer it.
+   */
+  recordConsoleEvent: (summary: string) => void;
   resetDemo: () => void;
 };
 
@@ -1144,6 +1151,10 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     recordPlanEvent(summary) {
       // The plan itself is our own financial decision, so it lands in the same
       // tamper-evident history as the owner's — one chain, no exceptions.
+      track('settings', summary.slice(0, 240));
+    },
+
+    recordConsoleEvent(summary) {
       track('settings', summary.slice(0, 240));
     },
 

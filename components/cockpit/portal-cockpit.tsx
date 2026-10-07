@@ -37,6 +37,8 @@ import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { RevenueAreaChart } from '@/components/charts/RevenueAreaChart';
 import { formatCurrency } from '@/lib/business-data';
+import { AnimatedNumber } from '@/components/motion/animated-number';
+import { Reveal } from '@/components/motion/reveal';
 import { revenueSeries } from '@/lib/chart-data';
 import { daysUntil } from '@/lib/models/membership';
 import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
@@ -380,15 +382,37 @@ export function PortalCockpit() {
             </div>
 
             <div className="grid shrink-0 grid-cols-2 gap-3 lg:w-[420px]">
-              {tiles.map((tile) => (
-                <div
+              {tiles.map((tile, tileIndex) => (
+                <Reveal
                   key={tile.label}
-                  className="rounded-2xl bg-white/80 p-4 ring-1 ring-inset ring-stone-200 backdrop-blur-sm transition hover:ring-portal/30"
+                  index={tileIndex}
+                  className="rounded-2xl bg-white/80 p-4 ring-1 ring-inset ring-stone-200 backdrop-blur-sm transition-[box-shadow] duration-slow ease-settle hover:ring-portal/30"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">{tile.label}</p>
-                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-stone-900">{tile.reading.value}</p>
+                  {/*
+                    The figure counts up on arrival when there is a number
+                    behind it. Money is marked sensitive: this tile sits on the
+                    cockpit of a device that faces the shop floor, and the
+                    day's takings is the one number a stranger reads first.
+                  */}
+                  {typeof tile.reading.numeric === 'number' ? (
+                    <AnimatedNumber
+                      value={tile.reading.numeric}
+                      format={
+                        tile.reading.kind === 'currency'
+                          ? (value) => formatCurrency(value, locale)
+                          : (value) => String(Math.round(value))
+                      }
+                      sensitive={tile.reading.kind === 'currency'}
+                      className="mt-1.5 block font-display text-xl font-bold tabular-nums text-stone-900"
+                    />
+                  ) : (
+                    <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-stone-900">
+                      {tile.reading.value}
+                    </p>
+                  )}
                   <p className="mt-0.5 text-[11px] leading-snug text-stone-600">{tile.reading.sub ?? tile.caption ?? ''}</p>
-                </div>
+                </Reveal>
               ))}
             </div>
           </div>
@@ -412,17 +436,29 @@ export function PortalCockpit() {
           <div className="mt-4 grid grid-cols-3 gap-3 border-t border-stone-100 pt-4">
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">{terms.sale} recorded</p>
-              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">
-                {state.transactions.filter((tx) => tx.type === 'sale' && tx.direction === 'in').length}
-              </p>
+              <AnimatedNumber
+                value={state.transactions.filter((tx) => tx.type === 'sale' && tx.direction === 'in').length}
+                format={(value) => String(Math.round(value))}
+                className="mt-1 block font-display text-lg font-bold tabular-nums text-stone-900"
+              />
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">Net profit</p>
-              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">{formatCurrency(snapshot.netProfit, locale)}</p>
+              <AnimatedNumber
+                value={snapshot.netProfit}
+                format={(value) => formatCurrency(value, locale)}
+                sensitive
+                className="mt-1 block font-display text-lg font-bold tabular-nums text-stone-900"
+              />
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">Cash in hand</p>
-              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">{formatCurrency(snapshot.cashBalance, locale)}</p>
+              <AnimatedNumber
+                value={snapshot.cashBalance}
+                format={(value) => formatCurrency(value, locale)}
+                sensitive
+                className="mt-1 block font-display text-lg font-bold tabular-nums text-stone-900"
+              />
             </div>
           </div>
         </Card>

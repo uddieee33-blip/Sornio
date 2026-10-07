@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { usePresence } from '@/lib/motion/presence';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { Lock, X } from 'lucide-react';
@@ -16,6 +17,10 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
   const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
   const panelRef = useRef<HTMLElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
+  // The drawer used to vanish on close — mounted, animated in, then deleted
+  // mid-frame. On a phone that reads as the app losing its place. It is now
+  // held for one exit so it slides back out the way it came in.
+  const { mounted, leaving } = usePresence(open, 180);
 
   useEffect(() => {
     if (!open) return;
@@ -61,7 +66,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
     };
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!mounted) return null;
 
   const businessName = state.profile.name?.trim() || 'My Business';
   const statusLine = !hydrated
@@ -78,7 +83,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
         type="button"
         aria-label="Close navigation menu"
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-stone-900/40 backdrop-blur-sm animate-fade-in"
+        className={`absolute inset-0 cursor-default bg-stone-900/40 backdrop-blur-sm ${leaving ? 'animate-fade-out' : 'animate-fade-in'}`}
       />
       <aside
         id="mobile-navigation"
@@ -87,7 +92,7 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
         aria-labelledby="mobile-navigation-title"
         ref={panelRef}
         tabIndex={-1}
-        className="absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2rem))] flex-col border-r border-stone-200 bg-panel shadow-float animate-slide-in-left"
+        className={`absolute inset-y-0 left-0 flex w-[min(20rem,calc(100vw-2rem))] flex-col border-r border-stone-200 bg-panel shadow-float ${leaving ? 'animate-slide-out-left' : 'animate-slide-in-left'}`}
       >
         <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4">
           <Link href="/home" onClick={onClose} className="flex items-center gap-3">

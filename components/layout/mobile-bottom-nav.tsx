@@ -111,11 +111,22 @@ function NavItem({
       title={title}
       aria-label={title ?? label}
       aria-current={ariaCurrent}
-      className={`touch-manipulation flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition-colors ${
+      data-press="soft"
+      className={`touch-manipulation flex min-w-0 flex-col items-center justify-center gap-0.5 rounded-xl px-1 text-[10px] font-semibold transition-[color,background-color] duration-base ease-swift ${
         active ? 'bg-portal/10 text-portal' : 'text-stone-600 active:bg-stone-100'
       }`}
     >
-      <Icon size={19} strokeWidth={2.1} aria-hidden="true" />
+      {/*
+        The icon lifts a hair when its tab becomes current. A thumb covers the
+        label at the moment of the tap, so the icon is the only part of the
+        control the user can still see confirming where they landed.
+      */}
+      <Icon
+        size={19}
+        strokeWidth={2.1}
+        aria-hidden="true"
+        className={`transition-transform duration-base ease-spring ${active ? '-translate-y-px scale-110' : ''}`}
+      />
       <span className="max-w-full truncate">{label}</span>
     </Link>
   );

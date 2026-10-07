@@ -41,10 +41,10 @@ export default function ReportsPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-fade-up">
-        <StatCard label="Revenue" value={formatCurrency(financials.revenue)} icon={TrendingUp} tone="brand" />
-        <StatCard label="Operating expenses" value={formatCurrency(financials.operatingExpenses)} icon={PiggyBank} tone="amber" />
-        <StatCard label="Gross profit" value={formatCurrency(financials.grossProfit)} icon={BarChart3} tone="emerald" delta={`${financials.grossMargin.toFixed(1)}% margin`} />
-        <StatCard label="Net cash flow" value={formatCurrency(financials.netCashFlow)} icon={Wallet} tone="blue" />
+        <StatCard index={0} label="Revenue" value={formatCurrency(financials.revenue)} numeric={financials.revenue} format={formatCurrency} sensitive icon={TrendingUp} tone="brand" />
+        <StatCard index={1} label="Operating expenses" value={formatCurrency(financials.operatingExpenses)} numeric={financials.operatingExpenses} format={formatCurrency} sensitive icon={PiggyBank} tone="amber" />
+        <StatCard index={2} label="Gross profit" value={formatCurrency(financials.grossProfit)} numeric={financials.grossProfit} format={formatCurrency} sensitive icon={BarChart3} tone="emerald" delta={`${financials.grossMargin.toFixed(1)}% margin`} />
+        <StatCard index={3} label="Net cash flow" value={formatCurrency(financials.netCashFlow)} numeric={financials.netCashFlow} format={formatCurrency} sensitive icon={Wallet} tone="blue" />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-2">

@@ -46,6 +46,41 @@ Each blueprint defines six things, and every screen reads them through `usePorta
 
 **How it is enforced (security).** The portal is stored in an `httpOnly`, `SameSite=Lax` cookie (`dukaan.portal`) that only `POST /api/portal` can write. That endpoint accepts a template id from the shipped list (never a portal id), is CSRF-protected by the middleware's double-submit token, rate-limited on its own tight bucket, and requires an owner/manager role when a real session exists. Edge middleware (`middleware.ts`, step 5) refuses any safe request for a module the portal does not carry and redirects it to `/home?locked=<module>`, where the cockpit explains what happened; a client gate covers the same rule for the moment before a cookie is re-issued. A portal value can therefore only ever *hide* a module — it can never unlock one.
 
+### Everything On — seeing the rest of the console
+
+A portal hides modules because a kirana does not want a renewals screen. Some
+owners want them anyway: a gym that started selling protein, a café that took
+on a retail shelf, or simply somebody who wants to look before they decide.
+
+**Settings → Everything On** reveals all 27 modules regardless of the portal.
+The extras appear as their own nav section, *Everything else*, marked with a
+sparkle so it is always obvious which part of the console is the trade's and
+which part was switched on by hand.
+
+Four rules make it safe:
+
+1. **It is read in the portal check, never the plan check.** Middleware step 6
+   consults it; step 7 does not, and never will. Everything On un-hides what
+   the trade hid; it does not pay for anything. On the free plan the
+   memberships screen becomes *visible* and still redirects to `/subscription`.
+2. **It is signed.** `dukaan.everything` carries an HMAC over
+   `resolveSessionSecret()`, unlike the portal cookie, which is deliberately
+   unsigned. The asymmetry is the point: a forged portal cookie can only ever
+   hide more, while a forged reveal cookie would *widen* a console — so it has
+   to be unforgeable. A tampered payload with a real signature, or a real
+   payload with a forged one, both fall back to "off".
+3. **It expires.** Ninety days, derived from `until` rather than from cookie
+   lifetime, so a tab left open on a shared till does not keep a console wide
+   open forever.
+4. **Every flip is audited.** On and off both write a `recordConsoleEvent`
+   entry into the hash-chained history, with the actor resolved server-side
+   from `business_members` — never from the request body.
+
+`POST /api/master` is the only place it can change: CSRF-protected, its own
+six-a-minute bucket, body is a lone boolean, and turning it off *clears* the
+cookie rather than storing `false`.
+
+
 ## Product map
 
 Every business gets a subset of these, labelled in its own words — see *Portals* above.
@@ -268,6 +303,84 @@ values such as customer names, amounts, and product codes. New UI copy is picked
 up by the syntax-tree extractor; CI then refuses a locale with missing phrases
 or broken dynamic placeholders.
 
+## Appearance — ten paints, one source file
+
+The console does not have a dark mode bolted onto a light one. It has a
+**paint**: a complete set of colour tokens that every Tailwind class resolves
+through, so switching `data-theme` on `<html>` repaints the entire product —
+including screens nobody remembered to update.
+
+| | Light | Dark |
+| --- | --- | --- |
+| Everyday | **Warm Daylight** (default), **Paper**, **Monsoon**, **Saffron** | **Midnight**, **Graphite**, **Night Market**, **Indigo** |
+| High contrast | **Clarity** | **Nocturne** |
+
+Plus **Match my device**, which follows `prefers-color-scheme` live.
+
+**One source of truth.** All ten are authored in `lib/theme/palettes.json` as
+OKLCH hue/chroma/lightness, not as hex. `npm run theme:build` generates
+`app/themes.css` and `lib/theme/paints.generated.json`; both are committed and
+neither is ever hand-edited. OKLCH is what makes ten very different colours
+carry the same *weight* at the same step, instead of the greens going muddy
+while the blues stay bright. Where a colour falls outside sRGB, the generator
+reduces chroma until it fits rather than clipping the channels — clipping is
+what turns a careful ramp into a flat block at the dark end.
+
+**The ramps are semantic, not monotonic.** `bg-stone-50` is always the raised
+surface and `text-stone-900` is always the body text — in a dark paint that
+means 50 is near-black and 900 is near-white. Components never need to know
+which paint is on, which is why there is no `dark:` variant anywhere in the
+codebase.
+
+**Also in the Appearance panel**, because a counter is not a desk:
+
+- **Density** — comfortable, or compact for a 1366×768 shop PC.
+- **Motion** — Full, Calm, or Off. One multiplier, `--motion-scale`, which
+  every duration in the product is wrapped in.
+- **Text size** — four steps, scaling the root rather than overriding sizes.
+- **Privacy screen** — blurs every figure until hovered, and re-blurs the
+  instant the window loses focus. For a till that faces the shop.
+
+**No flash on load.** The choice is written to both `localStorage` (the
+device's memory) and `dukaan.look` (the server's). The cookie is read in
+`app/layout.tsx`, so the correct paint is in the HTML of the first byte — no
+inline blocking script, no white flash before a dark console. When the two
+disagree, the device wins, because it is the one the person in front of the
+screen actually chose.
+
+**Checked, not eyeballed.** `npm run verify:theme` measures every paint: body
+and muted text against page, card and panel (WCAG AA, and AAA for the two
+contrast paints), the label on a filled accent button, focus-ring visibility at
+WCAG 1.4.11's 3:1 — composited, because the ring is drawn at 85% opacity —
+hairline visibility, ramp direction, and whether the committed CSS still
+matches `palettes.json`. It has already caught one real regression: Nocturne's
+primary button label at 4.46:1.
+
+## Motion — why things move
+
+Motion in a shop console is not decoration. It is the only cue that a tap was
+received and that the thing which just appeared came from somewhere. The rules
+are in `lib/motion/tokens.ts`:
+
+- Feedback the finger caused is **instant** (90 ms). Slower and the owner taps
+  twice.
+- Things arriving take **base** (220 ms); things leaving take **quick**
+  (150 ms) and accelerate away, because nobody waits on an exit.
+- Nothing animates a property that forces layout. Transform and opacity only,
+  so a ₹6,000 counter PC composites instead of re-laying-out at 60 fps.
+
+What that buys, concretely: route changes cross-fade through the View
+Transitions API where the browser has it and fall back to the Web Animations
+API where it does not; lists stagger in at 45 ms per item, capped at twelve so
+a hundred-row ledger does not take four seconds to arrive; sparklines draw
+themselves left to right because that is what a time series means; cockpit
+figures count up to their value; the mobile drawer now slides back out the way
+it came in instead of being deleted mid-frame (`usePresence`).
+
+All of it is multiplied by `--motion-scale`, so **Motion: Off** is a real zero
+— not a shorter animation, no animation — and `prefers-reduced-motion` is
+honoured without a second code path to keep in sync.
+
 ## Architecture
 
 - **`lib/portals/`** — the portal system, pure data first so Edge middleware can enforce what the UI renders:
@@ -304,6 +417,15 @@ or broken dynamic placeholders.
   - `counter.ts` — the scan ticket: stacking rules, weighed lines, totals
   - `device.ts`, `fingerprint.ts` — what this device can do, and WebAuthn enrol/verify (credential ids only)
   - `components/scanning/` — the wedge/camera/typed scanner, the printable label sheet, the SVG barcode, the fingerprint pad, the readiness card
+- **`lib/theme/`** — the paint engine, generated from one file:
+  - `palettes.json` — the ten paints in OKLCH. The only file a designer edits
+  - `paints.generated.json`, `../app/themes.css` — built by `scripts/build-themes.mjs`; committed, never hand-edited
+  - `palettes.ts` — `PAINTS`, `normalizeAppearance`, `encode`/`decodeAppearance`, `appearanceAttributes`, `themeColorFor`
+  - `appearance-provider.tsx` — `useAppearance()` / `useMotionScale()`; `prefers-color-scheme` and the stored choice both as external stores, so there is no mount-effect repaint and two tabs on one till stay in sync
+- **`lib/motion/`** — `tokens.ts` (durations, easings, the 45 ms stagger contract) and `presence.ts` (`usePresence`, so a sheet can animate out instead of being deleted)
+- **`components/motion/`** — `reveal.tsx` (one shared, refcounted `IntersectionObserver` for the whole page) and `animated-number.tsx` (figures that count, and simply *are* when motion is off)
+- **`lib/security/posture.ts`** + **`components/security/security-score.tsx`** — the self-audit behind the Trust Centre score
+- **`lib/security/passkey.ts`** — platform passkey enrolment and unlock; stores a credential id and nothing else
 - **`lib/perf/clock.ts`** — the wall clock as an external store (`useSyncExternalStore`), so plan countdowns never read time during render and hydration stays identical.
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
 - **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, raise/collect invoices, check members in and out, and run a booking day book; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
@@ -505,11 +627,17 @@ npm run dev                  # http://localhost:3000
 
 npm run typecheck            # no type errors
 npm run lint                 # no lint problems
-npm run verify               # all four verification suites, below
+npm run verify               # all eight verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
+npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
+npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
+npm run verify:security      # 33 invariants the security layer is not allowed to lose
+npm run verify:i18n          # key, slot and coverage parity across 22 languages
+
+npm run theme:build          # regenerate app/themes.css from lib/theme/palettes.json
 
 # sell a plan by hand — the exact command that turns a UPI payment into access
 DUKAANOS_ACTIVATION_SECRET=… npm run mint:activation -- --plan growth --months 3 --reference UPI-482910
@@ -539,8 +667,9 @@ security is a first-class layer rather than a header or two.
 | Identity | `lib/security/session.ts` | HMAC-signed, expiring, rotating session claims |
 | Tenancy | `lib/security/tenant.ts` | One business per scope; every record carries a tenant id |
 | Authorisation | `lib/security/rbac.ts` | Owner / manager / cashier / auditor, 18 permissions |
-| Transport | `lib/security/headers.ts` | Posture-aware CSP, HSTS, framing, and a `Permissions-Policy` granted per route (camera only where scanning happens, WebAuthn only at the gym desk) |
-| Edge | `lib/security/rate-limit.ts` | Sliding-window throttling, pluggable store (dedicated bucket for `/api/portal`) |
+| Transport | `lib/security/headers.ts` | Nonce + `strict-dynamic` CSP, Trusted Types, HSTS, framing, and a `Permissions-Policy` granted per route (camera only where scanning happens, passkey enrolment only in the Trust Centre) |
+| Edge | `lib/security/rate-limit.ts` | Sliding-window throttling with a per-endpoint bucket, plus a penalty box for clients that keep earning 429s |
+| Reveal scope | `lib/portals/master.ts` + `app/api/master/route.ts` | Everything On: signed, expiring, audited, and read only by the portal check — never the paywall |
 | Portal scoping | `lib/portals/routes.ts` + `middleware.ts` | A business type never reaches a module it does not carry |
 | Entitlement | `lib/plans/` + `middleware.ts` | A plan that is not being paid for never reaches the paid automations — and expiry still never locks a business out of its own books |
 | Request | `lib/security/csrf.ts` | Fetch-metadata + origin allow-list + double-submit token |
@@ -548,6 +677,9 @@ security is a first-class layer rather than a header or two.
 | Output | `lib/security/sanitize.ts` | HTML/CSV/URL escaping for receipts and exports |
 | Storage | `lib/security/vault.ts` | AES-GCM-256 at rest, integrity envelope, rollback snapshot |
 | Device | `lib/security/lock.ts` + `components/security/counter-lock.tsx` | The counter lock: a PIN hashed with PBKDF2-SHA256 (120k rounds, per-install salt), idle auto-lock, growing lockout after five wrong tries |
+| Device (passkey) | `lib/security/passkey.ts` | Unlock with the device's own sensor. Stores a credential id and nothing else |
+| Self-audit | `lib/security/posture.ts` + `components/security/security-score.tsx` | A weighted score measured from live browser state, with unanswerable checks excluded rather than counted green |
+| Violation intake | `app/api/report/route.ts` | Bounded, redacted CSP reports. Counts them; stores nothing |
 | Evidence | `lib/security/audit.ts` | SHA-256 hash-chained, tamper-evident history |
 | Privacy | `lib/security/redact.ts` | PII/secret scrubbing before anything is logged |
 | Observability | `lib/security/monitor.ts` | Bounded, redacted error + Web Vitals telemetry |
@@ -555,14 +687,75 @@ security is a first-class layer rather than a header or two.
 
 ### Edge pipeline (every request)
 
-1. **Request id** — every response carries `x-request-id` so a report maps to one log line.
-2. **Probe rejection** — `/.env`, `/.git`, `/wp-admin`, … return a blank 404, no detail.
-3. **Rate limiting** — a per-client sliding window per scope (auth, api, reports, page) plus a short burst guard. API and mutating requests get the tight budget; page traffic gets a generous one so the app never throttles its own navigation.
-4. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a double-submit token for `/api/*`.
-5. **Portal policy** — the portal cookie decides which modules this business runs. A request for a module outside it (inventory in a gym, memberships in a kirana) is answered with a 307 to `/home?locked=<module>` and an `x-dukaan-portal-blocked` header. Only read-only navigation is redirected, so the check can never mask a failed action or loop.
-6. **Plan policy** — the signed plan cookie decides whether this route is served. A module the plan does not carry (memberships on the free plan, anything after a lapsed period) is answered with a 307 to `/subscription?locked=<module>` and an `x-dukaan-plan-blocked` header. Read-only navigation only, exactly like the portal check, so it can never mask a failed action.
-7. **Headers** — CSP, HSTS, framing, `Permissions-Policy`, `no-store` on console routes.
-8. **Session refresh** — Supabase only when real credentials exist, lazily imported, never blocking a page load.
+Nine ordered steps in `middleware.ts`. The order is part of the defence, not an
+implementation detail.
+
+1. **Static assets** — short-circuited before anything else runs.
+2. **Probe rejection** — `/.env`, `/.git`, `/wp-admin`, and 40 others return a
+   blank 404 with no detail. `verify:security` fails the build if one of them
+   ever collides with a real route.
+3. **Penalty box** — a client that has already earned four throttles inside
+   five minutes is refused for two minutes, doubling per trip, capped at
+   thirty. It runs *before* the rate limiter deliberately: a banned
+   fingerprint should cost one map read, not a full sliding-window
+   evaluation. At 300 page requests a minute, a human cannot reach four
+   strikes in five minutes.
+4. **Rate limiting** — a per-client sliding window per scope (auth, api,
+   reports, portal, plan, master, report, page) plus a short burst guard. Every
+   429 records a strike against step 3.
+5. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a
+   double-submit token for `/api/*`. Exactly one path is exempt —
+   `/api/report`, because the browser posts violation reports itself with no
+   token it could carry — and the exemption list is a named constant that
+   `verify:security` refuses to let grow.
+6. **Portal policy** — the portal cookie, widened by Everything On if it is
+   on, decides which modules this business runs. A request for a module
+   outside it is answered with a 307 to `/home?locked=<module>` and an
+   `x-dukaan-portal-blocked` header. Only read-only navigation is redirected,
+   so the check can never mask a failed action or loop.
+7. **Plan policy** — the signed plan cookie decides whether this route is
+   served. A module the plan does not carry is answered with a 307 to
+   `/subscription?locked=<module>` and an `x-dukaan-plan-blocked` header.
+   Everything On is **not** consulted here.
+8. **Session refresh** — Supabase only when real credentials exist, lazily
+   imported, never blocking a page load.
+9. **Headers** — a freshly minted per-request nonce, the posture-aware CSP,
+   HSTS, framing, `Permissions-Policy`, `Reporting-Endpoints`, and `no-store`
+   on console routes.
+
+### The Content-Security-Policy
+
+In `strict` posture the policy is `script-src 'nonce-<16 random bytes>'
+'strict-dynamic' 'self'`. The nonce is minted per request in middleware and
+set on the *request* headers too, so Next stamps it onto its own script tags.
+With `strict-dynamic`, host allow-lists stop mattering and an injected script
+cannot learn the nonce — the header that carried it is gone by the time any
+page JavaScript runs.
+
+`next.config.js` ships a deliberately *weaker* static policy with
+`'unsafe-inline'`, and is overwritten by middleware on every HTML response. It
+has to be weaker: a header written once at build time cannot carry a nonce, and
+a reused nonce is worse than none because it looks like protection.
+`verify:security` fails the build if a nonce ever appears in the static config.
+
+Also on: `require-trusted-types-for 'script'` with a named policy allow-list
+(production only — Turbopack's own DOM writes violate it in dev, and a console
+full of ignorable violations teaches everyone to ignore violations),
+`script-src-attr 'none'` so an injected `onclick=` cannot run, `object-src`,
+`base-uri`, `frame-src` and `child-src` all `'none'`, and
+`Cross-Origin-Embedder-Policy: credentialless` rather than `require-corp` —
+same isolation, without breaking the first owner who pastes in a logo URL.
+
+Violations go to `/api/report`, which **stores nothing**: 16 KB body cap, ten
+reports per request, forty distinct directives, blocked URIs coarsened to an
+origin or a scheme, always a 204. `GET` returns counts only, which is what lets
+the Trust Centre state "no policy violations since start-up" as a fact rather
+than a promise.
+
+`public/.well-known/security.txt` (and `/security.txt`) carries the contact
+address and a list of known non-findings, so a researcher does not spend a week
+reporting that the counter PIN is device-level only or that `dukaan.look` is
+unsigned — both are deliberate, and both are written down.
 
 ### Two postures
 
@@ -636,23 +829,84 @@ captures** asks the browser what it can do (wedge, camera, on-device decoder,
 fingerprint sensor) and says which channels are ready here, which are not, and
 what the fallback is.
 
+### The Trust Centre, and the score on it
+
+Open **Trust Centre** (`/security`). The first thing on it is a number out of
+100, and it is measured rather than claimed. Each check reads the live thing:
+`window.isSecureContext` for the transport claim, `document.cookie` for the
+"authority cookies are out of reach of scripts" claim, `crossOriginIsolated`
+for isolation, the hash chain re-verified on mount for the audit claim.
+
+Two deliberate choices keep it honest:
+
+- **Unanswerable questions are excluded, not passed.** A check this browser
+  cannot run returns `unknown` and leaves the denominator. Scoring an
+  unanswerable question as green is how a dashboard reaches 100% on a broken
+  deployment.
+- **Weight follows consequence.** Losing the audit chain costs five; an
+  unblurred figure costs one. A score where every item is worth the same is a
+  progress bar, not an audit.
+
+Gaps are pulled to the top with the fix in one line; the passes collapse
+behind a disclosure, because on a healthy day the useful information is
+"nothing to do", not nine paragraphs of green.
+
+### Passkey unlock
+
+A PIN on a counter is not broken by cryptography. It is broken by being typed
+forty times a day in front of whoever is standing at the till. **Trust Centre
+→ Unlock with this device** enrols a platform passkey, after which the
+tablet's own sensor opens the counter lock.
+
+DukaanOS stores one thing: a credential id. Not a fingerprint, not a face, not
+a template of either — the match happens inside the device, exactly as it does
+for gym check-in. Three limits, stated in the UI as well as here:
+
+- The PIN keeps working, deliberately. A passkey bound to a tablet that falls
+  in a bucket of water must never be the only way into a business's books.
+- It is bound to this origin and this device. Enrolling on the till does not
+  enrol the owner's phone.
+- It protects the device, not the data from somebody who already owns the
+  device — the same honest limit the PIN has.
+
+The sensor is offered *during* a PIN lockout. The lockout exists because six
+digits are guessable; a passkey is not, and holding the one person who can
+prove they are the owner out of their own till for fifteen minutes costs them
+an afternoon and costs an intruder nothing.
+
 ### Verify it yourself
 
-Open **Trust Centre** (`/security`) in the console. It reports the live posture
-— whether storage is encrypted on this device, whether the audit chain
-verifies, and which role may do what — computed at render time, with degraded
-states shown in amber rather than hidden.
+`npm run verify` runs all eight suites and exits non-zero on the first
+disagreement:
 
-For the scanning engine specifically, run `npm run verify:scanning`: it compiles
-the pure modules and checks them against published barcode examples, the
-scan → ticket path, the wedge-vs-human timing the Devices tab reports, and the
-shipped demo catalogue. It prints one line per group and exits non-zero on the
-first disagreement.
+| Suite | What it refuses to let regress |
+| --- | --- |
+| `verify:scanning` | Barcode maths against published examples, scan → ticket, wedge-vs-human timing |
+| `verify:billing` | The plan lifecycle and the paywall |
+| `verify:inventory` | 108 packets − 3 = 105, and everything that could quietly break it |
+| `verify:lock` | The PIN, its hashing, and its lockout |
+| `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
+| `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
+| `verify:security` | 33 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, one CSRF exemption, a bucket per mutating endpoint, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
 
-The other three suites work the same way, on the modules they cover:
-`npm run verify:inventory` (108 packets − 3 = 105, and everything that could
-quietly break that), `npm run verify:lock` (the PIN, its hashing and its
-lockout), and `npm run verify:billing` (the plan lifecycle and the paywall).
+Two of these are worth explaining, for the same underlying reason: both cover
+failures that are completely silent.
+
+**`verify:security`** exists because security regressions do not look like
+bugs. Nobody files a ticket saying the CSP quietly gained `'unsafe-inline'`
+three weeks ago, because the app works perfectly either way. Every check in it
+exists because of a specific way this layer could stop protecting anyone
+without a single test going red.
+
+**`verify:motion`** exists because of a bug it would have caught. A stat card
+was given `data-reveal-item` so it would arrive with the rest of its row — but
+that attribute is half a contract, and the other half is registering with the
+shared `IntersectionObserver` that eventually reveals the element. The card
+never registered. Types passed, lint passed, the build was clean, and every
+headline figure on four screens was `opacity: 0` forever. The CSS now requires
+both halves, so forgetting one yields a card that does not *animate* rather
+than one that does not *exist* — and the verifier fails the build either way.
 
 ### Performance notes
 
