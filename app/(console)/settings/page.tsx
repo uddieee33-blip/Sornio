@@ -1,5 +1,9 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
+import { getActiveFormattingLocale } from '@/lib/locale';
+
 import { useState } from 'react';
 import { Check, ChevronDown, Cloud, CloudOff, Database, History, KeyRound, Lock, RefreshCw, RotateCcw, Save, ServerCog, ShieldCheck, SlidersHorizontal, ToggleLeft, TriangleAlert, UserRound } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -27,7 +31,7 @@ const ROLE_RANK: Record<StaffRole, number> = { desk: 0, manager: 1, owner: 2 };
 const ROLE_TONE: Record<StaffRole, BadgeTone> = { owner: 'brand', manager: 'sky', desk: 'slate' };
 
 function formatAuditDate(iso: string) {
-  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 type ToggleKey = 'sendSmsReminders' | 'sendWhatsappReminders' | 'autoGenerateInvoiceNumber' | 'allowDigitalReceipts' | 'allowPhysicalReceipts';
@@ -57,6 +61,7 @@ function Toggle({ on, onClick, locked }: { on: boolean; onClick: () => void; loc
 }
 
 export default function SettingsPage() {
+  useLocaleRefresh();
   const { state, actions, syncStatus } = useDukaanStore();
   const { portal, nav } = usePortal();
   const { role, modal: gateModal, requestOwner } = useOwnerGate();
@@ -230,7 +235,7 @@ export default function SettingsPage() {
                 <input type="number" min={0} max={100} step={0.5} value={taxRate} onChange={(e) => setTaxRate(e.target.value)} className={inputClass} />
               </label>
             </div>
-            <p className="mt-3 text-xs text-stone-600">Current: <span className="font-semibold text-stone-700 capitalize">{settings.receiptMode}</span> receipts · <span className="font-semibold text-stone-700">{settings.taxRate}%</span> tax · last updated {new Date(settings.updatedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
+            <p className="mt-3 text-xs text-stone-600">Current: <span className="font-semibold text-stone-700 capitalize">{settings.receiptMode}</span> receipts · <span className="font-semibold text-stone-700">{settings.taxRate}%</span> tax · last updated {new Date(settings.updatedAt).toLocaleString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}</p>
           </Card>
 
           {/* Reminders & receipts — live toggles, owner-approved */}

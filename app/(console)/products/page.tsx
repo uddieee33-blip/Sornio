@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useMemo, useState } from 'react';
 import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, Tag, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -40,6 +42,7 @@ function marginPct(product: Product): number {
 }
 
 export default function ProductsPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const { portal } = usePortal();
   const [form, setForm] = useState(emptyForm);

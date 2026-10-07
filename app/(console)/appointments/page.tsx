@@ -1,5 +1,9 @@
 'use client';
 
+import { getActiveFormattingLocale } from '@/lib/locale';
+
+import { useLocaleRefresh } from '@/lib/i18n';
+
 /**
  * The day book.
  *
@@ -27,8 +31,8 @@ const inputClass =
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-stone-600';
 
 const todayKey = () => new Date().toISOString().slice(0, 10);
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
-const dateLong = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(getActiveFormattingLocale(), { hour: 'numeric', minute: '2-digit' });
+const dateLong = (key: string) => new Date(`${key}T00:00:00`).toLocaleDateString(getActiveFormattingLocale(), { weekday: 'long', day: 'numeric', month: 'long' });
 
 const STATUS_META: Record<Appointment['status'], { label: string; tone: 'slate' | 'amber' | 'emerald' | 'red' }> = {
   booked: { label: 'Booked', tone: 'slate' },
@@ -38,6 +42,7 @@ const STATUS_META: Record<Appointment['status'], { label: string; tone: 'slate' 
 };
 
 export default function AppointmentsPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const { terms } = usePortal();
 

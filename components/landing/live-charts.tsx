@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { Banknote, BarChart3, FlaskConical, Receipt, TrendingUp } from 'lucide-react';
 import { RevenueAreaChart, DualAreaChart } from '@/components/charts/RevenueAreaChart';
 import { DonutChart } from '@/components/charts/DonutChart';
@@ -17,6 +19,7 @@ function SampleTag() {
 }
 
 export function LiveCharts() {
+  useLocaleRefresh();
   const seed = buildSeedState();
   const financials = summarizeFinancials(seed.transactions);
   const revenue = revenueSeries(seed.transactions);

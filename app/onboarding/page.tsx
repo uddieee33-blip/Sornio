@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
+import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
@@ -104,6 +105,7 @@ export default function OnboardingPage() {
     <div className="relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
       <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6"><LanguagePicker /></div>
 
       <div className="animate-fade-up relative w-full max-w-3xl">
         <div className="mb-6 flex flex-col items-center text-center">

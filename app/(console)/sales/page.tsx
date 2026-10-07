@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Banknote, Plus, ShoppingCart, Trash2, Zap } from 'lucide-react';
@@ -19,6 +21,7 @@ const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other
 const inputClass = 'rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 export default function SalesPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const { portal } = usePortal();
   const sellableProducts = state.products.filter((product) => product.status === 'Active');

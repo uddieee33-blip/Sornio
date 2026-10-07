@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 /**
  * A sheet of labels, ready for the shop's printer.
  *
@@ -70,6 +72,7 @@ export function LabelSheet({
   columns?: 2 | 3 | 4;
   emptyNote?: string;
 }) {
+  useLocaleRefresh();
   const gridClass = columns === 4 ? 'sm:grid-cols-4' : columns === 2 ? 'sm:grid-cols-2' : 'sm:grid-cols-3';
 
   return (

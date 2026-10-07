@@ -1,55 +1,87 @@
 'use client';
 
 /**
- * DukaanOS i18n — small-shop owners across India speak many languages,
- * so the product ships with India's 22 scheduled languages available.
+ * Whole-product internationalisation for DukaanOS.
  *
- * Core strings are fully translated for the major languages; any missing
- * key falls back to English, so nothing ever renders blank. New languages
- * are filled in by extending the dictionaries below.
+ * English is the authored source language. Selecting a locale loads one static,
+ * same-origin catalogue and translates rendered copy, dynamic messages,
+ * placeholders, titles, and accessibility labels throughout the application.
+ * The catalogue is generated from the complete TS/TSX source tree, so product
+ * copy can stay beside the feature that owns it without silently falling back
+ * to English on screens that do not call a translation hook themselves.
  */
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from 'react';
+import { setActiveFormattingLocale } from './locale';
 
 export type LanguageCode =
-  | 'en' | 'hi' | 'pa' | 'mr' | 'bn' | 'ta' | 'te' | 'gu' | 'kn' | 'ml'
-  | 'or' | 'ur' | 'as' | 'mai' | 'sat' | 'ks' | 'ne' | 'sd' | 'kok'
-  | 'doi' | 'mni' | 'brx';
+  | 'en'
+  | 'as'
+  | 'bn'
+  | 'brx'
+  | 'doi'
+  | 'gu'
+  | 'hi'
+  | 'kn'
+  | 'kok'
+  | 'ks'
+  | 'mai'
+  | 'ml'
+  | 'mni'
+  | 'mr'
+  | 'ne'
+  | 'or'
+  | 'pa'
+  | 'sa'
+  | 'sat'
+  | 'sd'
+  | 'ta'
+  | 'te'
+  | 'ur';
 
-export const LANGUAGES: { code: LanguageCode; name: string; native: string }[] = [
-  { code: 'en', name: 'English', native: 'English' },
-  { code: 'hi', name: 'Hindi', native: 'हिन्दी' },
-  { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ' },
-  { code: 'mr', name: 'Marathi', native: 'मराठी' },
-  { code: 'bn', name: 'Bengali', native: 'বাংলা' },
-  { code: 'ta', name: 'Tamil', native: 'தமிழ்' },
-  { code: 'te', name: 'Telugu', native: 'తెలుగు' },
-  { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી' },
-  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ' },
-  { code: 'ml', name: 'Malayalam', native: 'മലയാളം' },
-  { code: 'or', name: 'Odia', native: 'ଓଡ଼ିଆ' },
-  { code: 'ur', name: 'Urdu', native: 'اردو' },
-  { code: 'as', name: 'Assamese', native: 'অসমীয়া' },
-  { code: 'mai', name: 'Maithili', native: 'मैथिली' },
-  { code: 'sat', name: 'Santali', native: 'ᱥᱟᱱᱛᱟᱲᱤ' },
-  { code: 'ks', name: 'Kashmiri', native: 'کٲشُر' },
-  { code: 'ne', name: 'Nepali', native: 'नेपाली' },
-  { code: 'sd', name: 'Sindhi', native: 'سنڌي' },
-  { code: 'kok', name: 'Konkani', native: 'कोंकणी' },
-  { code: 'doi', name: 'Dogri', native: 'डोगरी' },
-  { code: 'mni', name: 'Manipuri', native: 'ꯃꯤꯇꯩꯂꯣꯟ' },
-  { code: 'brx', name: 'Bodo', native: 'बड़ो' },
+export type Language = {
+  code: LanguageCode;
+  name: string;
+  native: string;
+  locale: string;
+  dir?: 'rtl';
+};
+
+/** English plus every language in the Eighth Schedule of India's Constitution. */
+export const LANGUAGES: Language[] = [
+  { code: 'en', name: 'English', native: 'English', locale: 'en-IN' },
+  { code: 'as', name: 'Assamese', native: 'অসমীয়া', locale: 'as-IN' },
+  { code: 'bn', name: 'Bengali', native: 'বাংলা', locale: 'bn-IN' },
+  { code: 'brx', name: 'Bodo', native: 'बड़ो', locale: 'brx-IN' },
+  { code: 'doi', name: 'Dogri', native: 'डोगरी', locale: 'doi-IN' },
+  { code: 'gu', name: 'Gujarati', native: 'ગુજરાતી', locale: 'gu-IN' },
+  { code: 'hi', name: 'Hindi', native: 'हिन्दी', locale: 'hi-IN' },
+  { code: 'kn', name: 'Kannada', native: 'ಕನ್ನಡ', locale: 'kn-IN' },
+  { code: 'ks', name: 'Kashmiri', native: 'کٲشُر', locale: 'ks-IN', dir: 'rtl' },
+  { code: 'kok', name: 'Konkani', native: 'कोंकणी', locale: 'kok-IN' },
+  { code: 'mai', name: 'Maithili', native: 'मैथिली', locale: 'mai-IN' },
+  { code: 'ml', name: 'Malayalam', native: 'മലയാളം', locale: 'ml-IN' },
+  { code: 'mni', name: 'Manipuri (Meitei)', native: 'ꯃꯤꯇꯩ ꯂꯣꯟ', locale: 'mni-IN' },
+  { code: 'mr', name: 'Marathi', native: 'मराठी', locale: 'mr-IN' },
+  { code: 'ne', name: 'Nepali', native: 'नेपाली', locale: 'ne-IN' },
+  { code: 'or', name: 'Odia', native: 'ଓଡ଼ିଆ', locale: 'or-IN' },
+  { code: 'pa', name: 'Punjabi', native: 'ਪੰਜਾਬੀ', locale: 'pa-IN' },
+  { code: 'sa', name: 'Sanskrit', native: 'संस्कृतम्', locale: 'sa-IN' },
+  { code: 'sat', name: 'Santali', native: 'ᱥᱟᱱᱛᱟᱲᱤ', locale: 'sat-IN' },
+  { code: 'sd', name: 'Sindhi', native: 'سنڌي', locale: 'sd-IN', dir: 'rtl' },
+  { code: 'ta', name: 'Tamil', native: 'தமிழ்', locale: 'ta-IN' },
+  { code: 'te', name: 'Telugu', native: 'తెలుగు', locale: 'te-IN' },
+  { code: 'ur', name: 'Urdu', native: 'اردو', locale: 'ur-IN', dir: 'rtl' },
 ];
 
-export type I18nKey =
-  | 'nav.signIn' | 'nav.openConsole' | 'nav.charts' | 'nav.upi' | 'nav.features' | 'nav.security' | 'nav.pricing'
-  | 'hero.badge' | 'hero.titleA' | 'hero.titleB' | 'hero.sub' | 'hero.ctaStart' | 'hero.ctaConsole'
-  | 'charts.sample' | 'zeroStart.line'
-  | 'nav.why' | 'nav.compare' | 'nav.faq' | 'hero.promise'
-  | 'why.title' | 'why.sub' | 'compare.title' | 'compare.sub' | 'faq.title' | 'pricing.sub';
-
-type Dictionary = Partial<Record<I18nKey, string>>;
-
-const en: Dictionary = {
+const CORE_MESSAGES = {
   'nav.signIn': 'Sign in',
   'nav.openConsole': 'Open console',
   'nav.charts': 'Charts',
@@ -75,120 +107,134 @@ const en: Dictionary = {
   'compare.sub': 'The same console either way. What changes is how much it chases for you.',
   'faq.title': 'Straight answers',
   'pricing.sub': 'Prices are per business — not per bill, not per counter, and never a cut of what you collect.',
-};
+} as const;
 
-const hi: Dictionary = {
-  'nav.signIn': 'साइन इन करें',
-  'nav.openConsole': 'कंसोल खोलें',
-  'nav.charts': 'चार्ट',
-  'nav.upi': 'UPI QR',
-  'nav.features': 'मॉड्यूल्स',
-  'nav.security': 'सुरक्षा',
-  'nav.pricing': 'कीमतें',
-  'hero.badge': 'हर तरह के कारोबार के लिए एक ही ऑपरेटिंग सिस्टम — जिम, कैफ़े, सैलून, दुकानें और भी बहुत कुछ',
-  'hero.titleA': 'आपका कारोबार। आपका पैसा।',
-  'hero.titleB': 'सीधे आपके बैंक में।',
-  'hero.sub': 'DukaanOS आपकी बिलिंग, इन्वेंटरी, मेंबरशिप और रिपोर्ट्स एक ही लेजर में चलाता है। आपका कलेक्शन QR आपके अपने बैंक खाते से बनता है — ग्राहक सीधे आपको भुगतान करते हैं। कोई गेटवे नहीं। कोई बिचौलिया नहीं।',
-  'hero.ctaStart': 'अपना कारोबार मुफ़्त शुरू करें',
-  'hero.ctaConsole': 'लाइव कंसोल देखें',
-  'charts.sample': 'सिर्फ़ सैंपल डेटा — कभी भी असली या मनगढ़ंत आँकड़े नहीं',
-  'zeroStart.line': 'हर नया कारोबार शून्य से शुरू होता है। डैशबोर्ड का हर रुपया तभी दिखता है जब आप असली बिक्री या खर्च दर्ज करते हैं।',
-  'nav.why': 'क्यों भुगतान करें',
-  'nav.compare': 'तुलना',
-  'nav.faq': 'सवाल',
-  'hero.promise': 'स्टार्टर प्लान हमेशा मुफ़्त · 3 दिन का पूरा ट्रायल · ग्रोथ ₹499/महीना · न कार्ड, न ऑटो-डेबिट',
-  'why.title': 'कारोबारी इसके लिए भुगतान क्यों करते हैं',
-  'why.sub': 'डैशबोर्ड के लिए नहीं — उस पैसे के लिए जो डैशबोर्ड ढूँढ़ देता है।',
-  'compare.title': 'हमेशा मुफ़्त, या भुगतान के साथ पूरा ऑटोमेशन',
-  'compare.sub': 'कंसोल दोनों में एक ही है। बदलता है तो बस यह कि वह आपके लिए कितना काम खुद करता है।',
-  'faq.title': 'सीधे जवाब',
-  'pricing.sub': 'कीमत पूरे कारोबार की है — हर बिल या काउंटर की नहीं, और आपकी कलेक्शन से कोई हिस्सा नहीं।',
-};
-
-const pa: Dictionary = {
-  'nav.signIn': 'ਸਾਈਨ ਇਨ ਕਰੋ',
-  'nav.openConsole': 'ਕਨਸੋਲ ਖੋਲ੍ਹੋ',
-  'nav.charts': 'ਚਾਰਟ',
-  'nav.upi': 'UPI QR',
-  'nav.features': 'ਮੋਡਿਊਲ',
-  'nav.security': 'ਸੁਰੱਖਿਆ',
-  'nav.pricing': 'ਕੀਮਤਾਂ',
-  'hero.badge': 'ਹਰ ਕਿਸਮ ਦੇ ਕਾਰੋਬਾਰ ਲਈ ਇੱਕੋ ਓਪਰੇਟਿੰਗ ਸਿਸਟਮ — ਜਿਮ, ਕੈਫ਼ੇ, ਸੈਲੂਨ, ਦੁਕਾਨਾਂ ਅਤੇ ਹੋਰ ਵੀ',
-  'hero.titleA': 'ਤੁਹਾਡਾ ਕਾਰੋਬਾਰ। ਤੁਹਾਡਾ ਪੈਸਾ।',
-  'hero.titleB': 'ਸਿੱਧਾ ਤੁਹਾਡੇ ਬੈਂਕ ਵਿੱਚ।',
-  'hero.sub': 'DukaanOS ਤੁਹਾਡੀ ਬਿਲਿੰਗ, ਇਨਵੈਂਟਰੀ, ਮੈਂਬਰਸ਼ਿਪ ਅਤੇ ਰਿਪੋਰਟਾਂ ਇੱਕੋ ਲੈਜਰ ਵਿੱਚ ਚਲਾਉਂਦਾ ਹੈ। ਤੁਹਾਡਾ ਕਲੈਕਸ਼ਨ QR ਤੁਹਾਡੇ ਆਪਣੇ ਬੈਂਕ ਖਾਤੇ ਤੋਂ ਬਣਦਾ ਹੈ — ਗਾਹਕ ਸਿੱਧਾ ਤੁਹਾਨੂੰ ਭੁਗਤਾਨ ਕਰਦੇ ਹਨ। ਕੋਈ ਗੇਟਵੇ ਨਹੀਂ। ਕੋਈ ਵਿਚੌਲੀਆ ਨਹੀਂ।',
-  'hero.ctaStart': 'ਆਪਣਾ ਕਾਰੋਬਾਰ ਮੁਫ਼ਤ ਸ਼ੁਰੂ ਕਰੋ',
-  'hero.ctaConsole': 'ਲਾਈਵ ਕਨਸੋਲ ਵੇਖੋ',
-  'charts.sample': 'ਸਿਰਫ਼ ਨਮੂਨਾ ਡਾਟਾ — ਕਦੇ ਵੀ ਅਸਲੀ ਜਾਂ ਮਨਘੜਤ ਅੰਕੜੇ ਨਹੀਂ',
-  'zeroStart.line': 'ਹਰ ਨਵਾਂ ਕਾਰੋਬਾਰ ਜ਼ੀਰੋ ਤੋਂ ਸ਼ੁਰੂ ਹੁੰਦਾ ਹੈ। ਡੈਸ਼ਬੋਰਡ ਦਾ ਹਰ ਰੁਪਈਆ ਉਦੋਂ ਹੀ ਦਿਖਦਾ ਹੈ ਜਦੋਂ ਤੁਸੀਂ ਅਸਲੀ ਵਿਕਰੀ ਜਾਂ ਖਰਚਾ ਦਰਜ ਕਰਦੇ ਹੋ।',
-};
-
-const mr: Dictionary = {
-  'nav.signIn': 'साइन इन करा',
-  'nav.openConsole': 'कन्सोल उघडा',
-  'nav.charts': 'चार्ट्स',
-  'nav.upi': 'UPI QR',
-  'nav.features': 'मॉड्यूल्स',
-  'nav.security': 'सुरक्षा',
-  'nav.pricing': 'किंमती',
-  'hero.badge': 'प्रत्येक व्यवसायासाठी एकच ऑपरेटिंग सिस्टम — जिम, कॅफे, सलून, दुकाने आणि बरेच काही',
-  'hero.titleA': 'तुमचा व्यवसाय. तुमचे पैसे.',
-  'hero.titleB': 'थेट तुमच्या बँकेत.',
-  'hero.ctaStart': 'तुमचा व्यवसाय मोफत सुरू करा',
-  'hero.ctaConsole': 'लाइव्ह कन्सोल पहा',
-};
-
-const bn: Dictionary = {
-  'nav.signIn': 'সাইন ইন করুন',
-  'nav.openConsole': 'কনসোল খুলুন',
-  'hero.titleA': 'আপনার ব্যবসা। আপনার টাকা।',
-  'hero.titleB': 'সোজা আপনার ব্যাঙ্কে।',
-  'hero.ctaStart': 'বিনামূল্যে আপনার ব্যবসা শুরু করুন',
-};
-
-const ta: Dictionary = {
-  'nav.signIn': 'சைன் இன்',
-  'nav.openConsole': 'கன்சோலைத் திறக்கவும்',
-  'hero.titleA': 'உங்கள் வணிகம். உங்கள் பணம்.',
-  'hero.titleB': 'நேராக உங்கள் வங்கிக்கு.',
-  'hero.ctaStart': 'உங்கள் வணிகத்தை இலவசமாகத் தொடங்குங்கள்',
-};
-
-const te: Dictionary = {
-  'nav.signIn': 'సైన్ ఇన్ చేయండి',
-  'nav.openConsole': 'కన్సోల్ తెరవండి',
-  'hero.titleA': 'మీ వ్యాపారం. మీ డబ్బు.',
-  'hero.titleB': 'నేరుగా మీ బ్యాంకుకు.',
-  'hero.ctaStart': 'మీ వ్యాపారాన్ని ఉచితంగా ప్రారంభించండి',
-};
-
-const gu: Dictionary = {
-  'nav.signIn': 'સાઇન ઇન કરો',
-  'nav.openConsole': 'કન્સોલ ખોલો',
-  'hero.titleA': 'તમારો ધંધો. તમારો પૈસો.',
-  'hero.titleB': 'સીધો તમારા બેંકમાં.',
-  'hero.ctaStart': 'તમારો ધંધો મફત શરૂ કરો',
-};
-
-const ur: Dictionary = {
-  'nav.signIn': 'سائن اِن کریں',
-  'nav.openConsole': 'کنسول کھولیں',
-  'hero.titleA': 'آپ کا کاروبار۔ آپ کا پیسہ۔',
-  'hero.titleB': 'سیدھا آپ کے بینک میں۔',
-  'hero.ctaStart': 'اپنا کاروبار مفت شروع کریں',
-};
-
-const dictionaries: Record<LanguageCode, Dictionary> = {
-  en, hi, pa, mr, bn, ta, te, gu, ur,
-  kn: {}, ml: {}, or: {}, as: {}, mai: {}, sat: {}, ks: {}, ne: {}, sd: {}, kok: {}, doi: {}, mni: {}, brx: {},
-};
+export type I18nKey = keyof typeof CORE_MESSAGES;
+type Catalogue = Record<string, string>;
+type TemplateTranslation = { regex: RegExp; translated: string };
 
 const STORAGE_KEY = 'dukaanos-language';
+const EMPTY_CATALOGUE: Catalogue = {};
+const loadedCatalogues = new Map<LanguageCode, Catalogue>([['en', EMPTY_CATALOGUE]]);
+const textSources = new WeakMap<Text, { source: string; output: string }>();
+const attributeSources = new WeakMap<Element, Map<string, { source: string; output: string }>>();
+const TRANSLATED_ATTRIBUTES = ['alt', 'aria-description', 'aria-label', 'content', 'placeholder', 'title'] as const;
+const SKIPPED_ELEMENTS = new Set(['CODE', 'KBD', 'NOSCRIPT', 'SCRIPT', 'STYLE', 'SVG']);
+
+function normalise(value: string): string {
+  return value.replace(/\s+/g, ' ').trim();
+}
+
+function escapeRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function compileTemplates(catalogue: Catalogue): TemplateTranslation[] {
+  return Object.entries(catalogue)
+    .filter(([source]) => /\{\{\d+\}\}/.test(source))
+    .sort(([left], [right]) => right.length - left.length)
+    .map(([source, translated]) => {
+      let cursor = 0;
+      let pattern = '';
+      for (const match of source.matchAll(/\{\{(\d+)\}\}/g)) {
+        pattern += escapeRegex(source.slice(cursor, match.index));
+        pattern += `(.*?)`;
+        cursor = (match.index ?? 0) + match[0].length;
+      }
+      pattern += escapeRegex(source.slice(cursor));
+      return { regex: new RegExp(`^${pattern}$`, 'u'), translated };
+    });
+}
+
+function translateValue(source: string, catalogue: Catalogue, templates: TemplateTranslation[]): string {
+  const key = normalise(source);
+  if (!key) return source;
+
+  const exact = catalogue[key];
+  if (exact) return exact;
+
+  for (const template of templates) {
+    const match = key.match(template.regex);
+    if (!match) continue;
+    return template.translated.replace(/\{\{(\d+)\}\}/g, (_, index: string) => match[Number(index) + 1] ?? '');
+  }
+
+  return key;
+}
+
+function shouldSkip(element: Element | null): boolean {
+  if (!element) return false;
+  if (SKIPPED_ELEMENTS.has(element.tagName)) return true;
+  return Boolean(element.closest('[data-i18n-ignore="true"]'));
+}
+
+function translateTextNode(node: Text, catalogue: Catalogue, templates: TemplateTranslation[]) {
+  if (shouldSkip(node.parentElement)) return;
+  const current = node.data;
+  let record = textSources.get(node);
+  if (!record || current !== record.output) {
+    record = { source: current, output: current };
+    textSources.set(node, record);
+  }
+
+  const leading = record.source.match(/^\s*/)?.[0] ?? '';
+  const trailing = record.source.match(/\s*$/)?.[0] ?? '';
+  const core = normalise(record.source);
+  const output = core ? `${leading}${translateValue(core, catalogue, templates)}${trailing}` : record.source;
+  record.output = output;
+  if (current !== output) node.data = output;
+}
+
+function translateElementAttributes(element: Element, catalogue: Catalogue, templates: TemplateTranslation[]) {
+  if (shouldSkip(element)) return;
+  let records = attributeSources.get(element);
+  if (!records) {
+    records = new Map();
+    attributeSources.set(element, records);
+  }
+
+  for (const attribute of TRANSLATED_ATTRIBUTES) {
+    const current = element.getAttribute(attribute);
+    if (current === null) continue;
+    let record = records.get(attribute);
+    if (!record || current !== record.output) {
+      record = { source: current, output: current };
+      records.set(attribute, record);
+    }
+    const output = translateValue(record.source, catalogue, templates);
+    record.output = output;
+    if (current !== output) element.setAttribute(attribute, output);
+  }
+}
+
+function translateTree(root: Node, catalogue: Catalogue, templates: TemplateTranslation[]) {
+  if (root instanceof Text) {
+    translateTextNode(root, catalogue, templates);
+    return;
+  }
+  if (!(root instanceof Element) && !(root instanceof DocumentFragment) && !(root instanceof Document)) return;
+  if (root instanceof Element) {
+    if (shouldSkip(root)) return;
+    translateElementAttributes(root, catalogue, templates);
+  }
+
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT);
+  let node = walker.nextNode();
+  while (node) {
+    if (node instanceof Text) translateTextNode(node, catalogue, templates);
+    else if (node instanceof Element) translateElementAttributes(node, catalogue, templates);
+    node = walker.nextNode();
+  }
+}
 
 type I18nContextValue = {
   lang: LanguageCode;
+  locale: string;
+  dir: 'ltr' | 'rtl';
+  ready: boolean;
   setLang: (code: LanguageCode) => void;
   t: (key: I18nKey) => string;
+  translate: (source: string) => string;
   languageName: string;
 };
 
@@ -196,34 +242,135 @@ const I18nContext = createContext<I18nContextValue | null>(null);
 
 export function I18nProvider({ children }: { children: ReactNode }) {
   const [lang, setLangState] = useState<LanguageCode>('en');
+  const [loaded, setLoaded] = useState<{ lang: LanguageCode; catalogue: Catalogue }>({ lang: 'en', catalogue: EMPTY_CATALOGUE });
+  const [ready, setReady] = useState(true);
+  const currentLanguage = LANGUAGES.find((language) => language.code === lang) ?? LANGUAGES[0];
+  // Keep non-React formatting helpers in step with the context. This assignment
+  // happens before descendants subscribed through useLocaleRefresh render.
+  setActiveFormattingLocale(currentLanguage.locale);
+  const catalogue = useMemo(
+    () => (loaded.lang === lang ? loaded.catalogue : EMPTY_CATALOGUE),
+    [lang, loaded],
+  );
+  const templates = useMemo(() => compileTemplates(catalogue), [catalogue]);
 
   useEffect(() => {
     try {
       const saved = window.localStorage.getItem(STORAGE_KEY) as LanguageCode | null;
-      // Deliberate post-mount read. The server always renders English, so
-      // adopting the stored language during render would guarantee a hydration
-      // mismatch; syncing once after mount is the SSR-safe way to pick it up.
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- see note above
-      if (saved && dictionaries[saved]) setLangState(saved);
+      if (saved && LANGUAGES.some((language) => language.code === saved)) {
+        // Keep the server's English first render hydration-safe, then adopt the
+        // persisted browser preference immediately after mounting.
+        queueMicrotask(() => setLangState(saved));
+      }
     } catch {
-      // Storage unavailable — stay on English.
+      // Storage unavailable — English remains the safe SSR-compatible default.
     }
   }, []);
+
+  useEffect(() => {
+    document.documentElement.lang = currentLanguage.locale;
+    document.documentElement.dir = currentLanguage.dir ?? 'ltr';
+  }, [currentLanguage]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const cached = loadedCatalogues.get(lang);
+    if (cached) {
+      queueMicrotask(() => {
+        if (!cancelled) {
+          setLoaded({ lang, catalogue: cached });
+          setReady(true);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    queueMicrotask(() => {
+      if (!cancelled) setReady(false);
+    });
+    fetch(`/locales/${lang}.json`, { cache: 'force-cache' })
+      .then((response) => {
+        if (!response.ok) throw new Error(`Could not load ${lang} translations (${response.status})`);
+        return response.json() as Promise<Catalogue>;
+      })
+      .then((nextCatalogue) => {
+        loadedCatalogues.set(lang, nextCatalogue);
+        if (!cancelled) {
+          setLoaded({ lang, catalogue: nextCatalogue });
+          setReady(true);
+        }
+      })
+      .catch((error: unknown) => {
+        console.error('[i18n]', error);
+        if (!cancelled) {
+          setLoaded({ lang, catalogue: {} });
+          setReady(true);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lang]);
+
+  useEffect(() => {
+    // Include <head> so route titles shown in the browser tab change with the
+    // rest of the screen. Script/style contents are excluded by shouldSkip.
+    const apply = (root: Node = document) => translateTree(root, catalogue, templates);
+    apply();
+
+    const observer = new MutationObserver((mutations) => {
+      for (const mutation of mutations) {
+        if (mutation.type === 'characterData') {
+          apply(mutation.target);
+        } else if (mutation.type === 'attributes' && mutation.target instanceof Element) {
+          translateElementAttributes(mutation.target, catalogue, templates);
+        } else {
+          mutation.addedNodes.forEach(apply);
+        }
+      }
+    });
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: [...TRANSLATED_ATTRIBUTES],
+      characterData: true,
+      childList: true,
+      subtree: true,
+    });
+    return () => observer.disconnect();
+  }, [catalogue, templates]);
 
   const setLang = useCallback((code: LanguageCode) => {
     setLangState(code);
     try {
       window.localStorage.setItem(STORAGE_KEY, code);
     } catch {
-      // Ignore storage errors.
+      // A private browser may reject storage; language still changes in-session.
     }
   }, []);
 
-  const value = useMemo<I18nContextValue>(() => {
-    const t = (key: I18nKey) => dictionaries[lang][key] ?? en[key] ?? key;
-    const languageName = LANGUAGES.find((l) => l.code === lang)?.native ?? 'English';
-    return { lang, setLang, t, languageName };
-  }, [lang, setLang]);
+  const translate = useCallback(
+    (source: string) => translateValue(source, catalogue, templates),
+    [catalogue, templates],
+  );
+
+  const t = useCallback((key: I18nKey) => translate(CORE_MESSAGES[key]), [translate]);
+
+  const value = useMemo<I18nContextValue>(
+    () => ({
+      lang,
+      locale: currentLanguage.locale,
+      dir: currentLanguage.dir ?? 'ltr',
+      ready,
+      setLang,
+      t,
+      translate,
+      languageName: currentLanguage.native,
+    }),
+    [currentLanguage, lang, ready, setLang, t, translate],
+  );
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
@@ -232,4 +379,13 @@ export function useI18n(): I18nContextValue {
   const context = useContext(I18nContext);
   if (!context) throw new Error('useI18n must be used inside I18nProvider');
   return context;
+}
+
+/**
+ * Subscribe a component that renders dates/numbers through shared formatting
+ * helpers. The helpers read the active locale, while this hook guarantees the
+ * component renders again when that locale changes.
+ */
+export function useLocaleRefresh(): void {
+  useI18n();
 }

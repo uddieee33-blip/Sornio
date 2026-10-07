@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { AlertCircle, ArrowRight, Check, Eye, EyeOff, Loader2, Lock, Mail, ShieldCheck } from 'lucide-react';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
+import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
 import { consume } from '@/lib/security/rate-limit';
@@ -116,6 +117,7 @@ export default function AuthPage() {
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
       <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6"><LanguagePicker /></div>
 
       <div className="animate-fade-up relative w-full max-w-md">
         <div className="mb-6 flex flex-col items-center text-center">

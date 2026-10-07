@@ -1,10 +1,11 @@
 import type { Transaction } from '@/lib/business-data';
+import { getActiveFormattingLocale } from './locale';
 
 export type TimePoint = { date: string; label: string; value: number };
 export type Slice = { name: string; value: number };
 
-function dayLabel(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+function dayLabel(iso: string, locale: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 }
 
 function lastNDays(n: number): string[] {
@@ -18,7 +19,7 @@ function lastNDays(n: number): string[] {
 }
 
 /** Sum an amount per day for matching transactions, zero-filled across the window. */
-function dailyTotals(transactions: Transaction[], match: (tx: Transaction) => boolean, days = 14): TimePoint[] {
+function dailyTotals(transactions: Transaction[], match: (tx: Transaction) => boolean, days = 14, locale = getActiveFormattingLocale()): TimePoint[] {
   const windowDays = lastNDays(days);
   const byDate = new Map<string, number>(windowDays.map((d) => [d, 0]));
   for (const tx of transactions) {
@@ -26,40 +27,43 @@ function dailyTotals(transactions: Transaction[], match: (tx: Transaction) => bo
       byDate.set(tx.date, (byDate.get(tx.date) ?? 0) + tx.amount);
     }
   }
-  return windowDays.map((date) => ({ date, label: dayLabel(date), value: byDate.get(date) ?? 0 }));
+  return windowDays.map((date) => ({ date, label: dayLabel(date, locale), value: byDate.get(date) ?? 0 }));
 }
 
-export function revenueSeries(transactions: Transaction[], days = 14): TimePoint[] {
-  return dailyTotals(transactions, (tx) => tx.type === 'sale' && tx.direction === 'in', days);
+export function revenueSeries(transactions: Transaction[], days = 14, locale = getActiveFormattingLocale()): TimePoint[] {
+  return dailyTotals(transactions, (tx) => tx.type === 'sale' && tx.direction === 'in', days, locale);
 }
 
-export function expenseSeries(transactions: Transaction[], days = 14): TimePoint[] {
-  return dailyTotals(transactions, (tx) => tx.type === 'expense' && tx.direction === 'out', days);
+export function expenseSeries(transactions: Transaction[], days = 14, locale = getActiveFormattingLocale()): TimePoint[] {
+  return dailyTotals(transactions, (tx) => tx.type === 'expense' && tx.direction === 'out', days, locale);
 }
 
 /** Daily money arriving in cash/bank/UPI/card accounts (payment receipts). */
-export function cashInSeries(transactions: Transaction[], days = 14): TimePoint[] {
+export function cashInSeries(transactions: Transaction[], days = 14, locale = getActiveFormattingLocale()): TimePoint[] {
   return dailyTotals(
     transactions,
     (tx) => tx.type === 'payment' && tx.direction === 'in' && ['cash', 'upi', 'bank', 'card'].includes(tx.account),
     days,
+    locale,
   );
 }
 
 /** Daily money leaving cash/bank/UPI/card accounts (expense payouts, sweeps). */
-export function cashOutSeries(transactions: Transaction[], days = 14): TimePoint[] {
+export function cashOutSeries(transactions: Transaction[], days = 14, locale = getActiveFormattingLocale()): TimePoint[] {
   return dailyTotals(
     transactions,
     (tx) => tx.type === 'payment' && tx.direction === 'out' && ['cash', 'upi', 'bank', 'card'].includes(tx.account),
     days,
+    locale,
   );
 }
 
-export function cashflowSeries(transactions: Transaction[], days = 14): TimePoint[] {
+export function cashflowSeries(transactions: Transaction[], days = 14, locale = getActiveFormattingLocale()): TimePoint[] {
   return dailyTotals(
     transactions,
     (tx) => tx.type === 'payment' && ['cash', 'upi', 'bank', 'card'].includes(tx.account),
     days,
+    locale,
   ).map((point, index, all) => {
     // Convert per-day signed flow into a running balance shape for the chart.
     const signed = transactions

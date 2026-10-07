@@ -1,5 +1,9 @@
 'use client';
 
+import { getActiveFormattingLocale } from '@/lib/locale';
+
+import { useLocaleRefresh } from '@/lib/i18n';
+
 /**
  * Inventory — /inventory.
  *
@@ -48,7 +52,7 @@ const REASON_TONE: Record<StockMovementReason, 'emerald' | 'brand' | 'amber' | '
 };
 
 function stamp(at: string) {
-  return new Date(at).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  return new Date(at).toLocaleString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
 }
 
 /** One ledger line. `signed` is what left or arrived; `balance` is what is left. */
@@ -84,6 +88,7 @@ function MovementRow({ movement, showItem = false }: { movement: StockMovement; 
 }
 
 export default function InventoryPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const products = state.products.filter((product) => product.itemType === 'product');
   const movements = state.stockMovements;

@@ -1,3 +1,5 @@
+import { getActiveFormattingLocale } from './locale';
+
 export type Product = {
   id: string;
   name: string;
@@ -267,8 +269,8 @@ export function getComparisonData(snapshot: BusinessSnapshot) {
   ];
 }
 
-export function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-IN', {
+export function formatCurrency(value: number, locale = getActiveFormattingLocale()) {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,

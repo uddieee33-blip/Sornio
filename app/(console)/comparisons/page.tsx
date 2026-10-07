@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { ArrowDownRight, ArrowUpRight, Columns2 } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -10,6 +12,7 @@ import { formatCurrency, getComparisonData } from '@/lib/business-data';
 import { useFinancialSnapshot } from '@/lib/store';
 
 export default function ComparisonsPage() {
+  useLocaleRefresh();
   const snapshot = useFinancialSnapshot();
   const comparison = getComparisonData(snapshot);
 

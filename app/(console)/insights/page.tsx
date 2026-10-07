@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useMemo } from 'react';
 import { Brain, Gauge, Lightbulb, Rocket, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -23,6 +25,7 @@ const insightTones: Record<string, { badge: 'sky' | 'red' | 'amber' | 'emerald';
 const trendLabels: Record<string, string> = { up: 'Trending up', down: 'Trending down', stable: 'Stable' };
 
 export default function InsightsPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const { allows, terms } = usePortal();
   const financial = useFinancialSnapshot();

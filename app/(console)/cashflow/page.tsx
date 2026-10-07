@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { ArrowDownRight, ArrowUpRight, Landmark, QrCode, Wallet, CreditCard } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -11,6 +13,7 @@ import { cashInSeries, cashOutSeries } from '@/lib/chart-data';
 import { useDukaanStore } from '@/lib/store';
 
 export default function CashFlowPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const financials = summarizeFinancials(state.transactions);
   const inflows = cashInSeries(state.transactions);

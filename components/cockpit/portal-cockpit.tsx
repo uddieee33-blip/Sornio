@@ -46,6 +46,7 @@ import { PORTALS } from '@/lib/portals/registry';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { LOCKED_PARAM } from '@/lib/portals/routes';
 import type { FocusKey } from '@/lib/portals/types';
+import { useI18n } from '@/lib/i18n';
 
 function greeting(hour: number) {
   if (hour < 5) return 'Working late';
@@ -54,11 +55,11 @@ function greeting(hour: number) {
   return 'Good evening';
 }
 
-const dateLabel = (iso: string) =>
-  new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+const dateLabel = (iso: string, locale: string) =>
+  new Date(iso).toLocaleTimeString(locale, { hour: 'numeric', minute: '2-digit' });
 
-const dayLabel = (iso: string) =>
-  new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' });
+const dayLabel = (iso: string, locale: string) =>
+  new Date(iso).toLocaleDateString(locale, { day: 'numeric', month: 'short' });
 
 /** Why is a module missing? The answer the owner actually deserves. */
 function LockedNotice() {
@@ -158,6 +159,7 @@ function ChooseTypeBanner() {
 
 /** The one live list that matters most to this trade. */
 function FocusPanel() {
+  const { locale } = useI18n();
   const { state, actions } = useDukaanStore();
   const { portal } = usePortal();
   const { focus } = portal.cockpit;
@@ -181,7 +183,7 @@ function FocusPanel() {
               id: subscription.id,
               title: member?.name ?? 'Member',
               meta: `${plan?.name ?? 'Plan'} · ${days < 0 ? `lapsed ${Math.abs(days)}d ago` : days === 0 ? 'expires today' : `expires in ${days}d`}`,
-              value: plan ? formatCurrency(plan.price) : undefined,
+              value: plan ? formatCurrency(plan.price, locale) : undefined,
               urgent: days <= 2,
               href: '/memberships',
             };
@@ -194,8 +196,8 @@ function FocusPanel() {
           .map((appointment) => ({
             id: appointment.id,
             title: `${appointment.customerName}`,
-            meta: `${dateLabel(appointment.startAt)} · ${appointment.service ?? 'Service'}${appointment.staff ? ` · ${appointment.staff}` : ''}`,
-            value: appointment.amount ? formatCurrency(appointment.amount) : undefined,
+            meta: `${dateLabel(appointment.startAt, locale)} · ${appointment.service ?? 'Service'}${appointment.staff ? ` · ${appointment.staff}` : ''}`,
+            value: appointment.amount ? formatCurrency(appointment.amount, locale) : undefined,
             urgent: appointment.status === 'booked' && new Date(appointment.startAt).getTime() < new Date().getTime(),
             href: '/appointments',
           }));
@@ -208,7 +210,7 @@ function FocusPanel() {
             id: product.id,
             title: product.name,
             meta: `${product.stock} left · reorder at ${product.reorderLevel}${product.supplier ? ` · ${product.supplier}` : ''}`,
-            value: formatCurrency(product.cost * Math.max(1, product.reorderLevel)),
+            value: formatCurrency(product.cost * Math.max(1, product.reorderLevel), locale),
             urgent: product.stock === 0,
             href: '/inventory',
           }));
@@ -222,7 +224,7 @@ function FocusPanel() {
             id: customer.id,
             title: customer.name,
             meta: customer.phone ? `Open khata · ${customer.phone}` : 'Open khata',
-            value: formatCurrency(customer.openingBalance),
+            value: formatCurrency(customer.openingBalance, locale),
             urgent: customer.openingBalance >= 5000,
             href: '/customers',
           }));
@@ -234,7 +236,7 @@ function FocusPanel() {
           .map((entry) => ({
             id: entry.id,
             title: entry.name,
-            meta: entry.outAt ? `${dateLabel(entry.at)} → ${dateLabel(entry.outAt)}` : `In at ${dateLabel(entry.at)} · on the floor`,
+            meta: entry.outAt ? `${dateLabel(entry.at, locale)} → ${dateLabel(entry.outAt, locale)}` : `In at ${dateLabel(entry.at, locale)} · on the floor`,
             value: entry.outAt ? undefined : 'active',
             urgent: !entry.outAt,
             href: '/check-ins',
@@ -247,13 +249,13 @@ function FocusPanel() {
           .map((tx) => ({
             id: tx.id,
             title: tx.description,
-            meta: `${dayLabel(tx.date)} · ${tx.paymentMethod ?? tx.account}`,
-            value: `${tx.direction === 'in' ? '+' : '−'}${formatCurrency(tx.amount)}`,
+            meta: `${dayLabel(tx.date, locale)} · ${tx.paymentMethod ?? tx.account}`,
+            value: `${tx.direction === 'in' ? '+' : '−'}${formatCurrency(tx.amount, locale)}`,
             urgent: false,
             href: '/transactions',
           }));
     }
-  }, [focus.kind, state.subscriptions, state.appointments, state.products, state.customers, state.checkIns, state.transactions, membersById, plansById]);
+  }, [focus.kind, state.subscriptions, state.appointments, state.products, state.customers, state.checkIns, state.transactions, membersById, plansById, locale]);
 
   const icons: Record<FocusKey, typeof BellRing> = {
     renewals: BellRing,
@@ -311,13 +313,14 @@ function FocusPanel() {
 }
 
 export function PortalCockpit() {
+  const { locale } = useI18n();
   const snapshot = useFinancialSnapshot();
   const { state, hydrated } = useDukaanStore();
   const { portal, terms, needsChoice } = usePortal();
 
   const now = new Date();
   const ownerName = state.profile.ownerName?.trim();
-  const revenue = revenueSeries(state.transactions);
+  const revenue = revenueSeries(state.transactions, 14, locale);
 
   const context: CockpitContext = {
     transactions: state.transactions,
@@ -330,7 +333,7 @@ export function PortalCockpit() {
     netProfit: snapshot.netProfit,
     cashBalance: snapshot.cashBalance,
     now,
-    formatCurrency,
+    formatCurrency: (value) => formatCurrency(value, locale),
   };
 
   const tiles = portal.cockpit.tiles.map((tile) => ({ ...tile, reading: resolveMetric(tile.metric, context) }));
@@ -352,7 +355,7 @@ export function PortalCockpit() {
               <p className="inline-flex items-center gap-2 rounded-full bg-portal/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-portal ring-1 ring-inset ring-portal/25">
                 <Sparkles size={13} />
                 {hydrated ? `${greeting(now.getHours())}${ownerName ? `, ${ownerName}` : ''}` : 'Welcome back'} ·{' '}
-                {now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' })}
+                {now.toLocaleDateString(locale, { weekday: 'long', day: 'numeric', month: 'long' })}
               </p>
               <h1 className="mt-4 font-display text-3xl font-bold leading-tight tracking-tight text-stone-900 md:text-[2.4rem]">
                 {portal.cockpit.headline}
@@ -415,11 +418,11 @@ export function PortalCockpit() {
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">Net profit</p>
-              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">{formatCurrency(snapshot.netProfit)}</p>
+              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">{formatCurrency(snapshot.netProfit, locale)}</p>
             </div>
             <div>
               <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">Cash in hand</p>
-              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">{formatCurrency(snapshot.cashBalance)}</p>
+              <p className="mt-1 font-display text-lg font-bold tabular-nums text-stone-900">{formatCurrency(snapshot.cashBalance, locale)}</p>
             </div>
           </div>
         </Card>

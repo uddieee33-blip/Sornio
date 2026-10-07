@@ -27,6 +27,7 @@ import { formatCurrency } from '@/lib/business-data';
 import type { Invoice, PaymentMethod } from '@/lib/models/billing';
 import { buildUpiDeepLink, isValidUpiId, maskAccountNumber, paymentReference } from '@/lib/upi';
 import { useDukaanStore } from '@/lib/store';
+import { useI18n } from '@/lib/i18n';
 
 const DESK_METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 
@@ -132,6 +133,7 @@ export function CollectPaymentPanel({
   invoice: Invoice;
   onDone?: () => void;
 }) {
+  const { locale } = useI18n();
   const { state, actions } = useDukaanStore();
   const [method, setMethod] = useState<PaymentMethod>(
     DESK_METHODS.includes(invoice.paymentMethod) ? invoice.paymentMethod : 'UPI',
@@ -187,7 +189,7 @@ export function CollectPaymentPanel({
     setErrorCode(null);
     if (method === 'Cash') {
       if (!Number.isFinite(tenderedValue) || tenderedValue < due) {
-        setError(`Cash in hand (₹${tenderedValue.toLocaleString('en-IN')}) is less than the ₹${due.toLocaleString('en-IN')} due.`);
+        setError(`Cash in hand (₹${tenderedValue.toLocaleString(locale)}) is less than the ₹${due.toLocaleString(locale)} due.`);
         return;
       }
     }
@@ -517,7 +519,7 @@ export function CollectPaymentPanel({
                           : 'bg-white text-stone-700 ring-stone-200 hover:ring-emerald-500/30'
                       }`}
                     >
-                      {value === due ? 'Exact' : `₹${value.toLocaleString('en-IN')}`}
+                      {value === due ? 'Exact' : `₹${value.toLocaleString(locale)}`}
                     </button>
                   ))}
                 </div>

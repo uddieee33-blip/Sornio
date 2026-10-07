@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Banknote, ChartPie, CreditCard, FilePlus2, HandCoins, Landmark, PieChart, Smartphone } from 'lucide-react';
@@ -21,6 +23,7 @@ const MODES: Array<{ id: string; label: string; note: string; icon: typeof Bankn
 ];
 
 export default function PaymentsPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const [mode, setMode] = useState('upi');
 

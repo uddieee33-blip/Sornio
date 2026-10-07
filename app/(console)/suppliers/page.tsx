@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { IndianRupee, Package, Truck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
@@ -7,6 +9,7 @@ import { Badge } from '@/components/ui/Badge';
 import { demoSuppliers, formatCurrency } from '@/lib/business-data';
 
 export default function SuppliersPage() {
+  useLocaleRefresh();
   const totalPayable = demoSuppliers.reduce((sum, supplier) => sum + supplier.payable, 0);
 
   return (

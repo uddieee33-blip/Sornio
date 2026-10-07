@@ -1,5 +1,9 @@
 'use client';
 
+import { getActiveFormattingLocale } from '@/lib/locale';
+
+import { useLocaleRefresh } from '@/lib/i18n';
+
 /**
  * Scan Station — `/scan`.
  *
@@ -76,6 +80,7 @@ const inputClass =
 type Mode = 'counter' | 'inward' | 'labels' | 'devices';
 
 export default function ScanStationPage() {
+  useLocaleRefresh();
   const { state, actions, hydrated } = useDukaanStore();
   const { portal, terms } = usePortal();
 
@@ -675,7 +680,7 @@ export default function ScanStationPage() {
                       <Badge tone={event.outcome === 'invalid' ? 'red' : 'amber'}>{event.outcome}</Badge>
                     </div>
                     <p className="mt-1 text-[10px] text-stone-500">
-                      {event.source} · {event.context} · {new Date(event.at).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
+                      {event.source} · {event.context} · {new Date(event.at).toLocaleString(getActiveFormattingLocale(), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
                     </p>
                     <div className="mt-2 flex flex-wrap gap-1.5">
                       {resolveScan(event.code, state.products).status === 'unmatched' &&
@@ -730,7 +735,7 @@ export default function ScanStationPage() {
                       </span>
                     </span>
                     <span className="shrink-0 text-[10px] tabular-nums text-stone-500">
-                      {new Date(event.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}
+                      {new Date(event.at).toLocaleTimeString(getActiveFormattingLocale(), { hour: 'numeric', minute: '2-digit' })}
                     </span>
                   </li>
                 ))}

@@ -1,11 +1,14 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { formatCurrency } from '@/lib/business-data';
 import { CHART_COLORS } from './ChartTooltip';
 import type { Slice } from '@/lib/chart-data';
 
 /** Horizontal bar list — a lightweight chart for category breakdowns. */
 export function HBarList({ data }: { data: Slice[] }) {
+  useLocaleRefresh();
   const max = Math.max(...data.map((slice) => slice.value), 1);
   return (
     <div className="space-y-3.5">

@@ -23,11 +23,13 @@ import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { useDukaanStore } from '@/lib/store';
+import { useI18n } from '@/lib/i18n';
 import { describeDevice, enrollFingerprint, isFingerprintAvailable, verifyFingerprint } from '@/lib/scanning/fingerprint';
 
 type Status = { tone: 'ok' | 'error' | 'info'; text: string } | null;
 
 export function FingerprintPad() {
+  const { locale } = useI18n();
   const { state, actions } = useDukaanStore();
   const [available, setAvailable] = useState<boolean | null>(null);
   const [busy, setBusy] = useState(false);
@@ -218,7 +220,7 @@ export function FingerprintPad() {
                     <p className="truncate text-sm font-semibold text-stone-900">{credential.memberName}</p>
                     <p className="truncate text-[11px] text-stone-600">
                       {credential.label} · {credential.useCount} visit{credential.useCount === 1 ? '' : 's'}
-                      {credential.lastUsedAt ? ` · last ${new Date(credential.lastUsedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}` : ''}
+                      {credential.lastUsedAt ? ` · last ${new Date(credential.lastUsedAt).toLocaleDateString(locale, { day: 'numeric', month: 'short' })}` : ''}
                     </p>
                   </div>
                   <button

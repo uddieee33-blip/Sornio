@@ -21,6 +21,7 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { PlanBadge } from '@/components/billing/plan-badge';
 import { useCounterLock } from '@/components/security/counter-lock';
+import { LanguagePicker } from '@/components/ui/LanguagePicker';
 
 
 /**
@@ -163,6 +164,9 @@ export function Topbar({
               <span className="hidden md:inline">Lock</span>
             </button>
           ) : null}
+
+          {/* Language belongs in the console too, not only on the marketing page. */}
+          <LanguagePicker compact />
 
           {/* Which plan this console runs on, and how long it has left. */}
           <PlanBadge className="hidden sm:inline-flex" />
