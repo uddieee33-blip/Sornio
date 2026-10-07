@@ -293,15 +293,25 @@ The catalogue workflow is deliberately testable:
 
 ```bash
 npm run i18n:extract                # rebuild English from every TS/TSX screen
-npm run i18n:generate               # generate the 20 Google-supported catalogues
-npm run i18n:generate:low-resource  # generate Bodo + Kashmiri with IndicTrans2
-npm run verify:i18n                 # exact key, slot, and coverage checks for all 22
+npm run i18n:check                  # fail if en.json has drifted from the source tree
+npm run i18n:generate               # fill in what is new across the 20 Google-supported catalogues
+npm run i18n:generate:low-resource  # fill in what is new for Bodo + Kashmiri with IndicTrans2
+npm run verify:i18n                 # drift, key, slot, and coverage checks for all 22
 ```
+
+Both generators are **incremental**: a phrase already translated on disk is
+reused, a reviewed phrase in `locales/curated.json` always wins, and only
+genuinely new copy is sent to a translation model, so a release that adds
+twelve lines costs twelve translations instead of forty-four thousand. Retired
+phrases are dropped in the same pass. `I18N_FORCE=1` rebuilds a locale from
+scratch, and `I18N_TARGETS=hi,ta` limits a run to named locales.
 
 `lib/i18n.tsx` applies those catalogues to authored copy while preserving live
 values such as customer names, amounts, and product codes. New UI copy is picked
-up by the syntax-tree extractor; CI then refuses a locale with missing phrases
-or broken dynamic placeholders.
+up by the syntax-tree extractor — and `verify:i18n` now re-runs that extractor
+before anything else, so copy added to a screen without a catalogue regeneration
+fails the build instead of silently shipping English to 22 languages. CI runs
+the full `npm run verify` suite on every push and pull request.
 
 ## Appearance — ten paints, one source file
 

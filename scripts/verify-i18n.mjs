@@ -1,10 +1,29 @@
 #!/usr/bin/env node
 
-/** Static completeness checks for the 22 generated Indian-language catalogues. */
+/**
+ * Static completeness checks for the 22 generated Indian-language catalogues.
+ *
+ * The catalogues are checked against locales/en.json — so the first thing this
+ * has to establish is that en.json itself still matches the source tree.
+ * Without that step, copy added to a screen and never extracted leaves every
+ * check green while 22 locales quietly render English.
+ */
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 
 const ROOT = process.cwd();
+
+const extraction = spawnSync(
+  process.execPath,
+  [path.join(ROOT, 'scripts', 'extract-i18n.mjs'), '--check'],
+  { cwd: ROOT, stdio: 'inherit' },
+);
+if (extraction.status !== 0) {
+  console.error('\nSource copy is missing from the English catalogue; locale checks skipped.');
+  process.exit(1);
+}
+
 const CODES = [
   'as', 'bn', 'brx', 'doi', 'gu', 'hi', 'kn', 'kok', 'ks', 'mai', 'ml',
   'mni', 'mr', 'ne', 'or', 'pa', 'sa', 'sat', 'sd', 'ta', 'te', 'ur',
@@ -48,6 +67,8 @@ for (const code of CODES) {
   let brokenSlots = 0;
   let brokenTokens = 0;
   for (const key of sourceKeys) {
+    // Already reported as missing above; do not repeat it as an empty value.
+    if (!(key in catalogue)) continue;
     const value = catalogue[key];
     if (typeof value !== 'string' || !value.trim()) {
       fail(`${code}: empty value for “${key.slice(0, 70)}”`);
