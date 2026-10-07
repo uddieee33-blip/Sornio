@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useMemo } from 'react';
 import { BarChart3, Percent, TrendingUp, Zap } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -11,6 +13,7 @@ import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
 
 export default function ProfitabilityPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const financials = summarizeFinancials(state.transactions);
 

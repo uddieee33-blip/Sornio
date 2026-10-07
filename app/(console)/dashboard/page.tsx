@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import Link from 'next/link';
 import { Activity, AlertTriangle, Banknote, CheckCircle2, Coins, PiggyBank, TrendingUp, Wallet, Zap } from 'lucide-react';
 import { StatCard } from '@/components/ui/stat-card';
@@ -13,6 +15,7 @@ import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
 import { trendSeries } from '@/lib/trend';
 
 export default function DashboardPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const snapshot = useFinancialSnapshot();
   const alerts = getAlerts(snapshot, state.products);

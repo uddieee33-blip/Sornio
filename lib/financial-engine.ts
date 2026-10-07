@@ -1,3 +1,5 @@
+import { getActiveFormattingLocale } from './locale';
+
 export type FinancialTransaction = {
   type: 'sale' | 'expense' | 'payment' | 'stock_adjustment' | 'opening';
   category: string;
@@ -46,8 +48,8 @@ export function summarizeFinancials(transactions: FinancialTransaction[]) {
   };
 }
 
-export function formatCurrency(value: number) {
-  return new Intl.NumberFormat('en-IN', {
+export function formatCurrency(value: number, locale = getActiveFormattingLocale()) {
+  return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'INR',
     maximumFractionDigits: 0,

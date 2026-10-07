@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { CHART_COLORS, ChartTooltip } from './ChartTooltip';
 import { formatCurrency } from '@/lib/business-data';
@@ -13,6 +15,7 @@ type DonutChartProps = {
 };
 
 export function DonutChart({ data, centerLabel, centerValue, height = 220 }: DonutChartProps) {
+  useLocaleRefresh();
   const total = data.reduce((sum, slice) => sum + slice.value, 0);
 
   return (

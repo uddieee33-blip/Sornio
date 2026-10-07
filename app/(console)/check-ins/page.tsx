@@ -1,5 +1,9 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
+import { getActiveFormattingLocale } from '@/lib/locale';
+
 /**
  * Check-ins — the front desk.
  *
@@ -24,10 +28,11 @@ import { usePortal } from '@/lib/portals/portal-provider';
 const inputClass =
   'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-portal/20';
 
-const timeOf = (iso: string) => new Date(iso).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(getActiveFormattingLocale(), { hour: 'numeric', minute: '2-digit' });
 const todayKey = () => new Date().toISOString().slice(0, 10);
 
 export default function CheckInsPage() {
+  useLocaleRefresh();
   const { state, actions, hydrated } = useDukaanStore();
   const { terms, portal } = usePortal();
   // The blueprint decides, not this page: a gym's desk reads fingers, a
@@ -98,7 +103,7 @@ export default function CheckInsPage() {
             <CalendarCheck size={13} /> Visits today
           </p>
           <p className="mt-2 font-display text-3xl font-bold tabular-nums text-stone-900">{todaysVisits.length}</p>
-          <p className="mt-0.5 text-[11px] text-stone-600">{new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</p>
+          <p className="mt-0.5 text-[11px] text-stone-600">{new Date().toLocaleDateString(getActiveFormattingLocale(), { day: 'numeric', month: 'long' })}</p>
         </div>
         <div className="rounded-2xl bg-stone-50 p-5 ring-1 ring-inset ring-stone-200">
           <p className="flex items-center gap-2 text-[11px] font-bold uppercase tracking-wide text-stone-600">

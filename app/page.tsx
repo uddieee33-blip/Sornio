@@ -231,7 +231,7 @@ function PlanCell({ value }: { value: string | boolean }) {
 }
 
 export default function LandingPage() {
-  const { t } = useI18n();
+  const { t, locale } = useI18n();
   const [menuOpen, setMenuOpen] = useState(false);
   const [intervals, setIntervals] = useState<Record<string, number>>(() => {
     const initial: Record<string, number> = {};
@@ -503,8 +503,8 @@ export default function LandingPage() {
           <h3 className="font-display text-lg font-bold text-stone-900">The arithmetic, in the open</h3>
           <div className="mt-4 grid gap-4 sm:grid-cols-3">
             {[
-              { label: 'Growth, paying monthly', value: `₹${growth.prices[0].amount.toLocaleString('en-IN')}`, note: 'per month, one business' },
-              { label: 'Growth, paying yearly', value: `₹${monthlyEquivalent(growth, 2)}`, note: `per month, billed ₹${growth.prices[2].amount.toLocaleString('en-IN')} a year` },
+              { label: 'Growth, paying monthly', value: `₹${growth.prices[0].amount.toLocaleString(locale)}`, note: 'per month, one business' },
+              { label: 'Growth, paying yearly', value: `₹${monthlyEquivalent(growth, 2)}`, note: `per month, billed ₹${growth.prices[2].amount.toLocaleString(locale)} a year` },
               { label: 'A single recovered renewal', value: '₹1,500', note: 'one quarterly gym membership, typical of a neighbourhood gym' },
             ].map((row) => (
               <div key={row.label} className="rounded-2xl bg-white p-4 ring-1 ring-inset ring-stone-200">
@@ -620,17 +620,17 @@ export default function LandingPage() {
                       aria-pressed={index === selected}
                       className={`min-h-9 rounded-lg px-2.5 py-1.5 text-[11px] font-bold ring-1 ring-inset transition ${index === selected ? 'bg-brand-500/15 text-brand-700 ring-brand-400/30' : 'bg-white text-stone-600 ring-stone-200 hover:bg-stone-100'}`}
                     >
-                      {option.amount === 0 ? 'Free' : `₹${option.amount.toLocaleString('en-IN')}`} {isFree ? '' : periodLabel(option.interval)}
+                      {option.amount === 0 ? 'Free' : `₹${option.amount.toLocaleString(locale)}`} {isFree ? '' : periodLabel(option.interval)}
                     </button>
                   ))}
                 </div>
 
                 <p className="mt-5">
-                  <span className="font-display text-4xl font-bold text-stone-900">{price.amount === 0 ? '₹0' : `₹${price.amount.toLocaleString('en-IN')}`}</span>
+                  <span className="font-display text-4xl font-bold text-stone-900">{price.amount === 0 ? '₹0' : `₹${price.amount.toLocaleString(locale)}`}</span>
                   <span className="ml-1 text-sm text-stone-600">{periodLabel(price.interval)}</span>
                 </p>
                 {monthly && monthly > 0 ? (
-                  <p className="text-xs text-stone-600">≈ ₹{monthly.toLocaleString('en-IN')}/month{saved > 0 ? ` · saves ₹${saved.toLocaleString('en-IN')}` : ''}</p>
+                  <p className="text-xs text-stone-600">≈ ₹{monthly.toLocaleString(locale)}/month{saved > 0 ? ` · saves ₹${saved.toLocaleString(locale)}` : ''}</p>
                 ) : (
                   <p className="text-xs font-semibold text-emerald-700">Forever — this is not a countdown</p>
                 )}

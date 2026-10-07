@@ -1,3 +1,5 @@
+import { getActiveFormattingLocale } from '../locale';
+
 /**
  * Fingerprint check-in — how a gym's front desk reads a finger without ever
  * keeping one.
@@ -211,7 +213,7 @@ export async function enrollFingerprint(input: {
       ok: true,
       data: {
         credentialId: toBase64Url(credential.rawId),
-        label: `${describeDevice()} · enrolled ${new Date().toLocaleDateString('en-IN')}`,
+        label: `${describeDevice()} · enrolled ${new Date().toLocaleDateString(getActiveFormattingLocale())}`,
       },
     };
   } catch (error) {

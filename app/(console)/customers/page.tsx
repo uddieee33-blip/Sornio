@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useMemo, useState } from 'react';
 import { IndianRupee, Landmark, QrCode, Search, ShieldCheck, UserPlus, Users } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -29,6 +31,7 @@ const emptyForm = {
 };
 
 export default function CustomersPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const [form, setForm] = useState(emptyForm);
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);

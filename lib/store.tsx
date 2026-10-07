@@ -1,5 +1,7 @@
 'use client';
 
+import { getActiveFormattingLocale } from './locale';
+
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
   demoCustomers,
@@ -343,7 +345,7 @@ function addMonths(reference: Date, months: number): string {
 }
 
 function formatAuditAmount(value: number): string {
-  return `₹${value.toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+  return `₹${value.toLocaleString(getActiveFormattingLocale(), { maximumFractionDigits: 0 })}`;
 }
 
 function methodAccount(method: PaymentMethod): Transaction['account'] {
@@ -1691,7 +1693,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         ...current,
         appointments: [...current.appointments, appointment].sort((a, b) => a.startAt.localeCompare(b.startAt)),
       }));
-      track('system', `Booking added for ${appointment.customerName} — ${parsed.toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })}.`, appointment.id);
+      track('system', `Booking added for ${appointment.customerName} — ${parsed.toLocaleString(getActiveFormattingLocale(), { dateStyle: 'medium', timeStyle: 'short' })}.`, appointment.id);
       return { ok: true };
     },
 

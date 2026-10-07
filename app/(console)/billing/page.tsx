@@ -1,5 +1,9 @@
 'use client';
 
+import { getActiveFormattingLocale } from '@/lib/locale';
+
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, BadgeIndianRupee, CheckCircle2, CreditCard, FilePlus2, HandCoins, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
@@ -17,10 +21,11 @@ const statusTone: Record<string, BadgeTone> = { paid: 'emerald', pending: 'amber
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function BillingPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const [selectedId, setSelectedId] = useState(state.invoices[0]?.id);
   const [form, setForm] = useState({ customerName: '', customerPhone: '', method: 'UPI' as PaymentMethod, taxRate: '0' });

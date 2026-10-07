@@ -1,5 +1,9 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
+import { getActiveFormattingLocale } from '@/lib/locale';
+
 import { useMemo, useState } from 'react';
 import { History, ScrollText } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -13,10 +17,11 @@ const typeTones: Record<string, BadgeTone> = {
 };
 
 function formatStamp(iso: string) {
-  return new Date(iso).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+  return new Date(iso).toLocaleString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
 export default function AuditPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const [filter, setFilter] = useState('all');
 

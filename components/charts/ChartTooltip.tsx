@@ -1,8 +1,13 @@
+'use client';
+
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { formatCurrency } from '@/lib/business-data';
 
 type TooltipEntry = { name?: string; value?: number | string; color?: string; payload?: Record<string, unknown> };
 
 export function ChartTooltip({ active, payload, label, money = true }: { active?: boolean; payload?: TooltipEntry[]; label?: string; money?: boolean }) {
+  useLocaleRefresh();
   if (!active || !payload || payload.length === 0) return null;
   return (
     <div className="rounded-xl border border-stone-200 bg-panel/95 px-3.5 py-2.5 shadow-2xl backdrop-blur">

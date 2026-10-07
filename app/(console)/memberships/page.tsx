@@ -1,5 +1,9 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
+import { getActiveFormattingLocale } from '@/lib/locale';
+
 import { useState } from 'react';
 import Link from 'next/link';
 import { ArrowRight, Banknote, BellRing, CalendarClock, CreditCard, Crown, Dumbbell, Plus, RefreshCcw, UserPlus, Users } from 'lucide-react';
@@ -26,10 +30,11 @@ const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 p
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(getActiveFormattingLocale(), { day: 'numeric', month: 'short', year: 'numeric' });
 }
 
 export default function MembershipsPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const { usage } = usePlan();
   const membersById = new Map(state.members.map((member) => [member.id, member]));
@@ -157,7 +162,7 @@ export default function MembershipsPage() {
             <div>
               <p className="text-sm font-bold text-stone-900">The member is here — don&apos;t send them away</p>
               <p className="mt-0.5 text-xs leading-relaxed text-stone-600">
-                UPI is capped for this month{gateOffer.amount > 0 ? `, but the ₹${gateOffer.amount.toLocaleString('en-IN')} can still be collected in cash right now` : ', but cash still works right now'} — nothing is lost either way.
+                UPI is capped for this month{gateOffer.amount > 0 ? `, but the ₹${gateOffer.amount.toLocaleString(getActiveFormattingLocale())} can still be collected in cash right now` : ', but cash still works right now'} — nothing is lost either way.
               </p>
             </div>
           </div>
@@ -203,7 +208,7 @@ export default function MembershipsPage() {
                     <Badge tone={plan.isActive ? 'emerald' : 'slate'} dot>{plan.isActive ? 'Active' : 'Off'}</Badge>
                   </div>
                   <p className="mt-1 text-xs text-stone-600">{plan.durationMonths} month{plan.durationMonths === 1 ? '' : 's'}{plan.description ? ` · ${plan.description}` : ''}</p>
-                  <p className="mt-3 font-display text-2xl font-bold text-stone-900 tabular-nums">₹{plan.price.toLocaleString('en-IN')}</p>
+                  <p className="mt-3 font-display text-2xl font-bold text-stone-900 tabular-nums">₹{plan.price.toLocaleString(getActiveFormattingLocale())}</p>
                 </div>
               ))}
             </div>
@@ -262,7 +267,7 @@ export default function MembershipsPage() {
                       <span>{subscription.autoRenew ? 'Auto-renew on' : 'Auto-renew off'} · {member ? channelLabels[member.preferredChannel] : ''}</span>
                       {(subscription.status === 'expiring_soon' || subscription.status === 'expired') ? (
                         <button onClick={() => handleRenew(subscription.id)} className="inline-flex items-center gap-1.5 rounded-full bg-brand-gradient px-3.5 py-1.5 font-semibold text-white shadow-glow-sm transition hover:brightness-110">
-                          <RefreshCcw size={12} /> Renew {plan ? `· ₹${plan.price.toLocaleString('en-IN')}` : ''}
+                          <RefreshCcw size={12} /> Renew {plan ? `· ₹${plan.price.toLocaleString(getActiveFormattingLocale())}` : ''}
                         </button>
                       ) : null}
                     </div>
@@ -286,7 +291,7 @@ export default function MembershipsPage() {
               <div><span className={labelClass}>Plan</span>
                 <select value={enroll.planId} onChange={(e) => setEnroll({ ...enroll, planId: e.target.value })} className={inputClass}>
                   <option value="">Choose plan…</option>
-                  {state.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · ₹{plan.price.toLocaleString('en-IN')}</option>)}
+                  {state.plans.map((plan) => <option key={plan.id} value={plan.id}>{plan.name} · ₹{plan.price.toLocaleString(getActiveFormattingLocale())}</option>)}
                 </select>
               </div>
               <div><span className={labelClass}>Payment method</span>

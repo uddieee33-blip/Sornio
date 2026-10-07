@@ -1,5 +1,9 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
+import { getActiveFormattingLocale } from '@/lib/locale';
+
 import { useMemo } from 'react';
 import { AlertTriangle, Bell, CheckCircle2, PackageX, ShieldAlert, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -19,6 +23,7 @@ const severityMeta = {
 } as const;
 
 export default function AlertsPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const { allows, terms } = usePortal();
   const carriesPlans = allows('/memberships');
@@ -80,7 +85,7 @@ export default function AlertsPage() {
       const amount = pending.reduce((sum, record) => sum + record.amount, 0);
       rows.push({
         id: 'payments-pending', severity: 'info', area: 'Payments', title: `${pending.length} payment${pending.length === 1 ? '' : 's'} awaiting settlement`,
-        description: `${amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })} is authorized but not yet in your bank (card and online settlements take 1–2 days).`,
+        description: `${amount.toLocaleString(getActiveFormattingLocale(), { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })} is authorized but not yet in your bank (card and online settlements take 1–2 days).`,
         action: 'No action needed — watch the Payments page for settlement.',
       });
     }
@@ -89,7 +94,7 @@ export default function AlertsPage() {
     if (financials.netCashFlow < 0) {
       rows.push({
         id: 'cash-negative', severity: 'critical', area: 'Cash flow', title: 'Cash out exceeds cash in',
-        description: `Net cash flow is ${financials.netCashFlow.toLocaleString('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })} for the recorded period.`,
+        description: `Net cash flow is ${financials.netCashFlow.toLocaleString(getActiveFormattingLocale(), { style: 'currency', currency: 'INR', maximumFractionDigits: 0 })} for the recorded period.`,
         action: 'Pause discretionary expenses and push outstanding receivables.',
       });
     } else {

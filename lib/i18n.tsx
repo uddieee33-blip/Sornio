@@ -19,6 +19,7 @@ import {
   useState,
   type ReactNode,
 } from 'react';
+import { setActiveFormattingLocale } from './locale';
 
 export type LanguageCode =
   | 'en'
@@ -117,7 +118,7 @@ const EMPTY_CATALOGUE: Catalogue = {};
 const loadedCatalogues = new Map<LanguageCode, Catalogue>([['en', EMPTY_CATALOGUE]]);
 const textSources = new WeakMap<Text, { source: string; output: string }>();
 const attributeSources = new WeakMap<Element, Map<string, { source: string; output: string }>>();
-const TRANSLATED_ATTRIBUTES = ['alt', 'aria-description', 'aria-label', 'placeholder', 'title'] as const;
+const TRANSLATED_ATTRIBUTES = ['alt', 'aria-description', 'aria-label', 'content', 'placeholder', 'title'] as const;
 const SKIPPED_ELEMENTS = new Set(['CODE', 'KBD', 'NOSCRIPT', 'SCRIPT', 'STYLE', 'SVG']);
 
 function normalise(value: string): string {
@@ -244,6 +245,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   const [loaded, setLoaded] = useState<{ lang: LanguageCode; catalogue: Catalogue }>({ lang: 'en', catalogue: EMPTY_CATALOGUE });
   const [ready, setReady] = useState(true);
   const currentLanguage = LANGUAGES.find((language) => language.code === lang) ?? LANGUAGES[0];
+  // Keep non-React formatting helpers in step with the context. This assignment
+  // happens before descendants subscribed through useLocaleRefresh render.
+  setActiveFormattingLocale(currentLanguage.locale);
   const catalogue = useMemo(
     () => (loaded.lang === lang ? loaded.catalogue : EMPTY_CATALOGUE),
     [lang, loaded],
@@ -312,7 +316,9 @@ export function I18nProvider({ children }: { children: ReactNode }) {
   }, [lang]);
 
   useEffect(() => {
-    const apply = (root: Node = document.body) => translateTree(root, catalogue, templates);
+    // Include <head> so route titles shown in the browser tab change with the
+    // rest of the screen. Script/style contents are excluded by shouldSkip.
+    const apply = (root: Node = document) => translateTree(root, catalogue, templates);
     apply();
 
     const observer = new MutationObserver((mutations) => {
@@ -326,7 +332,7 @@ export function I18nProvider({ children }: { children: ReactNode }) {
         }
       }
     });
-    observer.observe(document.body, {
+    observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: [...TRANSLATED_ATTRIBUTES],
       characterData: true,
@@ -373,4 +379,13 @@ export function useI18n(): I18nContextValue {
   const context = useContext(I18nContext);
   if (!context) throw new Error('useI18n must be used inside I18nProvider');
   return context;
+}
+
+/**
+ * Subscribe a component that renders dates/numbers through shared formatting
+ * helpers. The helpers read the active locale, while this hook guarantees the
+ * component renders again when that locale changes.
+ */
+export function useLocaleRefresh(): void {
+  useI18n();
 }

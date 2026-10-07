@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useState } from 'react';
 import { ArrowDownRight, ArrowLeftRight, ArrowUpRight, Layers, Package, Receipt, Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -38,6 +40,7 @@ const typeMeta: Record<string, { label: string; tone: BadgeTone }> = {
 const accountLabels: Record<string, string> = { cash: 'Cash', bank: 'Bank', revenue: 'Revenue', inventory: 'Inventory', accounts_receivable: 'Receivables', accounts_payable: 'Payables' };
 
 export default function TransactionsPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const { allows } = usePortal();
   const [filter, setFilter] = useState<FilterId>('all');

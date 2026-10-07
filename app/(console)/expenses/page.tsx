@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useState } from 'react';
 import { PieChart, Plus, Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -18,6 +20,7 @@ const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 p
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 export default function ExpensesPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const [form, setForm] = useState({ category: 'Rent', amount: '', method: 'Cash' as PaymentMethod });
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);

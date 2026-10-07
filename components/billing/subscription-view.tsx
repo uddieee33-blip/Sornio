@@ -1,5 +1,9 @@
 'use client';
 
+import { getActiveFormattingLocale } from '@/lib/locale';
+
+import { useLocaleRefresh } from '@/lib/i18n';
+
 /**
  * Your Plan — the page that asks for money, and the only one that may.
  *
@@ -63,14 +67,14 @@ const DAY = 86_400_000;
 
 function formatDate(ms: number) {
   if (!ms) return '—';
-  return new Date(ms * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(ms * 1000).toLocaleDateString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function priceLabel(plan: PlanDefinition, index: number) {
   const price = plan.prices[index];
   if (!price) return '';
   if (price.amount === 0) return '₹0';
-  return `₹${price.amount.toLocaleString('en-IN')}`;
+  return `₹${price.amount.toLocaleString(getActiveFormattingLocale())}`;
 }
 
 function periodLabel(interval: BillingInterval) {
@@ -87,6 +91,7 @@ function periodLabel(interval: BillingInterval) {
 }
 
 export function SubscriptionView({ lockedModule }: { lockedModule?: string | null }) {
+  useLocaleRefresh();
   const { entitlement, statusLine, usage, busy, notice, dismissNotice, payment, loading, synced, startTrial, choosePlan, requestActivation, activate, refresh } = usePlan();
   const { state } = useDukaanStore();
   const { portal, nav } = usePortal();
@@ -417,7 +422,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
                         </span>
                       </span>
                       <span className="text-xs text-stone-600">
-                        <strong className="block text-stone-800">₹{payment.amount.toLocaleString('en-IN')} for {payment.planName}</strong>
+                        <strong className="block text-stone-800">₹{payment.amount.toLocaleString(getActiveFormattingLocale())} for {payment.planName}</strong>
                         The QR already carries the amount and reference{' '}
                         <span className="font-mono text-stone-900">{payment.reference}</span>, so you never type it into the app.
                         Use the button below if the console and the paying phone are the same device.
@@ -537,7 +542,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
                         index === selected ? 'bg-brand-500/15 text-brand-700 ring-brand-400/30' : 'bg-stone-50 text-stone-600 ring-stone-200 hover:bg-stone-100'
                       }`}
                     >
-                      {price.amount === 0 ? 'Free' : `₹${price.amount.toLocaleString('en-IN')}`} {periodLabel(price.interval)}
+                      {price.amount === 0 ? 'Free' : `₹${price.amount.toLocaleString(getActiveFormattingLocale())}`} {periodLabel(price.interval)}
                     </button>
                   ))}
                 </div>
@@ -546,7 +551,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
                   <span className="font-display text-3xl font-bold text-stone-900">{priceLabel(plan, selected)}</span>
                   <span className="ml-1 text-sm text-stone-600">{periodLabel(plan.prices[selected]?.interval ?? 'forever')}</span>
                 </p>
-                {monthly && monthly > 0 ? <p className="text-xs text-stone-600">≈ ₹{monthly}/month{saved > 0 ? ` · saves ₹${saved.toLocaleString('en-IN')}` : ''}</p> : null}
+                {monthly && monthly > 0 ? <p className="text-xs text-stone-600">≈ ₹{monthly}/month{saved > 0 ? ` · saves ₹${saved.toLocaleString(getActiveFormattingLocale())}` : ''}</p> : null}
                 {isFree ? <p className="text-xs font-semibold text-emerald-700">Forever — not a countdown</p> : null}
 
                 <ul className="mt-4 flex-1 space-y-2">

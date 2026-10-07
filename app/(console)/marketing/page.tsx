@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { useState } from 'react';
 import { Megaphone, Plus, TrendingUp } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -16,6 +18,7 @@ const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide tex
 const CHANNELS: MarketingCampaign['channel'][] = ['Social Media', 'Google Ads', 'Print', 'Radio', 'Events', 'Referrals', 'Other'];
 
 export default function MarketingPage() {
+  useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const [form, setForm] = useState({ name: '', channel: 'Social Media' as MarketingCampaign['channel'], spend: '', notes: '' });
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);

@@ -1,5 +1,9 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
+import { getActiveFormattingLocale } from '@/lib/locale';
+
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { AlarmClock, BellRing, Check, Copy, Dumbbell, MessageCircle, MessageSquare } from 'lucide-react';
@@ -11,7 +15,7 @@ import { useDukaanStore } from '@/lib/store';
 import { getMembershipReminders, type MembershipReminder } from '@/lib/reminders';
 
 function formatDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' });
+  return new Date(iso).toLocaleDateString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 function ReminderCard({ reminder }: { reminder: MembershipReminder }) {
@@ -92,6 +96,7 @@ function ReminderCard({ reminder }: { reminder: MembershipReminder }) {
 }
 
 export default function RemindersPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const reminders = useMemo(() => getMembershipReminders(state), [state]);
 

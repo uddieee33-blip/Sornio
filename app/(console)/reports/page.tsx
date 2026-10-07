@@ -1,5 +1,7 @@
 'use client';
 
+import { useLocaleRefresh } from '@/lib/i18n';
+
 import { BarChart3, Landmark, Percent, PiggyBank, TrendingUp, Wallet } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -13,6 +15,7 @@ import { useDukaanStore } from '@/lib/store';
 import { ExportButton } from '@/components/export/export-button';
 
 export default function ReportsPage() {
+  useLocaleRefresh();
   const { state } = useDukaanStore();
   const financials = summarizeFinancials(state.transactions);
   const revenueByCategory = revenueByCategoryHint(state.transactions);

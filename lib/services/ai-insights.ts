@@ -1,3 +1,5 @@
+import { getActiveFormattingLocale } from '../locale';
+
 import type { Invoice } from '@/lib/models/billing';
 import type { MembershipSubscription } from '@/lib/models/membership';
 import type { BusinessSnapshot } from '@/lib/models/business';
@@ -55,7 +57,7 @@ export class AiInsightsEngine {
         businessId: snapshot.businessId,
         type: 'trend',
         title: 'Revenue Performance',
-        description: `Your weekly revenue is ₹${snapshot.totalRevenue.toLocaleString('en-IN')}. Strong momentum is visible.`,
+        description: `Your weekly revenue is ₹${snapshot.totalRevenue.toLocaleString(getActiveFormattingLocale())}. Strong momentum is visible.`,
         metric: snapshot.totalRevenue,
         metricLabel: 'Weekly Revenue',
         actionable: false,
@@ -95,7 +97,7 @@ export class AiInsightsEngine {
         businessId: snapshot.businessId,
         type: 'warning',
         title: 'Outstanding payments',
-        description: `₹${pendingAmount.toLocaleString('en-IN')} is still pending across ${pendingInvoices.length} invoice(s).`,
+        description: `₹${pendingAmount.toLocaleString(getActiveFormattingLocale())} is still pending across ${pendingInvoices.length} invoice(s).`,
         metric: pendingAmount,
         metricLabel: 'Pending Amount',
         actionable: true,
