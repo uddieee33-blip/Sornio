@@ -1,0 +1,126 @@
+{
+  "_generated": "scripts/build-themes.mjs — do not edit; run `npm run theme:build`",
+  "default": "daylight",
+  "paints": [
+    {
+      "id": "daylight",
+      "name": "Warm Daylight",
+      "tagline": "Paper-warm. Readable on a counter in afternoon sun.",
+      "mode": "light",
+      "page": "#f7f6f3",
+      "surface": "#fdfdfd",
+      "accent": "#3e784e",
+      "ink": "#1a1a18",
+      "muted": "#55544f",
+      "line": "#e6e5e1"
+    },
+    {
+      "id": "paper",
+      "name": "Paper",
+      "tagline": "Pure neutral white. Nothing between you and the numbers.",
+      "mode": "light",
+      "page": "#f9fafb",
+      "surface": "#ffffff",
+      "accent": "#3f774e",
+      "ink": "#191a1a",
+      "muted": "#525455",
+      "line": "#e4e6e7"
+    },
+    {
+      "id": "monsoon",
+      "name": "Monsoon",
+      "tagline": "Cool blue-grey daylight, for long hours at the desk.",
+      "mode": "light",
+      "page": "#f1f5f8",
+      "surface": "#fdfdfd",
+      "accent": "#04729b",
+      "ink": "#181a1c",
+      "muted": "#4f5459",
+      "line": "#e1e6eb"
+    },
+    {
+      "id": "saffron",
+      "name": "Saffron",
+      "tagline": "Festive warmth — marigold and turmeric, kept legible.",
+      "mode": "light",
+      "page": "#f8f5f0",
+      "surface": "#fefefe",
+      "accent": "#a14e1c",
+      "ink": "#1c1917",
+      "muted": "#58534c",
+      "line": "#eae5df"
+    },
+    {
+      "id": "clarity",
+      "name": "Clarity",
+      "tagline": "Maximum contrast on white. Built for tired eyes and cheap screens.",
+      "mode": "light",
+      "page": "#ffffff",
+      "surface": "#ffffff",
+      "accent": "#187d3f",
+      "ink": "#030303",
+      "muted": "#3c3c3c",
+      "line": "#cfcfcf"
+    },
+    {
+      "id": "midnight",
+      "name": "Midnight",
+      "tagline": "Deep blue-black. The default after the shutter comes down.",
+      "mode": "dark",
+      "page": "#0a0d11",
+      "surface": "#15181b",
+      "accent": "#62ab7d",
+      "ink": "#eaedf1",
+      "muted": "#a9afb7",
+      "line": "#32363b"
+    },
+    {
+      "id": "graphite",
+      "name": "Graphite",
+      "tagline": "Neutral dark grey. No colour cast, no opinion.",
+      "mode": "dark",
+      "page": "#0f0f10",
+      "surface": "#191a1b",
+      "accent": "#6ba97a",
+      "ink": "#ecedee",
+      "muted": "#adafb0",
+      "line": "#353637"
+    },
+    {
+      "id": "nightmarket",
+      "name": "Night Market",
+      "tagline": "Warm dark, lamp-lit. Low blue light for the late shift.",
+      "mode": "dark",
+      "page": "#120e0a",
+      "surface": "#1d1815",
+      "accent": "#cd8554",
+      "ink": "#f0ece8",
+      "muted": "#b6ada6",
+      "line": "#3a3530"
+    },
+    {
+      "id": "indigo",
+      "name": "Indigo Dusk",
+      "tagline": "Violet-leaning dark, softer than black on an OLED counter.",
+      "mode": "dark",
+      "page": "#0e0d13",
+      "surface": "#19181d",
+      "accent": "#958ed6",
+      "ink": "#edecf2",
+      "muted": "#aeadb8",
+      "line": "#36353c"
+    },
+    {
+      "id": "nocturne",
+      "name": "Nocturne",
+      "tagline": "True black, maximum contrast. Saves an OLED and finds the figure fast.",
+      "mode": "dark",
+      "page": "#000000",
+      "surface": "#050505",
+      "accent": "#5bad71",
+      "ink": "#fafafa",
+      "muted": "#cccccc",
+      "line": "#4e4e4e"
+    }
+  ]
+}

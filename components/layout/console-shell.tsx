@@ -28,6 +28,7 @@ import { PlanBanner } from '@/components/billing/plan-banner';
 import { RouteWarmup } from '@/components/perf/route-warmup';
 import { CounterLockProvider, CounterLockScreen, useCounterLock } from '@/components/security/counter-lock';
 import { PortalProvider, usePortal } from '@/lib/portals/portal-provider';
+import { MasterSwitchProvider } from '@/lib/portals/master-client';
 import type { PortalId } from '@/lib/portals/types';
 
 function ConsoleFrame({ children }: { children: ReactNode }) {
@@ -78,19 +79,30 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
 export function ConsoleShell({
   children,
   initialPortalId,
+  initialRevealAll = false,
+  initialRevealDaysLeft = 0,
 }: {
   children: ReactNode;
   initialPortalId?: PortalId | null;
+  /** Everything On, resolved from the signed cookie on the server. */
+  initialRevealAll?: boolean;
+  initialRevealDaysLeft?: number;
 }) {
   return (
-    <PortalProvider initialPortalId={initialPortalId ?? null}>
-      {/* The lock wraps the frame so the whole console — navigation included —
-          is behind it, and the PIN is checked before any of it renders. */}
-      <CounterLockProvider>
-        <PlanProvider>
-          <ConsoleFrame>{children}</ConsoleFrame>
-        </PlanProvider>
-      </CounterLockProvider>
-    </PortalProvider>
+    // Everything On sits *outside* the portal, because it changes what the
+    // portal offers. The portal still decides the words, the accent and the
+    // cockpit; the switch only decides how much of the catalogue is on the
+    // menu — and the plan layer below is deliberately not told about it.
+    <MasterSwitchProvider initialOn={initialRevealAll} initialDaysLeft={initialRevealDaysLeft}>
+      <PortalProvider initialPortalId={initialPortalId ?? null}>
+        {/* The lock wraps the frame so the whole console — navigation included —
+            is behind it, and the PIN is checked before any of it renders. */}
+        <CounterLockProvider>
+          <PlanProvider>
+            <ConsoleFrame>{children}</ConsoleFrame>
+          </PlanProvider>
+        </CounterLockProvider>
+      </PortalProvider>
+    </MasterSwitchProvider>
   );
 }

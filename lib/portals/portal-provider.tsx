@@ -24,6 +24,7 @@ import { DEFAULT_PORTAL_ID } from './blueprints';
 import { resolveNav, type ResolvedNavSection } from './nav';
 import { checkPortalAccess, moduleForPath, PORTAL_COOKIE } from './routes';
 import { publishPortal } from './sync';
+import { revealedNavSection, useMasterSwitchOptional } from './master-client';
 import { useDukaanStore } from '@/lib/store';
 import type { ModuleKey, PortalBlueprint, PortalId, PortalVocabulary } from './types';
 
@@ -32,6 +33,14 @@ export type PortalContextValue = {
   portal: PortalBlueprint;
   /** Navigation, already labelled and iconised for this trade. */
   nav: ResolvedNavSection[];
+  /**
+   * True when Everything On is live: the navigation carries all 27 modules and
+   * `allows` stops refusing the ones this trade does not use. The plan layer is
+   * untouched — see `lib/portals/master.ts`.
+   */
+  revealAll: boolean;
+  /** The trade's own navigation, without the revealed extras. */
+  portalNav: ResolvedNavSection[];
   /** This trade's words, resolved to full sentences. */
   terms: PortalVocabulary;
   /** True while the business has not yet committed to a portal. */
@@ -89,11 +98,25 @@ export function PortalProvider({
     };
   }, [hydrated, templateId, portal.id, cookiePortalId]);
 
-  const nav = useMemo(() => resolveNav(portal), [portal]);
+  // Everything On, when the console shell is above us. `null` means there is
+  // no shell (the public site, a test) and therefore nothing to reveal.
+  const master = useMasterSwitchOptional();
+  const revealAll = master?.on ?? false;
+
+  const portalNav = useMemo(() => resolveNav(portal), [portal]);
+
+  // The revealed modules arrive as their *own* section rather than merged into
+  // the trade's menu, so an owner can still see at a glance which screens are
+  // theirs and which are the rest of DukaanOS.
+  const nav = useMemo(() => {
+    if (!revealAll) return portalNav;
+    const extra = revealedNavSection(portal, portalNav);
+    return extra ? [...portalNav, extra] : portalNav;
+  }, [revealAll, portal, portalNav]);
 
   const allows = useCallback(
-    (href: string) => checkPortalAccess(portal.id, href).allowed,
-    [portal.id],
+    (href: string) => checkPortalAccess(portal.id, href, { revealAll }).allowed,
+    [portal.id, revealAll],
   );
 
   const accentStyle = useMemo(
@@ -109,13 +132,15 @@ export function PortalProvider({
     () => ({
       portal,
       nav,
+      portalNav,
+      revealAll,
       terms: portal.terms,
       needsChoice,
       allows,
       cookieSynced: cookiePortalId === portal.id,
       accentStyle,
     }),
-    [portal, nav, needsChoice, allows, cookiePortalId, accentStyle],
+    [portal, nav, portalNav, revealAll, needsChoice, allows, cookiePortalId, accentStyle],
   );
 
   return <PortalContext.Provider value={value}>{children}</PortalContext.Provider>;

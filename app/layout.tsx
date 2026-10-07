@@ -1,7 +1,17 @@
 import type { Metadata, Viewport } from 'next';
+import { cookies } from 'next/headers';
 import { DukaanStoreProvider } from '@/lib/store';
 import { I18nProvider } from '@/lib/i18n';
 import { ToastProvider } from '@/lib/ui/toast';
+import { AppearanceProvider } from '@/lib/theme/appearance-provider';
+import {
+  APPEARANCE_COOKIE,
+  appearanceAttributes,
+  decodeAppearance,
+  DEFAULT_PAINT,
+  SYSTEM_PAINT,
+  themeColorFor,
+} from '@/lib/theme/palettes';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -25,9 +35,13 @@ export const metadata: Metadata = {
 };
 
 export const viewport: Viewport = {
-  // Matches `--warm-page` in globals.css so the mobile browser chrome blends
-  // into the warm palette instead of framing it in the old navy.
-  themeColor: '#f7f6ef',
+  /**
+   * The default paint's page colour. When the owner has chosen another one the
+   * client rewrites this meta tag on mount — but the *static* value still has
+   * to be a real colour from a real paint, because it is what a phone shows in
+   * the split second before any script runs.
+   */
+  themeColor: themeColorFor(DEFAULT_PAINT),
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
@@ -35,9 +49,40 @@ export const viewport: Viewport = {
   maximumScale: 5,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/**
+ * Root layout.
+ *
+ * The appearance cookie is read **here**, on the server, and its attributes go
+ * straight onto `<html>`. That is the whole anti-flash mechanism: there is no
+ * inline script racing the first paint, no `useEffect` applying a class after
+ * hydration, and therefore no frame in which a Midnight console is briefly
+ * white. It also means the console is painted correctly with JavaScript
+ * disabled entirely.
+ *
+ * The one case the server genuinely cannot resolve is `system`, because
+ * `prefers-color-scheme` lives in the browser. For that single case the
+ * `data-theme` attribute is deliberately *omitted* and the `@media` fallback
+ * in `themes.css` paints the first frame; `AppearanceProvider` then pins the
+ * attribute in a layout effect, before the browser's second paint.
+ */
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const appearance = decodeAppearance(cookieStore.get(APPEARANCE_COOKIE)?.value);
+
+  // `null` tells the helper "this side has no device preference" — so for
+  // `system` it returns no `data-theme` rather than guessing light.
+  const attributes = appearanceAttributes(appearance, null);
+  const lang = 'en';
+
   return (
-    <html lang="en" data-theme="warm">
+    <html
+      lang={lang}
+      // A concrete paint is always on the element when one was chosen, which is
+      // also what makes `color-scheme` correct for native form controls and the
+      // scrollbar before any of our CSS loads.
+      {...attributes}
+      suppressHydrationWarning={appearance.theme === SYSTEM_PAINT}
+    >
       <body className="bg-ink text-stone-800 antialiased">
         {/* Keyboard users land here first and can jump straight to the content. */}
         <a
@@ -47,17 +92,19 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           Skip to content
         </a>
 
-        <DukaanStoreProvider>
-          <I18nProvider>
-            <ToastProvider>
-              <div className="relative min-h-screen">
-                {/* Ambient page glow behind everything */}
-                <div className="pointer-events-none fixed inset-0 bg-page-glow" aria-hidden />
-                <div className="relative">{children}</div>
-              </div>
-            </ToastProvider>
-          </I18nProvider>
-        </DukaanStoreProvider>
+        <AppearanceProvider initial={appearance}>
+          <DukaanStoreProvider>
+            <I18nProvider>
+              <ToastProvider>
+                <div className="relative min-h-screen">
+                  {/* Ambient page glow behind everything */}
+                  <div className="pointer-events-none fixed inset-0 bg-page-glow" aria-hidden />
+                  <div className="relative">{children}</div>
+                </div>
+              </ToastProvider>
+            </I18nProvider>
+          </DukaanStoreProvider>
+        </AppearanceProvider>
       </body>
     </html>
   );

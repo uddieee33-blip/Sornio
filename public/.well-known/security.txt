@@ -1,0 +1,34 @@
+# DukaanOS — security contact
+#
+# If you have found a way into a shop's books, we want to hear about it before
+# anyone else does. There is no bounty programme and we will not pretend there
+# is one; there is a fast reply, public credit if you want it, and a fix.
+#
+# This file is served from /.well-known/security.txt as RFC 9116 specifies.
+
+Contact: mailto:security@dukaanos.app
+Expires: 2027-10-07T00:00:00.000Z
+Preferred-Languages: en, hi
+Canonical: https://dukaanos.app/.well-known/security.txt
+Policy: https://dukaanos.app/security
+
+# What is most useful to report
+#
+#  * Anything that lets one business read or write another business's records.
+#  * Anything that makes a locked module render, or a paid module unlock,
+#    without a valid signed cookie.
+#  * Any path from text an owner typed (a customer name, a product name, a
+#    note) to executed script, in any browser.
+#  * Any way to defeat the counter lock without the device's own PIN.
+#
+# What is already known and is not a finding
+#
+#  * The counter PIN protects the device from a passer-by, not the data from
+#    someone who owns the device. Local-first storage is readable by anyone
+#    holding an unlocked machine with developer tools. This is stated in the
+#    product, in lib/security/lock.ts, and in the Trust Centre.
+#  * The appearance cookie (dukaan.look) is unsigned on purpose. It carries no
+#    authority; the worst a rewritten value can do is repaint the owner's own
+#    console a colour they did not pick.
+#  * The portal cookie (dukaan.portal) is unsigned on purpose. It can only ever
+#    *hide* a module. Revealing one requires dukaan.everything, which is signed.

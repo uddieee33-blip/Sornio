@@ -28,6 +28,24 @@ function isLockdownDeployment() {
   return true;
 }
 
+/**
+ * The *fallback* CSP.
+ *
+ * Every HTML response goes through middleware, which mints a per-request nonce
+ * and sends a strict `script-src 'nonce-…' 'strict-dynamic'`. This config
+ * cannot do that — a static header is written once at build time and a nonce
+ * that is reused is a nonce that is worthless.
+ *
+ * So this header exists for the responses middleware does not reach, and it is
+ * deliberately the weaker of the two: it keeps `'unsafe-inline'` for scripts
+ * because without a nonce there is no other way for the app's own bootstrap to
+ * run. Middleware's header overwrites this one on every page, so the weaker
+ * policy is never what a browser actually enforces on a console screen.
+ *
+ * Trusted Types are left out here for the same reason they are left out in
+ * dev: enforcing them on a response we cannot nonce would break the page
+ * rather than protect it.
+ */
 function buildCsp() {
   const strict = isLockdownDeployment();
   const directives = {
@@ -35,12 +53,20 @@ function buildCsp() {
     'frame-ancestors': strict ? policy.framing.strict : policy.framing.embed,
   };
 
+  directives['script-src'] = [...directives['script-src'], "'unsafe-inline'"];
+
   if (!IS_PRODUCTION) {
     directives['script-src'] = [...directives['script-src'], "'unsafe-eval'"];
     directives['connect-src'] = [...directives['connect-src'], 'ws:', 'wss:'];
+    delete directives['require-trusted-types-for'];
+    delete directives['trusted-types'];
   } else {
     directives['upgrade-insecure-requests'] = [];
   }
+
+  // Violations reach the same endpoint whichever layer set the policy.
+  directives['report-uri'] = [policy.reporting.endpoint];
+  directives['report-to'] = [policy.reporting.group];
 
   return Object.entries(directives)
     .map(([key, values]) => (values.length ? `${key} ${values.join(' ')}` : key))
@@ -72,9 +98,13 @@ const securityHeaders = [
   { key: 'Content-Security-Policy', value: CSP },
   { key: 'Permissions-Policy', value: permissionsPolicyFor([]) },
   ...policy.headers,
+  { key: 'Reporting-Endpoints', value: `${policy.reporting.group}="${policy.reporting.endpoint}"` },
   isLockdownDeployment()
     ? policy.hsts
     : { key: 'Strict-Transport-Security', value: 'max-age=0' },
+  isLockdownDeployment()
+    ? { key: 'Cross-Origin-Embedder-Policy', value: 'credentialless' }
+    : { key: 'Cross-Origin-Embedder-Policy', value: 'unsafe-none' },
 ];
 
 /** One entry per capture surface, with sub-paths, so the grant is exact. */
@@ -156,6 +186,17 @@ const nextConfig = {
       {
         source: '/_next/static/:path*',
         headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
+      },
+      // RFC 9116. A security contact that a researcher cannot find is a
+      // security contact that does not exist, so it is served as plain text,
+      // cached briefly, and indexable.
+      {
+        source: '/.well-known/security.txt',
+        headers: [
+          { key: 'Content-Type', value: 'text/plain; charset=utf-8' },
+          { key: 'Cache-Control', value: 'public, max-age=3600' },
+          { key: 'X-Robots-Tag', value: 'index, follow' },
+        ],
       },
     ];
   },

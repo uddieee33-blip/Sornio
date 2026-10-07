@@ -1,8 +1,9 @@
 'use client';
 
+import { useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Lock } from 'lucide-react';
+import { Lock, Sparkles } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
@@ -19,10 +20,42 @@ import { useDukaanStore } from '@/lib/store';
  * The footer reports the *real* business currently loaded and how its data is
  * held on this device — no placeholder text.
  */
+/**
+ * The active-item indicator.
+ *
+ * One element that *moves* between items rather than a background that
+ * disappears here and appears there. The difference matters on a sidebar with
+ * twenty-seven entries: a bar that slides tells the eye where it went, so the
+ * owner keeps their place in the list. A bar that blinks makes them re-read it.
+ *
+ * It is measured from the DOM in a layout effect — before paint, so there is
+ * never a frame of the indicator at the wrong height — and driven entirely by
+ * `transform`, which keeps it on the compositor. When nothing is active (a
+ * route outside the menu) it fades out in place instead of jumping to zero.
+ */
+function useActiveIndicator(pathname: string | null, deps: unknown) {
+  const navRef = useRef<HTMLElement>(null);
+  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
+
+  useLayoutEffect(() => {
+    const container = navRef.current;
+    if (!container) return;
+    const active = container.querySelector('[data-nav-active="true"]') as HTMLElement | null;
+    if (!active) {
+      setBox(null);
+      return;
+    }
+    setBox({ top: active.offsetTop, height: active.offsetHeight });
+  }, [pathname, deps]);
+
+  return { navRef, box };
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const { state, hydrated, persistence } = useDukaanStore();
-  const { portal, nav } = usePortal();
+  const { portal, nav, revealAll } = usePortal();
+  const { navRef, box } = useActiveIndicator(pathname, nav);
 
   const businessName = state.profile.name?.trim() || 'My Business';
   const statusLine = !hydrated
@@ -56,10 +89,28 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav aria-label="Main navigation" className="flex-1 space-y-6 overflow-y-auto px-4 pb-6">
+      <nav ref={navRef} aria-label="Main navigation" className="relative flex-1 space-y-6 overflow-y-auto px-4 pb-6">
+        {/* The travelling indicator. `aria-hidden` because the current page is
+            already announced by `aria-current` on the link itself — this is
+            the visual half of the same fact, not a second one. */}
+        <span
+          aria-hidden
+          className="nav-indicator bg-portal-gradient pointer-events-none absolute left-4 w-[3px] rounded-r-full shadow-glow-sm"
+          style={{
+            opacity: box ? 1 : 0,
+            height: box ? `${box.height - 20}px` : 0,
+            transform: `translateY(${(box?.top ?? 0) + 10}px)`,
+            top: 0,
+          }}
+        />
         {nav.map((section) => (
           <div key={section.title}>
-            <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">{section.title}</p>
+            <p className="flex items-center gap-1.5 px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
+              {section.title}
+              {revealAll && section.title === 'Everything else' ? (
+                <Sparkles size={10} className="text-portal" aria-label="Revealed by Everything On" />
+              ) : null}
+            </p>
             <div className="space-y-1">
               {section.links.map((item) => {
                 const Icon = item.icon;
@@ -69,21 +120,20 @@ export function Sidebar() {
                     key={item.href}
                     href={item.href}
                     prefetch
+                    data-nav-active={active ? 'true' : undefined}
+                    data-press="soft"
                     aria-current={active ? 'page' : undefined}
-                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200 ${
+                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-base ease-settle ${
                       active
                         ? 'bg-portal/10 text-portal ring-1 ring-inset ring-portal/25'
-                        : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
+                        : 'text-stone-600 hover:translate-x-0.5 hover:bg-stone-50 hover:text-stone-900'
                     }`}
                   >
-                    {active ? (
-                      <span className="bg-portal-gradient absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full shadow-glow-sm" />
-                    ) : null}
                     <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-colors ${
+                      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-base ease-spring ${
                         active
-                          ? 'bg-portal-gradient text-white shadow-glow-sm'
-                          : 'bg-stone-50 text-stone-600 group-hover:text-stone-700'
+                          ? 'bg-portal-gradient scale-105 text-white shadow-glow-sm'
+                          : 'bg-stone-50 text-stone-600 group-hover:scale-105 group-hover:text-stone-700'
                       }`}
                     >
                       <Icon size={15} strokeWidth={2.2} />

@@ -38,10 +38,10 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Revenue" value={formatCurrency(snapshot.revenue)} icon={Banknote} tone="emerald" spark={trendSeries(snapshot.revenue, 8, 0.2, 1)} />
-        <StatCard label="Gross Profit" value={formatCurrency(snapshot.grossProfit)} icon={Coins} tone="brand" spark={trendSeries(snapshot.grossProfit, 8, 0.22, 2)} />
-        <StatCard label="Operating Profit" value={formatCurrency(snapshot.operatingProfit)} icon={PiggyBank} tone="violet" spark={trendSeries(snapshot.operatingProfit, 8, 0.18, 3)} />
-        <StatCard label="Cash Position" value={formatCurrency(snapshot.cashBalance)} icon={Wallet} tone="amber" spark={trendSeries(snapshot.cashBalance, 8, 0.25, 4)} />
+        <StatCard label="Revenue" value={formatCurrency(snapshot.revenue)} numeric={snapshot.revenue} format={formatCurrency} sensitive icon={Banknote} tone="emerald" spark={trendSeries(snapshot.revenue, 8, 0.2, 1)} />
+        <StatCard label="Gross Profit" value={formatCurrency(snapshot.grossProfit)} numeric={snapshot.grossProfit} format={formatCurrency} sensitive icon={Coins} tone="brand" spark={trendSeries(snapshot.grossProfit, 8, 0.22, 2)} />
+        <StatCard label="Operating Profit" value={formatCurrency(snapshot.operatingProfit)} numeric={snapshot.operatingProfit} format={formatCurrency} sensitive icon={PiggyBank} tone="violet" spark={trendSeries(snapshot.operatingProfit, 8, 0.18, 3)} />
+        <StatCard label="Cash Position" value={formatCurrency(snapshot.cashBalance)} numeric={snapshot.cashBalance} format={formatCurrency} sensitive icon={Wallet} tone="amber" spark={trendSeries(snapshot.cashBalance, 8, 0.25, 4)} />
       </div>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.5fr_1fr]">

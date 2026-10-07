@@ -33,7 +33,7 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from 'react';
-import { Delete, Lock, ShieldAlert } from 'lucide-react';
+import { Delete, Fingerprint, Lock, ShieldAlert } from 'lucide-react';
 import {
   DEFAULT_AUTO_LOCK_MINUTES,
   MAX_ATTEMPTS,
@@ -53,6 +53,7 @@ import {
   writeLockRecord,
   type LockRecord,
 } from '@/lib/security/lock';
+import { passkeyServerSnapshot, passkeySnapshot, subscribePasskey, verifyPasskey } from '@/lib/security/passkey';
 
 type CounterLockValue = {
   enabled: boolean;
@@ -65,6 +66,19 @@ type CounterLockValue = {
   disable: (currentPin: string) => Promise<{ ok: boolean; error?: string }>;
   setAutoLock: (minutes: number) => void;
   unlock: (pin: string) => Promise<{ ok: boolean; error?: string }>;
+  /**
+   * Unlock with the device's own sensor instead of the keypad.
+   *
+   * Deliberately allowed *during* a PIN lockout. The lockout exists because a
+   * 6-digit PIN is guessable and a stranger with the tablet gets five tries;
+   * a passkey is not guessable, and the assertion only returns if the device
+   * matched a finger or a face in hardware. Blocking it would punish the one
+   * person who can actually prove they are the owner — while the person it
+   * was meant to stop is no better off.
+   */
+  unlockWithPasskey: () => Promise<{ ok: boolean; error?: string }>;
+  /** A passkey is enrolled on this device, so the sensor button is worth showing. */
+  passkeyReady: boolean;
   lockNow: () => void;
   /** Erase the lock only — used when the owner has lost the PIN and accepts the cost. */
   forget: () => void;
@@ -129,6 +143,10 @@ export function CounterLockProvider({ children }: { children: ReactNode }) {
   const record = snapshot.record;
   const locked = Boolean(record?.enabled) && !snapshot.unlocked;
   const [attempts, setAttempts] = useState(0);
+  // Subscribed, not read in an effect: a lock screen whose bypass button
+  // flickers into existence a frame after the keypad is a lock screen that
+  // looks like it is being tampered with.
+  const passkeyReady = useSyncExternalStore(subscribePasskey, passkeySnapshot, passkeyServerSnapshot) !== null;
   // Only used to re-render the lockout countdown; never runs while unlocked.
   const [, forceTick] = useState(0);
   const lastActivity = useRef(0);
@@ -164,6 +182,22 @@ export function CounterLockProvider({ children }: { children: ReactNode }) {
     },
     [persist, record],
   );
+
+  const unlockWithPasskey = useCallback(async () => {
+    const current = record;
+    if (!current?.enabled) return { ok: false, error: 'The counter lock is not set up on this device.' };
+    const verdict = await verifyPasskey();
+    if (!verdict.ok) return { ok: false, error: verdict.error };
+    // A successful sensor match clears the attempt counter and the lockout
+    // with it: the owner has proved themselves by a stronger means than the
+    // PIN the lockout was protecting.
+    persist({ ...current, failures: 0, lockedUntil: null, updatedAt: new Date().toISOString() });
+    markUnlocked();
+    lastActivity.current = Date.now();
+    setAttempts(0);
+    publishLock({ unlocked: true });
+    return { ok: true };
+  }, [persist, record]);
 
   const setPin = useCallback(
     async (pin: string, autoLockMinutes = DEFAULT_AUTO_LOCK_MINUTES) => {
@@ -287,11 +321,26 @@ export function CounterLockProvider({ children }: { children: ReactNode }) {
       disable,
       setAutoLock,
       unlock,
+      unlockWithPasskey,
+      passkeyReady,
       lockNow,
       forget,
       record,
     }),
-    [attempts, changePin, disable, forget, lockNow, locked, record, setAutoLock, setPin, unlock],
+    [
+      attempts,
+      changePin,
+      disable,
+      forget,
+      lockNow,
+      locked,
+      passkeyReady,
+      record,
+      setAutoLock,
+      setPin,
+      unlock,
+      unlockWithPasskey,
+    ],
   );
 
   return <CounterLockContext.Provider value={value}>{children}</CounterLockContext.Provider>;
@@ -305,7 +354,7 @@ export function useCounterLock(): CounterLockValue {
 
 /** The keypad, sized for a thumb on a counter tablet. */
 export function CounterLockScreen() {
-  const { unlock, attempts, record, forget } = useCounterLock();
+  const { unlock, unlockWithPasskey, passkeyReady, attempts, record, forget } = useCounterLock();
   const [pin, setPin] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -333,6 +382,15 @@ export function CounterLockScreen() {
     },
     [unlock],
   );
+
+  const sensor = useCallback(async () => {
+    setBusy(true);
+    setError(null);
+    const result = await unlockWithPasskey();
+    setBusy(false);
+    if (!result.ok) setError(result.error ?? 'The device did not confirm.');
+    setNow(Date.now());
+  }, [unlockWithPasskey]);
 
   const press = (digit: string) => {
     if (paused || busy) return;
@@ -368,6 +426,24 @@ export function CounterLockScreen() {
         <p className="mt-4 min-h-[2.5rem] text-center text-sm font-medium text-red-600" role="alert">
           {paused ? `Too many wrong PINs. Try again in ${describeWait(waitMs)}.` : error ?? ''}
         </p>
+
+        {/*
+          Offered even while the keypad is paused. The lockout is a defence
+          against guessing a 6-digit number; the sensor cannot be guessed, so
+          holding the owner out of their own till for fifteen minutes would
+          cost them the shop's afternoon and cost an intruder nothing.
+        */}
+        {passkeyReady ? (
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => void sensor()}
+            className="mb-3 flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-brand-500 text-sm font-semibold text-onaccent shadow-glow transition-[transform,opacity] duration-base ease-settle active:scale-[0.97] disabled:opacity-50"
+          >
+            <Fingerprint size={18} />
+            {paused ? 'Unlock with this device instead' : 'Unlock with this device'}
+          </button>
+        ) : null}
 
         <div className="mt-2 grid grid-cols-3 gap-3">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map((digit) => (

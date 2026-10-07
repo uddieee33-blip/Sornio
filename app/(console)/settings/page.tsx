@@ -14,6 +14,8 @@ import Link from 'next/link';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { CaptureReadinessCard } from '@/components/scanning/capture-readiness';
+import { AppearancePanel } from '@/components/theme/appearance-panel';
+import { EverythingSwitch } from '@/components/portals/everything-switch';
 import { EnvSetup } from '@/components/settings/env-setup';
 import { OwnerPinModal, ROLE_META, useOwnerGate } from '@/components/settings/owner-gate';
 import { useCounterLock } from '@/components/security/counter-lock';
@@ -259,6 +261,18 @@ export default function SettingsPage() {
 
           {/* What this device can actually do for this trade. */}
           <CaptureReadinessCard />
+
+          {/* Appearance. Anchored, because the top bar's paint menu links
+              straight here — "density, motion, text size…" should land on the
+              dials, not at the top of a long settings page. */}
+          <div id="appearance" className="scroll-mt-24">
+            <AppearancePanel />
+          </div>
+
+          {/* The one switch that widens the console the portal narrowed. */}
+          <div id="everything" className="scroll-mt-24">
+            <EverythingSwitch />
+          </div>
 
           {/* Console shape — one source of truth, no contradicting switches */}
           <Card className="animate-fade-up">

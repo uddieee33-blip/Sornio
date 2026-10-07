@@ -1,54 +1,169 @@
 @import '@fontsource-variable/inter';
 @import '@fontsource-variable/space-grotesk';
 
+/* Every paint DukaanOS ships. Generated — see scripts/build-themes.mjs. */
+@import './themes.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light;
-  --warm-page: #f7f6ef;
-  --warm-surface: #fffefa;
-  --warm-surface-muted: #f3f1e7;
-  --warm-border: #e6e2d6;
-  --warm-border-strong: #d9d3c4;
-  --warm-text: #292e26;
-  --warm-text-secondary: #4f584d;
-  --warm-text-muted: #71796d;
-  --warm-accent: #28623b;
+/*
+ * ---------------------------------------------------------------------------
+ * Appearance is four independent dials, not one "dark mode" switch
+ * ---------------------------------------------------------------------------
+ *
+ *   data-theme    which paint        (10 of them, app/themes.css)
+ *   data-density  how tight          comfortable · compact
+ *   data-motion   how much it moves  full · calm · off
+ *   data-text     how big            90% … 125%
+ *
+ * All four live as attributes on <html>, are written by the server from a
+ * cookie before the first byte of HTML (so there is no flash of the wrong
+ * paint), and are reconciled by the client afterwards. They compose: Night
+ * Market + compact + calm + 110% text is a valid, supported console.
+ */
 
-  /* Portal accent (overridden per business type by the PortalProvider).
+:root {
+  /* Fallbacks only. The real values arrive from the [data-theme] block, which
+     always matches because the server sets the attribute on <html>. */
+  color-scheme: light;
+  --c-page: 247 246 239;
+  --c-white: 255 254 250;
+  --c-lift: 255 255 255;
+  --c-onaccent: 255 254 250;
+  --c-black: 10 10 10;
+  --c-shadow: 67 55 28;
+  --shadow-strength: 0.22;
+  --c-highlight: rgb(255 255 255 / 0.92);
+  --c-focus: rgb(40 98 59 / 0.85);
+  --c-selection-bg: rgb(198 145 48 / 0.28);
+  --c-selection-fg: rgb(51 38 15);
+  --c-scrollbar: rgb(73 88 63 / 0.22);
+  --c-glow-a: rgb(198 155 75 / 0.12);
+  --c-glow-b: rgb(49 111 65 / 0.09);
+  --c-brand-gradient: linear-gradient(135deg, #347549 0%, #2f7548 58%, #93661d 100%);
+
+  /* Portal accent — overridden per business type by the PortalProvider.
      Space-separated RGB so Tailwind's alpha modifiers work against it. */
   --portal-accent: 40 98 59;
   --portal-accent-deep: 17 50 31;
+
+  /* Motion. One multiplier the whole console divides by. */
+  --motion-scale: 1;
+  --ease-settle: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --ease-swift: cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Density + type scale. */
+  --density: 1;
+  --text-scale: 1;
 }
 
-html {
-  scroll-behavior: smooth;
+/* ---------- Motion level ---------- */
+
+/* "Calm" keeps the orientation cues (things still come from somewhere) but
+   halves every duration, so the console feels quick rather than animated. */
+html[data-motion='calm'] {
+  --motion-scale: 0.55;
 }
 
+/* "Off" is off: not "faster", not "subtle". Nothing moves except what the
+   finger is dragging. Transitions collapse to zero rather than to 0.01ms so
+   there is no sub-frame flicker on a slow device. */
+html[data-motion='off'],
+html[data-motion='off'] *,
+html[data-motion='off'] *::before,
+html[data-motion='off'] *::after {
+  --motion-scale: 0;
+  animation-duration: 0s !important;
+  animation-delay: 0s !important;
+  transition-duration: 0s !important;
+  transition-delay: 0s !important;
+  scroll-behavior: auto !important;
+}
+
+/* The system preference is honoured even when the owner never opened
+   Appearance — and it is honoured by *default*, not as an afterthought. */
 @media (prefers-reduced-motion: reduce) {
-  html {
+  html:not([data-motion='full']) {
+    --motion-scale: 0;
     scroll-behavior: auto;
   }
-  *,
-  *::before,
-  *::after {
+  html:not([data-motion='full']) *,
+  html:not([data-motion='full']) *::before,
+  html:not([data-motion='full']) *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
 }
 
+/* ---------- Density ---------- */
+
+/*
+ * Compact is for the counter: a 13" till screen that has to show twenty rows
+ * of a bill, not twelve. It tightens the paddings the console actually repeats
+ * — card bodies, table cells, list rows — and leaves tap targets alone, because
+ * a smaller button on a touch screen is a mis-tap, not a saving.
+ */
+html[data-density='compact'] {
+  --density: 0.78;
+}
+
+html[data-density='compact'] :is(.p-5, .p-6, .md\:p-6) {
+  padding: calc(1.25rem * var(--density));
+}
+html[data-density='compact'] :is(.px-4, .md\:px-8) {
+  padding-left: calc(1rem * var(--density));
+  padding-right: calc(1rem * var(--density));
+}
+html[data-density='compact'] :is(.py-6, .md\:py-10) {
+  padding-top: calc(1.5rem * var(--density));
+  padding-bottom: calc(1.5rem * var(--density));
+}
+html[data-density='compact'] :is(td, th) {
+  padding-top: calc(0.75rem * var(--density));
+  padding-bottom: calc(0.75rem * var(--density));
+}
+html[data-density='compact'] :is(.space-y-6) > * + * {
+  margin-top: calc(1.5rem * var(--density));
+}
+
+/* ---------- Type scale ---------- */
+
+/*
+ * Browser zoom scales the layout too, which breaks a fixed sidebar on a small
+ * till. This scales only the *root font size*, so every `rem` in the console
+ * follows and the frame stays where it was.
+ */
+html[data-text='90'] { --text-scale: 0.9; }
+html[data-text='100'] { --text-scale: 1; }
+html[data-text='110'] { --text-scale: 1.1; }
+html[data-text='125'] { --text-scale: 1.25; }
+
+html {
+  font-size: calc(16px * var(--text-scale));
+  scroll-behavior: smooth;
+  /* Keep a scrollbar gutter reserved so opening a long page does not shift the
+     layout sideways by 8px — the single most common "it jumped" complaint. */
+  scrollbar-gutter: stable;
+}
+
 html,
 body {
   margin: 0;
   padding: 0;
-  background: var(--warm-page);
-  color: var(--warm-text);
+  background: rgb(var(--c-page));
+  color: rgb(var(--c-stone-900));
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   text-rendering: optimizeLegibility;
+  /* Repainting the console when the paint changes should read as a dissolve,
+     not a flash of unstyled colour. */
+  transition:
+    background-color calc(260ms * var(--motion-scale)) var(--ease-swift),
+    color calc(260ms * var(--motion-scale)) var(--ease-swift);
 }
 
 * {
@@ -89,18 +204,48 @@ table,
   font-variant-numeric: tabular-nums;
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * The `white` exception
+ * ---------------------------------------------------------------------------
+ * Tailwind's `white` is the card surface in this codebase, so it goes dark in
+ * a dark paint. But `text-white` on a filled accent (a primary button, a portal
+ * header) has to stay white in every paint, or the label disappears into its
+ * own button. These are the only places the two meanings collide — eleven
+ * utilities, enumerated rather than guessed at with a wildcard.
+ */
+.text-white { color: rgb(var(--c-onaccent)); }
+.text-white\/80 { color: rgb(var(--c-onaccent) / 0.8); }
+.text-white\/70 { color: rgb(var(--c-onaccent) / 0.7); }
+.ring-white\/25 { --tw-ring-color: rgb(var(--c-onaccent) / 0.25); }
+.ring-white\/10 { --tw-ring-color: rgb(var(--c-onaccent) / 0.1); }
+.border-white\/70 { border-color: rgb(var(--c-onaccent) / 0.7); }
+.bg-white\/15 { background-color: rgb(var(--c-onaccent) / 0.15); }
+.group:hover .group-hover\:text-white { color: rgb(var(--c-onaccent)); }
+.hover\:text-white:hover { color: rgb(var(--c-onaccent)); }
+
+/* Translucent card surfaces still mean "card", so they follow the paint. */
+.bg-white\/70 { background-color: rgb(var(--c-white) / 0.7); }
+.bg-white\/80 { background-color: rgb(var(--c-white) / 0.8); }
+
+/* Scrims sit over content and must darken in every paint, including the ones
+   where `black` is no longer #000. */
+.bg-black\/25 { background-color: rgb(0 0 0 / 0.25); }
+.bg-black\/60 { background-color: rgb(0 0 0 / 0.6); }
+.bg-black\/70 { background-color: rgb(0 0 0 / 0.7); }
+
 /* ---------- Motion primitives ---------- */
 
 /* Shimmer for loading skeletons: a light sweep, not a pulsing block. */
 .shimmer {
   background-image: linear-gradient(
     90deg,
-    rgba(61, 76, 49, 0.035) 0%,
-    rgba(61, 76, 49, 0.085) 50%,
-    rgba(61, 76, 49, 0.035) 100%
+    rgb(var(--c-stone-500) / 0.04) 0%,
+    rgb(var(--c-stone-500) / 0.11) 50%,
+    rgb(var(--c-stone-500) / 0.04) 100%
   );
   background-size: 200% 100%;
-  animation: dukaan-shimmer 1.6s linear infinite;
+  animation: dukaan-shimmer calc(1600ms * var(--motion-scale)) linear infinite;
 }
 
 @keyframes dukaan-shimmer {
@@ -112,9 +257,159 @@ table,
   }
 }
 
+/*
+ * Press feedback.
+ *
+ * A counter is used with a finger, often a wet or cold one, on a cheap screen
+ * with 150ms of touch latency. The one thing that makes a tap feel received is
+ * an immediate scale — it happens on `:active`, before any state update, before
+ * React has heard about it. 0.97 is deliberately small: enough to register,
+ * not enough to look like a toy.
+ */
+.press,
+button:not(:disabled),
+[role='button']:not([aria-disabled='true']),
+a[href] {
+  transition:
+    transform calc(140ms * var(--motion-scale)) var(--ease-spring),
+    box-shadow calc(180ms * var(--motion-scale)) var(--ease-settle),
+    background-color calc(180ms * var(--motion-scale)) var(--ease-swift),
+    border-color calc(180ms * var(--motion-scale)) var(--ease-swift),
+    color calc(180ms * var(--motion-scale)) var(--ease-swift),
+    opacity calc(180ms * var(--motion-scale)) var(--ease-swift);
+}
+
+button:not(:disabled):active,
+[role='button']:not([aria-disabled='true']):active,
+.press:active {
+  transform: scale(0.97);
+}
+
+/* Large surfaces (cards acting as buttons) need less, or they wobble. */
+.press-soft:active,
+[data-press='soft']:active {
+  transform: scale(0.992);
+}
+
+/* Links in prose should not scale — only things that look pressable. */
+a[href]:not([class*='rounded']):not([role='button']):active {
+  transform: none;
+}
+
+/* A row that lifts towards the pointer. Compositor-only: transform + shadow. */
+.lift {
+  transition:
+    transform calc(240ms * var(--motion-scale)) var(--ease-settle),
+    box-shadow calc(240ms * var(--motion-scale)) var(--ease-settle);
+  will-change: transform;
+}
+
+@media (hover: hover) {
+  .lift:hover {
+    transform: translateY(-2px);
+  }
+}
+
+/*
+ * Reveal-on-scroll.
+ *
+ * The element starts hidden and is released by an IntersectionObserver
+ * (`components/motion/reveal.tsx`) adding `data-shown`. Crucially the *hidden*
+ * state is only applied when JS has marked the document as able to reveal it —
+ * `html[data-reveal='on']` — so with JavaScript disabled, or if the observer
+ * never fires, the content is simply visible. Content must never depend on an
+ * animation to exist.
+ */
+html[data-reveal='on'] [data-reveal-item] {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity calc(520ms * var(--motion-scale)) var(--ease-settle),
+    transform calc(520ms * var(--motion-scale)) var(--ease-settle);
+  transition-delay: calc(var(--reveal-delay, 0ms) * var(--motion-scale));
+}
+
+html[data-reveal='on'] [data-reveal-item][data-shown='true'] {
+  opacity: 1;
+  transform: none;
+}
+
+/*
+ * Sparkline draw-in.
+ *
+ * The stroke is animated in JS (it needs the measured path length), but the
+ * fill and the head of the line are plain CSS so they cost nothing. The head
+ * is delayed past the stroke so the dot lands *after* the line reaches it,
+ * which is the detail that makes the chart read as drawn rather than wiped.
+ */
+.spark-fill {
+  animation: spark-fade calc(700ms * var(--motion-scale)) var(--ease-settle) both;
+}
+
+.spark-head {
+  animation: spark-pop calc(240ms * var(--motion-scale)) var(--ease-spring) both;
+  animation-delay: calc(620ms * var(--motion-scale));
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+@keyframes spark-fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes spark-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.2);
+  }
+}
+
+/*
+ * View Transitions.
+ *
+ * Where the browser supports them, a route change cross-fades the whole
+ * document in one compositor pass instead of each page animating itself. The
+ * old frame slides out and the new one slides in by a few pixels, which reads
+ * as "the console moved" rather than "the page reloaded".
+ */
+@media (prefers-reduced-motion: no-preference) {
+  ::view-transition-old(root) {
+    animation: vt-out calc(160ms * var(--motion-scale)) var(--ease-swift) both;
+  }
+  ::view-transition-new(root) {
+    animation: vt-in calc(260ms * var(--motion-scale)) var(--ease-settle) both;
+  }
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+/* The sliding indicator behind the active nav item. It is one element that
+   moves, not a background that appears — so the eye tracks where it went. */
+.nav-indicator {
+  transition:
+    transform calc(300ms * var(--motion-scale)) var(--ease-spring),
+    height calc(300ms * var(--motion-scale)) var(--ease-spring),
+    opacity calc(200ms * var(--motion-scale)) var(--ease-swift);
+  will-change: transform;
+}
+
 /* One visible, consistent focus treatment for keyboard users. */
 :focus-visible {
-  outline: 2px solid rgba(40, 98, 59, 0.78);
+  outline: 2px solid var(--c-focus);
   outline-offset: 2px;
   border-radius: 6px;
 }
@@ -128,10 +423,9 @@ table,
   }
 }
 
-/* Text selection picks up the warm saffron accent instead of the OS default. */
 ::selection {
-  background: rgba(198, 145, 48, 0.28);
-  color: #33260f;
+  background: var(--c-selection-bg);
+  color: var(--c-selection-fg);
 }
 
 /* Respect the OS "reduce transparency" / low-power preference. */
@@ -144,133 +438,64 @@ table,
   }
 }
 
-/* Slim warm scrollbars */
+/* Slim scrollbars, painted by the active theme. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(73, 88, 63, 0.22) transparent;
+  scrollbar-color: var(--c-scrollbar) transparent;
 }
 *::-webkit-scrollbar {
   width: 8px;
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(73, 88, 63, 0.22);
+  background: var(--c-scrollbar);
   border-radius: 8px;
 }
 *::-webkit-scrollbar-track {
   background: transparent;
 }
 
-/* Light native select dropdowns */
+/* Native select dropdowns follow the paint (color-scheme does the rest). */
 select option {
-  background-color: #fffefa;
-  color: #292e26;
+  background-color: rgb(var(--c-white));
+  color: rgb(var(--c-stone-900));
 }
 
-/*
- * Warm-light compatibility layer for the original dark utility palette.
- * Shared classes across the console, landing page, forms, and popovers keep
- * their layout/interaction behavior while surfaces and text gain light-mode
- * contrast. New UI should use the warm tokens above directly.
- */
-html[data-theme='warm'] body {
-  background: var(--warm-page);
-  color: var(--warm-text);
-}
-
-html[data-theme='warm'] [class*='bg-[#'] {
-  background-color: var(--warm-surface) !important;
-}
-
-html[data-theme='warm'] [class*='bg-white/'] {
-  background-color: var(--warm-surface) !important;
-}
-
-html[data-theme='warm'] [class*='hover:bg-white/']:hover {
-  background-color: var(--warm-surface-muted) !important;
-}
-
-html[data-theme='warm'] [class*='border-white'] {
-  border-color: var(--warm-border) !important;
-}
-
-html[data-theme='warm'] [class*='ring-white'] {
-  --tw-ring-color: var(--warm-border-strong) !important;
-}
-
-html[data-theme='warm'] [class~='text-white'] {
-  color: var(--warm-text) !important;
-}
-
-html[data-theme='warm'] [class*='hover:text-white']:hover {
-  color: var(--warm-text) !important;
-}
-
-html[data-theme='warm'] [class*='text-zinc-200'],
-html[data-theme='warm'] [class*='text-zinc-300'] {
-  color: var(--warm-text-secondary) !important;
-}
-
-html[data-theme='warm'] [class*='text-zinc-400'],
-html[data-theme='warm'] [class*='text-zinc-500'],
-html[data-theme='warm'] [class*='text-zinc-600'],
-html[data-theme='warm'] [class*='text-zinc-700'] {
-  color: var(--warm-text-muted) !important;
-}
-
-html[data-theme='warm'] [class*='placeholder-zinc-']::placeholder {
-  color: #858b7f !important;
+/* Placeholders are a token, not a shade of grey that happened to look right. */
+::placeholder {
+  color: rgb(var(--c-stone-500));
   opacity: 1;
 }
 
-html[data-theme='warm'] [class*='text-emerald-'] {
-  color: #23663d !important;
+/*
+ * ---------------------------------------------------------------------------
+ * Privacy screen
+ * ---------------------------------------------------------------------------
+ * A shop counter is a public place. `data-privacy="on"` blurs every figure
+ * marked `data-sensitive` until the owner hovers or focuses it, so the day's
+ * takings are not readable over a shoulder while a customer waits. It is a CSS
+ * filter, so it costs nothing and cannot be defeated by a slow network — but it
+ * is honest about what it is: a screen, not encryption. The real lock is the
+ * PIN in the Trust Centre.
+ */
+html[data-privacy='on'] [data-sensitive] {
+  filter: blur(7px);
+  transition: filter calc(160ms * var(--motion-scale)) var(--ease-swift);
+  cursor: pointer;
+  user-select: none;
 }
 
-html[data-theme='warm'] [class*='text-amber-'] {
-  color: #86570b !important;
+html[data-privacy='on'] [data-sensitive]:hover,
+html[data-privacy='on'] [data-sensitive]:focus-within,
+html[data-privacy='on'] [data-sensitive][data-revealed='true'] {
+  filter: none;
+  user-select: auto;
 }
 
-html[data-theme='warm'] [class*='text-red-'] {
-  color: #ad3f36 !important;
-}
-
-html[data-theme='warm'] [class*='text-rose-'] {
-  color: #a83f54 !important;
-}
-
-html[data-theme='warm'] [class*='text-violet-'] {
-  color: #674594 !important;
-}
-
-html[data-theme='warm'] [class*='text-sky-'] {
-  color: #22677f !important;
-}
-
-html[data-theme='warm'] [class*='text-brand-200'] {
-  color: #4e7650 !important;
-}
-
-html[data-theme='warm'] [class~='bg-emerald-500'] {
-  background-color: #28623b !important;
-}
-
-/* Keep white foregrounds white on every intentionally filled accent surface. */
-html[data-theme='warm'] [class~='bg-brand-gradient'][class~='text-white'],
-html[data-theme='warm'] [class~='bg-brand-500'][class~='text-white'],
-html[data-theme='warm'] [class~='bg-emerald-500'][class~='text-white'],
-html[data-theme='warm'] [class~='bg-portal-gradient'][class~='text-white'],
-html[data-theme='warm'] [class~='bg-portal'][class~='text-white'],
-html[data-theme='warm'] [class~='portal-surface'][class~='text-white'],
-html[data-theme='warm'] [class~='bg-brand-gradient'] [class~='text-white'],
-html[data-theme='warm'] [class~='bg-portal-gradient'] [class~='text-white'],
-html[data-theme='warm'] .portal-surface [class~='text-white'],
-html[data-theme='warm'] .group:hover [class*='group-hover:text-white'] {
-  color: #fffefa !important;
-}
-
-html[data-theme='warm'] [class*='shadow-black/'] {
-  --tw-shadow-color: rgba(67, 55, 28, 0.16) !important;
+/* Leaving the tab re-blurs instantly — the shoulder-surf case is someone
+   picking the device up while the owner is away from it. */
+html[data-privacy='on'][data-away='true'] [data-sensitive] {
+  filter: blur(9px) !important;
 }
 
 @media print {
@@ -297,6 +522,7 @@ html[data-theme='warm'] [class*='shadow-black/'] {
     background: transparent !important;
     text-shadow: none !important;
     box-shadow: none !important;
+    filter: none !important;
   }
   .no-print, .no-print * { display: none !important; }
   .print-area table thead { background: #f4f4f5 !important; }
@@ -318,7 +544,7 @@ html[data-theme='warm'] [class*='shadow-black/'] {
 }
 
 .animate-collect-panel {
-  animation: collect-panel-in 0.32s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: collect-panel-in calc(320ms * var(--motion-scale)) var(--ease-settle) both;
 }
 
 /* Method cards rise in with a stagger (each card sets its own animation-delay). */
@@ -334,7 +560,7 @@ html[data-theme='warm'] [class*='shadow-black/'] {
 }
 
 .animate-collect-rise {
-  animation: collect-rise 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: collect-rise calc(400ms * var(--motion-scale)) var(--ease-settle) both;
 }
 
 /* The collection modal and success receipt pop in with a little overshoot. */
@@ -354,7 +580,7 @@ html[data-theme='warm'] [class*='shadow-black/'] {
 }
 
 .animate-collect-pop {
-  animation: collect-pop 0.38s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: collect-pop calc(380ms * var(--motion-scale)) var(--ease-settle) both;
 }
 
 /* The success tick blooms after the receipt lands. */
@@ -374,22 +600,22 @@ html[data-theme='warm'] [class*='shadow-black/'] {
 }
 
 .animate-collect-success {
-  animation: collect-success 0.5s cubic-bezier(0.22, 1, 0.36, 1) 0.1s both;
+  animation: collect-success calc(500ms * var(--motion-scale)) var(--ease-settle) calc(100ms * var(--motion-scale)) both;
 }
 
 /* A soft breathing ring around the UPI QR — it is the thing to look at. */
 @keyframes collect-qr-pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 0 rgba(40, 98, 59, 0.22), 0 8px 24px -16px rgba(75, 62, 34, 0.22);
+    box-shadow: 0 0 0 0 rgb(var(--portal-accent) / 0.22), 0 8px 24px -16px rgb(var(--c-shadow) / var(--shadow-strength));
   }
   50% {
-    box-shadow: 0 0 0 9px rgba(40, 98, 59, 0), 0 8px 24px -16px rgba(75, 62, 34, 0.22);
+    box-shadow: 0 0 0 9px rgb(var(--portal-accent) / 0), 0 8px 24px -16px rgb(var(--c-shadow) / var(--shadow-strength));
   }
 }
 
 .qr-pulse {
-  animation: collect-qr-pulse 2.4s ease-out infinite;
+  animation: collect-qr-pulse calc(2400ms * var(--motion-scale)) ease-out infinite;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -404,7 +630,7 @@ html[data-theme='warm'] [class*='shadow-black/'] {
 
 /* Folded-away disclosures (Settings → Advanced) unfurl instead of snapping. */
 .disclosure-body {
-  animation: collect-panel-in 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation: collect-panel-in calc(300ms * var(--motion-scale)) var(--ease-settle) both;
 }
 
 /* Thin scrollbars stay out of the way inside the collection modal. */
@@ -448,11 +674,11 @@ html[data-theme='warm'] [class*='shadow-black/'] {
   box-shadow: 0 12px 30px -14px rgb(var(--portal-accent) / 0.45);
 }
 
-/* Switching business type repaints the frame rather than snapping it. */
+/* Switching business type — or paint — repaints the frame rather than snapping it. */
 .portal-transition {
   transition:
-    background-color 280ms ease,
-    border-color 280ms ease,
-    color 200ms ease,
-    box-shadow 280ms ease;
+    background-color calc(280ms * var(--motion-scale)) var(--ease-swift),
+    border-color calc(280ms * var(--motion-scale)) var(--ease-swift),
+    color calc(200ms * var(--motion-scale)) var(--ease-swift),
+    box-shadow calc(280ms * var(--motion-scale)) var(--ease-swift);
 }

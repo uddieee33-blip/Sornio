@@ -5,8 +5,7 @@
       "'self'"
     ],
     "script-src": [
-      "'self'",
-      "'unsafe-inline'"
+      "'self'"
     ],
     "style-src": [
       "'self'",
@@ -47,6 +46,20 @@
     ],
     "object-src": [
       "'none'"
+    ],
+    "child-src": [
+      "'none'"
+    ],
+    "script-src-attr": [
+      "'none'"
+    ],
+    "require-trusted-types-for": [
+      "'script'"
+    ],
+    "trusted-types": [
+      "default",
+      "nextjs#bundler",
+      "'allow-duplicates'"
     ]
   },
   "framing": {
@@ -97,6 +110,10 @@
     {
       "key": "Cross-Origin-Embedder-Policy",
       "value": "unsafe-none"
+    },
+    {
+      "key": "X-Robots-Tag",
+      "value": "noindex, nofollow, noarchive, nosnippet"
     }
   ],
   "hsts": {
@@ -139,26 +156,60 @@
     "burstPage": {
       "limit": 60,
       "windowMs": 5000
+    },
+    "master": {
+      "limit": 6,
+      "windowMs": 60000
+    },
+    "report": {
+      "limit": 20,
+      "windowMs": 60000
     }
   },
   "probePaths": [
-    "/.env",
-    "/.env.local",
-    "/.git",
-    "/wp-admin",
-    "/wp-login.php",
-    "/phpmyadmin",
-    "/admin.php",
-    "/xmlrpc.php",
+    "/.DS_Store",
     "/.aws",
+    "/.dockerenv",
+    "/.env",
+    "/.env.development",
+    "/.env.local",
+    "/.env.production",
+    "/.git",
+    "/.git/config",
+    "/.hg",
+    "/.npmrc",
     "/.ssh",
-    "/config.json",
-    "/secrets",
+    "/.svn",
+    "/.vscode/sftp.json",
+    "/.well-known/openid-configuration/.env",
+    "/_ignition/execute-solution",
     "/actuator",
-    "/vendor/phpunit",
+    "/admin.php",
+    "/api/.env",
+    "/aws.yml",
+    "/backup.sql",
     "/cgi-bin",
+    "/config.json",
+    "/credentials",
+    "/db.sqlite",
+    "/debug/default/view",
+    "/docker-compose.yml",
+    "/dump.sql",
+    "/id_rsa",
+    "/jenkins",
+    "/laravel/.env",
+    "/package-lock.json.bak",
+    "/phpmyadmin",
+    "/secrets",
     "/server-status",
-    "/.DS_Store"
+    "/solr",
+    "/telescope/requests",
+    "/vendor/phpunit",
+    "/wp-admin",
+    "/wp-content",
+    "/wp-includes",
+    "/wp-login.php",
+    "/xmlrpc.php"
   ],
   "permissions": {
     "features": {
@@ -181,7 +232,9 @@
       "payment": [],
       "picture-in-picture": [],
       "publickey-credentials-create": [],
-      "publickey-credentials-get": [],
+      "publickey-credentials-get": [
+        "self"
+      ],
       "screen-wake-lock": [],
       "serial": [],
       "usb": [],
@@ -214,7 +267,31 @@
             "self"
           ]
         }
+      },
+      {
+        "label": "Passkey enrolment (Trust Centre)",
+        "surfaces": [
+          "/security"
+        ],
+        "grants": {
+          "publickey-credentials-create": [
+            "self"
+          ]
+        }
       }
     ]
+  },
+  "reporting": {
+    "endpoint": "/api/report",
+    "group": "dukaan",
+    "maxAgeSeconds": 86400,
+    "note": "Violation reports are redacted, bounded and never leave this origin. The endpoint stores nothing by default: it counts, classifies and drops. A report is a signal that the policy or the app is wrong, not a place to collect telemetry about an owner's browser."
+  },
+  "abuse": {
+    "strikesBeforePenalty": 4,
+    "penaltyMs": 120000,
+    "maxPenaltyMs": 1800000,
+    "strikeWindowMs": 300000,
+    "note": "A client that keeps hitting 429 is not a shop that got busy; it is a script. After four throttles inside five minutes the fingerprint is put in a penalty box that doubles each time, capped at thirty minutes. Legitimate traffic never sees this because a human cannot earn four throttles in five minutes."
   }
 }

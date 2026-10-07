@@ -129,6 +129,18 @@ export function ruleForPath(
   if (pathname.startsWith('/api/subscription')) {
     return { scope: 'plan', rule: table.plan };
   }
+  // Everything On is a switch an owner flips twice a year and a script would
+  // flip continuously. Six a minute is generous for the first and useless for
+  // the second.
+  if (pathname.startsWith('/api/master')) {
+    return { scope: 'master', rule: table.master };
+  }
+  // Violation reports arrive from the browser, unauthenticated, and a hostile
+  // page can aim a browser at this endpoint. Its own bucket keeps a report
+  // flood from eating the budget the console needs to work.
+  if (pathname.startsWith('/api/report')) {
+    return { scope: 'report', rule: table.report };
+  }
   if (pathname.startsWith('/api')) {
     return { scope: 'api', rule: table.api };
   }
@@ -145,4 +157,98 @@ export function rateLimitHeaders(decision: RateLimitDecision): Record<string, st
     'X-RateLimit-Remaining': String(decision.remaining),
     'X-RateLimit-Reset': String(Math.ceil(decision.resetAt / 1000)),
   };
+}
+
+/* -------------------------------------------------------------------------- */
+/*  The penalty box                                                           */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * A sliding window answers "how fast?". It does not answer "is this a shop or
+ * a script?".
+ *
+ * A shop that gets busy hits its limit once, reads the `Retry-After`, and
+ * slows down. A script hits the limit, gets a 429, and immediately tries
+ * again — which under a pure sliding window costs the attacker nothing and
+ * costs us a full request's worth of work every time, forever.
+ *
+ * So throttles are counted. Four of them inside five minutes and the
+ * fingerprint goes into a penalty box: every request is refused up front,
+ * before the window arithmetic, before the cookie parsing, before anything.
+ * The penalty doubles on each subsequent trip and is capped at thirty minutes,
+ * so a persistent attacker converges on one request per half hour while the
+ * cost to us converges on a map lookup.
+ *
+ * A human cannot earn four throttles in five minutes at these budgets (300
+ * page requests a minute), which is the test for whether a control like this
+ * is safe to ship: it has to be unreachable by accident.
+ */
+export type AbuseRule = {
+  strikesBeforePenalty: number;
+  penaltyMs: number;
+  maxPenaltyMs: number;
+  strikeWindowMs: number;
+};
+
+type Strike = { count: number; firstAt: number; until: number; penaltyMs: number };
+
+const strikes = new Map<string, Strike>();
+const MAX_TRACKED = 5000;
+
+function sweepStrikes(now: number) {
+  if (strikes.size <= MAX_TRACKED) return;
+  for (const [key, strike] of strikes) {
+    if (now > strike.until && now - strike.firstAt > strike.penaltyMs * 2) strikes.delete(key);
+    if (strikes.size <= MAX_TRACKED) break;
+  }
+}
+
+/** Is this fingerprint currently serving a penalty? Cheap: one map read. */
+export function penaltyRemainingMs(fingerprint: string, now: number = Date.now()): number {
+  const strike = strikes.get(fingerprint);
+  if (!strike || now >= strike.until) return 0;
+  return strike.until - now;
+}
+
+/**
+ * Record a throttle. Returns the penalty now in force, in milliseconds (0 when
+ * the client is still below the strike threshold and is only being slowed).
+ */
+export function recordThrottle(
+  fingerprint: string,
+  rule: AbuseRule,
+  now: number = Date.now(),
+): number {
+  const existing = strikes.get(fingerprint);
+
+  // A strike window that has fully elapsed means the client behaved for long
+  // enough to deserve a clean slate. Forgiveness is not generosity here — it
+  // is what keeps a shared shop IP from accumulating strikes over a month.
+  if (!existing || now - existing.firstAt > rule.strikeWindowMs) {
+    strikes.set(fingerprint, { count: 1, firstAt: now, until: 0, penaltyMs: rule.penaltyMs });
+    sweepStrikes(now);
+    return 0;
+  }
+
+  existing.count += 1;
+
+  if (existing.count >= rule.strikesBeforePenalty) {
+    // Double on each trip past the threshold, capped.
+    const penalty = existing.until > 0 ? Math.min(existing.penaltyMs * 2, rule.maxPenaltyMs) : rule.penaltyMs;
+    existing.penaltyMs = penalty;
+    existing.until = now + penalty;
+    existing.count = 0;
+    existing.firstAt = now;
+    strikes.set(fingerprint, existing);
+    sweepStrikes(now);
+    return penalty;
+  }
+
+  strikes.set(fingerprint, existing);
+  return 0;
+}
+
+/** Wipe the penalty state. Exists for the verifier, not for the running app. */
+export function resetAbuseState(): void {
+  strikes.clear();
 }

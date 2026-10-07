@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
+    "theme:build": "node scripts/build-themes.mjs",
     "verify:scanning": "node scripts/verify-scanning.mjs",
     "verify:billing": "node scripts/verify-billing.mjs",
     "verify:inventory": "node scripts/verify-inventory.mjs",
@@ -16,8 +17,10 @@
     "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",
     "verify:i18n": "node scripts/verify-i18n.mjs",
     "verify:lock": "node scripts/verify-lock.mjs",
-    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:i18n",
-    "mint:activation": "node scripts/mint-activation.mjs"
+    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:theme && npm run verify:security && npm run verify:i18n",
+    "mint:activation": "node scripts/mint-activation.mjs",
+    "verify:theme": "node scripts/verify-theme.mjs",
+    "verify:security": "node scripts/verify-security.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
