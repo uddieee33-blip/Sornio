@@ -96,9 +96,9 @@ export default function CustomersPage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-3 animate-fade-up">
-        <StatCard label="Customers" value={String(state.customers.length)} icon={Users} tone="brand" />
-        <StatCard label="UPI QR ready" value={String(upiReadyCount)} icon={QrCode} tone="emerald" delta="Direct-to-bank collections" />
-        <StatCard label="Outstanding" value={formatCurrency(receivables)} numeric={receivables} format={formatCurrency} sensitive icon={IndianRupee} tone="amber" />
+        <StatCard index={0} label="Customers" value={String(state.customers.length)} icon={Users} tone="brand" />
+        <StatCard index={1} label="UPI QR ready" value={String(upiReadyCount)} icon={QrCode} tone="emerald" delta="Direct-to-bank collections" />
+        <StatCard index={2} label="Outstanding" value={formatCurrency(receivables)} numeric={receivables} format={formatCurrency} sensitive icon={IndianRupee} tone="amber" />
       </div>
 
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">

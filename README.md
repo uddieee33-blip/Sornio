@@ -627,12 +627,13 @@ npm run dev                  # http://localhost:3000
 
 npm run typecheck            # no type errors
 npm run lint                 # no lint problems
-npm run verify               # all seven verification suites, below
+npm run verify               # all eight verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
+npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
 npm run verify:security      # 33 invariants the security layer is not allowed to lose
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
 
@@ -875,7 +876,7 @@ an afternoon and costs an intruder nothing.
 
 ### Verify it yourself
 
-`npm run verify` runs all seven suites and exits non-zero on the first
+`npm run verify` runs all eight suites and exits non-zero on the first
 disagreement:
 
 | Suite | What it refuses to let regress |
@@ -885,14 +886,27 @@ disagreement:
 | `verify:inventory` | 108 packets − 3 = 105, and everything that could quietly break it |
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
+| `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
 | `verify:security` | 33 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, one CSRF exemption, a bucket per mutating endpoint, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
 
-The security suite is the one worth explaining. Security regressions do not
-look like bugs — nobody files a ticket saying the CSP quietly gained
-`'unsafe-inline'` three weeks ago, because the app works perfectly either way.
-Every check in it exists because of a specific way this layer could stop
-protecting anyone without a single test going red.
+Two of these are worth explaining, for the same underlying reason: both cover
+failures that are completely silent.
+
+**`verify:security`** exists because security regressions do not look like
+bugs. Nobody files a ticket saying the CSP quietly gained `'unsafe-inline'`
+three weeks ago, because the app works perfectly either way. Every check in it
+exists because of a specific way this layer could stop protecting anyone
+without a single test going red.
+
+**`verify:motion`** exists because of a bug it would have caught. A stat card
+was given `data-reveal-item` so it would arrive with the rest of its row — but
+that attribute is half a contract, and the other half is registering with the
+shared `IntersectionObserver` that eventually reveals the element. The card
+never registered. Types passed, lint passed, the build was clean, and every
+headline figure on four screens was `opacity: 0` forever. The CSS now requires
+both halves, so forgetting one yields a card that does not *animate* rather
+than one that does not *exist* — and the verifier fails the build either way.
 
 ### Performance notes
 

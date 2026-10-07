@@ -313,25 +313,32 @@ a[href]:not([class*='rounded']):not([role='button']):active {
 /*
  * Reveal-on-scroll.
  *
- * The element starts hidden and is released by an IntersectionObserver
- * (`components/motion/reveal.tsx`) adding `data-shown`. Crucially the *hidden*
- * state is only applied when JS has marked the document as able to reveal it —
- * `html[data-reveal='on']` — so with JavaScript disabled, or if the observer
- * never fires, the content is simply visible. Content must never depend on an
- * animation to exist.
+ * Content must never depend on an animation to exist, so the hidden state is
+ * gated twice and an element has to opt in to *both*:
+ *
+ *   1. `html[data-reveal='on']` — set by AppearanceProvider after mount. With
+ *      JavaScript disabled, or before hydration, nothing was ever hidden.
+ *   2. `[data-shown='false']` — written into the markup by the element that
+ *      has actually registered with an IntersectionObserver.
+ *
+ * The second gate is the one that matters, and it was added after a bug: a
+ * component that emitted `data-reveal-item` *without* registering an observer
+ * was hidden by rule 1 and had nothing left to un-hide it. Requiring an
+ * explicit `data-shown='false'` means the dangerous state can only be reached
+ * by code that has already arranged for its own release — forgetting the
+ * observer now yields a card that does not animate, rather than a card that
+ * does not exist.
  */
-html[data-reveal='on'] [data-reveal-item] {
+html[data-reveal='on'] [data-reveal-item][data-shown='false'] {
   opacity: 0;
   transform: translateY(14px);
+}
+
+html[data-reveal='on'] [data-reveal-item] {
   transition:
     opacity calc(520ms * var(--motion-scale)) var(--ease-settle),
     transform calc(520ms * var(--motion-scale)) var(--ease-settle);
   transition-delay: calc(var(--reveal-delay, 0ms) * var(--motion-scale));
-}
-
-html[data-reveal='on'] [data-reveal-item][data-shown='true'] {
-  opacity: 1;
-  transform: none;
 }
 
 /*

@@ -17,10 +17,11 @@
     "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",
     "verify:i18n": "node scripts/verify-i18n.mjs",
     "verify:lock": "node scripts/verify-lock.mjs",
-    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:theme && npm run verify:security && npm run verify:i18n",
+    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:i18n",
     "mint:activation": "node scripts/mint-activation.mjs",
     "verify:theme": "node scripts/verify-theme.mjs",
-    "verify:security": "node scripts/verify-security.mjs"
+    "verify:security": "node scripts/verify-security.mjs",
+    "verify:motion": "node scripts/verify-motion.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

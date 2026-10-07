@@ -22,9 +22,12 @@
  * it and formats each frame through the same function that produced `value`.
  */
 
+import { useRef } from 'react';
 import type { LucideIcon } from 'lucide-react';
 import { Sparkline } from './Sparkline';
 import { AnimatedNumber } from '@/components/motion/animated-number';
+import { useRevealOnView } from '@/components/motion/reveal';
+import { staggerStyle } from '@/lib/motion/tokens';
 
 export type StatTone = 'emerald' | 'blue' | 'violet' | 'amber' | 'brand' | 'rose';
 
@@ -70,6 +73,8 @@ type StatCardProps = {
   format?: (value: number) => string;
   /** Blur until hovered, and re-blur when the window loses focus. */
   sensitive?: boolean;
+  /** Position in its row, for the stagger. Omit and the card arrives at once. */
+  index?: number;
 };
 
 export function StatCard({
@@ -83,12 +88,22 @@ export function StatCard({
   numeric,
   format,
   sensitive = false,
+  index = 0,
 }: StatCardProps) {
   const countable = typeof numeric === 'number' && Number.isFinite(numeric) && typeof format === 'function';
+  const ref = useRef<HTMLDivElement>(null);
+
+  // The card registers its *own* element with the shared observer rather than
+  // being wrapped in a <Reveal> div, because a wrapper here would sit between
+  // the card and the grid that places it and break the layout.
+  useRevealOnView(ref);
 
   return (
     <div
+      ref={ref}
       data-reveal-item
+      data-shown="false"
+      style={staggerStyle(index)}
       // `transition-[transform,box-shadow,border-color]`, never `transition-all`:
       // `all` animates the ring and background too, which forces paint on a
       // card that is already hovering a blurred radial gradient.

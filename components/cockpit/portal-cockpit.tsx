@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/Badge';
 import { RevenueAreaChart } from '@/components/charts/RevenueAreaChart';
 import { formatCurrency } from '@/lib/business-data';
 import { AnimatedNumber } from '@/components/motion/animated-number';
+import { Reveal } from '@/components/motion/reveal';
 import { revenueSeries } from '@/lib/chart-data';
 import { daysUntil } from '@/lib/models/membership';
 import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
@@ -381,10 +382,11 @@ export function PortalCockpit() {
             </div>
 
             <div className="grid shrink-0 grid-cols-2 gap-3 lg:w-[420px]">
-              {tiles.map((tile) => (
-                <div
+              {tiles.map((tile, tileIndex) => (
+                <Reveal
                   key={tile.label}
-                  className="rounded-2xl bg-white/80 p-4 ring-1 ring-inset ring-stone-200 backdrop-blur-sm transition hover:ring-portal/30"
+                  index={tileIndex}
+                  className="rounded-2xl bg-white/80 p-4 ring-1 ring-inset ring-stone-200 backdrop-blur-sm transition-[box-shadow] duration-slow ease-settle hover:ring-portal/30"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">{tile.label}</p>
                   {/*
@@ -410,7 +412,7 @@ export function PortalCockpit() {
                     </p>
                   )}
                   <p className="mt-0.5 text-[11px] leading-snug text-stone-600">{tile.reading.sub ?? tile.caption ?? ''}</p>
-                </div>
+                </Reveal>
               ))}
             </div>
           </div>

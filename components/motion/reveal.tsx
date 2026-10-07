@@ -15,7 +15,7 @@
  * between sixty observers ticking and one.
  */
 
-import { useEffect, useRef, type ElementType, type ReactNode } from 'react';
+import { useEffect, useRef, type ElementType, type ReactNode, type RefObject } from 'react';
 import { staggerStyle } from '@/lib/motion/tokens';
 
 type Registry = {
@@ -61,6 +61,40 @@ function release() {
   }
 }
 
+/**
+ * Register one element with the shared observer.
+ *
+ * Exported because the `<Reveal>` wrapper is not always the right shape — a
+ * stat card already owns its outermost element and should not be wrapped in a
+ * div that breaks its grid placement. Anything using this hook **must** also
+ * render `data-reveal-item` and `data-shown="false"`; the CSS requires both,
+ * precisely so that a component which forgets the hook stays visible instead
+ * of disappearing.
+ */
+export function useRevealOnView(ref: RefObject<HTMLElement | null>) {
+  useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+
+    const observer = acquire();
+    if (!observer) {
+      // No observer in this browser: show it, immediately and permanently.
+      node.dataset.shown = 'true';
+      return;
+    }
+
+    // Already past the viewport on first paint — above-the-fold content on a
+    // reload, or a page restored from the back-forward cache. The observer
+    // would fire for these anyway, but only on the next frame; releasing them
+    // here avoids a visible beat of empty cards at the top of the screen.
+    observer.observe(node);
+    return () => {
+      observer.unobserve(node);
+      release();
+    };
+  }, [ref]);
+}
+
 export function Reveal({
   children,
   as: Tag = 'div',
@@ -76,27 +110,16 @@ export function Reveal({
   className?: string;
 } & Record<string, unknown>) {
   const ref = useRef<HTMLElement>(null);
-
-  useEffect(() => {
-    const node = ref.current;
-    if (!node) return;
-    const observer = acquire();
-    if (!observer) {
-      // No observer in this browser: show it, immediately and permanently.
-      node.dataset.shown = 'true';
-      return;
-    }
-    observer.observe(node);
-    return () => {
-      observer.unobserve(node);
-      release();
-    };
-  }, []);
+  useRevealOnView(ref);
 
   return (
     <Tag
       ref={ref}
       data-reveal-item=""
+      // Rendered, not set in an effect: the attribute is half of the CSS
+      // selector that hides this element, and an element that is hidden one
+      // frame *after* it has already painted is a flicker.
+      data-shown="false"
       style={staggerStyle(index)}
       className={className}
       {...rest}
