@@ -653,15 +653,16 @@ npm run dev                  # http://localhost:3000
 
 npm run typecheck            # no type errors
 npm run lint                 # no lint problems
-npm run verify               # all eight verification suites, below
+npm run verify               # all nine verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 33 invariants the security layer is not allowed to lose
+npm run verify:security      # 37 invariants the security layer is not allowed to lose
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
+npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive
 
 npm run theme:build          # regenerate app/themes.css from lib/theme/palettes.json
 
@@ -704,7 +705,7 @@ security is a first-class layer rather than a header or two.
 | Storage | `lib/security/vault.ts` | AES-GCM-256 at rest, integrity envelope, rollback snapshot |
 | Device | `lib/security/lock.ts` + `components/security/counter-lock.tsx` | The counter lock: a PIN hashed with PBKDF2-SHA256 (120k rounds, per-install salt), idle auto-lock, growing lockout after five wrong tries |
 | Device (passkey) | `lib/security/passkey.ts` | Unlock with the device's own sensor. Stores a credential id and nothing else |
-| Self-audit | `lib/security/posture.ts` + `components/security/security-score.tsx` | A weighted score measured from live browser state, with unanswerable checks excluded rather than counted green |
+| Self-audit | `lib/security/posture.ts` + `components/security/security-score.tsx` | A weighted score measured from live browser state — collected *after* mount and handed to the builder, so the first client render matches the server's HTML — with unanswerable checks excluded rather than counted green |
 | Violation intake | `app/api/report/route.ts` | Bounded, redacted CSP reports. Counts them; stores nothing |
 | Evidence | `lib/security/audit.ts` | SHA-256 hash-chained, tamper-evident history |
 | Privacy | `lib/security/redact.ts` | PII/secret scrubbing before anything is logged |
@@ -902,7 +903,7 @@ an afternoon and costs an intruder nothing.
 
 ### Verify it yourself
 
-`npm run verify` runs all eight suites and exits non-zero on the first
+`npm run verify` runs all nine suites and exits non-zero on the first
 disagreement:
 
 | Suite | What it refuses to let regress |
@@ -913,10 +914,11 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 33 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, one CSRF exemption, a bucket per mutating endpoint, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 37 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes and no strike earned by a read, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
+| `verify:render` | That no component answers a browser-only question while rendering, and that untranslated text keeps the exact bytes the server sent |
 
-Two of these are worth explaining, for the same underlying reason: both cover
+Three of these are worth explaining, for the same underlying reason: they cover
 failures that are completely silent.
 
 **`verify:security`** exists because security regressions do not look like
@@ -933,6 +935,21 @@ never registered. Types passed, lint passed, the build was clean, and every
 headline figure on four screens was `opacity: 0` forever. The CSS now requires
 both halves, so forgetting one yields a card that does not *animate* rather
 than one that does not *exist* — and the verifier fails the build either way.
+
+**`verify:render`** exists because two hydration mismatches shipped, and both
+were found by driving a real browser through the console rather than by any
+test. The Trust Centre scored `isSecureContext`, `crossOriginIsolated`,
+WebAuthn support and `document.cookie` *while rendering*, so the server's HTML
+carried a score of 37 and the client's first frame a score of 58 — the ring
+changed colour under React's error, and the whole subtree was thrown away. The
+i18n walker, separately, looked a phrase up by its normalised form and wrote
+that normalised form back into the DOM when no catalogue had it, collapsing
+every newline the app had not translated; the `<pre>` env template on Settings
+was the visible one. Types cannot see either: both are valid TypeScript that
+render a page which is *almost* right. So the suite reads the source back —
+browser state is collected in one function and handed in after mount, a phrase
+with no translation is returned untouched, and a `<pre>` or `<textarea>` is
+content rather than copy.
 
 ### Performance notes
 
