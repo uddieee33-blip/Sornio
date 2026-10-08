@@ -71,27 +71,63 @@ export type PostureInput = {
   passkeyEnrolled: boolean;
 };
 
-/** `document.cookie` must not expose the cookies that carry authority. */
-function httpOnlyHolds(): CheckState {
-  if (typeof document === 'undefined') return 'unknown';
-  const visible = document.cookie;
-  // These three decide what a console may show and what a business has paid
-  // for. If any of them is readable from script, an XSS is an entitlement
-  // escalation rather than a nuisance.
-  const guarded = ['dukaan.plan', 'dukaan.portal', 'dukaan.everything'];
-  const leaked = guarded.filter((name) => visible.includes(`${name}=`));
-  return leaked.length === 0 ? 'pass' : 'fail';
+/**
+ * The four facts only a browser can supply.
+ *
+ * None of them exists on a server: there is no `isSecureContext`, no
+ * `crossOriginIsolated`, no `PublicKeyCredential` and no cookie jar during a
+ * server render. They are collected by `readBrowserFacts` and *handed to*
+ * `buildPostureReport` instead of being read inside it, which is the whole
+ * point — the first client render can be given `null` (exactly the state the
+ * server rendered) and the real answers can arrive one effect later.
+ *
+ * Reading `window` from inside the builder is what a hydration mismatch is
+ * made of. The server scored four "unknown" checks that the client scored as
+ * answers on its very first frame, so the same page was 37 in the HTML and 58
+ * on screen, the ring flipped red to amber under React's error, and the tree
+ * was thrown away and rebuilt on the client.
+ */
+export type BrowserFacts = {
+  /** `window.isSecureContext` — HTTPS, or a hostname browsers treat as secure. */
+  secure: boolean;
+  /** `window.crossOriginIsolated`, or `undefined` where a browser omits it. */
+  isolated: boolean | undefined;
+  /** `'PublicKeyCredential' in window` — this browser can do WebAuthn at all. */
+  webauthn: boolean;
+  /** The page is on localhost, which browsers already treat as a secure context. */
+  localhost: boolean;
+  /**
+   * `document.cookie` exposes none of the cookies that carry authority. These
+   * three decide what a console may show and what a business has paid for: if
+   * any of them is readable from script, an XSS is an entitlement escalation
+   * rather than a nuisance.
+   */
+  authorityCookiesHidden: boolean;
+};
+
+const AUTHORITY_COOKIES = ['dukaan.plan', 'dukaan.portal', 'dukaan.everything'];
+
+/** Read the browser facts. `null` on the server, where there are none to read. */
+export function readBrowserFacts(): BrowserFacts | null {
+  if (typeof window === 'undefined' || typeof document === 'undefined') return null;
+  const cookie = document.cookie;
+  return {
+    secure: window.isSecureContext,
+    isolated:
+      'crossOriginIsolated' in window
+        ? (window as unknown as { crossOriginIsolated: boolean }).crossOriginIsolated
+        : undefined,
+    webauthn: 'PublicKeyCredential' in window,
+    localhost: /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname),
+    authorityCookiesHidden: AUTHORITY_COOKIES.every((name) => !cookie.includes(`${name}=`)),
+  };
 }
 
-export function buildPostureReport(input: PostureInput): PostureReport {
-  const secure = typeof window !== 'undefined' ? window.isSecureContext : undefined;
-  const isolated =
-    typeof window !== 'undefined' && 'crossOriginIsolated' in window
-      ? (window as unknown as { crossOriginIsolated: boolean }).crossOriginIsolated
-      : undefined;
-  const webauthn = typeof window !== 'undefined' && 'PublicKeyCredential' in window;
-  const localhost =
-    typeof window !== 'undefined' && /^(localhost|127\.0\.0\.1|\[::1\])$/.test(window.location.hostname);
+export function buildPostureReport(input: PostureInput, facts: BrowserFacts | null = null): PostureReport {
+  const secure = facts ? facts.secure : undefined;
+  const isolated = facts ? facts.isolated : undefined;
+  const webauthn = facts ? facts.webauthn : false;
+  const localhost = facts ? facts.localhost : false;
 
   const checks: PostureCheck[] = [
     /* ---------------------------------------------------------- transport */
@@ -99,8 +135,8 @@ export function buildPostureReport(input: PostureInput): PostureReport {
       id: 'secure-context',
       title: 'Encrypted connection',
       evidence:
-        secure === undefined
-          ? 'Could not be read in this browser.'
+        facts === null
+          ? 'Read from this browser once the page has settled: whether a connection is encrypted is a property of this browser’s connection, not of the HTML a server sent.'
           : secure
             ? `window.isSecureContext is true — the page is on HTTPS${localhost ? ' (or localhost, which the browser treats as secure)' : ''}.`
             : 'This page is being served over plain HTTP. Anything typed here can be read in transit.',
@@ -113,8 +149,13 @@ export function buildPostureReport(input: PostureInput): PostureReport {
       id: 'httponly',
       title: 'Authority cookies are out of reach of scripts',
       evidence:
-        'Read straight from document.cookie: the plan, portal and Everything On cookies are not in it, so no script on this page — ours or an injected one — can rewrite what this console is entitled to.',
-      state: httpOnlyHolds(),
+        facts === null
+          ? 'Read from this browser once the page has settled: a server render has no cookie jar, so nothing is claimed about it yet.'
+          : facts.authorityCookiesHidden
+            ? 'Read straight from document.cookie: the plan, portal and Everything On cookies are not in it, so no script on this page — ours or an injected one — can rewrite what this console is entitled to.'
+            : 'One of the authority cookies — the plan, the portal or Everything On — is readable from script. On this page an XSS is an entitlement escalation, not a nuisance.',
+      state: facts === null ? 'unknown' : facts.authorityCookiesHidden ? 'pass' : 'fail',
+      action: facts !== null && !facts.authorityCookiesHidden ? 'Treat any third-party script on this origin as a way into the plan.' : undefined,
       weight: 5,
       group: 'transport',
     },
@@ -122,11 +163,13 @@ export function buildPostureReport(input: PostureInput): PostureReport {
       id: 'isolation',
       title: 'Isolated from other origins',
       evidence:
-        isolated === undefined
-          ? 'This browser does not report cross-origin isolation.'
-          : isolated
-            ? 'crossOriginIsolated is true — no other site shares this page’s process.'
-            : 'Cross-origin isolation is off. In a preview or on localhost this is expected; in production the COOP/COEP headers switch it on.',
+        facts === null
+          ? 'Read from this browser once the page has settled; whether this page shares a process with another site is not something a server can see.'
+          : isolated === undefined
+            ? 'This browser does not report cross-origin isolation.'
+            : isolated
+              ? 'crossOriginIsolated is true — no other site shares this page’s process.'
+              : 'Cross-origin isolation is off. In a preview or on localhost this is expected; in production the COOP/COEP headers switch it on.',
       // Not a failure outside production: the preview host is framed on
       // purpose, and saying "fail" for a deliberate configuration would train
       // an owner to ignore red.
@@ -165,11 +208,14 @@ export function buildPostureReport(input: PostureInput): PostureReport {
     {
       id: 'passkey',
       title: 'Passkey unlock',
-      evidence: !webauthn
-        ? 'This browser has no WebAuthn support, so a passkey cannot be enrolled here.'
-        : input.passkeyEnrolled
-          ? 'A passkey on this device can unlock the console — the sensor matches in hardware and DukaanOS only ever stores the credential id.'
-          : 'No passkey enrolled. The PIN still works; a passkey is faster and cannot be watched over your shoulder.',
+      evidence:
+        facts === null
+          ? 'Read from this browser once the page has settled: a server cannot ask whether this device has a sensor to enrol.'
+          : !webauthn
+            ? 'This browser has no WebAuthn support, so a passkey cannot be enrolled here.'
+            : input.passkeyEnrolled
+              ? 'A passkey on this device can unlock the console — the sensor matches in hardware and DukaanOS only ever stores the credential id.'
+              : 'No passkey enrolled. The PIN still works; a passkey is faster and cannot be watched over your shoulder.',
       state: !webauthn ? 'unknown' : input.passkeyEnrolled ? 'pass' : 'warn',
       action: webauthn && !input.passkeyEnrolled ? 'Add a passkey from the Trust Centre.' : undefined,
       weight: 2,
