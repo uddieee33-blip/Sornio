@@ -86,7 +86,13 @@ export function buildContentSecurityPolicy(
     // a console full of violations.
     delete directives['require-trusted-types-for'];
     delete directives['trusted-types'];
-  } else {
+  } else if (posture === 'strict') {
+    // Strict posture only. On a production build served over plain HTTP — a
+    // local `next start`, or a hosted preview — this directive rewrites every
+    // same-origin fetch to https, and the console comes up with half its
+    // requests failing as ERR_SSL_PROTOCOL_ERROR. It earns its place on a real
+    // deployment, where the page is already https and it catches the one stray
+    // asset somebody pastes in as `http://`.
     directives['upgrade-insecure-requests'] = [];
   }
 

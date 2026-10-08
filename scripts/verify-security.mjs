@@ -93,6 +93,29 @@ check(
   'require-trusted-types-for is no longer set. innerHTML becomes a live XSS sink again.',
 );
 
+/*
+ * …and the build has to be one that can live with them.
+ *
+ * This pairing is the whole point: webpack's client runtime creates and uses
+ * the `nextjs#bundler` policy the allow-list names, Turbopack's assigns
+ * `script.src` as a plain string and is therefore blocked on every chunk —
+ * a production app that renders and then never hydrates. Requiring both halves
+ * to move together is what stops a future "faster builds" change from shipping
+ * a dead site, and stops someone dropping the directives to fix a bundler.
+ */
+const manifest = JSON.parse(read('package.json'));
+check(
+  'the build toolchain is one that honours Trusted Types',
+  /--webpack/.test(manifest.scripts?.build ?? ''),
+  'npm run build no longer passes --webpack while the CSP still requires Trusted Types. Turbopack\'s runtime sets script.src as a plain string, so every client chunk is blocked under require-trusted-types-for: the production console renders its server HTML and never hydrates. Either build with --webpack or drop the directives from policy.json — not one of the two.',
+);
+
+check(
+  'upgrade-insecure-requests is a strict-posture control',
+  /posture === 'strict'\)\s*\{[\s\S]{0,900}?directives\['upgrade-insecure-requests'\]/.test(headers),
+  "upgrade-insecure-requests is emitted outside the strict posture. A production build served over plain HTTP — a local next start, or a hosted preview — has every same-origin fetch rewritten to https, so half the console fails with ERR_SSL_PROTOCOL_ERROR.",
+);
+
 check(
   'inline event handlers are refused',
   (csp['script-src-attr'] ?? []).includes("'none'"),
@@ -176,6 +199,50 @@ check(
   (policy.rateLimits.apiRead?.limit ?? 0) > (policy.rateLimits.api?.limit ?? 0) &&
     (policy.rateLimits.burstApiRead?.limit ?? 0) > (policy.rateLimits.burstApi?.limit ?? 0),
   'the read buckets are not larger than the write buckets. A page view costs one document plus a handful of reads, so budgeting reads like credential attempts is how the console throttles itself.',
+);
+
+/*
+ * The console warms its own routes — the sidebar's links prefetch as they come
+ * into view and `RouteWarmup` walks the sidebar order on idle. One visit to
+ * /home is around forty-five prefetches against a dozen real requests. Charging
+ * those to the page budget a person's click draws on is self-throttling: the
+ * owner reaches the ceiling by using the app and the next screen they open is
+ * answered with "Too many requests". Prefetches therefore get their own two
+ * buckets, and this pair of checks is what keeps the split from being quietly
+ * undone.
+ */
+check(
+  'speculative prefetches are billed apart from navigation',
+  /isPrefetchRequest\s*\(/.test(proxy) &&
+    /speculative/.test(proxy) &&
+    /prefetch/.test(proxy) &&
+    /RATE_TABLE\.prefetch\b/.test(proxy),
+  'proxy.ts no longer routes Next.js prefetches to their own bucket. Prefetch traffic (the sidebar links and the idle route warmer) would consume the page budget, and the owner gets 429s on pages they actually opened.',
+);
+
+check(
+  'prefetch budgets are at least as generous as the navigation they precede',
+  (policy.rateLimits.prefetch?.limit ?? 0) >= (policy.rateLimits.page?.limit ?? 0) &&
+    (policy.rateLimits.burstPrefetch?.limit ?? 0) >= (policy.rateLimits.burstPage?.limit ?? 0),
+  'the prefetch buckets are smaller than the page buckets. The app prefetches its own screens in bursts of dozens, so a prefetch budget below the navigation budget means the ceiling is reached while the app is simply warming itself.',
+);
+
+/*
+ * …and the app must not spend that budget fetching pages the owner cannot
+ * open. A locked module's prefetch is answered with a redirect to the paywall,
+ * so warming it costs two requests per module per page view and fetches a page
+ * the click would have fetched anyway. On a free plan that is most of the menu,
+ * which is how fifteen wasted requests per page view ended up in the
+ * navigation budget.
+ */
+const sidebar = read('components', 'layout', 'sidebar.tsx');
+const routeWarmup = read('components', 'perf', 'route-warmup.tsx');
+check(
+  'the console never prefetches a module the plan does not open',
+  /checkPlanAccess\s*\(/.test(withoutComments(sidebar)) &&
+    /prefetch=\{open\}/.test(sidebar) &&
+    /checkPlanAccess\s*\(/.test(withoutComments(routeWarmup)),
+  'the sidebar or the route warmer prefetches without consulting the plan. Locked modules then answer with a redirect to the paywall, so every console page view spends its navigation budget fetching screens the owner cannot open.',
 );
 
 check(

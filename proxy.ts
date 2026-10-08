@@ -54,7 +54,7 @@ import {
   type AbuseRule,
   type RateLimitRule,
 } from '@/lib/security/rate-limit';
-import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
+import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isPrefetchRequest, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
 import { randomToken } from '@/lib/security/crypto';
 import { PLAN_COOKIE, checkPlanAccess, openPlanRecord, resolveEntitlement } from '@/lib/plans';
 // The auth *halves*, deliberately: `@/lib/auth` is the server surface and pulls
@@ -178,10 +178,24 @@ export async function proxy(request: NextRequest) {
   // A shop that gets busy is not an attack, and the app's own reads are not
   // credential stuffing. Reads keep a hard ceiling; the tight buckets stay on
   // writes, credential attempts and the money endpoints.
+  //
+  // Speculative traffic is budgeted apart from navigation for the same reason.
+  // The console warms its own sidebar routes on idle and the sidebar's links
+  // prefetch as they scroll into view: a single visit to /home is 45 prefetch
+  // requests against 12 real ones, and every one of them used to be charged to
+  // the page budget a human's click draws on. The owner then opened a screen
+  // they actually asked for and got "Too many requests". Prefetches keep a
+  // ceiling — a script should not get an unlimited pass by setting a header —
+  // but that ceiling can no longer be spent by, or spent on, navigation.
   const safe = isSafeMethod(method);
+  const speculative = safe && isPrefetchRequest(request.headers);
   const routed = ruleForPath(pathname, RATE_TABLE);
   const readBucket = pathname.startsWith('/api/') ? { scope: 'apiRead', rule: RATE_TABLE.apiRead } : null;
-  const { scope, rule } = safe && readBucket ? readBucket : routed;
+  const { scope, rule } = speculative
+    ? { scope: 'prefetch', rule: RATE_TABLE.prefetch }
+    : safe && readBucket
+      ? readBucket
+      : routed;
   const decision = consume(`${scope}:${fingerprint}`, rule);
 
   // A second, shorter-window guard sits on top of the per-scope budget. It is
@@ -189,7 +203,13 @@ export async function proxy(request: NextRequest) {
   // and throttling our own navigation would be self-inflicted. Writes get the
   // tight budget, where it actually protects something (credential stuffing,
   // scripted writes); reads get one a person cannot reach.
-  const burstRuleName = !safe ? 'burstApi' : pathname.startsWith('/api/') ? 'burstApiRead' : 'burstPage';
+  const burstRuleName = speculative
+    ? 'burstPrefetch'
+    : !safe
+      ? 'burstApi'
+      : pathname.startsWith('/api/')
+        ? 'burstApiRead'
+        : 'burstPage';
   const burst = consume(`${burstRuleName}:${fingerprint}`, RATE_TABLE[burstRuleName]);
 
   if (!decision.allowed || !burst.allowed) {

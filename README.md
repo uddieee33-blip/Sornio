@@ -660,7 +660,7 @@ npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 37 invariants the security layer is not allowed to lose
+npm run verify:security      # 44 invariants the security layer is not allowed to lose
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
 npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive
 
@@ -725,11 +725,20 @@ implementation detail.
    five minutes is refused for two minutes, doubling per trip, capped at
    thirty. It runs *before* the rate limiter deliberately: a banned
    fingerprint should cost one map read, not a full sliding-window
-   evaluation. At 300 page requests a minute, a human cannot reach four
-   strikes in five minutes.
+   evaluation. Only a write or a credential attempt earns a strike, so an
+   owner reading their own books cannot reach the box that locks them out of
+   their own console.
 4. **Rate limiting** — a per-client sliding window per scope (auth, api,
-   reports, portal, plan, master, report, page) plus a short burst guard. Every
-   429 records a strike against step 3.
+   apiRead, prefetch, reports, portal, plan, master, report, page) plus a
+   short burst guard. Reads are budgeted above writes, and speculative
+   prefetches get their own pair of buckets: the console warms its own sidebar
+   on idle, so charging that traffic to the navigation budget meant an owner
+   clicking through their own screens reached the ceiling and the next page
+   they opened was answered with "Too many requests". The ceilings are set
+   from what the app spends on the owner's behalf — one console page view
+   costs about thirteen page-bucket requests and forty prefetches — so they
+   sit past any person clicking and still bound a script. Only a write or a
+   credential attempt records a strike against step 3.
 5. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a
    double-submit token for `/api/*`. Exactly one path is exempt —
    `/api/report`, because the browser posts violation reports itself with no
@@ -766,12 +775,29 @@ a reused nonce is worse than none because it looks like protection.
 `verify:security` fails the build if a nonce ever appears in the static config.
 
 Also on: `require-trusted-types-for 'script'` with a named policy allow-list
-(production only — Turbopack's own DOM writes violate it in dev, and a console
-full of ignorable violations teaches everyone to ignore violations),
+(production only — dev's own DOM writes violate it, and a console full of
+ignorable violations teaches everyone to ignore violations),
 `script-src-attr 'none'` so an injected `onclick=` cannot run, `object-src`,
 `base-uri`, `frame-src` and `child-src` all `'none'`, and
 `Cross-Origin-Embedder-Policy: credentialless` rather than `require-corp` —
 same isolation, without breaking the first owner who pastes in a logo URL.
+
+Trusted Types decide the bundler, which is why `npm run build` is
+`next build --webpack`. The policy allow-list names `nextjs#bundler` — a policy
+webpack's client runtime creates and uses. Turbopack's runtime is not
+policy-aware: it assigns `script.src` as a plain string, so under
+`require-trusted-types-for` the browser blocks every client chunk, the console
+paints its server HTML, and then nothing hydrates. Measured, not assumed: the
+Turbopack production build reported `trusted-types-sink` violations on every
+route and hydrated zero components; the webpack build reported none and
+hydrated all of them. Dev keeps Turbopack — it is faster, and dev is where the
+directives are dropped anyway. `verify:security` reads `package.json` and fails
+the build if the two ever drift apart.
+
+`upgrade-insecure-requests` rides with the posture, not with production. It is
+emitted in `strict` posture only: on a production build served over plain HTTP
+— a local `next start`, or a hosted preview — it rewrites every same-origin
+fetch to `https`, and half the console dies with `ERR_SSL_PROTOCOL_ERROR`.
 
 Violations go to `/api/report`, which **stores nothing**: 16 KB body cap, ten
 reports per request, forty distinct directives, blocked URIs coarsened to an
@@ -914,7 +940,7 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 37 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes and no strike earned by a read, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 44 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, the production build toolchain is one that can honour Trusted Types, `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
 | `verify:render` | That no component answers a browser-only question while rendering, and that untranslated text keeps the exact bytes the server sent |
 
@@ -966,7 +992,9 @@ The portal system is designed to feel instant rather than merely be fast:
 - **Warm only what this business can open.** Route warm-up consumes
   `routeHrefsFor(portalId)` and warms the sidebar's own order — a dozen routes
   for a gym instead of thirty, at one route per idle slice, and none at all on a
-  metered or 2G connection.
+  metered or 2G connection. A module the plan does not carry is left out of the
+  warm-up and out of the sidebar's prefetch: its click lands on the paywall,
+  so warming it would fetch two pages the owner is never shown.
 - **Recolouring is a variable, not a re-render.** Accents ship as CSS custom
   properties (`--portal-accent`, `--portal-accent-deep`), so switching business
   type repaints the frame with no layout shift and no stylesheet swap.
