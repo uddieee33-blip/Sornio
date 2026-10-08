@@ -23,7 +23,7 @@ export const metadata: Metadata = {
   description:
     'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.',
   applicationName: 'DukaanOS',
-  icons: { icon: '/brand/dukaanos-app-icon.svg' },
+  icons: { icon: '/brand/dukaanos-app-icon.svg', apple: '/brand/apple-touch-icon.png' },
   formatDetection: { telephone: false, address: false, email: false },
   robots: { index: true, follow: true },
   openGraph: {

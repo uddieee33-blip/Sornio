@@ -20,11 +20,12 @@
     "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",
     "verify:i18n": "node scripts/verify-i18n.mjs",
     "verify:lock": "node scripts/verify-lock.mjs",
-    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:i18n && npm run verify:render",
+    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:pwa && npm run verify:i18n && npm run verify:render",
     "mint:activation": "node scripts/mint-activation.mjs",
     "verify:theme": "node scripts/verify-theme.mjs",
     "verify:security": "node scripts/verify-security.mjs",
     "verify:auth": "node scripts/verify-auth.mjs",
+    "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:motion": "node scripts/verify-motion.mjs",
     "verify:render": "node scripts/verify-render.mjs"
   },
