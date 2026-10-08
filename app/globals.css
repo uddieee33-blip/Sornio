@@ -4,9 +4,15 @@
 /* Every paint DukaanOS ships. Generated — see scripts/build-themes.mjs. */
 @import './themes.css';
 
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+/*
+ * Tailwind 4 imports its theme, preflight and utilities in one go. The
+ * JavaScript config is not replaced by CSS `@theme` blocks: it stays the single
+ * source of truth for the ten paints' colour ramps, the motion tokens and the
+ * easing curve, and is loaded here with `@config` — which is also what
+ * `scripts/verify-motion.mjs` reads back as text.
+ */
+@import 'tailwindcss';
+@config '../tailwind.config.ts';
 
 /*
  * ---------------------------------------------------------------------------
@@ -196,6 +202,29 @@ textarea,
 button,
 select {
   font: inherit;
+}
+
+/*
+ * Tailwind 4's preflight no longer sets `cursor: pointer` on buttons, and no
+ * longer resets the cursor for disabled ones. Every button in this console was
+ * written against the v3 behaviour, and a counter control that does not look
+ * pressable is a bug a shopkeeper reports as "the button is dead" — so the two
+ * rules are restored here rather than as a `cursor-pointer` utility on roughly
+ * two hundred call sites.
+ *
+ * They live in `@layer base`, not loose in this file: a loose rule would beat
+ * every `cursor-*` utility in the app, and the point is to supply the default,
+ * not to overrule the places that mean something else.
+ */
+@layer base {
+  button,
+  [role='button'] {
+    cursor: pointer;
+  }
+
+  :disabled {
+    cursor: default;
+  }
 }
 
 /* Numbers align cleanly in tables and stat blocks */
@@ -438,7 +467,7 @@ html[data-reveal='on'] [data-reveal-item] {
 /* Respect the OS "reduce transparency" / low-power preference. */
 @media (prefers-reduced-transparency: reduce) {
   .backdrop-blur,
-  .backdrop-blur-sm,
+  .backdrop-blur-xs,
   .backdrop-blur-xl,
   .backdrop-blur-2xl {
     backdrop-filter: none !important;

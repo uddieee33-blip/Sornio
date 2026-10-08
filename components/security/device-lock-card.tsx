@@ -20,7 +20,7 @@ import { useCounterLock } from '@/components/security/counter-lock';
 import { AUTO_LOCK_CHOICES, PIN_LENGTH } from '@/lib/security/lock';
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 font-mono text-sm tracking-[0.3em] text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 font-mono text-sm tracking-[0.3em] text-stone-900 placeholder-stone-400 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 function autoLockLabel(minutes: number): string {
   if (minutes === 0) return 'Never';

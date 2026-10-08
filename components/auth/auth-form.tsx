@@ -35,7 +35,7 @@ import { requestPasswordReset, submitCredentials, type RenderedIdentity } from '
 import type { AuthFailureNotice } from '@/lib/auth/types';
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 py-3 pl-11 pr-11 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 py-3 pl-11 pr-11 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 /** Client-side guard against a runaway script hammering this browser. */
 const AUTH_ATTEMPT_RULE = { limit: 5, windowMs: 60_000 };

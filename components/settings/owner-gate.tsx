@@ -83,7 +83,7 @@ export function OwnerPinModal({
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
@@ -137,7 +137,7 @@ export function OwnerPinModal({
               autoComplete="off"
               autoFocus
               placeholder="••••••"
-              className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-center font-mono text-lg tracking-[0.4em] text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
+              className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-center font-mono text-lg tracking-[0.4em] text-stone-900 placeholder-stone-400 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
             />
             {error ? (
               <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2.5 text-sm text-red-700 ring-1 ring-inset ring-red-500/20">

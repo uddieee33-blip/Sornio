@@ -16,8 +16,10 @@
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { createRequire } from 'node:module';
+
+import { compiler } from './compilers.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const outDir = mkdtempSync(join(tmpdir(), 'dukaan-lock-'));
@@ -64,16 +66,15 @@ writeFileSync(
     {
       compilerOptions: {
         target: 'es2022',
-        module: 'commonjs',
-        moduleResolution: 'node',
+        module: 'node16',
+        moduleResolution: 'node16',
         skipLibCheck: true,
         esModuleInterop: true,
         strict: true,
         lib: ['es2022', 'dom'],
         outDir,
         rootDir: join(root, 'lib'),
-        baseUrl: root,
-        paths: { '@/*': ['./*'] },
+        paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       files: [join(root, 'lib/security/lock.ts')],
     },
@@ -82,7 +83,12 @@ writeFileSync(
   ),
 );
 
-execFileSync('npx', ['tsc', '-p', tsconfig], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+// The API compiler by package path, not `npx tsc`: both TypeScript
+// packages ship a `tsc`, so the one on PATH is whichever npm linked last.
+execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
+  cwd: root,
+  stdio: ['ignore', 'ignore', 'inherit'],
+});
 
 const require = createRequire(import.meta.url);
 const L = require(join(outDir, 'security/lock.js'));

@@ -6,8 +6,9 @@ A gym owner never sees a stock shelf. A kirana owner is never asked to chase mem
 
 ## Stack
 
-- **Next.js 16** (App Router) + **React 19** + **TypeScript**
-- **Tailwind CSS** for styling
+- **Next.js 16** (App Router) + **React 19**
+- **TypeScript**, twice: the 6.x JavaScript API that the lint rules and the build read, and the 7.x native compiler run beside it — [why](#two-type-checks-not-one), below
+- **Tailwind CSS 4**, still driven by `tailwind.config.ts` through `@config` so paints and motion tokens keep one source of truth
 - **Supabase** (Postgres + Auth) for persistence and multi-tenant row-level security
 
 ## Getting started
@@ -651,9 +652,10 @@ npm install
 cp .env.example .env.local   # add your Supabase URL + anon key
 npm run dev                  # http://localhost:3000
 
-npm run typecheck            # no type errors
+npm run typecheck            # no type errors — JavaScript-API compiler (TypeScript 6.x)
+npm run typecheck:native     # no type errors — native compiler (TypeScript 7.x, tsgo)
 npm run lint                 # no lint problems
-npm run verify               # all nine verification suites, below
+npm run verify               # all ten verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
@@ -671,6 +673,37 @@ DUKAANOS_ACTIVATION_SECRET=… npm run mint:activation -- --plan growth --months
 ```
 
 Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy to Vercel with the same environment variables.
+
+### Two type checks, not one
+
+TypeScript 7 is the native compiler: fast, and where the language is going. It
+also ships **no JavaScript API at all** — `require('typescript')` under 7.x
+returns a version string and nothing else. Three things in this repository read
+that API rather than a command line: `typescript-eslint` (every typed lint rule,
+through `eslint-config-next`), `scripts/extract-i18n.mjs` (which walks the tree
+with `ts.createSourceFile`), and Next's own build-time type check.
+
+So the two compilers live side by side, and CI runs both:
+
+| Script | Compiler | Slot | Why |
+| --- | --- | --- | --- |
+| `npm run typecheck` | TypeScript 6.x | `typescript` | The API the linter, the i18n extractor and the build read |
+| `npm run typecheck:native` | TypeScript 7.x (`tsgo`) | `typescript-native` | The compiler the tree is being proven clean against |
+
+Both are resolved by package path, never from `node_modules/.bin`: the two
+packages both ship an executable named `tsc`, and npm links whichever it installs
+last. `scripts/compilers.mjs` carries the reasoning and the invariant that fails
+if a slot stops holding a compiler of the right kind. When typescript-eslint can
+consume the native API ([#10940](https://github.com/typescript-eslint/typescript-eslint/issues/10940))
+the slots collapse and that file is the one place to change.
+
+**One deliberate pin, for the same reason.** `npm run lint` stays on ESLint 9:
+`eslint-config-next` brings `eslint-plugin-react`, whose latest release still
+calls `context.getFilename()` — an API ESLint 10 removed — so linting on 10
+crashes before it reads a file. The alternative, dropping the React rules, would
+trade a version number for coverage; the pin is the honest option until the
+plugin supports 10. `npm audit`'s suggested "fix" is a downgrade to
+`eslint-config-next` 14, which would break the flat config outright.
 
 **Scanning needs nothing installed.** A handheld USB/Bluetooth scanner works on any device because it types like a keyboard; camera scanning uses the browser's own decoder where it exists (Chrome/Android); the fingerprint pad uses the device's sensor through WebAuthn. On an older browser the counter still works on the wedge and typed entry — the app says which channels this device has in **Settings → How this counter captures**.
 

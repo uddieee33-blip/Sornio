@@ -243,7 +243,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       <button
         aria-label="Close the command palette"
         onClick={onClose}
-        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-sm animate-fade-in"
+        className="absolute inset-0 cursor-default bg-black/60 backdrop-blur-xs animate-fade-in"
       />
       <div
         role="dialog"
@@ -266,7 +266,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
             aria-label="Search commands"
             autoComplete="off"
             spellCheck={false}
-            className="w-full bg-transparent text-sm text-stone-900 outline-none placeholder:text-stone-600"
+            className="w-full bg-transparent text-sm text-stone-900 outline-hidden placeholder:text-stone-600"
           />
           <kbd className="rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600">ESC</kbd>
         </div>

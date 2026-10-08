@@ -16,7 +16,7 @@ import { useDukaanStore } from '@/lib/store';
 
 const CATEGORIES = ['Rent', 'Electricity', 'Marketing', 'Salaries', 'Supplies', 'Software', 'Transport', 'Other'];
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 export default function ExpensesPage() {

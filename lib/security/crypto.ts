@@ -15,8 +15,15 @@
 const encoder = new TextEncoder();
 const decoder = new TextDecoder();
 
-/** Cryptographically strong random bytes. */
-export function randomBytes(length: number): Uint8Array {
+/**
+ * Cryptographically strong random bytes.
+ *
+ * `Uint8Array<ArrayBuffer>` rather than a bare `Uint8Array`: the bare form
+ * defaults its buffer to `ArrayBufferLike`, which every Web Crypto parameter
+ * (`iv`, `salt`, `data`) rejects because they require an `ArrayBuffer`-backed
+ * view. These bytes are always allocated here, so the narrower type is true.
+ */
+export function randomBytes(length: number): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(length);
   const webCrypto = globalThis.crypto;
   if (!webCrypto?.getRandomValues) {
@@ -42,7 +49,7 @@ export function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
 }
 
-export function hexToBytes(hex: string): Uint8Array {
+export function hexToBytes(hex: string): Uint8Array<ArrayBuffer> {
   const clean = hex.replace(/[^0-9a-f]/gi, '');
   const out = new Uint8Array(Math.floor(clean.length / 2));
   for (let i = 0; i < out.length; i += 1) {

@@ -14,6 +14,24 @@ import fs from 'node:fs';
 import path from 'node:path';
 import ts from 'typescript';
 
+/*
+ * This extractor needs the *JavaScript API* compiler, not just a `tsc`: it
+ * reads the tree with `ts.createSourceFile`. TypeScript 7 is the native port
+ * and ships no such API, so the `typescript` slot has to hold the 6.x line —
+ * see `scripts/compilers.mjs`. Saying that in one sentence beats the alternative,
+ * which is a `TypeError: Cannot read properties of undefined (reading
+ * 'Latest')` that reads like a bug in this file.
+ */
+if (typeof ts.createSourceFile !== 'function' || !ts.ScriptTarget) {
+  console.error(
+    `The “typescript” package has no JavaScript API (found ${ts.version ?? 'unknown'}).\n` +
+      'This extractor needs the API line (6.x) in that slot; the native compiler (7.x)\n' +
+      'belongs in “typescript-native” and runs as `npm run typecheck:native`.\n' +
+      'See scripts/compilers.mjs.',
+  );
+  process.exit(1);
+}
+
 const ROOT = process.cwd();
 const SOURCE_ROOTS = ['app', 'components', 'lib'];
 const OUTPUT = path.join(ROOT, 'locales', 'en.json');

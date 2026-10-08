@@ -33,7 +33,7 @@ import { setNewPassword, signOutAndLeave } from '@/lib/auth/client';
 import { useDukaanStore } from '@/lib/store';
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-400 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 function endsAt(epochSeconds: number): string {
   const date = new Date(epochSeconds * 1000);

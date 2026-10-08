@@ -52,8 +52,10 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { createRequire } from 'node:module';
+
+import { compiler } from './compilers.mjs';
 
 const root = new URL('..', import.meta.url).pathname;
 const outDir = mkdtempSync(join(tmpdir(), 'dukaan-auth-'));
@@ -103,15 +105,14 @@ writeFileSync(
         lib: ['dom', 'dom.iterable', 'esnext'],
         types: ['node'],
         typeRoots: [join(root, 'node_modules/@types')],
-        module: 'commonjs',
-        moduleResolution: 'node',
+        module: 'node16',
+        moduleResolution: 'node16',
         skipLibCheck: true,
         esModuleInterop: true,
         strict: true,
         outDir,
         rootDir: join(root, 'lib'),
-        baseUrl: root,
-        paths: { '@/*': ['./*'] },
+        paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       // Entry points only — TypeScript follows the imports from here.
       files: [
@@ -125,7 +126,12 @@ writeFileSync(
   ),
 );
 
-execFileSync('npx', ['tsc', '-p', tsconfig], { cwd: root, stdio: ['ignore', 'ignore', 'inherit'] });
+// The API compiler by package path, not `npx tsc`: both TypeScript
+// packages ship a `tsc`, so the one on PATH is whichever npm linked last.
+execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
+  cwd: root,
+  stdio: ['ignore', 'ignore', 'inherit'],
+});
 
 /** See `verify-billing.mjs`: `paths` is a type-checking map, not an emit map. */
 const require = createRequire(import.meta.url);

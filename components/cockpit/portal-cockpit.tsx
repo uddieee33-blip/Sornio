@@ -386,7 +386,7 @@ export function PortalCockpit() {
                 <Reveal
                   key={tile.label}
                   index={tileIndex}
-                  className="rounded-2xl bg-white/80 p-4 ring-1 ring-inset ring-stone-200 backdrop-blur-sm transition-[box-shadow] duration-slow ease-settle hover:ring-portal/30"
+                  className="rounded-2xl bg-white/80 p-4 ring-1 ring-inset ring-stone-200 backdrop-blur-xs transition-[box-shadow] duration-slow ease-settle hover:ring-portal/30"
                 >
                   <p className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">{tile.label}</p>
                   {/*
