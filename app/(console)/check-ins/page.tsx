@@ -26,7 +26,7 @@ import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 const timeOf = (iso: string) => new Date(iso).toLocaleTimeString(getActiveFormattingLocale(), { hour: 'numeric', minute: '2-digit' });
 const todayKey = () => new Date().toISOString().slice(0, 10);

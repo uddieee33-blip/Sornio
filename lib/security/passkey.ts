@@ -173,7 +173,9 @@ function toBase64Url(buffer: ArrayBuffer): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-function fromBase64Url(value: string): Uint8Array {
+/* `ArrayBuffer`-backed, not a bare `Uint8Array`: WebAuthn only accepts a
+ * `BufferSource`, and the bare form widens to `ArrayBufferLike`. */
+function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);
@@ -181,7 +183,7 @@ function fromBase64Url(value: string): Uint8Array {
   return bytes;
 }
 
-function randomChallenge(): Uint8Array {
+function randomChallenge(): Uint8Array<ArrayBuffer> {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return bytes;

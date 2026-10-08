@@ -42,8 +42,15 @@ export type FingerprintResult<T> =
   | { ok: true; data: T }
   | { ok: false; code: FingerprintFailure; error: string };
 
-/** 32 bytes of randomness, per the WebAuthn guidance for a challenge. */
-function randomChallenge(bytes = 32): Uint8Array {
+/**
+ * 32 bytes of randomness, per the WebAuthn guidance for a challenge.
+ *
+ * Typed `Uint8Array<ArrayBuffer>`, not a bare `Uint8Array`: the bare form
+ * defaults its buffer to `ArrayBufferLike`, and WebAuthn/Web Crypto parameters
+ * only accept an `ArrayBuffer`-backed view. Every byte-returning helper in this
+ * module says so explicitly for the same reason.
+ */
+function randomChallenge(bytes = 32): Uint8Array<ArrayBuffer> {
   const buffer = new Uint8Array(bytes);
   if (typeof crypto !== 'undefined' && crypto.getRandomValues) crypto.getRandomValues(buffer);
   else for (let index = 0; index < bytes; index += 1) buffer[index] = Math.floor(Math.random() * 256);
@@ -57,7 +64,7 @@ export function toBase64Url(input: ArrayBuffer | Uint8Array): string {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
-export function fromBase64Url(value: string): Uint8Array {
+export function fromBase64Url(value: string): Uint8Array<ArrayBuffer> {
   const padded = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
   const binary = atob(padded);
   const bytes = new Uint8Array(binary.length);

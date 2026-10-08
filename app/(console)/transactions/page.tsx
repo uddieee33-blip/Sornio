@@ -86,7 +86,7 @@ export default function TransactionsPage() {
         <select
           value={account}
           onChange={(e) => setAccount(e.target.value)}
-          className="ml-auto rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-700 outline-none focus:border-portal/50"
+          className="ml-auto rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-xs font-semibold text-stone-700 outline-hidden focus:border-portal/50"
         >
           <option value="all">All accounts</option>
           {Object.entries(accountLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}

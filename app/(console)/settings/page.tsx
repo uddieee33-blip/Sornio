@@ -22,7 +22,7 @@ import { disabledModules } from '@/lib/portals/registry';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import type { StaffRole } from '@/lib/models/business';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 const auditTones: Record<string, BadgeTone> = {
   sale: 'emerald', expense: 'red', product: 'brand', customer: 'sky', membership: 'violet', invoice: 'amber', marketing: 'violet', settings: 'slate', system: 'slate',

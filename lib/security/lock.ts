@@ -123,7 +123,9 @@ function toHex(bytes: Uint8Array): string {
     .join('');
 }
 
-function fromHex(hex: string): Uint8Array {
+/* Returns an `ArrayBuffer`-backed view on purpose — see `randomBytes` in
+ * lib/security/crypto.ts for why the bare `Uint8Array` is not enough. */
+function fromHex(hex: string): Uint8Array<ArrayBuffer> {
   const clean = hex.length % 2 === 0 ? hex : `0${hex}`;
   const bytes = new Uint8Array(clean.length / 2);
   for (let index = 0; index < bytes.length; index += 1) {

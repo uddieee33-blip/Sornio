@@ -26,7 +26,7 @@ const statusMeta: Record<string, { tone: BadgeTone; label: string }> = {
 const channelLabels: Record<string, string> = { sms: 'SMS', whatsapp: 'WhatsApp', both: 'SMS + WhatsApp' };
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 function formatDate(iso: string) {
@@ -239,7 +239,7 @@ export default function MembershipsPage() {
                   value={renewMethod}
                   onChange={(e) => setRenewMethod(e.target.value as PaymentMethod)}
                   title="How renewal payments arrive"
-                  className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-xs font-semibold text-stone-700 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
+                  className="rounded-xl border border-stone-200 bg-stone-50 px-2.5 py-1.5 text-xs font-semibold text-stone-700 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
                 >
                   {METHODS.map((option) => <option key={option} value={option}>Renew via {option}</option>)}
                 </select>

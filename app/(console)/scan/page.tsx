@@ -75,7 +75,7 @@ import {
 
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 type Mode = 'counter' | 'inward' | 'labels' | 'devices';
 
@@ -395,7 +395,7 @@ export default function ScanStationPage() {
                         value={line.quantity}
                         onChange={(event) => setTicket((current) => setTicketQuantity(current, line.id, Number(event.target.value || 0)))}
                         aria-label={`Quantity for ${line.name}`}
-                        className="w-20 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1.5 text-right text-sm tabular-nums outline-none focus:border-portal/50"
+                        className="w-20 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1.5 text-right text-sm tabular-nums outline-hidden focus:border-portal/50"
                       />
                       <span className="w-24 text-right font-display text-sm font-bold text-stone-900 tabular-nums">
                         {formatCurrency(line.quantity * line.rate)}
@@ -491,7 +491,7 @@ export default function ScanStationPage() {
                                 ),
                               )
                             }
-                            className="mt-0.5 block w-16 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-portal/50"
+                            className="mt-0.5 block w-16 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-right text-sm tabular-nums outline-hidden focus:border-portal/50"
                           />
                         </label>
                         <label className="text-[10px] font-semibold uppercase tracking-wide text-stone-500">
@@ -507,7 +507,7 @@ export default function ScanStationPage() {
                                 ),
                               )
                             }
-                            className="mt-0.5 block w-20 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-right text-sm tabular-nums outline-none focus:border-portal/50"
+                            className="mt-0.5 block w-20 rounded-lg border border-stone-200 bg-stone-50 px-2 py-1 text-right text-sm tabular-nums outline-hidden focus:border-portal/50"
                           />
                         </label>
                         <button
@@ -562,7 +562,7 @@ export default function ScanStationPage() {
                         step={0.05}
                         value={looseWeightKg}
                         onChange={(event) => setLooseWeightKg(event.target.value)}
-                        className="mt-1.5 block w-24 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm tabular-nums outline-none focus:border-portal/50"
+                        className="mt-1.5 block w-24 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2 text-sm tabular-nums outline-hidden focus:border-portal/50"
                       />
                     </label>
                     <span className="pb-2.5 text-xs text-stone-600">kg — applied to every loose item you tick</span>

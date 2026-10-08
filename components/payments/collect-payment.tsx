@@ -60,7 +60,7 @@ const METHOD_META: Record<PaymentMethod, { icon: typeof Banknote; hint: string; 
 };
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-stone-600';
 
 async function copyText(value: string): Promise<void> {
@@ -603,7 +603,7 @@ export function CollectPaymentModal({ invoice, onClose }: { invoice: Invoice; on
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-sm sm:items-center sm:p-6"
+      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"

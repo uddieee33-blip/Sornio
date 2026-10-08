@@ -15,7 +15,7 @@ import { publishPortal } from '@/lib/portals/sync';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
 import { signOutAndLeave } from '@/lib/auth/client';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const STEPS = [
@@ -224,7 +224,7 @@ export default function OnboardingPage() {
                   </div>
                 ) : null}
               </div>
-              <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+              <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
             </div>
           ) : null}
 

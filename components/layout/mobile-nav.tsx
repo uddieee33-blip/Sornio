@@ -94,7 +94,7 @@ export function MobileNav({
         type="button"
         aria-label="Close navigation menu"
         onClick={onClose}
-        className={`absolute inset-0 cursor-default bg-stone-900/40 backdrop-blur-sm ${leaving ? 'animate-fade-out' : 'animate-fade-in'}`}
+        className={`absolute inset-0 cursor-default bg-stone-900/40 backdrop-blur-xs ${leaving ? 'animate-fade-out' : 'animate-fade-in'}`}
       />
       <aside
         id="mobile-navigation"

@@ -502,7 +502,7 @@ export function CounterLockScreen() {
               onChange={(event) => setEraseConfirm(event.target.value)}
               placeholder='Type ERASE to confirm'
               aria-label="Type ERASE to confirm clearing the lock"
-              className="mt-3 w-full rounded-xl border border-amber-500/30 bg-white px-3 py-2.5 font-mono text-sm text-stone-900 outline-none"
+              className="mt-3 w-full rounded-xl border border-amber-500/30 bg-white px-3 py-2.5 font-mono text-sm text-stone-900 outline-hidden"
             />
             <button
               type="button"
