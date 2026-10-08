@@ -334,6 +334,29 @@ including screens nobody remembered to update.
 
 Plus **Match my device**, which follows `prefers-color-scheme` live.
 
+**Where it is chosen.** Appearance is offered before sign-in as well as inside
+the console: the sign-in screen, the setup screens and the landing page all carry
+the same control, so a new owner can pick a paint before they have an account.
+A first visit opens in **Warm Daylight** — a chosen paint, not `system` — so the
+first screen reads the same on every device. `system` stays one tap away.
+
+**Why the paints were not painting.** `html` and `:root` are the same element,
+so a plain `:root { --c-page: … }` block ties `[data-theme]` on specificity and
+wins by source order. The fallbacks in `app/globals.css` therefore repainted every
+dark paint with the Warm Daylight values: a light page, light cards and light text
+on light buttons. The fallbacks now live in `:root:not([data-theme])`, which can
+only match when no paint is set. `npm run verify:theme` now fails on any palette
+token declared on a bare `:root` block, because the per-paint checks read the
+generated variables and could not see the cascade. The login wordmark is now drawn
+inline so its lettering follows the paint instead of staying near-black.
+
+**Performance rule.** Blur is for short-lived overlays only (menus, modals,
+toasts). A `backdrop-filter` on something that stays on screen — the top bar, the
+sidebar, the bottom navigation, or the base card every page is built from — makes
+the browser composite that surface on every scroll frame, and it was the single
+largest cost on the console. Persistent surfaces use a solid, slightly translucent
+fill instead.
+
 **One source of truth.** All ten are authored in `lib/theme/palettes.json` as
 OKLCH hue/chroma/lightness, not as hex. `npm run theme:build` generates
 `app/themes.css` and `lib/theme/paints.generated.json`; both are committed and

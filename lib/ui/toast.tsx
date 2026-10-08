@@ -63,12 +63,12 @@ const ICONS: Record<ToastKind, ReactNode> = {
 };
 
 const STYLES: Record<ToastKind, string> = {
-  success: 'ring-emerald-500/25 bg-emerald-500/[0.09] text-emerald-200',
-  error: 'ring-red-500/25 bg-red-500/[0.09] text-red-200',
-  warning: 'ring-amber-500/25 bg-amber-500/[0.09] text-amber-200',
-  info: 'ring-white/10 bg-white/[0.05] text-zinc-200',
-  security: 'ring-violet-500/30 bg-violet-500/[0.1] text-violet-200',
-  loading: 'ring-brand-500/25 bg-brand-500/[0.09] text-brand-200',
+  success: 'ring-emerald-500/25 bg-emerald-500/[0.09] text-emerald-700',
+  error: 'ring-red-500/25 bg-red-500/[0.09] text-red-700',
+  warning: 'ring-amber-500/25 bg-amber-500/[0.09] text-amber-700',
+  info: 'ring-stone-200 bg-panel text-stone-800',
+  security: 'ring-violet-500/30 bg-violet-500/[0.1] text-violet-700',
+  loading: 'ring-brand-500/25 bg-brand-500/[0.09] text-brand-700',
 };
 
 let counter = 0;

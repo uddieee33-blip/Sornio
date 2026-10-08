@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { QRCodeCanvas } from 'qrcode.react';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
@@ -107,7 +108,7 @@ export default function OnboardingPage() {
     <div className="relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
       <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
-      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6"><LanguagePicker /></div>
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6"><AppearanceMenu /><LanguagePicker /></div>
 
       <div className="animate-fade-up relative w-full max-w-3xl">
         <div className="mb-6 flex flex-col items-center text-center">
@@ -132,7 +133,7 @@ export default function OnboardingPage() {
                 key={s.id}
                 onClick={() => { setError(null); setStep(s.id); }}
                 className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
-                  active ? 'bg-brand-500/20 text-brand-200 ring-1 ring-inset ring-brand-400/40'
+                  active ? 'bg-brand-500/15 text-brand-700 ring-1 ring-inset ring-brand-500/30 shadow-card'
                   : done ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/25'
                   : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200'
                 }`}
@@ -143,7 +144,7 @@ export default function OnboardingPage() {
           })}
         </div>
 
-        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card backdrop-blur">
+        <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card">
           {error ? (
             <div className="mb-5 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20 animate-fade-in">{error}</div>
           ) : null}

@@ -3,6 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import AuthForm from '@/components/auth/auth-form';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { currentIdentity, renderable } from '@/lib/auth/identity';
 import { safeNext } from '@/lib/auth/routes';
@@ -68,7 +69,11 @@ export default async function AuthPage({
     <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
       <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
-      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
+      {/* Appearance and language are offered before sign-in, not only inside
+          the console: the first thing a new owner sees should already be
+          readable on their own screen and in their own script. */}
+      <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6">
+        <AppearanceMenu />
         <LanguagePicker />
       </div>
 

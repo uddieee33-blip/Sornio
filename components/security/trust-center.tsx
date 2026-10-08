@@ -279,7 +279,7 @@ export function TrustCenter() {
           {verification ? (
             <div
               className={`mt-4 rounded-xl p-3.5 text-xs ring-1 ring-inset ${
-                verification.valid ? 'bg-emerald-500/[0.07] text-emerald-200 ring-emerald-500/20' : 'bg-red-500/[0.07] text-red-200 ring-red-500/25'
+                verification.valid ? 'bg-emerald-500/[0.07] text-emerald-700 ring-emerald-500/20' : 'bg-red-500/[0.07] text-red-700 ring-red-500/25'
               }`}
               role="status"
             >

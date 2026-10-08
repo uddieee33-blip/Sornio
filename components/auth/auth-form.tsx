@@ -192,7 +192,7 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
   // Already signed in on this device: the useful screen is the door, not the form.
   if (identity) {
     return (
-      <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 text-center shadow-card backdrop-blur">
+      <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 text-center shadow-card">
         <span className="mx-auto flex h-11 w-11 items-center justify-center rounded-2xl bg-emerald-500/15 text-emerald-700 ring-1 ring-inset ring-emerald-500/25">
           <Check size={20} />
         </span>
@@ -238,7 +238,7 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
       onSubmit={handleSubmit}
       noValidate
       suppressHydrationWarning
-      className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card backdrop-blur"
+      className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card"
     >
       {errors.form ? (
         <div className="animate-fade-in mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20">
@@ -263,7 +263,7 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
                 setForgotOpen(false);
                 setErrors((current) => ({ ...current, form: undefined, note: undefined }));
               }}
-              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${mode === option ? 'bg-brand-500/20 text-brand-200' : 'text-stone-600 hover:text-stone-700'}`}
+              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${mode === option ? 'bg-brand-500/15 text-brand-700 shadow-card ring-1 ring-inset ring-brand-500/25' : 'text-stone-600 hover:text-stone-900'}`}
             >
               {option === 'signin' ? 'Sign in' : 'Create account'}
             </button>
