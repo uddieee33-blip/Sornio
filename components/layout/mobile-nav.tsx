@@ -10,8 +10,18 @@ import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
+import { AccountRow } from '@/components/layout/account-menu';
+import type { RenderedIdentity } from '@/lib/auth/identity';
 
-export function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
+export function MobileNav({
+  open,
+  onClose,
+  identity = null,
+}: {
+  open: boolean;
+  onClose: () => void;
+  identity?: RenderedIdentity | null;
+}) {
   const pathname = usePathname();
   const { state, hydrated, persistence } = useDukaanStore();
   const { portal, nav } = usePortal();
@@ -167,6 +177,8 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
           {/* The drawer is the only menu there is on a phone, so appearance
               has to be in it rather than four taps away in Settings. */}
           <AppearanceMenu variant="row" placement="above" />
+
+          <AccountRow identity={identity} />
 
           <Link
             href="/security"

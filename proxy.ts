@@ -9,17 +9,23 @@
  *                            before any work at all is done for it.
  *   4. Rate limit          → per-fingerprint sliding window.
  *   5. CSRF                → fetch-metadata + origin + double-submit token.
- *   6. Portal policy       → a business type never renders a module it does not
+ *   6. Session gate        → a business's console is not a public page. An
+ *                            HMAC-verified app session, or a provider cookie on a
+ *                            deployment that has a provider, is what gets a page
+ *                            served; anything else is sent to sign-in with the
+ *                            path it asked for attached.
+ *   7. Portal policy       → a business type never renders a module it does not
  *                            carry (inventory in a gym, memberships in a
  *                            kirana), unless the signed Everything On switch is
  *                            live.
- *   7. Plan policy         → a plan that is not being paid for does not render
+ *   8. Plan policy         → a plan that is not being paid for does not render
  *                            the paid automations; expiry drops a business to
  *                            the free plan, never to a locked door. This step
  *                            deliberately cannot see the Everything On value.
- *   8. Security headers    → posture-aware CSP (nonce + strict-dynamic in
+ *   9. Session refresh     → Supabase only when real credentials are present,
+ *                            lazily imported, best-effort, never blocking.
+ *  10. Security headers    → posture-aware CSP (nonce + strict-dynamic in
  *                            production), HSTS, framing, permissions, reporting.
- *   9. Session refresh     → Supabase only when real credentials are present.
  *
  * Everything here is Edge-safe (Web Crypto, no Node built-ins) and every
  * failure path degrades to "serve the page" rather than "show an error".
@@ -51,6 +57,12 @@ import {
 import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
 import { randomToken } from '@/lib/security/crypto';
 import { PLAN_COOKIE, checkPlanAccess, openPlanRecord, resolveEntitlement } from '@/lib/plans';
+// The auth *halves*, deliberately: `@/lib/auth` is the server surface and pulls
+// in `next/headers` through the identity module, which has no place in an Edge
+// bundle. The gate and the cookie policy are pure, so those two are what the
+// middleware is allowed to know about.
+import { checkAuthAccess, isPublicPath, isSupabaseAuthCookieName } from '@/lib/auth/routes';
+import { AUTH_COOKIE, openOwnerSession } from '@/lib/auth/cookie';
 
 const REQUEST_ID_HEADER = 'x-request-id';
 const NONCE_HEADER = 'x-nonce';
@@ -231,7 +243,44 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ---- 6. Portal policy: the module this route belongs to must be live. ----
+  // ---- 6. Session gate: a shop's records are not a public page. ----
+  //
+  // Two arms, and neither one makes a network call. Either this request carries
+  // a DukaanOS session that verifies against this deployment's key — one HMAC,
+  // microseconds — or this is a hosted deployment and a Supabase auth cookie came
+  // with it, which the console layout then verifies properly before it renders a
+  // single number. Checking the provider here instead would put a round trip in
+  // front of every page the owner opens, which is the trade the ordering makes on
+  // purpose.
+  //
+  // Read-only navigation only, exactly like the two policies after it: a write is
+  // never redirected, so a refused action stays a refused action. And it runs
+  // *before* them, because an anonymous request has no portal and no plan to be
+  // told about — answering one with `?locked=inventory` would leak which modules
+  // this business runs, and start a redirect chain that only ends at sign-in.
+  if (isSafeMethod(method) && !isPublicPath(pathname)) {
+    const claims = await openOwnerSession(request.cookies.get(AUTH_COOKIE)?.value);
+    const providerCookiePresent =
+      supabaseConfigured && request.cookies.getAll().some((cookie) => isSupabaseAuthCookieName(cookie.name));
+    const verdict = checkAuthAccess({
+      pathname,
+      search: `${request.nextUrl.search ?? ''}`,
+      sessionValid: claims !== null,
+      providerCookiePresent,
+      supabaseConfigured,
+    });
+    if (!verdict.allowed) {
+      const target = new URL(verdict.redirectTo, request.url);
+      return applyHeaders(NextResponse.redirect(target, 307), [
+        ...buildBaselineHeaders(posture, pathname),
+        ...buildFramingHeaders(posture, nonce),
+        { key: REQUEST_ID_HEADER, value: requestId },
+        policy.noStore,
+      ]);
+    }
+  }
+
+  // ---- 7. Portal policy: the module this route belongs to must be live. ----
   // Read-only navigation only: an API call or a write is never redirected, so
   // this can never mask a failed action or turn into a loop.
   //
@@ -255,7 +304,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ---- 7. Plan policy: the paid modules need a plan that is currently paid. ----
+  // ---- 8. Plan policy: the paid modules need a plan that is currently paid. ----
   // Same shape and the same safety rules as the portal check above: read-only
   // navigation only (a write is never redirected), and the always-open modules
   // (ledger, audit, trust centre, settings, and Your Plan itself) are added on
@@ -278,7 +327,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ---- 8. Session refresh (only with real credentials; never blocking). ----
+  // ---- 9. Session refresh (only with real credentials; never blocking). ----
   //
   // The nonce is pushed onto the *request* headers as well as the response.
   // That is how Next.js learns about it: the framework reads the inbound CSP
@@ -316,7 +365,7 @@ export async function proxy(request: NextRequest) {
     }
   }
 
-  // ---- 9. Response hardening. ----
+  // ---- 10. Response hardening. ----
   applyHeaders(response, [
     ...buildBaselineHeaders(posture, pathname),
     ...framing,

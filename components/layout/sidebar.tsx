@@ -8,6 +8,8 @@ import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
+import { AccountRow } from '@/components/layout/account-menu';
+import type { RenderedIdentity } from '@/lib/auth/identity';
 import { useDukaanStore } from '@/lib/store';
 
 /**
@@ -52,7 +54,7 @@ function useActiveIndicator(pathname: string | null, deps: unknown) {
   return { navRef, box };
 }
 
-export function Sidebar() {
+export function Sidebar({ identity = null }: { identity?: RenderedIdentity | null }) {
   const pathname = usePathname();
   const { state, hydrated, persistence } = useDukaanStore();
   const { portal, nav, revealAll } = usePortal();
@@ -153,6 +155,10 @@ export function Sidebar() {
             console is a thing an owner does in the middle of a shift, from
             wherever they happen to be standing. */}
         <AppearanceMenu variant="row" placement="above" />
+
+        {/* Name and sign-out, from the session the server verified — not from
+            anything in this tab's storage. */}
+        <AccountRow identity={identity} />
 
         <Link
           href="/security"

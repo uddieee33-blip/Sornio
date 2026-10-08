@@ -1,7 +1,6 @@
 'use client';
 
 import { useMemo, useState } from 'react';
-import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
@@ -14,6 +13,7 @@ import { disabledModules, portalForTemplate, PORTALS } from '@/lib/portals/regis
 import { navSectionsFor } from '@/lib/portals/nav';
 import { publishPortal } from '@/lib/portals/sync';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
+import { signOutAndLeave } from '@/lib/auth/client';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
@@ -44,6 +44,8 @@ export default function OnboardingPage() {
   const [ifsc, setIfsc] = useState(profile.bank?.ifsc ?? '');
   const [error, setError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+
+  const leave = () => void signOutAndLeave();
 
   const upiValid = upiId.trim() !== '' && isValidUpiId(upiId.trim());
   const deepLink = useMemo(
@@ -272,9 +274,17 @@ export default function OnboardingPage() {
                 <ArrowLeft size={15} /> Back
               </button>
             ) : (
-              <Link href="/auth" className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:text-stone-900">
+              /* It says Sign out, so it has to mean it: the step back to `/auth` is
+                 where an owner hands the device over, and a link that only changed
+                 the URL would leave the session — and every record behind it — open
+                 on the counter for whoever taps next. */
+              <button
+                type="button"
+                onClick={leave}
+                className="inline-flex items-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold text-stone-600 transition hover:text-stone-900"
+              >
                 <ArrowLeft size={15} /> Sign out
-              </Link>
+              </button>
             )}
 
             {step < 3 ? (
