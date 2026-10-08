@@ -14,7 +14,6 @@ import Link from 'next/link';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { CaptureReadinessCard } from '@/components/scanning/capture-readiness';
-import { AppearancePanel } from '@/components/theme/appearance-panel';
 import { EverythingSwitch } from '@/components/portals/everything-switch';
 import { EnvSetup } from '@/components/settings/env-setup';
 import { OwnerPinModal, ROLE_META, useOwnerGate } from '@/components/settings/owner-gate';
@@ -23,7 +22,7 @@ import { disabledModules } from '@/lib/portals/registry';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import type { StaffRole } from '@/lib/models/business';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 const auditTones: Record<string, BadgeTone> = {
   sale: 'emerald', expense: 'red', product: 'brand', customer: 'sky', membership: 'violet', invoice: 'amber', marketing: 'violet', settings: 'slate', system: 'slate',
@@ -261,13 +260,6 @@ export default function SettingsPage() {
 
           {/* What this device can actually do for this trade. */}
           <CaptureReadinessCard />
-
-          {/* Appearance. Anchored, because the top bar's paint menu links
-              straight here — "density, motion, text size…" should land on the
-              dials, not at the top of a long settings page. */}
-          <div id="appearance" className="scroll-mt-24">
-            <AppearancePanel />
-          </div>
 
           {/* The one switch that widens the console the portal narrowed. */}
           <div id="everything" className="scroll-mt-24">

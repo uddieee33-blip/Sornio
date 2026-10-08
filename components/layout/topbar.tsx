@@ -22,7 +22,7 @@ import { BrandIcon } from '@/components/ui/BrandLogo';
 import { PlanBadge } from '@/components/billing/plan-badge';
 import { useCounterLock } from '@/components/security/counter-lock';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
-import { PaintSwitcher } from '@/components/theme/paint-switcher';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 
 
 /**
@@ -167,8 +167,10 @@ export function Topbar({
           ) : null}
 
           {/* The sun goes down every day; repainting the console for it should
-              never be four taps through Settings. */}
-          <PaintSwitcher />
+              never be four taps through Settings. The left half flips between
+              this device's last light and last dark paint, the right half
+              opens every dial. */}
+          <AppearanceMenu />
 
           {/* Language belongs in the console too, not only on the marketing page. */}
           <LanguagePicker compact />

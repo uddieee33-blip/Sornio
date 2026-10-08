@@ -13,6 +13,7 @@
     "verify:billing": "node scripts/verify-billing.mjs",
     "verify:inventory": "node scripts/verify-inventory.mjs",
     "i18n:extract": "node scripts/extract-i18n.mjs",
+    "i18n:prune": "node scripts/prune-locales.mjs",
     "i18n:check": "node scripts/extract-i18n.mjs --check",
     "i18n:generate": "node scripts/translate-catalog.mjs",
     "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",

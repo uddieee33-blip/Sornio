@@ -12,7 +12,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore, type MarketingCampaign } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const CHANNELS: MarketingCampaign['channel'][] = ['Social Media', 'Google Ads', 'Print', 'Radio', 'Events', 'Referrals', 'Other'];

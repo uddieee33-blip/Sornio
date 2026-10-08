@@ -60,7 +60,7 @@ const METHOD_META: Record<PaymentMethod, { icon: typeof Banknote; hint: string; 
 };
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-[11px] font-bold uppercase tracking-[0.14em] text-stone-600';
 
 async function copyText(value: string): Promise<void> {

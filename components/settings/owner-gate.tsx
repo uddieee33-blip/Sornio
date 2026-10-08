@@ -137,7 +137,7 @@ export function OwnerPinModal({
               autoComplete="off"
               autoFocus
               placeholder="••••••"
-              className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-center font-mono text-lg tracking-[0.4em] text-stone-900 placeholder-stone-400 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20"
+              className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 text-center font-mono text-lg tracking-[0.4em] text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
             />
             {error ? (
               <p className="mt-3 rounded-xl bg-red-500/10 px-3 py-2.5 text-sm text-red-700 ring-1 ring-inset ring-red-500/20">

@@ -16,7 +16,7 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { describeCode, isValidGtin, looksLikeCode } from '@/lib/scanning';
 import { useSearchParams } from 'next/navigation';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 type SortKey = 'name' | 'sellingPrice' | 'stock' | 'margin';
@@ -262,19 +262,19 @@ export default function ProductsPage() {
             <CardTitle icon={<Package size={17} />}>Product list</CardTitle>
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
             </div>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-brand-400/60">
+            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-portal/50">
               <option value="all">All categories</option>
               {categories.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-brand-400/60">
+            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-portal/50">
               <option value="all">Any status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>
             </select>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-brand-400/60">
+            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-none focus:border-portal/50">
               <option value="name">Sort: Name</option>
               <option value="sellingPrice">Sort: Price</option>
               <option value="stock">Sort: Stock</option>
@@ -459,7 +459,7 @@ function ProductEditor({ product }: { product: Product }) {
     setTimeout(() => setSaved(null), 2500);
   };
 
-  const small = 'w-full rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60';
+  const small = 'w-full rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-2 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50';
 
   return (
     <div className="mt-6 rounded-2xl border border-stone-200 bg-stone-50 p-4">

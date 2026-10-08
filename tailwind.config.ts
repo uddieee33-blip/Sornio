@@ -53,6 +53,18 @@ const config: Config = {
         onaccent: 'rgb(var(--c-onaccent) / <alpha-value>)',
 
         /**
+         * The one focus indicator the console draws.
+         *
+         * Kept as a whole `rgb()` function rather than a channel triple on
+         * purpose: `--c-focus` already carries its own opacity, and
+         * `verify:theme` measures that composited value against every surface
+         * at WCAG 1.4.11's 3:1. Hand-rolling `ring-brand-500/20` instead looks
+         * identical in a design review and measures at roughly 1.3:1 — a focus
+         * ring nobody can see is not a focus ring.
+         */
+        focus: 'var(--c-focus)',
+
+        /**
          * Portal accent — the colour of the business type currently loaded,
          * layered on top of whichever paint is active. A gym console can be
          * teal, a cafe amber and a kirana blue, in Midnight or in Daylight,

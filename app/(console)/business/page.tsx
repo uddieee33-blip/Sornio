@@ -16,7 +16,7 @@ import { disabledModules, portalForTemplate } from '@/lib/portals/registry';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { buildUpiDeepLink, isValidUpiId } from '@/lib/upi';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 /** The words an owner uses for each capture channel, not the API's words. */
 const CHANNEL_LABELS: Record<'barcode' | 'qr' | 'keypad' | 'fingerprint', string> = {
@@ -158,7 +158,7 @@ export default function BusinessPage() {
 
           <div className="mt-5">
             <span className={labelClass}>Business description</span>
-            <textarea className="min-h-[110px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" placeholder="Describe your business, customers, and service model." value={description} onChange={(e) => setDescription(e.target.value)} />
+            <textarea className="min-h-[110px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="Describe your business, customers, and service model." value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
         </Card>
 

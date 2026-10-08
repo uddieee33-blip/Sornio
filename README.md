@@ -6,7 +6,7 @@ A gym owner never sees a stock shelf. A kirana owner is never asked to chase mem
 
 ## Stack
 
-- **Next.js 14** (App Router) + **React 18** + **TypeScript**
+- **Next.js 16** (App Router) + **React 19** + **TypeScript**
 - **Tailwind CSS** for styling
 - **Supabase** (Postgres + Auth) for persistence and multi-tenant row-level security
 
@@ -44,7 +44,7 @@ Each blueprint defines six things, and every screen reads them through `usePorta
 5. **Accent** — the console's colour, applied through CSS custom properties.
 6. **`excluded`** — a plain statement of what was left out and how to get it back. Shown in the UI, next to the modules that were dropped.
 
-**How it is enforced (security).** The portal is stored in an `httpOnly`, `SameSite=Lax` cookie (`dukaan.portal`) that only `POST /api/portal` can write. That endpoint accepts a template id from the shipped list (never a portal id), is CSRF-protected by the middleware's double-submit token, rate-limited on its own tight bucket, and requires an owner/manager role when a real session exists. Edge middleware (`middleware.ts`, step 5) refuses any safe request for a module the portal does not carry and redirects it to `/home?locked=<module>`, where the cockpit explains what happened; a client gate covers the same rule for the moment before a cookie is re-issued. A portal value can therefore only ever *hide* a module — it can never unlock one.
+**How it is enforced (security).** The portal is stored in an `httpOnly`, `SameSite=Lax` cookie (`dukaan.portal`) that only `POST /api/portal` can write. That endpoint accepts a template id from the shipped list (never a portal id), is CSRF-protected by the edge proxy's double-submit token, rate-limited on its own tight bucket, and requires an owner/manager role when a real session exists. The edge proxy (`proxy.ts`, step 5) refuses any safe request for a module the portal does not carry and redirects it to `/home?locked=<module>`, where the cockpit explains what happened; a client gate covers the same rule for the moment before a cookie is re-issued. A portal value can therefore only ever *hide* a module — it can never unlock one.
 
 ### Everything On — seeing the rest of the console
 
@@ -59,7 +59,7 @@ which part was switched on by hand.
 
 Four rules make it safe:
 
-1. **It is read in the portal check, never the plan check.** Middleware step 6
+1. **It is read in the portal check, never the plan check.** Edge proxy step 6
    consults it; step 7 does not, and never will. Everything On un-hides what
    the trade hid; it does not pay for anything. On the free plan the
    memberships screen becomes *visible* and still redirects to `/subscription`.
@@ -100,7 +100,7 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 | `/cashflow`, `/profitability` | Cash movements by account · margins & per-product profit |
 | `/transactions`, `/reports`, `/comparisons` | Ledger traceability and analysis |
 | `/memberships` | Plans, subscriptions, renewal reminders |
-| `/reminders` | Personalized SMS & WhatsApp renewal drafts (deep links, no middleware) |
+| `/reminders` | Personalized SMS & WhatsApp renewal drafts (deep links, no proxy needed) |
 | `/customers` | Profiles, balances, receivables, unique UPI QR per customer |
 | `/marketing` | Campaign tracking; spend is booked as a real expense |
 | `/team` | Roles & permissions matrix |
@@ -114,7 +114,7 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 Scanning is not a feature bolted onto billing; it is how a counter is *meant* to
 work. So it is declared per trade in the same blueprint that decides everything
 else, and it is enforced the same way: the **Scan Station** is a module, so a
-trade that does not scan cannot reach it (middleware → `/home?locked=scan`).
+trade that does not scan cannot reach it (edge proxy → `/home?locked=scan`).
 
 | Trade | Capture at the desk | Prints labels for |
 | --- | --- | --- |
@@ -186,7 +186,7 @@ API, but neither is a reason to hand the whole console those capabilities.
 `lib/security/policy.json` grants them **per route**: `camera=(self)` only on
 `/scan`, `/sales` and `/products`; `publickey-credentials-create/get=(self)` only
 on `/check-ins`; everything else in the app keeps `camera=()` and the rest of the
-deny-by-default list. Middleware (`buildPermissionsPolicy(pathname)`) and
+deny-by-default list. The edge proxy (`buildPermissionsPolicy(pathname)`) and
 `next.config.js` both read that one file, so the two layers cannot disagree.
 
 ### The Devices tab — proving it works on *your* counter
@@ -293,11 +293,17 @@ The catalogue workflow is deliberately testable:
 
 ```bash
 npm run i18n:extract                # rebuild English from every TS/TSX screen
+npm run i18n:prune                  # drop phrases the product no longer contains from all 22
 npm run i18n:check                  # fail if en.json has drifted from the source tree
 npm run i18n:generate               # fill in what is new across the 20 Google-supported catalogues
 npm run i18n:generate:low-resource  # fill in what is new for Bodo + Kashmiri with IndicTrans2
 npm run verify:i18n                 # drift, key, slot, and coverage checks for all 22
 ```
+
+`i18n:prune` is the other half of that pair. Extracting only ever *adds* to the
+22 catalogues, so deleting a screen leaves its copy behind in every one of them
+and `verify:i18n` fails on phrases the product no longer contains; the prune
+drops exactly those lines and translates nothing.
 
 Both generators are **incremental**: a phrase already translated on disk is
 reused, a reviewed phrase in `locales/curated.json` always wins, and only
@@ -342,7 +348,16 @@ means 50 is near-black and 900 is near-white. Components never need to know
 which paint is on, which is why there is no `dark:` variant anywhere in the
 codebase.
 
-**Also in the Appearance panel**, because a counter is not a desk:
+**In the menu, not buried in Settings.** Repainting the console is something an
+owner does in the middle of a shift, from wherever they happen to be standing,
+so every dial opens from the console frame itself:
+
+- the **top bar** — the sun/moon half flips between this device's last light
+  paint and its last dark one in one tap; the arrow next to it opens everything.
+- the **sidebar footer** (desktop) and the **navigation drawer** (phone), both
+  of which show the paint currently on screen.
+
+All four dials live behind that one control, because a counter is not a desk:
 
 - **Density** — comfortable, or compact for a 1366×768 shop PC.
 - **Motion** — Full, Calm, or Off. One multiplier, `--motion-scale`, which
@@ -393,12 +408,12 @@ honoured without a second code path to keep in sync.
 
 ## Architecture
 
-- **`lib/portals/`** — the portal system, pure data first so Edge middleware can enforce what the UI renders:
+- **`lib/portals/`** — the portal system, pure data first so the edge proxy can enforce what the UI renders:
   - `types.ts` — `PortalBlueprint`, `ModuleKey`, `MetricKey`, vocabulary, nav, cockpit shapes
   - `catalogue.ts` — the 27 canonical modules (route, label, icon, keywords, core flag)
   - `blueprints.ts` — the eight business types: modules, words, navigation, cockpit, accent, what was left out
   - `registry.ts` — resolution and validation (`portalById`, `portalForTemplate`, `portalHasModule`, `isKnownTemplateId`, …)
-  - `routes.ts` — route policy used by middleware and the client gate (`PORTAL_COOKIE`, `checkPortalAccess`, `routeHrefsFor`)
+  - `routes.ts` — route policy used by the edge proxy and the client gate (`PORTAL_COOKIE`, `checkPortalAccess`, `routeHrefsFor`)
   - `icons.ts`, `nav.ts` — icon name → component, blueprint → labelled navigation
   - `portal-provider.tsx` — `PortalProvider` / `usePortal()`; server-resolved first paint, cookie reconciliation
   - `metrics.ts` — the cockpit figures, computed only from recorded activity
@@ -407,7 +422,7 @@ honoured without a second code path to keep in sync.
 - **`lib/plans/`** — the paid product, pure data first so the edge can enforce it:
   - `catalogue.ts` — the four plans, their prices, limits, and exactly which modules each unlocks
   - `lifecycle.ts` — `trialing → active → grace → expired → free`, resolved from dates only
-  - `routes.ts` — route policy used by middleware and the console (`checkPlanAccess`, `lockedModulesFor`)
+  - `routes.ts` — route policy used by the edge proxy and the console (`checkPlanAccess`, `lockedModulesFor`)
   - `usage.ts` — the free monthly allowance, counted from the ledger (UPI money in; cash never)
   - `cookie.ts` — the signed, httpOnly `dukaan.plan` cookie the server issues and verifies
   - `activation.ts` — `DKS1-…` codes: plan, months, reference and expiry inside one HMAC
@@ -432,6 +447,7 @@ honoured without a second code path to keep in sync.
   - `paints.generated.json`, `../app/themes.css` — built by `scripts/build-themes.mjs`; committed, never hand-edited
   - `palettes.ts` — `PAINTS`, `normalizeAppearance`, `encode`/`decodeAppearance`, `appearanceAttributes`, `themeColorFor`
   - `appearance-provider.tsx` — `useAppearance()` / `useMotionScale()`; `prefers-color-scheme` and the stored choice both as external stores, so there is no mount-effect repaint and two tabs on one till stay in sync
+- **`components/theme/`** — the appearance menu (`appearance-menu.tsx`, one control in two shapes for the top bar and the navigation drawer; portalled to `<body>` and viewport-clamped so it can never be clipped by the sticky, blurred header) and `paint-preview.tsx` (a live miniature of the console, painted by `themes.css` itself)
 - **`lib/motion/`** — `tokens.ts` (durations, easings, the 45 ms stagger contract) and `presence.ts` (`usePresence`, so a sheet can animate out instead of being deleted)
 - **`components/motion/`** — `reveal.tsx` (one shared, refcounted `IntersectionObserver` for the whole page) and `animated-number.tsx` (figures that count, and simply *are* when motion is off)
 - **`lib/security/posture.ts`** + **`components/security/security-score.tsx`** — the self-audit behind the Trust Centre score
@@ -472,7 +488,7 @@ product: once, as data, at the edge, before a page renders.
 
 Every price, limit and module list on both surfaces comes from one place —
 `lib/plans/catalogue.ts`. The landing page renders it, the console sells from
-it, and Edge middleware enforces it, so a promise cannot drift from a product.
+it, and the edge proxy enforces it, so a promise cannot drift from a product.
 
 ### The lifecycle — derived from dates, never stored as a flag
 
@@ -493,7 +509,7 @@ whose period ended keeps every module for seven days while the owner renews.
 
 | Layer | Module | What it does |
 | --- | --- | --- |
-| Edge | `middleware.ts` (step 6) + `lib/plans/routes.ts` | A module this plan does not carry is never served: a 307 to `/subscription?locked=<module>`, with `x-dukaan-plan-blocked` and `x-dukaan-plan-state` headers. Read-only navigation only — a write is never redirected. |
+| Edge | `proxy.ts` (step 6) + `lib/plans/routes.ts` | A module this plan does not carry is never served: a 307 to `/subscription?locked=<module>`, with `x-dukaan-plan-blocked` and `x-dukaan-plan-state` headers. Read-only navigation only — a write is never redirected. |
 | Recording | `lib/plans/usage.ts` + `lib/store.tsx` | The free plan's one real limit — 25 UPI collections a month — is checked where money is recorded, before a single line is written. |
 | Surface | `components/billing/plan-{provider,badge,banner}.tsx` | The owner is told exactly what is paused, in the console's own trade words, and where to fix it. |
 | Server | `app/api/subscription/route.ts` | The only place a plan can change. |
@@ -680,8 +696,8 @@ security is a first-class layer rather than a header or two.
 | Transport | `lib/security/headers.ts` | Nonce + `strict-dynamic` CSP, Trusted Types, HSTS, framing, and a `Permissions-Policy` granted per route (camera only where scanning happens, passkey enrolment only in the Trust Centre) |
 | Edge | `lib/security/rate-limit.ts` | Sliding-window throttling with a per-endpoint bucket, plus a penalty box for clients that keep earning 429s |
 | Reveal scope | `lib/portals/master.ts` + `app/api/master/route.ts` | Everything On: signed, expiring, audited, and read only by the portal check — never the paywall |
-| Portal scoping | `lib/portals/routes.ts` + `middleware.ts` | A business type never reaches a module it does not carry |
-| Entitlement | `lib/plans/` + `middleware.ts` | A plan that is not being paid for never reaches the paid automations — and expiry still never locks a business out of its own books |
+| Portal scoping | `lib/portals/routes.ts` + `proxy.ts` | A business type never reaches a module it does not carry |
+| Entitlement | `lib/plans/` + `proxy.ts` | A plan that is not being paid for never reaches the paid automations — and expiry still never locks a business out of its own books |
 | Request | `lib/security/csrf.ts` | Fetch-metadata + origin allow-list + double-submit token |
 | Input | `lib/security/validation.ts` | Structural validation, clamps, password strength |
 | Output | `lib/security/sanitize.ts` | HTML/CSV/URL escaping for receipts and exports |
@@ -697,7 +713,7 @@ security is a first-class layer rather than a header or two.
 
 ### Edge pipeline (every request)
 
-Nine ordered steps in `middleware.ts`. The order is part of the defence, not an
+Nine ordered steps in `proxy.ts`. The order is part of the defence, not an
 implementation detail.
 
 1. **Static assets** — short-circuited before anything else runs.
@@ -736,14 +752,14 @@ implementation detail.
 ### The Content-Security-Policy
 
 In `strict` posture the policy is `script-src 'nonce-<16 random bytes>'
-'strict-dynamic' 'self'`. The nonce is minted per request in middleware and
+'strict-dynamic' 'self'`. The nonce is minted per request in the edge proxy and
 set on the *request* headers too, so Next stamps it onto its own script tags.
 With `strict-dynamic`, host allow-lists stop mattering and an injected script
 cannot learn the nonce — the header that carried it is gone by the time any
 page JavaScript runs.
 
 `next.config.js` ships a deliberately *weaker* static policy with
-`'unsafe-inline'`, and is overwritten by middleware on every HTML response. It
+`'unsafe-inline'`, and is overwritten by the edge proxy on every HTML response. It
 has to be weaker: a header written once at build time cannot carry a nonce, and
 a reused nonce is worse than none because it looks like protection.
 `verify:security` fails the build if a nonce ever appears in the static config.
@@ -921,7 +937,7 @@ than one that does not *exist* — and the verifier fails the build either way.
 ### Performance notes
 
 The same layer is built to stay out of the way: the Supabase SDK is lazily
-imported so Edge middleware stays at ~89 kB instead of ~789 kB, and
+imported so the edge proxy stays at ~89 kB instead of ~789 kB, and
 hydration/telemetry work is scheduled through `lib/perf/idle.ts` so nothing runs
 mid-interaction.
 
