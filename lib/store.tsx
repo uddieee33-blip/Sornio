@@ -15,6 +15,7 @@ import { businessTemplates, defaultBusinessSettings, type BusinessSettings, type
 import { portalForTemplate, portalHasModule } from '@/lib/portals/registry';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
+import type { RenderedIdentity } from '@/lib/auth/identity';
 import { GENESIS_HASH, appendAuditEntry, isChained, type AuditActor, type AuditSeverity } from '@/lib/security/audit';
 import { vaultClear, vaultRead, vaultWrite } from '@/lib/security/vault';
 import { debounce } from '@/lib/perf/idle';
@@ -747,6 +748,12 @@ type StoreContextValue = {
   syncStatus: SyncStatus;
   /** How the business is being stored on this device right now. */
   persistence: PersistenceStatus;
+  /**
+   * Who is at this console, as the server verified it. `null` before that answer
+   * arrives and on a device with nothing to verify against — which is why the
+   * audit trail falls back to the local owner rather than waiting.
+   */
+  identity: RenderedIdentity | null;
 };
 
 /**
@@ -914,20 +921,37 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [persist]);
 
-  // ---- Supabase sync (active only when real credentials are configured) ----
+  // ---- Identity, sync (only with real credentials), and the audit actor ----
   const supabaseMode = currentSyncMode() === 'supabase';
   const [syncStatus, setSyncStatus] = useState<SyncStatus>(supabaseMode ? 'idle' : 'local');
   const [authed, setAuthed] = useState(false);
+  const [identity, setIdentity] = useState<RenderedIdentity | null>(null);
+  // `track()` runs inside a promise queue that outlives the render it started in,
+  // so it reads a ref rather than closing over a state value that may already be
+  // a frame stale. The two are set together, in the one place identity arrives.
+  const identityRef = useRef<RenderedIdentity | null>(null);
   const pushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Detect a signed-in owner once after hydration. Without a session we stay local.
+  /**
+   * Ask the server who this is, once, after hydration.
+   *
+   * Deliberately not `getBrowserSupabaseClient().auth.getUser()`: that reads a
+   * session this app no longer owns. Sign-in happens on the server (see
+   * `app/api/auth/session/route.ts`), the cookies it sets are the record, and an
+   * answer from the server is the only one that can be trusted for both jobs at
+   * once — whether sync may run, and which name goes on every audit entry. A
+   * failed request leaves both where they were; nothing here is fatal.
+   */
   useEffect(() => {
-    if (!supabaseMode || !hydrated) return;
+    if (!hydrated) return;
     let cancelled = false;
-    import('@/lib/supabase/client')
-      .then(({ getBrowserSupabaseClient }) => getBrowserSupabaseClient().auth.getUser())
-      .then(({ data }) => {
-        if (!cancelled) setAuthed(Boolean(data.user));
+    import('@/lib/auth/client')
+      .then(({ fetchIdentity }) => fetchIdentity())
+      .then((result) => {
+        if (cancelled || !result) return;
+        identityRef.current = result.identity;
+        setIdentity(result.identity);
+        setAuthed(result.signedIn);
       })
       .catch(() => {
         if (!cancelled) setAuthed(false);
@@ -935,7 +959,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true;
     };
-  }, [supabaseMode, hydrated]);
+  }, [hydrated]);
 
   const syncingEnabled = supabaseMode && authed && hydrated;
 
@@ -969,7 +993,16 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     const track = (type: AuditEntry['type'], summary: string, reference?: string) => {
       auditQueue.current = auditQueue.current
         .then(async () => {
-          const actor: AuditActor = { id: 'local-owner', name: 'Owner', role: 'owner' };
+          // The actor is the session the server verified, not a constant. Before
+          // that answer arrives — or on a device with nothing to verify — the
+          // entry says what it always said: the local owner.
+          const known = identityRef.current;
+          const seated = stateRef.current.settings.activeRole;
+          const actor: AuditActor = {
+            id: known?.userId ?? 'local-owner',
+            name: known?.displayName ?? 'Owner',
+            role: seated === 'manager' ? 'manager' : seated === 'desk' ? 'cashier' : known?.role ?? 'owner',
+          };
           const previousHash =
             stateRef.current.audit.find((entry) => isChained(entry))?.hash ?? GENESIS_HASH;
           const event = await appendAuditEntry(previousHash, {
@@ -1985,8 +2018,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
   }, [syncingEnabled]);
 
   const stateValue = useMemo(
-    () => ({ state, hydrated, syncStatus, persistence }),
-    [state, hydrated, syncStatus, persistence],
+    () => ({ state, hydrated, syncStatus, persistence, identity }),
+    [state, hydrated, syncStatus, persistence, identity],
   );
 
   return (

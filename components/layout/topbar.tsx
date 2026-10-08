@@ -23,6 +23,8 @@ import { PlanBadge } from '@/components/billing/plan-badge';
 import { useCounterLock } from '@/components/security/counter-lock';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
+import { AccountChip } from '@/components/layout/account-menu';
+import type { RenderedIdentity } from '@/lib/auth/identity';
 
 
 /**
@@ -60,10 +62,13 @@ export function Topbar({
   onOpenCommand,
   onOpenMobileMenu,
   mobileMenuOpen,
+  identity,
 }: {
   onOpenCommand: () => void;
   onOpenMobileMenu: () => void;
   mobileMenuOpen: boolean;
+  /** The server-verified session, threaded down from the console layout. */
+  identity: RenderedIdentity | null;
 }) {
   const pathname = usePathname();
   const online = useOnline();
@@ -187,6 +192,11 @@ export function Topbar({
             <UserRound size={12} />
             {state.settings.activeRole === 'manager' ? 'Manager' : state.settings.activeRole === 'desk' ? 'Front desk' : 'Owner'}
           </Link>
+
+          {/* And the button that ends it. `Sign out` sits beside the role chip on
+              purpose: handing the console over is one gesture, and it is the role
+              change *plus* the session ending, not either alone. */}
+          <AccountChip identity={identity} />
 
           <button
             type="button"

@@ -30,8 +30,9 @@ import { CounterLockProvider, CounterLockScreen, useCounterLock } from '@/compon
 import { PortalProvider, usePortal } from '@/lib/portals/portal-provider';
 import { MasterSwitchProvider } from '@/lib/portals/master-client';
 import type { PortalId } from '@/lib/portals/types';
+import type { RenderedIdentity } from '@/lib/auth/identity';
 
-function ConsoleFrame({ children }: { children: ReactNode }) {
+function ConsoleFrame({ children, identity }: { children: ReactNode; identity: RenderedIdentity | null }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { portal, accentStyle } = usePortal();
@@ -56,16 +57,17 @@ function ConsoleFrame({ children }: { children: ReactNode }) {
       data-portal={portal.id}
     >
       <RouteWarmup />
-      <Sidebar />
+      <Sidebar identity={identity} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar
           onOpenCommand={openPalette}
           onOpenMobileMenu={openMobileMenu}
           mobileMenuOpen={mobileMenuOpen}
+          identity={identity}
         />
         <DemoBanner />
         <PlanBanner />
-        <MobileNav open={mobileMenuOpen} onClose={closeMobileMenu} />
+        <MobileNav open={mobileMenuOpen} onClose={closeMobileMenu} identity={identity} />
         <main id="main" className="mobile-content-space min-w-0 flex-1">
           <PortalGate>{children}</PortalGate>
         </main>
@@ -81,12 +83,19 @@ export function ConsoleShell({
   initialPortalId,
   initialRevealAll = false,
   initialRevealDaysLeft = 0,
+  initialIdentity = null,
 }: {
   children: ReactNode;
   initialPortalId?: PortalId | null;
   /** Everything On, resolved from the signed cookie on the server. */
   initialRevealAll?: boolean;
   initialRevealDaysLeft?: number;
+  /**
+   * Who is at this console, resolved and verified on the server. It arrives here
+   * already checked — which is why the top bar can name the owner on the first
+   * paint instead of waiting for the store to hydrate and then correcting itself.
+   */
+  initialIdentity?: RenderedIdentity | null;
 }) {
   return (
     // Everything On sits *outside* the portal, because it changes what the
@@ -99,7 +108,7 @@ export function ConsoleShell({
             is behind it, and the PIN is checked before any of it renders. */}
         <CounterLockProvider>
           <PlanProvider>
-            <ConsoleFrame>{children}</ConsoleFrame>
+            <ConsoleFrame identity={initialIdentity}>{children}</ConsoleFrame>
           </PlanProvider>
         </CounterLockProvider>
       </PortalProvider>
