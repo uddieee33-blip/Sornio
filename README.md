@@ -822,6 +822,13 @@ unsigned — both are deliberate, and both are written down.
 - **strict** — a real domain is configured (`NEXT_PUBLIC_APP_URL`): `frame-ancestors 'self'`, `X-Frame-Options: DENY`, HSTS with a two-year max-age and preload.
 - **embed** — local development and preview hosts: framing is allowed for the preview origins, HSTS is off, and `X-Frame-Options` is omitted entirely so it cannot override CSP and blank the preview.
 
+Deploying it is therefore two decisions. Build with `npm run build` — the
+Trusted Types note above explains why a host that runs bare `next build` builds
+a page that never hydrates — and set `NEXT_PUBLIC_APP_URL` to the public https
+origin. Without that variable the app stays in embed posture: it works, but it
+makes no claim of HSTS, `X-Frame-Options` or `upgrade-insecure-requests` on your
+domain's behalf, and it keeps allowing the preview origins to frame it.
+
 ### What is never collected
 
 No PINs, OTPs, card numbers, or bank passwords — the app has no field for them
