@@ -43,6 +43,10 @@ const PUBLIC_PATHS = ['/', '/auth', '/onboarding'] as const;
  *   • `/security.txt` and `/.well-known` — RFC 9116 says a researcher must be
  *     able to reach the contact file. A 307 to a sign-in page is how a real
  *     report gets dropped.
+ *   • `/manifest.webmanifest` — the browser fetches the install manifest
+ *     from the landing page, before anyone signs in. A redirect to `/auth`
+ *     here does not just slow the install prompt down; Chrome treats the
+ *     redirect as a failed fetch and the prompt never appears.
  */
 const PUBLIC_PREFIXES = [
   '/auth',
@@ -53,6 +57,7 @@ const PUBLIC_PREFIXES = [
   '/api/report',
   '/security.txt',
   '/.well-known',
+  '/manifest.webmanifest',
 ] as const;
 
 /** Where a signed-in owner lands when they have not said otherwise. */

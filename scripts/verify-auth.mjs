@@ -27,9 +27,11 @@
  *      at all and the token must be the short one.
  *   5. **The gate keeps the console closed and the public things open.** Every
  *      route in `app/(console)` must be refused to an anonymous request, and the
- *      catalogues, the health probe, sign-in itself, and `security.txt` must not
- *      be — a redirected `/locales/hi.json` is how 22 languages quietly stop
- *      working, and a redirected `security.txt` is how a report gets dropped.
+ *      catalogues, the health probe, sign-in itself, the install manifest, and
+ *      `security.txt` must not be — a redirected `/locales/hi.json` is how 22
+ *      languages quietly stop working, a redirected manifest is how the
+ *      install prompt never appears, and a redirected `security.txt` is how
+ *      a report gets dropped.
  *   6. **A `next` parameter is not a redirect permission.** The absolute, the
  *      protocol-relative, and the backslash form are all refused.
  *   7. **A provider cookie only counts when there is a provider.** On a

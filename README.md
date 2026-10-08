@@ -678,7 +678,7 @@ npm run dev                  # http://localhost:3000
 npm run typecheck            # no type errors — JavaScript-API compiler (TypeScript 6.x)
 npm run typecheck:native     # no type errors — native compiler (TypeScript 7.x, tsgo)
 npm run lint                 # no lint problems
-npm run verify               # all ten verification suites, below
+npm run verify               # all eleven verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
@@ -686,6 +686,8 @@ npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
 npm run verify:security      # 48 invariants the security layer is not allowed to lose
+npm run verify:auth          # the session lifecycle, the gate, and the public paths
+npm run verify:pwa           # the install manifest, its icons, and the gate in front of them
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
 npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive
 
@@ -1023,7 +1025,7 @@ an afternoon and costs an intruder nothing.
 
 ### Verify it yourself
 
-`npm run verify` runs all nine suites and exits non-zero on the first
+`npm run verify` runs all eleven suites and exits non-zero on the first
 disagreement:
 
 | Suite | What it refuses to let regress |
@@ -1035,6 +1037,8 @@ disagreement:
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
 | `verify:security` | 48 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:auth` | The session lifecycle, the auth gate kept ahead of the portal and plan policies, and every public path still public |
+| `verify:pwa` | The install manifest parses, its icons match their declared sizes, the flattened ones carry no transparency, the splash colours track the default paint, and the gate leaves the manifest public |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
 | `verify:render` | That no component answers a browser-only question while rendering, and that untranslated text keeps the exact bytes the server sent |
 
