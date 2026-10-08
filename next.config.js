@@ -122,6 +122,13 @@ const nextConfig = {
   compress: true,
   productionBrowserSourceMaps: false,
 
+  // Arena serves the preview from a separate `*.e2b.app` origin. Next's dev
+  // server otherwise rejects requests for its own `/_next/*` assets when the
+  // browser loads the app inside that preview frame, leaving a 403/blank page.
+  // Keep the exception scoped to Arena's preview domains; same-origin checks
+  // remain enabled for all other development origins.
+  allowedDevOrigins: ['*.e2b.app'],
+
   // Ship fewer bytes and fewer requests to the browser. SWC minification is
   // always on from Next.js 15 onwards, so the old `swcMinify` flag is gone.
   images: {
