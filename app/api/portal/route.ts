@@ -31,7 +31,7 @@ import { cookies } from 'next/headers';
 
 import { getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { resolvePosture } from '@/lib/security/headers';
+import { transportForRequest } from '@/lib/security/transport';
 import { isKnownTemplateId, isPortalId, portalById, portalIdForTemplate } from '@/lib/portals/registry';
 import { PORTAL_COOKIE } from '@/lib/portals/routes';
 import type { PortalId } from '@/lib/portals/types';
@@ -47,11 +47,13 @@ function json(body: unknown, status = 200): NextResponse {
   return response;
 }
 
-function cookieOptions() {
+function cookieOptions(request: Request) {
+  const transport = transportForRequest(request);
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure: resolvePosture() === 'strict',
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     maxAge: ONE_YEAR_SECONDS,
   };
@@ -92,7 +94,7 @@ export async function POST(request: Request) {
 
   const portalId = portalIdForTemplate(templateId);
   const response = json({ ok: true, portalId, portal: portalById(portalId).name });
-  response.cookies.set(PORTAL_COOKIE, portalId, cookieOptions());
+  response.cookies.set(PORTAL_COOKIE, portalId, cookieOptions(request));
   return response;
 }
 

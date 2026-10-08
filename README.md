@@ -660,7 +660,7 @@ npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 45 invariants the security layer is not allowed to lose
+npm run verify:security      # 48 invariants the security layer is not allowed to lose
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
 npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive
 
@@ -822,6 +822,32 @@ unsigned — both are deliberate, and both are written down.
 - **strict** — a real domain is configured (`NEXT_PUBLIC_APP_URL`): `frame-ancestors 'self'`, `X-Frame-Options: DENY`, HSTS with a two-year max-age and preload.
 - **embed** — local development and preview hosts: framing is allowed for the preview origins, HSTS is off, and `X-Frame-Options` is omitted entirely so it cannot override CSP and blank the preview.
 
+### Cookies, and the frame the preview lives in
+
+Every cookie this app sets — session, CSRF, plan, portal, Everything On — takes
+its shape from one decision, made per request in `lib/security/cookies.ts`:
+
+| Where it is running | Shape | Why |
+| --- | --- | --- |
+| A real deployment | `Secure; SameSite=Lax` | Nothing frames it (`frame-ancestors 'self'`), so `Lax` is the tighter answer |
+| The preview, over HTTPS | `Secure; SameSite=None; Partitioned` | It *is* framed cross-site, where `Lax` is refused outright |
+| Localhost, plain HTTP | `SameSite=Lax` | `Secure` and `None` are both refused over `http://` |
+
+The middle row is not a preference. Measured in a cross-site frame over HTTPS:
+`SameSite=Lax` is refused, `SameSite=None` without `Secure` is refused, and only
+the `Secure` shapes are stored. A preview that set `Lax` therefore had **no CSRF
+cookie at all**, so its sign-in POST carried no token and the owner was told
+"Missing CSRF cookie" — while the same build worked perfectly in a top-level
+tab. `Partitioned` (CHIPS) is used rather than a bare `SameSite=None` because it
+keys the cookie to the site that framed us and survives the browsers that block
+third-party cookies outright.
+
+One subtlety worth keeping: the host decides HTTPS before `x-forwarded-proto`
+does. Next.js fills that header in as `http` when the proxy in front of it stays
+silent, so "the header says http" cannot be told apart from "nobody said
+anything" — and trusting it put `Lax` cookies behind a TLS terminator, which is
+the same outage wearing a different hat. `verify:security` pins all three rows.
+
 Deploying it is therefore two decisions. Build with `npm run build` — the
 Trusted Types note above explains why a host that runs bare `next build` builds
 a page that never hydrates — and set `NEXT_PUBLIC_APP_URL` to the public https
@@ -952,7 +978,7 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 45 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 48 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
 | `verify:render` | That no component answers a browser-only question while rendering, and that untranslated text keeps the exact bytes the server sent |
 

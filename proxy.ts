@@ -55,6 +55,7 @@ import {
   type RateLimitRule,
 } from '@/lib/security/rate-limit';
 import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isPrefetchRequest, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
+import { transportForRequest } from '@/lib/security/transport';
 import { randomToken } from '@/lib/security/crypto';
 import { PLAN_COOKIE, checkPlanAccess, openPlanRecord, resolveEntitlement } from '@/lib/plans';
 // The auth *halves*, deliberately: `@/lib/auth` is the server surface and pulls
@@ -117,6 +118,14 @@ export async function proxy(request: NextRequest) {
    * the time an XSS payload executes.
    */
   const nonce = randomToken(16);
+
+  /**
+   * How this response may carry a cookie. Decided once, here, because the
+   * answer depends on the request: the preview is framed cross-site, where a
+   * `SameSite=Lax` cookie is refused outright, and everything below that sets a
+   * cookie has to agree. See `lib/security/cookies.ts`.
+   */
+  const transport = transportForRequest(request);
 
   // ---- 1. Static assets: long-lived cache, minimal headers, no work. ----
   if (pathname.startsWith('/_next/static') || pathname.startsWith('/_next/image') || pathname === '/favicon.ico') {
@@ -387,7 +396,15 @@ export async function proxy(request: NextRequest) {
           setAll(cookiesToSet: { name: string; value: string; options: Record<string, unknown> }[]) {
             cookiesToSet.forEach(({ name, value, options }) => {
               request.cookies.set({ name, value, ...options });
-              response.cookies.set({ name, value, ...options, httpOnly: true, sameSite: 'lax' });
+              response.cookies.set({
+                name,
+                value,
+                ...options,
+                httpOnly: true,
+                sameSite: transport.sameSite,
+                secure: transport.secure,
+                partitioned: transport.partitioned,
+              });
             });
           },
         },
@@ -414,8 +431,9 @@ export async function proxy(request: NextRequest) {
   // must be able to echo it back in a header — that is the whole mechanism.
   response.cookies.set(CSRF_COOKIE, csrfToken, {
     httpOnly: false,
-    sameSite: 'lax',
-    secure: posture === 'strict',
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     maxAge: 60 * 60 * 12,
   });

@@ -35,6 +35,7 @@ import {
   type SessionClaims,
 } from '@/lib/security/session';
 import type { Role } from '@/lib/security/rbac';
+import type { CookieTransport } from '@/lib/security/cookies';
 
 /**
  * The cookie's name, under the name this layer calls it. `SESSION_COOKIE` stays
@@ -135,22 +136,26 @@ export function providerForClaims(claims: Pick<SessionClaims, 'userId'>): Sessio
  *
  * `httpOnly` is not negotiable: this cookie is what says "the owner is at this
  * console", and a value a script can read is a value a script can send.
- * `sameSite: 'lax'` keeps a top-level link working — which is what lets a
- * confirmation email land — while a cross-site POST carries nothing.
+ *
+ * The rest comes from the transport, because it is a fact about the request
+ * rather than a preference: the preview is framed cross-site, where a
+ * `SameSite=Lax` cookie is refused by the browser outright. See
+ * `lib/security/cookies.ts` for the measurements.
  */
-export function ownerSessionCookie(secure: boolean, maxAge: number | null) {
+export function ownerSessionCookie(transport: CookieTransport, maxAge: number | null) {
   return {
     httpOnly: true as const,
-    sameSite: 'lax' as const,
-    secure,
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     ...(maxAge === null ? {} : { maxAge }),
   };
 }
 
 /** Attributes that delete the cookie — the same shape, with the lifetime zeroed. */
-export function clearedOwnerSession(secure: boolean) {
-  return ownerSessionCookie(secure, 0);
+export function clearedOwnerSession(transport: CookieTransport) {
+  return ownerSessionCookie(transport, 0);
 }
 
 /**

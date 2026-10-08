@@ -326,6 +326,52 @@ if (exemptPaths.length === 0) {
   );
 }
 
+/* --------------------------------- 6b. cookies survive the frame they are in */
+
+/*
+ * The preview is framed cross-site, and a `SameSite=Lax` cookie is refused
+ * outright there — the browser stores nothing, so the CSRF cookie never exists,
+ * sign-in posts no token, and the owner is told "Missing CSRF cookie." That was
+ * a real outage, and it is invisible from a top-level tab, which is exactly how
+ * it survived every other check in this file.
+ *
+ * Three things have to stay true: the shape is decided in one place from the
+ * request, the framing-safe shape is `SameSite=None; Secure; Partitioned`, and
+ * the host beats the `x-forwarded-proto` header — Next fills that header in as
+ * `http` when the proxy in front stays silent, so trusting it put `Lax` cookies
+ * behind a TLS terminator.
+ */
+const cookieModule = read('lib', 'security', 'cookies.ts');
+const cookieFactoryFiles = [
+  ['lib', 'auth', 'cookie.ts'],
+  ['lib', 'security', 'session.ts'],
+  ['lib', 'plans', 'cookie.ts'],
+  ['lib', 'portals', 'master.ts'],
+];
+
+check(
+  'every cookie shape is decided from the request, not written inline',
+  cookieFactoryFiles.every((parts) => !/sameSite: 'lax'/.test(withoutComments(read(...parts)))) &&
+    cookieFactoryFiles.every((parts) => /CookieTransport/.test(read(...parts))) &&
+    /transportForRequest\s*\(/.test(withoutComments(proxy)) &&
+    !/sameSite: 'lax'/.test(withoutComments(proxy)),
+  "a cookie factory or the proxy sets SameSite by hand again. A `SameSite=Lax` cookie is refused outright in a cross-site frame, so the preview signs nobody in and reports a missing CSRF cookie. All of them must take the transport from lib/security/cookies.ts.",
+);
+
+check(
+  'the framed shape is Partitioned and Secure',
+  /secure: true, sameSite: 'none', partitioned: true/.test(cookieModule),
+  "the preview cookie shape is no longer `SameSite=None; Secure; Partitioned`. Measured in a cross-site frame: Lax is refused, `None` without `Secure` is refused, and only Secure (with or without Partitioned) is stored — a preview console that drops its own cookies cannot sign anyone in.",
+);
+
+const cookieCode = withoutComments(cookieModule);
+const hostCheckAt = cookieCode.indexOf('isAlwaysTlsHost(hostnameOf(headers))');
+check(
+  'the host decides HTTPS before the forwarded header does',
+  hostCheckAt > 0 && hostCheckAt < cookieCode.indexOf('x-forwarded-proto'),
+  'lib/security/cookies.ts no longer checks the always-TLS host before reading x-forwarded-proto. Next.js fills that header in as `http` when the proxy in front of it says nothing, so a preview behind a silent TLS terminator would get `Lax` cookies again — the outage this guards.',
+);
+
 /* ------------------------------------------------- 7. probes vs real routes */
 
 const consoleDir = path.join(ROOT, 'app', '(console)');

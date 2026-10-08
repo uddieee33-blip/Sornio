@@ -35,7 +35,7 @@ import { cookies } from 'next/headers';
 
 import { getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { resolvePosture } from '@/lib/security/headers';
+import { transportForRequest } from '@/lib/security/transport';
 import {
   MASTER_COOKIE,
   MASTER_OFF,
@@ -105,14 +105,14 @@ export async function POST(request: Request) {
   // the same thing, and the fewer states this has, the fewer ways it can lie.
   if (!on) {
     const response = json(describe(MASTER_OFF));
-    response.cookies.set(MASTER_COOKIE, '', { ...masterCookieOptions(resolvePosture() === 'strict'), maxAge: 0 });
+    response.cookies.set(MASTER_COOKIE, '', { ...masterCookieOptions(transportForRequest(request)), maxAge: 0 });
     return response;
   }
 
   const record = startMasterReveal(actor);
   const sealed = await sealMasterRecord(record);
   const response = json(describe(record));
-  response.cookies.set(MASTER_COOKIE, sealed, masterCookieOptions(resolvePosture() === 'strict'));
+  response.cookies.set(MASTER_COOKIE, sealed, masterCookieOptions(transportForRequest(request)));
   return response;
 }
 

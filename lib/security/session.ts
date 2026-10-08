@@ -14,6 +14,7 @@
 
 import { base64ToUtf8, constantTimeEqual, randomToken, sha256Hex, utf8ToBase64 } from './crypto';
 import { isRole, type Role } from './rbac';
+import type { CookieTransport } from './cookies';
 
 export const SESSION_COOKIE = 'dukaan.session';
 export const SESSION_MAX_AGE_SECONDS = 60 * 60 * 24 * 14; // two weeks
@@ -139,13 +140,16 @@ export async function verifySession(
 
 /**
  * Cookie attributes. `httpOnly` is on for the session itself so a script
- * injected into the page cannot read or exfiltrate it.
+ * injected into the page cannot read or exfiltrate it, and the transport
+ * decides the framing and HTTP-vs-HTTPS shape — see
+ * `lib/security/cookies.ts`.
  */
-export function sessionCookieOptions(secure: boolean, maxAge = SESSION_MAX_AGE_SECONDS) {
+export function sessionCookieOptions(transport: CookieTransport, maxAge = SESSION_MAX_AGE_SECONDS) {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure,
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     maxAge,
   };

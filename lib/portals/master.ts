@@ -32,6 +32,7 @@
 
 import { base64UrlDecode, base64UrlEncode, constantTimeEqual, hmacSha256Base64Url } from '@/lib/security/crypto';
 import { resolveSessionSecret } from '@/lib/security/session';
+import type { CookieTransport } from '@/lib/security/cookies';
 
 export const MASTER_COOKIE = 'dukaan.everything';
 
@@ -141,11 +142,12 @@ export function startMasterReveal(by: MasterRecord['by'], now = Date.now()): Mas
 }
 
 /** Cookie attributes. httpOnly: no script on the page may widen its own console. */
-export function masterCookieOptions(secure: boolean) {
+export function masterCookieOptions(transport: CookieTransport) {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure,
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     maxAge: MASTER_MAX_AGE_SECONDS,
   };

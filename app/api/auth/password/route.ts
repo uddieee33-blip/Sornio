@@ -28,7 +28,7 @@
 import { NextResponse } from 'next/server';
 
 import { getGuardedServerClient } from '@/lib/security/guard';
-import { resolvePosture } from '@/lib/security/headers';
+import { transportForRequest } from '@/lib/security/transport';
 import { LIMITS, passwordStrength } from '@/lib/security/validation';
 import {
   AUTH_COOKIE,
@@ -101,7 +101,7 @@ export async function POST(request: Request) {
     });
 
     const response = json({ ok: true, changed: true });
-    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(resolvePosture() === 'strict', issued.maxAge));
+    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transportForRequest(request), issued.maxAge));
     return response;
   } catch {
     return json({ ok: false, code: 'unreachable', error: 'Could not reach the authentication service. Please try again.' }, 503);

@@ -36,7 +36,7 @@
 import { NextResponse } from 'next/server';
 
 import { getGuardedServerClient } from '@/lib/security/guard';
-import { resolvePosture } from '@/lib/security/headers';
+import { transportForRequest } from '@/lib/security/transport';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
 import {
@@ -130,7 +130,7 @@ export async function POST(request: Request) {
 
   const { email, password, remember } = credentials;
   const requested = (payload as { next?: unknown } | null)?.next;
-  const secure = resolvePosture() === 'strict';
+  const transport = transportForRequest(request);
   const client = await getGuardedServerClient();
 
   // ---- Local-first: no provider, so the session is the device's own. ----
@@ -158,7 +158,7 @@ export async function POST(request: Request) {
         remember,
       }),
     });
-    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(secure, issued.maxAge));
+    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
     return response;
   }
 
@@ -223,7 +223,7 @@ export async function POST(request: Request) {
         remember,
       }),
     });
-    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(secure, issued.maxAge));
+    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
     return response;
   } catch {
     // No connection, a revoked project, an expired JWT signing key — the owner
@@ -233,10 +233,9 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE() {
-  const secure = resolvePosture() === 'strict';
+export async function DELETE(request: Request) {
   const response = json({ ok: true, signedIn: false, identity: null });
-  response.cookies.set(AUTH_COOKIE, '', clearedOwnerSession(secure));
+  response.cookies.set(AUTH_COOKIE, '', clearedOwnerSession(transportForRequest(request)));
 
   // The app cookie is cleared unconditionally, before anything else: an owner
   // pressing Sign out must never stay signed in because a network call failed.
