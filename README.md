@@ -660,7 +660,7 @@ npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 44 invariants the security layer is not allowed to lose
+npm run verify:security      # 45 invariants the security layer is not allowed to lose
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
 npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive
 
@@ -791,8 +791,13 @@ paints its server HTML, and then nothing hydrates. Measured, not assumed: the
 Turbopack production build reported `trusted-types-sink` violations on every
 route and hydrated zero components; the webpack build reported none and
 hydrated all of them. Dev keeps Turbopack — it is faster, and dev is where the
-directives are dropped anyway. `verify:security` reads `package.json` and fails
-the build if the two ever drift apart.
+directives are dropped anyway.
+
+That is also why a host must run the *script*, not its own idea of a Next
+build: `vercel.json` pins `buildCommand` to `npm run build`, because a host that
+runs bare `next build` gets Turbopack, and the deployment then reports success
+while serving a page that never hydrates. `verify:security` reads both files and
+fails the build if either drifts.
 
 `upgrade-insecure-requests` rides with the posture, not with production. It is
 emitted in `strict` posture only: on a production build served over plain HTTP
@@ -940,7 +945,7 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 44 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, the production build toolchain is one that can honour Trusted Types, `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 45 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
 | `verify:render` | That no component answers a browser-only question while rendering, and that untranslated text keeps the exact bytes the server sent |
 

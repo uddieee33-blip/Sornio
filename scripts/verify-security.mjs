@@ -110,6 +110,18 @@ check(
   'npm run build no longer passes --webpack while the CSP still requires Trusted Types. Turbopack\'s runtime sets script.src as a plain string, so every client chunk is blocked under require-trusted-types-for: the production console renders its server HTML and never hydrates. Either build with --webpack or drop the directives from policy.json — not one of the two.',
 );
 
+/*
+ * …and the deployment host has to run that script, not its own idea of a Next
+ * build. A host that runs bare `next build` gets Turbopack on Next 16 and the
+ * same dead page, with a green deployment and a 200 response.
+ */
+const vercelConfig = exists('vercel.json') ? JSON.parse(read('vercel.json')) : null;
+check(
+  'the deployment host builds with the same toolchain',
+  vercelConfig !== null && /(npm|yarn|pnpm) run build|--webpack/.test(vercelConfig.buildCommand ?? ''),
+  'vercel.json is missing or does not run `npm run build`. A host that runs bare `next build` is building with Turbopack, whose runtime cannot satisfy require-trusted-types-for: the deployment reports success, serves 200, and never hydrates.',
+);
+
 check(
   'upgrade-insecure-requests is a strict-posture control',
   /posture === 'strict'\)\s*\{[\s\S]{0,900}?directives\['upgrade-insecure-requests'\]/.test(headers),
