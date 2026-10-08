@@ -36,6 +36,10 @@ const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), 'utf8');
 const posture = read('lib', 'security', 'posture.ts');
 const scoreCard = read('components', 'security', 'security-score.tsx');
 const i18n = read('lib', 'i18n.tsx');
+const authForm = read('components', 'auth', 'auth-form.tsx');
+
+/** Comments explain the rules; they are not the rules. Strip before counting. */
+const stripComments = (source) => source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '');
 
 const passed = [];
 const failures = [];
@@ -129,6 +133,16 @@ check(
   'a phrase with no translation is returned untouched',
   translateValue !== null && /return source;\s*$/.test(translateValue.trim()),
   'translateValue returns the normalised lookup key when no catalogue has the phrase. The walker writes that return value into the DOM, so every newline in untranslated copy collapses to a space and the page disagrees with the HTML it was served.',
+);
+
+/* --------------------- 3. a browser is allowed to annotate a credential field */
+
+const authCode = stripComments(authForm);
+const tolerances = (authCode.match(/suppressHydrationWarning/g) ?? []).length;
+check(
+  'the sign-in fields tolerate a browser’s autofill annotation',
+  tolerances >= 3,
+  'components/auth/auth-form.tsx no longer tolerates an autofill annotation on the credential fields. Chrome paints `__gcruniqueid` onto a form and the fields it can fill *before* React hydrates, so the sign-in page — the first page every owner sees — reported a hydration attribute mismatch on a page that was completely correct. The attribute never appears in the HTML the server sends.',
 );
 
 /* ------------------------------------------------------------------ output */

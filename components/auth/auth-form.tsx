@@ -221,7 +221,25 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card backdrop-blur">
+    /*
+     * `suppressHydrationWarning` here is not a shrug: Chrome's autofill paints
+     * a `__gcruniqueid` attribute onto a form and the credential fields it can
+     * fill *before* React hydrates, and React's development build then reports
+     * `- __gcruniqueid="1"` as a hydration mismatch on a page that is perfectly
+     * correct. The attribute belongs to the browser, not to this app — it never
+     * appears in the HTML the server sends — and every attribute these elements
+     * do render is static at first render, so tolerating it cannot hide a
+     * mistake of ours. Scoped to the credential surface on purpose: this is the
+     * app's only <form>, the console's search boxes are single unlabelled
+     * fields that autofill leaves alone, and silencing the check everywhere
+     * would blind it to real mismatches.
+     */
+    <form
+      onSubmit={handleSubmit}
+      noValidate
+      suppressHydrationWarning
+      className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card backdrop-blur"
+    >
       {errors.form ? (
         <div className="animate-fade-in mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20">
           <AlertCircle size={14} className="mt-0.5 shrink-0" /> {errors.form}
@@ -267,6 +285,7 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
               <input
                 type="email"
                 autoComplete="email"
+                suppressHydrationWarning
                 placeholder="you@business.com"
                 value={email}
                 onChange={(e) => {
@@ -318,6 +337,7 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
                 <input
                   type="email"
                   autoComplete="email"
+                  suppressHydrationWarning
                   placeholder="you@business.com"
                   value={email}
                   onChange={(e) => {
@@ -336,6 +356,7 @@ export default function AuthForm({ supabaseReady, destination, notice, identity 
                 <input
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                  suppressHydrationWarning
                   placeholder={`Password (${LIMITS.minPassword}+ characters)`}
                   value={password}
                   onChange={(e) => {
