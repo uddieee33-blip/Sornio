@@ -3,7 +3,7 @@
 import { useLocaleRefresh } from '@/lib/i18n';
 
 import { useMemo, useState } from 'react';
-import { IndianRupee, Landmark, QrCode, Search, ShieldCheck, UserPlus, Users } from 'lucide-react';
+import { IndianRupee, QrCode, Search, UserPlus, Users } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/Button';
 import { StatCard } from '@/components/ui/stat-card';
 import { CustomerDetailModal } from '@/components/customers/customer-detail-modal';
 import { formatCurrency } from '@/lib/business-data';
-import { isValidUpiId, normalizeUpiId, upiAccentColor, type BankDetails } from '@/lib/upi';
+import { isValidUpiId, upiAccentColor } from '@/lib/upi';
 import { ExportButton } from '@/components/export/export-button';
 import { useDukaanStore, type Customer } from '@/lib/store';
 
@@ -23,11 +23,6 @@ const emptyForm = {
   phone: '',
   email: '',
   details: '',
-  upiId: '',
-  bankName: '',
-  accountNumber: '',
-  ifsc: '',
-  accountHolder: '',
 };
 
 export default function CustomersPage() {
@@ -51,28 +46,10 @@ export default function CustomersPage() {
     );
   }, [state.customers, query]);
 
-  const upiTouched = form.upiId.length > 0;
-  const upiOk = isValidUpiId(form.upiId);
-
   const handleSubmit = () => {
-    const bank: BankDetails | undefined =
-      form.upiId || form.bankName || form.accountNumber || form.ifsc
-        ? {
-            upiId: form.upiId || undefined,
-            bankName: form.bankName || undefined,
-            accountNumber: form.accountNumber || undefined,
-            ifsc: form.ifsc || undefined,
-            accountHolder: form.accountHolder || form.name || undefined,
-          }
-        : undefined;
-    const result = actions.addCustomer({ name: form.name, phone: form.phone, email: form.email, details: form.details, bank });
+    const result = actions.addCustomer({ name: form.name, phone: form.phone, email: form.email, details: form.details });
     if (result.ok) {
-      setMessage({
-        tone: 'ok',
-        text: upiOk
-          ? `${form.name.trim()} added — their unique UPI QR is ready. Money lands directly in their account.`
-          : `${form.name.trim()} added. Add a UPI ID later to generate their payment QR.`,
-      });
+      setMessage({ tone: 'ok', text: `Customer "${form.name.trim()}" added.` });
       setForm(emptyForm);
     } else {
       setMessage({ tone: 'error', text: result.error ?? 'Could not add customer.' });
@@ -84,7 +61,7 @@ export default function CustomersPage() {
       <PageHeader
         eyebrow="People"
         title="Customers"
-        subtitle="Profiles with bank & UPI details — each customer gets a unique payment QR, no middleman."
+        subtitle="Customer profiles, contacts and outstanding balances."
         actions={
           <>
             <Badge tone="brand" dot>
@@ -128,46 +105,6 @@ export default function CustomersPage() {
               <span className={labelClass}>Notes / details</span>
               <input value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} placeholder="Preferences, billing cycle…" className={inputClass} />
             </div>
-          </div>
-
-          <p className="mb-4 mt-6 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-stone-600">
-            <Landmark size={13} /> Bank & UPI — powers their unique QR
-          </p>
-          <div className="space-y-3">
-            <div>
-              <span className={labelClass}>UPI ID</span>
-              <input value={form.upiId} onChange={(e) => setForm({ ...form, upiId: e.target.value })} placeholder="name@okhdfcbank" className={`${inputClass} ${upiTouched ? (upiOk ? 'border-emerald-500/50 focus:border-emerald-400' : 'border-amber-500/50 focus:border-amber-400') : ''}`} />
-              {upiTouched ? (
-                <p className={`mt-1.5 text-xs font-semibold ${upiOk ? 'text-emerald-700' : 'text-amber-700'}`}>
-                  {upiOk ? `✓ Valid — QR will pay ${normalizeUpiId(form.upiId)} directly` : 'Expected format: name@bank'}
-                </p>
-              ) : null}
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className={labelClass}>Bank name</span>
-                <input value={form.bankName} onChange={(e) => setForm({ ...form, bankName: e.target.value })} placeholder="HDFC Bank" className={inputClass} />
-              </div>
-              <div>
-                <span className={labelClass}>IFSC</span>
-                <input value={form.ifsc} onChange={(e) => setForm({ ...form, ifsc: e.target.value.toUpperCase() })} placeholder="HDFC0001234" className={inputClass} />
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <span className={labelClass}>Account number</span>
-                <input value={form.accountNumber} onChange={(e) => setForm({ ...form, accountNumber: e.target.value })} placeholder="XXXXXXXXXXXX" className={inputClass} />
-              </div>
-              <div>
-                <span className={labelClass}>Account holder</span>
-                <input value={form.accountHolder} onChange={(e) => setForm({ ...form, accountHolder: e.target.value })} placeholder="Defaults to name" className={inputClass} />
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 flex items-start gap-2.5 rounded-2xl border border-emerald-500/20 bg-emerald-500/[0.06] p-3.5 text-xs leading-relaxed text-emerald-700">
-            <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-            <span>Payments via this QR settle <strong>directly into the customer&apos;s bank</strong>. DukaanOS never holds or routes the money.</span>
           </div>
 
           {message ? (
