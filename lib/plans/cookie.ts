@@ -22,6 +22,7 @@ import { base64UrlDecode, base64UrlEncode, constantTimeEqual, hmacSha256Base64Ur
 import { resolveSessionSecret } from '@/lib/security/session';
 import { isPlanId } from './catalogue';
 import type { PlanRecord } from './types';
+import type { CookieTransport } from '@/lib/security/cookies';
 
 export const PLAN_COOKIE = 'dukaan.plan';
 
@@ -110,11 +111,12 @@ export async function openPlanRecord(
 }
 
 /** Cookie attributes. httpOnly: no script on the page may rewrite a plan. */
-export function planCookieOptions(secure: boolean) {
+export function planCookieOptions(transport: CookieTransport) {
   return {
     httpOnly: true,
-    sameSite: 'lax' as const,
-    secure,
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     maxAge: PLAN_COOKIE_MAX_AGE,
   };

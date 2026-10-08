@@ -127,7 +127,12 @@ const nextConfig = {
   // browser loads the app inside that preview frame, leaving a 403/blank page.
   // Keep the exception scoped to Arena's preview domains; same-origin checks
   // remain enabled for all other development origins.
-  allowedDevOrigins: ['*.e2b.app'],
+  //
+  // `localhost` and `127.0.0.1` are listed for the same reason: the app is
+  // routinely opened against the sandbox's own loopback address, and without
+  // them the dev client's `/_next/hmr` socket is refused — which shows up as a
+  // console full of "Blocked cross-origin request to Next.js dev resource".
+  allowedDevOrigins: ['*.e2b.app', 'localhost', '127.0.0.1'],
 
   // Ship fewer bytes and fewer requests to the browser. SWC minification is
   // always on from Next.js 15 onwards, so the old `swcMinify` flag is gone.
@@ -142,8 +147,9 @@ const nextConfig = {
   },
 
   /**
-   * Next.js 16 builds with Turbopack by default, and Turbopack refuses to run
-   * when a `webpack` config is present without a matching `turbopack` config.
+   * Next.js 16 serves and builds with Turbopack by default, and Turbopack
+   * refuses to run when a `webpack` config is present without a matching
+   * `turbopack` config.
    *
    * Nothing needs porting:
    *   - the `@/` alias is already declared in tsconfig `paths`, which both
@@ -153,6 +159,24 @@ const nextConfig = {
    *
    * The block is declared explicitly so the intent is visible and so a future
    * alias change has an obvious home.
+   *
+   * ── dev is Turbopack; `npm run build` is `next build --webpack` ───────────
+   *
+   * Not a preference — a requirement of the security policy. The production
+   * CSP carries `require-trusted-types-for 'script'` with a named policy
+   * allow-list, and webpack's client runtime is the one that creates and uses
+   * the `nextjs#bundler` policy it allows. Turbopack's runtime assigns
+   * `script.src` as a plain string, so with Trusted Types enforced every
+   * client chunk is blocked, React never hydrates, and the deployed console
+   * paints its server HTML and then does nothing at all. Verified both ways:
+   * the Turbopack build reports `trusted-types-sink` violations on every page
+   * and hydrates zero components; the webpack build reports none and hydrates
+   * every route.
+   *
+   * The dev server keeps Turbopack — it is faster, and dev drops the Trusted
+   * Types directives precisely because they cannot hold there. `verify:security`
+   * fails the build if this pairing is ever broken: the policy keeps its
+   * directives only while the build keeps the bundler that honours them.
    */
   turbopack: {
     resolveAlias: {

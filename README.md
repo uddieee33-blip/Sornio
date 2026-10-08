@@ -653,15 +653,16 @@ npm run dev                  # http://localhost:3000
 
 npm run typecheck            # no type errors
 npm run lint                 # no lint problems
-npm run verify               # all eight verification suites, below
+npm run verify               # all nine verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 33 invariants the security layer is not allowed to lose
+npm run verify:security      # 48 invariants the security layer is not allowed to lose
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
+npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive
 
 npm run theme:build          # regenerate app/themes.css from lib/theme/palettes.json
 
@@ -704,7 +705,7 @@ security is a first-class layer rather than a header or two.
 | Storage | `lib/security/vault.ts` | AES-GCM-256 at rest, integrity envelope, rollback snapshot |
 | Device | `lib/security/lock.ts` + `components/security/counter-lock.tsx` | The counter lock: a PIN hashed with PBKDF2-SHA256 (120k rounds, per-install salt), idle auto-lock, growing lockout after five wrong tries |
 | Device (passkey) | `lib/security/passkey.ts` | Unlock with the device's own sensor. Stores a credential id and nothing else |
-| Self-audit | `lib/security/posture.ts` + `components/security/security-score.tsx` | A weighted score measured from live browser state, with unanswerable checks excluded rather than counted green |
+| Self-audit | `lib/security/posture.ts` + `components/security/security-score.tsx` | A weighted score measured from live browser state — collected *after* mount and handed to the builder, so the first client render matches the server's HTML — with unanswerable checks excluded rather than counted green |
 | Violation intake | `app/api/report/route.ts` | Bounded, redacted CSP reports. Counts them; stores nothing |
 | Evidence | `lib/security/audit.ts` | SHA-256 hash-chained, tamper-evident history |
 | Privacy | `lib/security/redact.ts` | PII/secret scrubbing before anything is logged |
@@ -724,11 +725,20 @@ implementation detail.
    five minutes is refused for two minutes, doubling per trip, capped at
    thirty. It runs *before* the rate limiter deliberately: a banned
    fingerprint should cost one map read, not a full sliding-window
-   evaluation. At 300 page requests a minute, a human cannot reach four
-   strikes in five minutes.
+   evaluation. Only a write or a credential attempt earns a strike, so an
+   owner reading their own books cannot reach the box that locks them out of
+   their own console.
 4. **Rate limiting** — a per-client sliding window per scope (auth, api,
-   reports, portal, plan, master, report, page) plus a short burst guard. Every
-   429 records a strike against step 3.
+   apiRead, prefetch, reports, portal, plan, master, report, page) plus a
+   short burst guard. Reads are budgeted above writes, and speculative
+   prefetches get their own pair of buckets: the console warms its own sidebar
+   on idle, so charging that traffic to the navigation budget meant an owner
+   clicking through their own screens reached the ceiling and the next page
+   they opened was answered with "Too many requests". The ceilings are set
+   from what the app spends on the owner's behalf — one console page view
+   costs about thirteen page-bucket requests and forty prefetches — so they
+   sit past any person clicking and still bound a script. Only a write or a
+   credential attempt records a strike against step 3.
 5. **CSRF** — `Sec-Fetch-Site`, an `Origin`/`Referer` allow-list, and a
    double-submit token for `/api/*`. Exactly one path is exempt —
    `/api/report`, because the browser posts violation reports itself with no
@@ -765,12 +775,34 @@ a reused nonce is worse than none because it looks like protection.
 `verify:security` fails the build if a nonce ever appears in the static config.
 
 Also on: `require-trusted-types-for 'script'` with a named policy allow-list
-(production only — Turbopack's own DOM writes violate it in dev, and a console
-full of ignorable violations teaches everyone to ignore violations),
+(production only — dev's own DOM writes violate it, and a console full of
+ignorable violations teaches everyone to ignore violations),
 `script-src-attr 'none'` so an injected `onclick=` cannot run, `object-src`,
 `base-uri`, `frame-src` and `child-src` all `'none'`, and
 `Cross-Origin-Embedder-Policy: credentialless` rather than `require-corp` —
 same isolation, without breaking the first owner who pastes in a logo URL.
+
+Trusted Types decide the bundler, which is why `npm run build` is
+`next build --webpack`. The policy allow-list names `nextjs#bundler` — a policy
+webpack's client runtime creates and uses. Turbopack's runtime is not
+policy-aware: it assigns `script.src` as a plain string, so under
+`require-trusted-types-for` the browser blocks every client chunk, the console
+paints its server HTML, and then nothing hydrates. Measured, not assumed: the
+Turbopack production build reported `trusted-types-sink` violations on every
+route and hydrated zero components; the webpack build reported none and
+hydrated all of them. Dev keeps Turbopack — it is faster, and dev is where the
+directives are dropped anyway.
+
+That is also why a host must run the *script*, not its own idea of a Next
+build: `vercel.json` pins `buildCommand` to `npm run build`, because a host that
+runs bare `next build` gets Turbopack, and the deployment then reports success
+while serving a page that never hydrates. `verify:security` reads both files and
+fails the build if either drifts.
+
+`upgrade-insecure-requests` rides with the posture, not with production. It is
+emitted in `strict` posture only: on a production build served over plain HTTP
+— a local `next start`, or a hosted preview — it rewrites every same-origin
+fetch to `https`, and half the console dies with `ERR_SSL_PROTOCOL_ERROR`.
 
 Violations go to `/api/report`, which **stores nothing**: 16 KB body cap, ten
 reports per request, forty distinct directives, blocked URIs coarsened to an
@@ -789,6 +821,39 @@ unsigned — both are deliberate, and both are written down.
 
 - **strict** — a real domain is configured (`NEXT_PUBLIC_APP_URL`): `frame-ancestors 'self'`, `X-Frame-Options: DENY`, HSTS with a two-year max-age and preload.
 - **embed** — local development and preview hosts: framing is allowed for the preview origins, HSTS is off, and `X-Frame-Options` is omitted entirely so it cannot override CSP and blank the preview.
+
+### Cookies, and the frame the preview lives in
+
+Every cookie this app sets — session, CSRF, plan, portal, Everything On — takes
+its shape from one decision, made per request in `lib/security/cookies.ts`:
+
+| Where it is running | Shape | Why |
+| --- | --- | --- |
+| A real deployment | `Secure; SameSite=Lax` | Nothing frames it (`frame-ancestors 'self'`), so `Lax` is the tighter answer |
+| The preview, over HTTPS | `Secure; SameSite=None; Partitioned` | It *is* framed cross-site, where `Lax` is refused outright |
+| Localhost, plain HTTP | `SameSite=Lax` | `Secure` and `None` are both refused over `http://` |
+
+The middle row is not a preference. Measured in a cross-site frame over HTTPS:
+`SameSite=Lax` is refused, `SameSite=None` without `Secure` is refused, and only
+the `Secure` shapes are stored. A preview that set `Lax` therefore had **no CSRF
+cookie at all**, so its sign-in POST carried no token and the owner was told
+"Missing CSRF cookie" — while the same build worked perfectly in a top-level
+tab. `Partitioned` (CHIPS) is used rather than a bare `SameSite=None` because it
+keys the cookie to the site that framed us and survives the browsers that block
+third-party cookies outright.
+
+One subtlety worth keeping: the host decides HTTPS before `x-forwarded-proto`
+does. Next.js fills that header in as `http` when the proxy in front of it stays
+silent, so "the header says http" cannot be told apart from "nobody said
+anything" — and trusting it put `Lax` cookies behind a TLS terminator, which is
+the same outage wearing a different hat. `verify:security` pins all three rows.
+
+Deploying it is therefore two decisions. Build with `npm run build` — the
+Trusted Types note above explains why a host that runs bare `next build` builds
+a page that never hydrates — and set `NEXT_PUBLIC_APP_URL` to the public https
+origin. Without that variable the app stays in embed posture: it works, but it
+makes no claim of HSTS, `X-Frame-Options` or `upgrade-insecure-requests` on your
+domain's behalf, and it keeps allowing the preview origins to frame it.
 
 ### What is never collected
 
@@ -902,7 +967,7 @@ an afternoon and costs an intruder nothing.
 
 ### Verify it yourself
 
-`npm run verify` runs all eight suites and exits non-zero on the first
+`npm run verify` runs all nine suites and exits non-zero on the first
 disagreement:
 
 | Suite | What it refuses to let regress |
@@ -913,10 +978,11 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 33 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, one CSRF exemption, a bucket per mutating endpoint, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 48 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
+| `verify:render` | That no component answers a browser-only question while rendering, and that untranslated text keeps the exact bytes the server sent |
 
-Two of these are worth explaining, for the same underlying reason: both cover
+Three of these are worth explaining, for the same underlying reason: they cover
 failures that are completely silent.
 
 **`verify:security`** exists because security regressions do not look like
@@ -934,6 +1000,21 @@ headline figure on four screens was `opacity: 0` forever. The CSS now requires
 both halves, so forgetting one yields a card that does not *animate* rather
 than one that does not *exist* — and the verifier fails the build either way.
 
+**`verify:render`** exists because two hydration mismatches shipped, and both
+were found by driving a real browser through the console rather than by any
+test. The Trust Centre scored `isSecureContext`, `crossOriginIsolated`,
+WebAuthn support and `document.cookie` *while rendering*, so the server's HTML
+carried a score of 37 and the client's first frame a score of 58 — the ring
+changed colour under React's error, and the whole subtree was thrown away. The
+i18n walker, separately, looked a phrase up by its normalised form and wrote
+that normalised form back into the DOM when no catalogue had it, collapsing
+every newline the app had not translated; the `<pre>` env template on Settings
+was the visible one. Types cannot see either: both are valid TypeScript that
+render a page which is *almost* right. So the suite reads the source back —
+browser state is collected in one function and handed in after mount, a phrase
+with no translation is returned untouched, and a `<pre>` or `<textarea>` is
+content rather than copy.
+
 ### Performance notes
 
 The same layer is built to stay out of the way: the Supabase SDK is lazily
@@ -949,7 +1030,9 @@ The portal system is designed to feel instant rather than merely be fast:
 - **Warm only what this business can open.** Route warm-up consumes
   `routeHrefsFor(portalId)` and warms the sidebar's own order — a dozen routes
   for a gym instead of thirty, at one route per idle slice, and none at all on a
-  metered or 2G connection.
+  metered or 2G connection. A module the plan does not carry is left out of the
+  warm-up and out of the sidebar's prefetch: its click lands on the paywall,
+  so warming it would fetch two pages the owner is never shown.
 - **Recolouring is a variable, not a re-render.** Accents ship as CSS custom
   properties (`--portal-accent`, `--portal-accent-deep`), so switching business
   type repaints the frame with no layout shift and no stylesheet swap.

@@ -38,7 +38,8 @@ import { cookies } from 'next/headers';
 
 import { getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
-import { resolvePosture } from '@/lib/security/headers';
+import { transportForRequest } from '@/lib/security/transport';
+import type { CookieTransport } from '@/lib/security/cookies';
 import { randomToken } from '@/lib/security/crypto';
 import { isValidUpiId } from '@/lib/upi';
 import {
@@ -109,10 +110,14 @@ function withRecord(record: PlanRecord, body: Record<string, unknown> = {}, stat
   return response;
 }
 
-async function issue(record: PlanRecord, body: Record<string, unknown> = {}): Promise<NextResponse> {
+async function issue(
+  record: PlanRecord,
+  transport: CookieTransport,
+  body: Record<string, unknown> = {},
+): Promise<NextResponse> {
   const token = await sealPlanRecord(record);
   const response = withRecord(record, body);
-  response.cookies.set(PLAN_COOKIE, token, planCookieOptions(resolvePosture() === 'strict'));
+  response.cookies.set(PLAN_COOKIE, token, planCookieOptions(transport));
   return response;
 }
 
@@ -123,6 +128,7 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const transport = transportForRequest(request);
   let payload: unknown;
   try {
     payload = await request.json();
@@ -141,7 +147,7 @@ export async function POST(request: Request) {
     case 'refresh': {
       // A plan is never *extended* here: the record is re-signed as-is, which
       // rewrites nothing but the cookie's own lifetime.
-      return issue(record ?? freeRecord(now), { changed: false });
+      return issue(record ?? freeRecord(now), transport, { changed: false });
     }
 
     case 'start-trial': {
@@ -164,7 +170,7 @@ export async function POST(request: Request) {
         activatedBy: 'self',
         trialUsedAt: nowSeconds,
       };
-      return issue(trial, { changed: true, message: `Trial started — everything is unlocked for ${TRIAL_DAYS} days.` });
+      return issue(trial, transport, { changed: true, message: `Trial started — everything is unlocked for ${TRIAL_DAYS} days.` });
     }
 
     case 'choose-plan': {
@@ -184,7 +190,7 @@ export async function POST(request: Request) {
         activatedBy: 'self',
         trialUsedAt: record?.trialUsedAt,
       };
-      return issue(starter, { changed: true, message: 'You are on the free plan. Everything you recorded is untouched.' });
+      return issue(starter, transport, { changed: true, message: 'You are on the free plan. Everything you recorded is untouched.' });
     }
 
     case 'request-activation': {
@@ -276,7 +282,7 @@ export async function POST(request: Request) {
         return json({ error: 'That activation code is not valid. Check the code, or ask us to re-send it.' }, 422);
       }
       const next = recordFromActivation(record, verdict.planId as PaidPlanId, verdict.months, verdict.reference, now);
-      return issue(next as PlanRecord, {
+      return issue(next as PlanRecord, transport, {
         changed: true,
         message: `${planById(next.planId).name} activated until ${new Date(next.renewsAt * 1000).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: 'numeric' })}.`,
       });

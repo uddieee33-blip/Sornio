@@ -24,6 +24,30 @@ export function isSafeMethod(method: string): boolean {
   return (SAFE_METHODS as readonly string[]).includes(method.toUpperCase());
 }
 
+/**
+ * Is this request a speculative prefetch rather than something a person asked
+ * for?
+ *
+ * Next.js marks the App Router's route prefetches with `next-router-prefetch`
+ * (and `x-middleware-prefetch`) so middleware can answer them cheaply. That
+ * distinction matters to the rate limiter: the console warms its own sidebar
+ * routes on idle — dozens of requests per page view, and the sidebar's links
+ * prefetch too — so charging them to the same budget a human's *navigation*
+ * draws on means an owner who simply clicks through their own screens reaches
+ * the ceiling and gets a 429 on the next page they open.
+ *
+ * A speculative request is still a request, so it is still budgeted; it is
+ * budgeted *apart*, where its ceiling cannot be spent by, or spent on,
+ * navigation.
+ */
+export function isPrefetchRequest(headers: Headers): boolean {
+  const marked = headers.get('next-router-prefetch') ?? headers.get('x-middleware-prefetch');
+  // `Purpose: prefetch` / `Sec-Purpose: prefetch` are the platform-level
+  // spelling of the same intent, sent by browsers that prefetch on our behalf.
+  const purpose = `${headers.get('purpose') ?? ''} ${headers.get('sec-purpose') ?? ''}`.toLowerCase();
+  return marked === '1' || purpose.includes('prefetch');
+}
+
 /** Is this request obviously browser-initiated from another site? */
 export function checkFetchMetadata(headers: Headers): OriginVerdict {
   const site = headers.get('sec-fetch-site');

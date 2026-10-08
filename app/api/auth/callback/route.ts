@@ -28,7 +28,7 @@
 import { NextResponse } from 'next/server';
 
 import { getGuardedServerClient } from '@/lib/security/guard';
-import { resolvePosture } from '@/lib/security/headers';
+import { transportForRequest } from '@/lib/security/transport';
 import {
   AUTH_COOKIE,
   actorNameFor,
@@ -82,7 +82,7 @@ export async function GET(request: Request) {
     });
 
     const response = NextResponse.redirect(new URL(target, url), 307);
-    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(resolvePosture() === 'strict', issued.maxAge));
+    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transportForRequest(request), issued.maxAge));
     response.headers.set('cache-control', 'no-store, no-cache, must-revalidate');
     // A redirect that carries a session must never be cached by an intermediary:
     // one shared response would hand the next visitor somebody else's cookies.

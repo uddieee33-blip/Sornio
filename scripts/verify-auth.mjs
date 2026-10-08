@@ -250,13 +250,29 @@ await checkAsync('an unremembered cookie carries no expiry, so the browser ends 
 });
 
 check('the session cookie is out of reach of page script', () => {
-  const options = cookie.ownerSessionCookie(true, 120);
+  // The shape comes from the transport (lib/security/cookies.ts): a real
+  // deployment, a framed preview, and plain-http local development.
+  const deployment = { secure: true, sameSite: 'lax', partitioned: false };
+  const preview = { secure: true, sameSite: 'none', partitioned: true };
+  const local = { secure: false, sameSite: 'lax', partitioned: false };
+
+  const options = cookie.ownerSessionCookie(deployment, 120);
   assertEqual(options.httpOnly, true, 'httpOnly');
-  assertEqual(options.sameSite, 'lax', 'SameSite=Lax');
+  assertEqual(options.sameSite, 'lax', 'SameSite=Lax on a real deployment');
   assertEqual(options.secure, true, 'Secure on a real origin');
   assertEqual(options.path, '/', 'scoped to the whole app');
-  assertEqual(cookie.ownerSessionCookie(false, 120).secure, false, 'and not forced on plain-http local development');
-  assertEqual(cookie.clearedOwnerSession(true).maxAge, 0, 'the clearing shape expires immediately');
+  assertEqual(options.partitioned, false, 'and not partitioned where nothing frames it');
+  assertEqual(cookie.ownerSessionCookie(local, 120).secure, false, 'and not forced on plain-http local development');
+
+  // Without this the browser refuses the session cookie inside the preview's
+  // frame, so nobody can stay signed in there.
+  const framed = cookie.ownerSessionCookie(preview, 120);
+  assertEqual(framed.sameSite, 'none', 'SameSite=None in a framed preview');
+  assertEqual(framed.secure, true, 'Secure in a framed preview');
+  assertEqual(framed.partitioned, true, 'Partitioned in a framed preview');
+  assertEqual(framed.httpOnly, true, 'still out of reach of page script when framed');
+
+  assertEqual(cookie.clearedOwnerSession(deployment).maxAge, 0, 'the clearing shape expires immediately');
 });
 
 check('a display name is truncated to what a top bar can show', () => {

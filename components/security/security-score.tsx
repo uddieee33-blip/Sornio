@@ -48,6 +48,8 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 import {
   GROUP_LABELS,
   buildPostureReport,
+  readBrowserFacts,
+  type BrowserFacts,
   type CheckState,
   type PostureCheck,
 } from '@/lib/security/posture';
@@ -157,12 +159,34 @@ export function SecurityScore() {
   const [sensorAvailable, setSensorAvailable] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(0);
+  // The browser's own answers — `isSecureContext`, `crossOriginIsolated`,
+  // WebAuthn support, what `document.cookie` exposes. `null` is the state the
+  // server rendered, and the first client render has to be that same state:
+  // four checks the server marked "unknown" were being scored on the client's
+  // opening frame, which is what made the ring disagree with itself (37 in the
+  // HTML, 58 on screen) and cost React the whole subtree. They are read in an
+  // effect instead, so the page hydrates as one document and the score only
+  // moves once the browser has actually been asked.
+  const [browserFacts, setBrowserFacts] = useState<BrowserFacts | null>(null);
 
   const support = useMemo(() => (hydrated ? passkeySupport() : { available: false as const, reason: '' }), [hydrated]);
 
   useEffect(() => {
     void hasPlatformAuthenticator().then(setSensorAvailable);
   }, []);
+
+  /**
+   * Collected after mount, not during render — and off the effect body.
+   *
+   * Two things are being avoided at once. Reading `window` while rendering is
+   * what made the server's 37 and the client's 58 disagree; reading it in an
+   * effect body's first synchronous line cascades a second render before the
+   * first paint for no reason. A microtask satisfies both: React has already
+   * committed the hydrated tree, so the update is an ordinary one.
+   */
+  useEffect(() => {
+    queueMicrotask(() => setBrowserFacts(readBrowserFacts()));
+  }, [refreshedAt]);
 
   /**
    * Re-verify the chain, in the effect rather than through a callback.
@@ -215,18 +239,31 @@ export function SecurityScore() {
 
   const report = useMemo(
     () =>
-      buildPostureReport({
-        vaultEncrypted: hydrated ? vaultStatus().encrypted : true,
-        lockEnabled: lock.enabled,
-        autoLockMinutes: lock.autoLockMinutes,
-        chainIntact,
-        unchainedEntries: state.audit.filter((entry) => !entry.hash).length,
-        syncConfigured: isSupabaseConfigured(),
-        privacyScreen: appearance.privacy,
-        revealAll,
-        passkeyEnrolled: passkey !== null,
-      }),
-    [appearance.privacy, chainIntact, hydrated, lock.autoLockMinutes, lock.enabled, passkey, revealAll, state.audit],
+      buildPostureReport(
+        {
+          vaultEncrypted: hydrated ? vaultStatus().encrypted : true,
+          lockEnabled: lock.enabled,
+          autoLockMinutes: lock.autoLockMinutes,
+          chainIntact,
+          unchainedEntries: state.audit.filter((entry) => !entry.hash).length,
+          syncConfigured: isSupabaseConfigured(),
+          privacyScreen: appearance.privacy,
+          revealAll,
+          passkeyEnrolled: passkey !== null,
+        },
+        browserFacts,
+      ),
+    [
+      appearance.privacy,
+      browserFacts,
+      chainIntact,
+      hydrated,
+      lock.autoLockMinutes,
+      lock.enabled,
+      passkey,
+      revealAll,
+      state.audit,
+    ],
   );
 
   const gaps = report.checks.filter((check) => check.state === 'fail' || check.state === 'warn');

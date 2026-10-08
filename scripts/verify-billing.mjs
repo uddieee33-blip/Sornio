@@ -430,12 +430,28 @@ check('a renewal stacks, an upgrade starts today, and the price lock is real', (
 });
 
 check('the plan cookie is httpOnly and can never be rewritten by a script', () => {
-  const options = cookie.planCookieOptions(true);
+  // The shape comes from the transport now — see lib/security/cookies.ts. The
+  // three cases are the three places this app actually runs.
+  const deployment = { secure: true, sameSite: 'lax', partitioned: false };
+  const preview = { secure: true, sameSite: 'none', partitioned: true };
+  const local = { secure: false, sameSite: 'lax', partitioned: false };
+
+  const options = cookie.planCookieOptions(deployment);
   assertEqual(options.httpOnly, true, 'httpOnly');
-  assertEqual(options.sameSite, 'lax', 'SameSite=Lax');
+  assertEqual(options.sameSite, 'lax', 'SameSite=Lax on a real deployment');
   assertEqual(options.secure, true, 'secure on a real domain');
   assertEqual(options.path, '/', 'scoped to the whole console');
-  assertEqual(cookie.planCookieOptions(false).secure, false, 'and not forced on plain-http local development');
+  assertEqual(options.partitioned, false, 'and not partitioned where nothing frames it');
+
+  assertEqual(cookie.planCookieOptions(local).secure, false, 'and not forced on plain-http local development');
+
+  // A framed preview must be None + Partitioned or the browser refuses the
+  // cookie outright — which is how a preview console signed nobody in and
+  // reported a missing CSRF cookie.
+  const framed = cookie.planCookieOptions(preview);
+  assertEqual(framed.sameSite, 'none', 'SameSite=None in a framed preview');
+  assertEqual(framed.secure, true, 'Secure in a framed preview');
+  assertEqual(framed.partitioned, true, 'Partitioned in a framed preview');
 });
 
 rmSync(outDir, { recursive: true, force: true });

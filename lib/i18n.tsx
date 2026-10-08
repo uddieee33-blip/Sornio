@@ -120,6 +120,16 @@ const textSources = new WeakMap<Text, { source: string; output: string }>();
 const attributeSources = new WeakMap<Element, Map<string, { source: string; output: string }>>();
 const TRANSLATED_ATTRIBUTES = ['alt', 'aria-description', 'aria-label', 'content', 'placeholder', 'title'] as const;
 const SKIPPED_ELEMENTS = new Set(['CODE', 'KBD', 'NOSCRIPT', 'SCRIPT', 'STYLE', 'SVG']);
+/**
+ * Subtrees where whitespace *is* the content.
+ *
+ * A `<pre>` in this product is an env template, a JSON payload or a receipt —
+ * the line breaks are the point, and the browser keeps them because the CSS
+ * says `white-space: pre`. Replacing that text with a translation (or with a
+ * normalised version of itself) rewrites the thing being shown. A `<textarea>`'s
+ * child text is its value, so the same rule applies for a different reason.
+ */
+const PREFORMATTED_SELECTOR = 'pre, textarea';
 
 function normalise(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
@@ -147,6 +157,11 @@ function compileTemplates(catalogue: Catalogue): TemplateTranslation[] {
 }
 
 function translateValue(source: string, catalogue: Catalogue, templates: TemplateTranslation[]): string {
+  // The lookup key is normalised; the *fallback* must not be. Returning the
+  // normalised key for a phrase no catalogue knows is what collapsed the line
+  // breaks in every multi-line string on the page: the walker writes this
+  // return value back into the DOM, so an untranslated `<pre>` lost its
+  // newlines to single spaces and disagreed with the server that rendered it.
   const key = normalise(source);
   if (!key) return source;
 
@@ -159,12 +174,13 @@ function translateValue(source: string, catalogue: Catalogue, templates: Templat
     return template.translated.replace(/\{\{(\d+)\}\}/g, (_, index: string) => match[Number(index) + 1] ?? '');
   }
 
-  return key;
+  return source;
 }
 
 function shouldSkip(element: Element | null): boolean {
   if (!element) return false;
   if (SKIPPED_ELEMENTS.has(element.tagName)) return true;
+  if (element.closest(PREFORMATTED_SELECTOR)) return true;
   return Boolean(element.closest('[data-i18n-ignore="true"]'));
 }
 

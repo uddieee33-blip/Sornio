@@ -6,6 +6,8 @@ import { usePathname } from 'next/navigation';
 import { Lock, Sparkles } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
+import { usePlan } from '@/components/billing/plan-provider';
+import { checkPlanAccess } from '@/lib/plans/routes';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { AccountRow } from '@/components/layout/account-menu';
@@ -58,6 +60,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
   const pathname = usePathname();
   const { state, hydrated, persistence } = useDukaanStore();
   const { portal, nav, revealAll } = usePortal();
+  const { entitlement } = usePlan();
   const { navRef, box } = useActiveIndicator(pathname, nav);
 
   const businessName = state.profile.name?.trim() || 'My Business';
@@ -118,11 +121,17 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
               {section.links.map((item) => {
                 const Icon = item.icon;
                 const active = pathname === item.href;
+                /* Prefetch only what this plan can open. A locked module's
+                   prefetch is answered with a redirect to the paywall, so
+                   warming it buys a redirect chain and nothing the owner's
+                   click would not have fetched anyway — seven locked modules
+                   meant fifteen wasted requests on every console page view. */
+                const open = checkPlanAccess(entitlement, item.href).allowed;
                 return (
                   <Link
                     key={item.href}
                     href={item.href}
-                    prefetch
+                    prefetch={open}
                     data-nav-active={active ? 'true' : undefined}
                     data-press="soft"
                     aria-current={active ? 'page' : undefined}

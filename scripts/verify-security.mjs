@@ -93,6 +93,41 @@ check(
   'require-trusted-types-for is no longer set. innerHTML becomes a live XSS sink again.',
 );
 
+/*
+ * …and the build has to be one that can live with them.
+ *
+ * This pairing is the whole point: webpack's client runtime creates and uses
+ * the `nextjs#bundler` policy the allow-list names, Turbopack's assigns
+ * `script.src` as a plain string and is therefore blocked on every chunk —
+ * a production app that renders and then never hydrates. Requiring both halves
+ * to move together is what stops a future "faster builds" change from shipping
+ * a dead site, and stops someone dropping the directives to fix a bundler.
+ */
+const manifest = JSON.parse(read('package.json'));
+check(
+  'the build toolchain is one that honours Trusted Types',
+  /--webpack/.test(manifest.scripts?.build ?? ''),
+  'npm run build no longer passes --webpack while the CSP still requires Trusted Types. Turbopack\'s runtime sets script.src as a plain string, so every client chunk is blocked under require-trusted-types-for: the production console renders its server HTML and never hydrates. Either build with --webpack or drop the directives from policy.json — not one of the two.',
+);
+
+/*
+ * …and the deployment host has to run that script, not its own idea of a Next
+ * build. A host that runs bare `next build` gets Turbopack on Next 16 and the
+ * same dead page, with a green deployment and a 200 response.
+ */
+const vercelConfig = exists('vercel.json') ? JSON.parse(read('vercel.json')) : null;
+check(
+  'the deployment host builds with the same toolchain',
+  vercelConfig !== null && /(npm|yarn|pnpm) run build|--webpack/.test(vercelConfig.buildCommand ?? ''),
+  'vercel.json is missing or does not run `npm run build`. A host that runs bare `next build` is building with Turbopack, whose runtime cannot satisfy require-trusted-types-for: the deployment reports success, serves 200, and never hydrates.',
+);
+
+check(
+  'upgrade-insecure-requests is a strict-posture control',
+  /posture === 'strict'\)\s*\{[\s\S]{0,900}?directives\['upgrade-insecure-requests'\]/.test(headers),
+  "upgrade-insecure-requests is emitted outside the strict posture. A production build served over plain HTTP — a local next start, or a hosted preview — has every same-origin fetch rewritten to https, so half the console fails with ERR_SSL_PROTOCOL_ERROR.",
+);
+
 check(
   'inline event handlers are refused',
   (csp['script-src-attr'] ?? []).includes("'none'"),
@@ -151,6 +186,75 @@ check(
   'every throttle records a strike',
   /recordThrottle\(/.test(proxy),
   'proxy.ts never calls recordThrottle, so the penalty box can never fill and will never trigger.',
+);
+
+/*
+ * …but only a write may earn one.
+ *
+ * This started as the opposite rule and it was wrong in a way that took a
+ * browser to find: a console page view makes several read-only API calls, so an
+ * owner clicking through screens collected 429s on their own identity reads, and
+ * four of those put them in a penalty box that refused every page for minutes.
+ * The guard is checked textually because the rule it encodes is the point.
+ */
+const throttleAt = proxy.search(/recordThrottle\(/);
+const strikeGuard = throttleAt === -1 ? '' : proxy.slice(Math.max(0, throttleAt - 500), throttleAt);
+
+check(
+  'a throttled read never earns a strike',
+  /\bsafe\b|isSafeMethod/.test(strikeGuard),
+  'recordThrottle is called unconditionally. A throttled read would feed the penalty box, so a person browsing their own console at ordinary speed can lock themselves out of it.',
+);
+
+check(
+  'reads are budgeted more generously than writes',
+  (policy.rateLimits.apiRead?.limit ?? 0) > (policy.rateLimits.api?.limit ?? 0) &&
+    (policy.rateLimits.burstApiRead?.limit ?? 0) > (policy.rateLimits.burstApi?.limit ?? 0),
+  'the read buckets are not larger than the write buckets. A page view costs one document plus a handful of reads, so budgeting reads like credential attempts is how the console throttles itself.',
+);
+
+/*
+ * The console warms its own routes — the sidebar's links prefetch as they come
+ * into view and `RouteWarmup` walks the sidebar order on idle. One visit to
+ * /home is around forty-five prefetches against a dozen real requests. Charging
+ * those to the page budget a person's click draws on is self-throttling: the
+ * owner reaches the ceiling by using the app and the next screen they open is
+ * answered with "Too many requests". Prefetches therefore get their own two
+ * buckets, and this pair of checks is what keeps the split from being quietly
+ * undone.
+ */
+check(
+  'speculative prefetches are billed apart from navigation',
+  /isPrefetchRequest\s*\(/.test(proxy) &&
+    /speculative/.test(proxy) &&
+    /prefetch/.test(proxy) &&
+    /RATE_TABLE\.prefetch\b/.test(proxy),
+  'proxy.ts no longer routes Next.js prefetches to their own bucket. Prefetch traffic (the sidebar links and the idle route warmer) would consume the page budget, and the owner gets 429s on pages they actually opened.',
+);
+
+check(
+  'prefetch budgets are at least as generous as the navigation they precede',
+  (policy.rateLimits.prefetch?.limit ?? 0) >= (policy.rateLimits.page?.limit ?? 0) &&
+    (policy.rateLimits.burstPrefetch?.limit ?? 0) >= (policy.rateLimits.burstPage?.limit ?? 0),
+  'the prefetch buckets are smaller than the page buckets. The app prefetches its own screens in bursts of dozens, so a prefetch budget below the navigation budget means the ceiling is reached while the app is simply warming itself.',
+);
+
+/*
+ * …and the app must not spend that budget fetching pages the owner cannot
+ * open. A locked module's prefetch is answered with a redirect to the paywall,
+ * so warming it costs two requests per module per page view and fetches a page
+ * the click would have fetched anyway. On a free plan that is most of the menu,
+ * which is how fifteen wasted requests per page view ended up in the
+ * navigation budget.
+ */
+const sidebar = read('components', 'layout', 'sidebar.tsx');
+const routeWarmup = read('components', 'perf', 'route-warmup.tsx');
+check(
+  'the console never prefetches a module the plan does not open',
+  /checkPlanAccess\s*\(/.test(withoutComments(sidebar)) &&
+    /prefetch=\{open\}/.test(sidebar) &&
+    /checkPlanAccess\s*\(/.test(withoutComments(routeWarmup)),
+  'the sidebar or the route warmer prefetches without consulting the plan. Locked modules then answer with a redirect to the paywall, so every console page view spends its navigation budget fetching screens the owner cannot open.',
 );
 
 check(
@@ -221,6 +325,52 @@ if (exemptPaths.length === 0) {
     `CSRF exemptions are [${exemptPaths.join(', ')}]. Only /api/report may be exempt — the browser posts violation reports itself with no token we control. Every other exemption is a hole.`,
   );
 }
+
+/* --------------------------------- 6b. cookies survive the frame they are in */
+
+/*
+ * The preview is framed cross-site, and a `SameSite=Lax` cookie is refused
+ * outright there — the browser stores nothing, so the CSRF cookie never exists,
+ * sign-in posts no token, and the owner is told "Missing CSRF cookie." That was
+ * a real outage, and it is invisible from a top-level tab, which is exactly how
+ * it survived every other check in this file.
+ *
+ * Three things have to stay true: the shape is decided in one place from the
+ * request, the framing-safe shape is `SameSite=None; Secure; Partitioned`, and
+ * the host beats the `x-forwarded-proto` header — Next fills that header in as
+ * `http` when the proxy in front stays silent, so trusting it put `Lax` cookies
+ * behind a TLS terminator.
+ */
+const cookieModule = read('lib', 'security', 'cookies.ts');
+const cookieFactoryFiles = [
+  ['lib', 'auth', 'cookie.ts'],
+  ['lib', 'security', 'session.ts'],
+  ['lib', 'plans', 'cookie.ts'],
+  ['lib', 'portals', 'master.ts'],
+];
+
+check(
+  'every cookie shape is decided from the request, not written inline',
+  cookieFactoryFiles.every((parts) => !/sameSite: 'lax'/.test(withoutComments(read(...parts)))) &&
+    cookieFactoryFiles.every((parts) => /CookieTransport/.test(read(...parts))) &&
+    /transportForRequest\s*\(/.test(withoutComments(proxy)) &&
+    !/sameSite: 'lax'/.test(withoutComments(proxy)),
+  "a cookie factory or the proxy sets SameSite by hand again. A `SameSite=Lax` cookie is refused outright in a cross-site frame, so the preview signs nobody in and reports a missing CSRF cookie. All of them must take the transport from lib/security/cookies.ts.",
+);
+
+check(
+  'the framed shape is Partitioned and Secure',
+  /secure: true, sameSite: 'none', partitioned: true/.test(cookieModule),
+  "the preview cookie shape is no longer `SameSite=None; Secure; Partitioned`. Measured in a cross-site frame: Lax is refused, `None` without `Secure` is refused, and only Secure (with or without Partitioned) is stored — a preview console that drops its own cookies cannot sign anyone in.",
+);
+
+const cookieCode = withoutComments(cookieModule);
+const hostCheckAt = cookieCode.indexOf('isAlwaysTlsHost(hostnameOf(headers))');
+check(
+  'the host decides HTTPS before the forwarded header does',
+  hostCheckAt > 0 && hostCheckAt < cookieCode.indexOf('x-forwarded-proto'),
+  'lib/security/cookies.ts no longer checks the always-TLS host before reading x-forwarded-proto. Next.js fills that header in as `http` when the proxy in front of it says nothing, so a preview behind a silent TLS terminator would get `Lax` cookies again — the outage this guards.',
+);
 
 /* ------------------------------------------------- 7. probes vs real routes */
 

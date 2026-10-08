@@ -54,7 +54,8 @@ import {
   type AbuseRule,
   type RateLimitRule,
 } from '@/lib/security/rate-limit';
-import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
+import { CSRF_COOKIE, checkDoubleSubmit, checkFetchMetadata, checkOrigin, isPrefetchRequest, isSafeMethod, issueCsrfToken } from '@/lib/security/csrf';
+import { transportForRequest } from '@/lib/security/transport';
 import { randomToken } from '@/lib/security/crypto';
 import { PLAN_COOKIE, checkPlanAccess, openPlanRecord, resolveEntitlement } from '@/lib/plans';
 // The auth *halves*, deliberately: `@/lib/auth` is the server surface and pulls
@@ -118,6 +119,14 @@ export async function proxy(request: NextRequest) {
    */
   const nonce = randomToken(16);
 
+  /**
+   * How this response may carry a cookie. Decided once, here, because the
+   * answer depends on the request: the preview is framed cross-site, where a
+   * `SameSite=Lax` cookie is refused outright, and everything below that sets a
+   * cookie has to agree. See `lib/security/cookies.ts`.
+   */
+  const transport = transportForRequest(request);
+
   // ---- 1. Static assets: long-lived cache, minimal headers, no work. ----
   if (pathname.startsWith('/_next/static') || pathname.startsWith('/_next/image') || pathname === '/favicon.ico') {
     return applyHeaders(NextResponse.next(), buildStaticAssetHeaders());
@@ -168,23 +177,56 @@ export async function proxy(request: NextRequest) {
   }
 
   // ---- 4. Rate limiting, per scope + client fingerprint. ----
-  const { scope, rule } = ruleForPath(pathname, RATE_TABLE);
+  //
+  // Reads and writes are budgeted separately, and only a write can earn a
+  // strike. That split is the fix for a real failure: a console page view costs
+  // one document plus a few read-only API calls, so an owner clicking through
+  // screens at ordinary speed was collecting 429s on their own identity and
+  // portal reads — and four throttles bought them a penalty box that refused
+  // *every* page for the next two minutes, doubling on each further attempt.
+  // A shop that gets busy is not an attack, and the app's own reads are not
+  // credential stuffing. Reads keep a hard ceiling; the tight buckets stay on
+  // writes, credential attempts and the money endpoints.
+  //
+  // Speculative traffic is budgeted apart from navigation for the same reason.
+  // The console warms its own sidebar routes on idle and the sidebar's links
+  // prefetch as they scroll into view: a single visit to /home is 45 prefetch
+  // requests against 12 real ones, and every one of them used to be charged to
+  // the page budget a human's click draws on. The owner then opened a screen
+  // they actually asked for and got "Too many requests". Prefetches keep a
+  // ceiling — a script should not get an unlimited pass by setting a header —
+  // but that ceiling can no longer be spent by, or spent on, navigation.
+  const safe = isSafeMethod(method);
+  const speculative = safe && isPrefetchRequest(request.headers);
+  const routed = ruleForPath(pathname, RATE_TABLE);
+  const readBucket = pathname.startsWith('/api/') ? { scope: 'apiRead', rule: RATE_TABLE.apiRead } : null;
+  const { scope, rule } = speculative
+    ? { scope: 'prefetch', rule: RATE_TABLE.prefetch }
+    : safe && readBucket
+      ? readBucket
+      : routed;
   const decision = consume(`${scope}:${fingerprint}`, rule);
 
   // A second, shorter-window guard sits on top of the per-scope budget. It is
   // deliberately generous for page traffic: the app prefetches its own routes,
-  // and throttling our own navigation would be self-inflicted. API and
-  // mutating requests get the tight budget, where it actually protects
-  // something (credential stuffing, scripted writes).
-  const burstRuleName = pathname.startsWith('/api/') || !isSafeMethod(method) ? 'burstApi' : 'burstPage';
+  // and throttling our own navigation would be self-inflicted. Writes get the
+  // tight budget, where it actually protects something (credential stuffing,
+  // scripted writes); reads get one a person cannot reach.
+  const burstRuleName = speculative
+    ? 'burstPrefetch'
+    : !safe
+      ? 'burstApi'
+      : pathname.startsWith('/api/')
+        ? 'burstApiRead'
+        : 'burstPage';
   const burst = consume(`${burstRuleName}:${fingerprint}`, RATE_TABLE[burstRuleName]);
 
   if (!decision.allowed || !burst.allowed) {
     const throttled = decision.allowed ? burst : decision;
-    // Count the strike. A shop reads `Retry-After` and slows down; a script
-    // comes straight back, and four of those inside five minutes buys it a
-    // doubling penalty instead of another cheap 429.
-    const served = recordThrottle(fingerprint, ABUSE_RULE);
+    // Count the strike — but only for a request that changes something. A shop
+    // reads its own books all day; the penalty box exists for clients that keep
+    // writing after being told to slow down.
+    const served = safe ? 0 : recordThrottle(fingerprint, ABUSE_RULE);
     const retryAfter = served > 0 ? Math.ceil(served / 1000) : throttled.retryAfter;
 
     const isApi = pathname.startsWith('/api/');
@@ -354,7 +396,15 @@ export async function proxy(request: NextRequest) {
           setAll(cookiesToSet: { name: string; value: string; options: Record<string, unknown> }[]) {
             cookiesToSet.forEach(({ name, value, options }) => {
               request.cookies.set({ name, value, ...options });
-              response.cookies.set({ name, value, ...options, httpOnly: true, sameSite: 'lax' });
+              response.cookies.set({
+                name,
+                value,
+                ...options,
+                httpOnly: true,
+                sameSite: transport.sameSite,
+                secure: transport.secure,
+                partitioned: transport.partitioned,
+              });
             });
           },
         },
@@ -381,8 +431,9 @@ export async function proxy(request: NextRequest) {
   // must be able to echo it back in a header — that is the whole mechanism.
   response.cookies.set(CSRF_COOKIE, csrfToken, {
     httpOnly: false,
-    sameSite: 'lax',
-    secure: posture === 'strict',
+    sameSite: transport.sameSite,
+    secure: transport.secure,
+    partitioned: transport.partitioned,
     path: '/',
     maxAge: 60 * 60 * 12,
   });
