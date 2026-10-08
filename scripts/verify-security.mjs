@@ -153,6 +153,31 @@ check(
   'proxy.ts never calls recordThrottle, so the penalty box can never fill and will never trigger.',
 );
 
+/*
+ * …but only a write may earn one.
+ *
+ * This started as the opposite rule and it was wrong in a way that took a
+ * browser to find: a console page view makes several read-only API calls, so an
+ * owner clicking through screens collected 429s on their own identity reads, and
+ * four of those put them in a penalty box that refused every page for minutes.
+ * The guard is checked textually because the rule it encodes is the point.
+ */
+const throttleAt = proxy.search(/recordThrottle\(/);
+const strikeGuard = throttleAt === -1 ? '' : proxy.slice(Math.max(0, throttleAt - 500), throttleAt);
+
+check(
+  'a throttled read never earns a strike',
+  /\bsafe\b|isSafeMethod/.test(strikeGuard),
+  'recordThrottle is called unconditionally. A throttled read would feed the penalty box, so a person browsing their own console at ordinary speed can lock themselves out of it.',
+);
+
+check(
+  'reads are budgeted more generously than writes',
+  (policy.rateLimits.apiRead?.limit ?? 0) > (policy.rateLimits.api?.limit ?? 0) &&
+    (policy.rateLimits.burstApiRead?.limit ?? 0) > (policy.rateLimits.burstApi?.limit ?? 0),
+  'the read buckets are not larger than the write buckets. A page view costs one document plus a handful of reads, so budgeting reads like credential attempts is how the console throttles itself.',
+);
+
 check(
   'a per-request nonce is minted',
   /x-nonce/i.test(proxy) && /randomToken\(|getRandomValues|randomUUID/.test(withoutComments(proxy)),

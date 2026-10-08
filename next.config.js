@@ -127,7 +127,12 @@ const nextConfig = {
   // browser loads the app inside that preview frame, leaving a 403/blank page.
   // Keep the exception scoped to Arena's preview domains; same-origin checks
   // remain enabled for all other development origins.
-  allowedDevOrigins: ['*.e2b.app'],
+  //
+  // `localhost` and `127.0.0.1` are listed for the same reason: the app is
+  // routinely opened against the sandbox's own loopback address, and without
+  // them the dev client's `/_next/hmr` socket is refused — which shows up as a
+  // console full of "Blocked cross-origin request to Next.js dev resource".
+  allowedDevOrigins: ['*.e2b.app', 'localhost', '127.0.0.1'],
 
   // Ship fewer bytes and fewer requests to the browser. SWC minification is
   // always on from Next.js 15 onwards, so the old `swcMinify` flag is gone.
