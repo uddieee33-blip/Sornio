@@ -27,7 +27,7 @@ import { useDukaanStore, type Appointment } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
 
 const inputClass =
-  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-portal/20';
+  'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-1.5 block text-[11px] font-semibold uppercase tracking-wide text-stone-600';
 
 const todayKey = () => new Date().toISOString().slice(0, 10);

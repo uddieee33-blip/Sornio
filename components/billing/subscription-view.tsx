@@ -466,7 +466,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
                     onChange={(event) => setCode(event.target.value)}
                     placeholder="DKS1-…"
                     aria-label="Activation code"
-                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 font-mono text-sm text-stone-900 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20"
+                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 font-mono text-sm text-stone-900 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
                   />
                   <Button onClick={() => void activate(code.trim())} disabled={busy || code.trim().length < 8}>
                     <CheckCircle2 size={15} /> Activate

@@ -139,7 +139,7 @@ export function FingerprintPad() {
         : 'bg-sky-500/10 text-sky-700 ring-sky-500/20';
 
   const selectClass =
-    'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-portal/20';
+    'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
   return (
     <Card className="animate-fade-up">

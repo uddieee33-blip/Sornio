@@ -244,7 +244,7 @@ export function DeviceCheck() {
             spellCheck={false}
             aria-label="Scanner test box"
             placeholder="Waiting for a code…"
-            className="mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 font-mono text-base text-stone-900 placeholder-stone-400 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20"
+            className="mt-1.5 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-3 font-mono text-base text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
           />
         </label>
 

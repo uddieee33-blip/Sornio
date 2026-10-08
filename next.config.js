@@ -3,10 +3,10 @@
  *
  * Two things matter here:
  *
- *  1. **Security headers for static responses.** Edge middleware cannot run for
+ *  1. **Security headers for static responses.** The edge proxy cannot run for
  *     `/_next/static` assets, so those (and any response that bypasses
- *     middleware) get hardened here instead. The directive list lives in
- *     `lib/security/policy.json` — the same file middleware reads — so the two
+ *     the edge proxy) get hardened here instead. The directive list lives in
+ *     `lib/security/policy.json` — the same file the edge proxy reads — so the two
  *     can never disagree.
  *
  *  2. **Performance defaults that keep the console feeling instant**: modern
@@ -31,15 +31,15 @@ function isLockdownDeployment() {
 /**
  * The *fallback* CSP.
  *
- * Every HTML response goes through middleware, which mints a per-request nonce
+ * Every HTML response goes through the edge proxy, which mints a per-request nonce
  * and sends a strict `script-src 'nonce-…' 'strict-dynamic'`. This config
  * cannot do that — a static header is written once at build time and a nonce
  * that is reused is a nonce that is worthless.
  *
- * So this header exists for the responses middleware does not reach, and it is
+ * So this header exists for the responses the edge proxy does not reach, and it is
  * deliberately the weaker of the two: it keeps `'unsafe-inline'` for scripts
  * because without a nonce there is no other way for the app's own bootstrap to
- * run. Middleware's header overwrites this one on every page, so the weaker
+ * run. The edge proxy's header overwrites this one on every page, so the weaker
  * policy is never what a browser actually enforces on a console screen.
  *
  * Trusted Types are left out here for the same reason they are left out in
@@ -78,9 +78,9 @@ const CSP = buildCsp();
 /**
  * Permissions-Policy for a set of capture surfaces, from `policy.json`.
  *
- * Static responses bypass middleware, so the same rules have to be expressed
+ * Static responses bypass the edge proxy, so the same rules have to be expressed
  * here as path patterns — otherwise `/scan` would be granted the camera by the
- * middleware and then have it stripped again by this config, in whichever order
+ * the edge proxy and then have it stripped again by this config, in whichever order
  * the two layers happen to apply.
  */
 function permissionsPolicyFor(surfaces) {
@@ -181,11 +181,6 @@ const nextConfig = {
       {
         source: '/(home|dashboard|products|inventory|sales|billing|payments|expenses|transactions|customers|suppliers|memberships|reminders|marketing|reports|comparisons|profitability|cashflow|insights|alerts|audit|team|settings|business|subscription|check-ins|appointments|scan)/:path*',
         headers: [policy.noStore],
-      },
-      // Immutable assets.
-      {
-        source: '/_next/static/:path*',
-        headers: [{ key: 'Cache-Control', value: 'public, max-age=31536000, immutable' }],
       },
       // RFC 9116. A security contact that a researcher cannot find is a
       // security contact that does not exist, so it is served as plain text,

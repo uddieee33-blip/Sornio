@@ -1,5 +1,5 @@
 /**
- * Edge security middleware.
+ * Edge security proxy (the Next.js 16 name for `middleware`).
  *
  * Order of operations matters — the cheapest, most decisive checks run first:
  *
@@ -89,7 +89,7 @@ function applyHeaders(response: NextResponse, pairs: HeaderPair[]): NextResponse
   return response;
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const method = request.method.toUpperCase();
   const requestId = request.headers.get(REQUEST_ID_HEADER) ?? randomToken(8);

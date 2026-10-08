@@ -327,7 +327,7 @@ export function BarcodeScanner({
               }}
               placeholder="Scan a packet, or type the code…"
               aria-label="Barcode"
-              className="w-full rounded-xl border border-stone-200 bg-white pl-9 pr-3 py-3 font-mono text-sm tracking-wide text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-portal/20"
+              className="w-full rounded-xl border border-stone-200 bg-white pl-9 pr-3 py-3 font-mono text-sm tracking-wide text-stone-900 placeholder-stone-400 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
             />
           </div>
           <div className="flex items-center justify-between gap-2">

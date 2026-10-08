@@ -46,7 +46,7 @@ const exists = (...parts) => fs.existsSync(path.join(ROOT, ...parts));
 
 const policy = JSON.parse(read('lib', 'security', 'policy.json'));
 const headers = read('lib', 'security', 'headers.ts');
-const middleware = read('middleware.ts');
+const proxy = read('proxy.ts');
 const nextConfig = read('next.config.js');
 const rateLimit = read('lib', 'security', 'rate-limit.ts');
 
@@ -110,7 +110,7 @@ check(
 check(
   'the static fallback is documented as the weaker policy',
   /fallback/i.test(nextConfig),
-  'next.config.js no longer explains that its CSP is the weaker fallback overwritten by middleware. Without that note the next reader will "fix" the strict policy to match it.',
+  'next.config.js no longer explains that its CSP is the weaker fallback overwritten by proxy.ts. Without that note the next reader will "fix" the strict policy to match it.',
 );
 
 /* --------------------------------------------------- 3. dangerous sinks shut */
@@ -134,29 +134,29 @@ check(
   'form-action must be self: without it an injected <form> can post a session straight off-origin.',
 );
 
-/* ---------------------------------------------------- 4. middleware ordering */
+/* --------------------------------------------------------- 4. proxy ordering */
 
-const penaltyAt = middleware.search(/penaltyRemainingMs/);
-const limitAt = middleware.search(/\bconsume\(|rateLimit\(|checkRateLimit\(/);
+const penaltyAt = proxy.search(/penaltyRemainingMs/);
+const limitAt = proxy.search(/\bconsume\(|rateLimit\(|checkRateLimit\(/);
 
 check(
   'the penalty box runs before the rate limiter',
   penaltyAt !== -1 && limitAt !== -1 && penaltyAt < limitAt,
   penaltyAt === -1
-    ? 'middleware.ts never calls penaltyRemainingMs — the penalty box is dead code.'
+    ? 'proxy.ts never calls penaltyRemainingMs — the penalty box is dead code.'
     : 'the rate limiter runs before the penalty box. Reversed, a banned fingerprint still costs a full rate-limit evaluation on every request, which is the cost the penalty box exists to avoid.',
 );
 
 check(
   'every throttle records a strike',
-  /recordThrottle\(/.test(middleware),
-  'middleware.ts never calls recordThrottle, so the penalty box can never fill and will never trigger.',
+  /recordThrottle\(/.test(proxy),
+  'proxy.ts never calls recordThrottle, so the penalty box can never fill and will never trigger.',
 );
 
 check(
   'a per-request nonce is minted',
-  /x-nonce/i.test(middleware) && /randomToken\(|getRandomValues|randomUUID/.test(withoutComments(middleware)),
-  'middleware.ts no longer mints a per-request nonce, so the strict CSP has nothing to authorise its own bootstrap with.',
+  /x-nonce/i.test(proxy) && /randomToken\(|getRandomValues|randomUUID/.test(withoutComments(proxy)),
+  'proxy.ts no longer mints a per-request nonce, so the strict CSP has nothing to authorise its own bootstrap with.',
 );
 
 /* -------------------------------------------------- 5. buckets for endpoints */
@@ -206,7 +206,7 @@ for (const [name, bucket] of Object.entries(policy.rateLimits)) {
 
 /* ----------------------------------------------------- 6. the CSRF exemption */
 
-const exemptions = [...middleware.matchAll(/CSRF_EXEMPT[^=]*=\s*(\[[^\]]*\])/g)].map((m) => m[1]);
+const exemptions = [...proxy.matchAll(/CSRF_EXEMPT[^=]*=\s*(\[[^\]]*\])/g)].map((m) => m[1]);
 const exemptionBody = exemptions.join(' ');
 const exemptPaths = [...exemptionBody.matchAll(/'([^']+)'/g)].map((m) => m[1]);
 

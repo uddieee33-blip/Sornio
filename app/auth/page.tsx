@@ -10,7 +10,7 @@ import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
 import { consume } from '@/lib/security/rate-limit';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 py-3 pl-11 pr-11 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 py-3 pl-11 pr-11 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
 /**
  * Local guard against credential-stuffing from this browser.

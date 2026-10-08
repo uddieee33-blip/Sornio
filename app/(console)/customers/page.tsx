@@ -15,7 +15,7 @@ import { isValidUpiId, normalizeUpiId, upiAccentColor, type BankDetails } from '
 import { ExportButton } from '@/components/export/export-button';
 import { useDukaanStore, type Customer } from '@/lib/store';
 
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20';
+const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const emptyForm = {
@@ -185,7 +185,7 @@ export default function CustomersPage() {
             <CardTitle icon={<Users size={17} />}>Directory</CardTitle>
             <div className="relative">
               <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, phone, UPI…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-brand-400/60 focus:ring-2 focus:ring-brand-500/20" />
+              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, phone, UPI…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-none transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
             </div>
           </div>
 

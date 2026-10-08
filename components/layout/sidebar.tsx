@@ -7,6 +7,7 @@ import { Lock, Sparkles } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { useDukaanStore } from '@/lib/store';
 
 /**
@@ -147,7 +148,12 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="border-t border-stone-200 p-4">
+      <div className="space-y-2 border-t border-stone-200 p-4">
+        {/* Appearance lives in the menu, not in Settings: repainting the
+            console is a thing an owner does in the middle of a shift, from
+            wherever they happen to be standing. */}
+        <AppearanceMenu variant="row" placement="above" />
+
         <Link
           href="/security"
           className="block rounded-xl bg-stone-50 p-3 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100"

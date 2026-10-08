@@ -9,6 +9,7 @@ import { useDukaanStore } from '@/lib/store';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 
 export function MobileNav({ open, onClose }: { open: boolean; onClose: () => void }) {
   const pathname = usePathname();
@@ -162,7 +163,11 @@ export function MobileNav({ open, onClose }: { open: boolean; onClose: () => voi
           ))}
         </nav>
 
-        <div className="border-t border-stone-200 p-4">
+        <div className="space-y-2 border-t border-stone-200 p-4">
+          {/* The drawer is the only menu there is on a phone, so appearance
+              has to be in it rather than four taps away in Settings. */}
+          <AppearanceMenu variant="row" placement="above" />
+
           <Link
             href="/security"
             onClick={onClose}
