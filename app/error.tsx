@@ -13,7 +13,7 @@ export default function GlobalError({ reset }: { error: Error & { digest?: strin
       <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
 
-      <div className="relative w-full max-w-md rounded-3xl border border-stone-200 bg-stone-50 p-8 text-center shadow-card backdrop-blur">
+      <div className="relative w-full max-w-md rounded-3xl border border-stone-200 bg-stone-50 p-8 text-center shadow-card">
         <BrandIcon size={56} className="mx-auto h-14 w-14 rounded-2xl shadow-glow" />
         <h1 className="mt-5 font-display text-xl font-bold text-stone-900">Something tripped on our side</h1>
         <p className="mt-2 text-sm leading-relaxed text-stone-600">

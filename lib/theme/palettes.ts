@@ -104,8 +104,14 @@ export type Appearance = {
   privacy: boolean;
 };
 
+/**
+ * The look a first visit gets. It is a chosen paint, not `system`: the sign-in
+ * screen is the first thing a new owner sees, and it should read the same on
+ * every device. `system` stays one tap away in Appearance for anyone who wants
+ * the console to follow their phone or PC.
+ */
 export const DEFAULT_APPEARANCE: Appearance = {
-  theme: SYSTEM_PAINT,
+  theme: DEFAULT_PAINT,
   density: 'comfortable',
   motion: 'full',
   text: '100',

@@ -95,7 +95,7 @@ export function Topbar({
             : 'Local-first';
 
   return (
-    <header className="mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/85 backdrop-blur-xl">
+    <header className="mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
       <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 md:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
           <Link href="/home" aria-label="DukaanOS home" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
@@ -118,7 +118,7 @@ export function Topbar({
           </button>
         </div>
 
-        <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-2 text-sm md:flex">
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm md:flex">
           <Link href="/home" className="inline-flex shrink-0 items-center gap-1.5 text-stone-600 transition hover:text-stone-700">
             DukaanOS
             <span className="rounded-full bg-portal/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-portal ring-1 ring-inset ring-portal/20">

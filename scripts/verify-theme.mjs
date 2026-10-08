@@ -337,6 +337,23 @@ for (const id of CONTRAST_PAINTS) {
   if (!paints.has(id)) failures.push(`The high-contrast paint "${id}" is missing. It is promised in Appearance.`);
 }
 
+/* The cascade, not just the generated file. `html` and `:root` are one element,
+   so a palette token declared on a bare `:root` block ties every
+   `[data-theme]` block on specificity and wins by source order. That repainted
+   every dark paint with Warm Daylight values, and none of the checks above could
+   see it, because they read the generated variables rather than the cascade.
+   Any `--c-*` palette token on a `:root` block that is not qualified by
+   `:not([data-theme])` is therefore a failure. */
+const globalsCss = fs.readFileSync(path.join(ROOT, 'app', 'globals.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '');
+for (const block of globalsCss.matchAll(/(^|\n)\s*:root(?![\w:-])([^{]*)\{([^}]*)\}/g)) {
+  const selector = block[2].trim();
+  const body = block[3];
+  if (/--c-/.test(body) && !/:not\(\[data-theme\]\)/.test(selector)) {
+    failures.push(`app/globals.css sets palette tokens on a bare :root block, which overrides every paint. Qualify it with :not([data-theme]).`);
+    break;
+  }
+}
+
 const width = Math.max(...rows.map((row) => row.id.length), 8);
 for (const row of rows) {
   const mark = row.strict ? '★' : ' ';

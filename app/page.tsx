@@ -51,6 +51,7 @@ import {
 } from 'lucide-react';
 import { useI18n } from '@/lib/i18n';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { GROWTH_MODULES, PLAN_CATALOGUE, planById, monthlyEquivalent, savingsOn, type BillingInterval } from '@/lib/plans';
 import { MODULE_CATALOGUE } from '@/lib/portals/catalogue';
@@ -284,11 +285,11 @@ export default function LandingPage() {
       ) : null}
       <header className="fixed inset-x-0 top-0 z-50 px-3 pt-3 sm:px-4 sm:pt-4">
         <div className="relative mx-auto max-w-6xl">
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-panel/90 px-3.5 py-2.5 shadow-2xl shadow-black/40 backdrop-blur-xl sm:px-5">
+          <div className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-panel/97 px-3.5 py-2.5 shadow-2xl shadow-black/40 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
               <Link href="/" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
                 <BrandIcon size={36} priority className="h-9 w-9 shrink-0 rounded-xl shadow-glow-sm ring-1 ring-stone-300" />
-                <span className="font-display text-lg font-bold tracking-tight text-stone-900">
+                <span className="hidden font-display text-lg font-bold tracking-tight text-stone-900 min-[400px]:inline">
                   Dukaan<span className="bg-brand-gradient bg-clip-text text-transparent">OS</span>
                 </span>
               </Link>
@@ -305,6 +306,7 @@ export default function LandingPage() {
               </button>
             </div>
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
+              <AppearanceMenu />
               <div className="hidden sm:block"><LanguagePicker /></div>
               <Link href="/auth" className="hidden rounded-xl px-3.5 py-2 text-sm font-semibold text-stone-700 transition hover:text-stone-900 md:block">{t('nav.signIn')}</Link>
               <Link href="/home" className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-3.5 py-2 text-xs font-bold text-white shadow-glow-sm ring-1 ring-stone-300 transition hover:brightness-110 sm:px-4 sm:text-sm">
@@ -319,7 +321,7 @@ export default function LandingPage() {
             id="landing-navigation"
             aria-label="Explore DukaanOS"
             aria-hidden={!menuOpen}
-            className={`absolute left-0 right-0 top-full mt-2 rounded-2xl border border-stone-200 bg-panel/95 p-3 shadow-2xl shadow-black/40 backdrop-blur-xl transition-all duration-200 sm:p-4 ${menuOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'}`}
+            className={`absolute left-0 right-0 top-full mt-2 rounded-2xl border border-stone-200 bg-panel/98 p-3 shadow-2xl shadow-black/40 transition-all duration-200 sm:p-4 ${menuOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'}`}
           >
             <div className="mb-3 flex items-center justify-between px-1">
               <span className="text-xs font-bold uppercase tracking-[0.16em] text-stone-600">Explore DukaanOS</span>
@@ -374,7 +376,7 @@ export default function LandingPage() {
         {/* how it works — the direct path */}
         <div className="mx-auto mt-12 grid max-w-4xl gap-3 sm:grid-cols-3 animate-fade-up">
           {heroSteps.map((step, index) => (
-            <div key={step.title} className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-left backdrop-blur">
+            <div key={step.title} className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-left">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 ring-1 ring-inset ring-brand-500/25"><step.icon size={15} /></span>
                 <span className="text-[11px] font-bold uppercase tracking-wide text-stone-600">Step {index + 1}</span>
@@ -393,7 +395,7 @@ export default function LandingPage() {
             { icon: ShieldCheck, label: 'Fabricated data', value: '0' },
             { icon: Gauge, label: 'Middleman fees', value: '₹0' },
           ].map((stat) => (
-            <div key={stat.label} className="rounded-2xl border border-stone-200 bg-stone-50 p-4 backdrop-blur">
+            <div key={stat.label} className="rounded-2xl border border-stone-200 bg-stone-50 p-4">
               <stat.icon size={17} className="mx-auto text-brand-600" />
               <p className="mt-2 font-display text-lg font-bold tabular-nums text-stone-900">{stat.value}</p>
               <p className="text-[11px] font-medium uppercase tracking-wide text-stone-600">{stat.label}</p>
@@ -464,10 +466,10 @@ export default function LandingPage() {
                   </div>
                   <p className="mt-4 text-center text-xs font-semibold tracking-wide text-stone-600">yourbusiness@okhdfcbank</p>
                 </div>
-                <div className="absolute -right-4 -top-4 rounded-2xl border border-stone-200 bg-panel/95 px-3.5 py-2.5 text-xs font-semibold text-emerald-700 shadow-2xl backdrop-blur">
+                <div className="absolute -right-4 -top-4 rounded-2xl border border-stone-200 bg-panel/98 px-3.5 py-2.5 text-xs font-semibold text-emerald-700 shadow-2xl">
                   <span className="flex items-center gap-1.5"><ShieldCheck size={13} /> Settles direct to bank</span>
                 </div>
-                <div className="absolute -bottom-4 -left-4 rounded-2xl border border-stone-200 bg-panel/95 px-3.5 py-2.5 text-xs font-semibold text-brand-600 shadow-2xl backdrop-blur">
+                <div className="absolute -bottom-4 -left-4 rounded-2xl border border-stone-200 bg-panel/98 px-3.5 py-2.5 text-xs font-semibold text-brand-600 shadow-2xl">
                   <span className="flex items-center gap-1.5"><Smartphone size={13} /> Works in any UPI app</span>
                 </div>
               </div>

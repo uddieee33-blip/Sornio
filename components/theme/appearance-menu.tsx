@@ -81,7 +81,7 @@ import {
 
 /* ------------------------------------------------------------------ geometry */
 
-const PANEL_WIDTH = 344;
+const PANEL_WIDTH = 368;
 const PANEL_MAX_HEIGHT = 560;
 const VIEWPORT_GUTTER = 12;
 const TRIGGER_GAP = 8;
@@ -162,16 +162,48 @@ function usePanelPosition(
           ? flipped
           : Math.max(VIEWPORT_GUTTER, (window.innerHeight - height) / 2);
 
-      setStyle({ position: 'fixed', top, left, width, maxHeight: height });
+      // Only publish when the geometry really changed. A scroll that leaves the
+      // trigger where it was must not re-render the whole panel.
+      setStyle((previous) =>
+        previous &&
+        previous.top === top &&
+        previous.left === left &&
+        previous.width === width &&
+        previous.maxHeight === height
+          ? previous
+          : { position: 'fixed', top, left, width, maxHeight: height },
+      );
+    };
+
+    // One measurement per frame, however many scroll events the browser fires.
+    // A scroll of the page can produce dozens of events in a single frame, and
+    // measuring on each one is what made the console feel sticky while the
+    // panel was open.
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        place();
+      });
+    };
+
+    // A scroll inside the panel itself (the dials list) does not move the
+    // trigger, so it is ignored rather than measured.
+    const onScroll = (event: Event) => {
+      const target = event.target;
+      if (target instanceof Element && target.closest('[data-appearance-panel]')) return;
+      schedule();
     };
 
     place();
-    window.addEventListener('resize', place);
+    window.addEventListener('resize', schedule);
     // Capture phase: the scroll that moves the trigger may be on any ancestor.
-    window.addEventListener('scroll', place, true);
+    window.addEventListener('scroll', onScroll, true);
     return () => {
-      window.removeEventListener('resize', place);
-      window.removeEventListener('scroll', place, true);
+      if (frame) window.cancelAnimationFrame(frame);
+      window.removeEventListener('resize', schedule);
+      window.removeEventListener('scroll', onScroll, true);
     };
   }, [open, preferred, wrapRef]);
 
@@ -283,7 +315,7 @@ function AppearanceControls() {
   const systemSelected = appearance.theme === SYSTEM_PAINT;
 
   return (
-    <div className="flex flex-col">
+    <div className="flex min-h-0 flex-1 flex-col">
       {/* ------------------------------------------------------------ header */}
       <div className="flex items-center justify-between gap-3 border-b border-stone-200 px-3.5 py-2.5">
         <p className="flex items-center gap-2 text-sm font-bold text-stone-900">
@@ -301,7 +333,7 @@ function AppearanceControls() {
         </button>
       </div>
 
-      <div className="min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-3.5 py-2.5 [-webkit-overflow-scrolling:touch]">
         {/* ----------------------------------------------------- match device */}
         <button
           type="button"
@@ -370,7 +402,7 @@ function AppearanceControls() {
         </div>
 
         {/* --------------------------------------------------------- the dials */}
-        <div className="mt-3.5 grid grid-cols-2 gap-3">
+        <div className="mt-3.5 grid grid-cols-1 gap-3">
           <Dial
             icon={<Gauge size={11} />}
             title="Density"
@@ -550,8 +582,9 @@ export function AppearanceMenu({
             ref={panelRef}
             role="dialog"
             aria-label="Appearance"
+            data-appearance-panel=""
             style={style}
-            className="animate-pop-in z-[70] flex flex-col overflow-hidden rounded-2xl bg-panel shadow-float ring-1 ring-stone-200"
+            className="animate-pop-in z-[70] flex min-h-0 flex-col overflow-hidden rounded-2xl bg-panel shadow-float ring-1 ring-stone-200"
           >
             <AppearanceControls />
           </div>,

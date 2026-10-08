@@ -30,26 +30,37 @@
  * Market + compact + calm + 110% text is a valid, supported console.
  */
 
-:root {
-  /* Fallbacks only. The real values arrive from the [data-theme] block, which
-     always matches because the server sets the attribute on <html>. */
+/*
+ * Paint fallbacks.
+ *
+ * `html` and `:root` are the same element, so a plain `:root { --c-page: … }`
+ * block has the same specificity as `[data-theme='midnight']` in themes.css and
+ * wins by source order. That silently repainted every dark paint with the Warm
+ * Daylight values (light page, light cards, light text on light buttons). The
+ * palette tokens are therefore scoped to `:root:not([data-theme])`, which can
+ * only match when no paint is on the element, so a chosen paint always wins.
+ */
+:root:not([data-theme]) {
   color-scheme: light;
-  --c-page: 247 246 239;
-  --c-white: 255 254 250;
+  --c-page: 247 246 243;
+  --c-white: 253 253 253;
   --c-lift: 255 255 255;
-  --c-onaccent: 255 254 250;
-  --c-black: 10 10 10;
-  --c-shadow: 67 55 28;
+  --c-onaccent: 251 250 247;
+  --c-black: 3 3 3;
+  --c-shadow: 39 36 25;
   --shadow-strength: 0.22;
   --c-highlight: rgb(255 255 255 / 0.92);
-  --c-focus: rgb(40 98 59 / 0.85);
+  --c-focus: rgb(57 113 73 / 0.85);
   --c-selection-bg: rgb(198 145 48 / 0.28);
   --c-selection-fg: rgb(51 38 15);
-  --c-scrollbar: rgb(73 88 63 / 0.22);
-  --c-glow-a: rgb(198 155 75 / 0.12);
-  --c-glow-b: rgb(49 111 65 / 0.09);
-  --c-brand-gradient: linear-gradient(135deg, #347549 0%, #2f7548 58%, #93661d 100%);
+  --c-scrollbar: rgb(85 84 79 / 0.24);
+  --c-glow-a: rgb(99 179 193 / 0.12);
+  --c-glow-b: rgb(86 144 100 / 0.1);
+  --c-brand-gradient: linear-gradient(135deg, rgb(57 113 73) 0%, rgb(67 132 100) 55%, rgb(9 126 154) 100%);
+}
 
+:root {
+  /* Structural defaults that no paint overrides. */
   /* Portal accent — overridden per business type by the PortalProvider.
      Space-separated RGB so Tailwind's alpha modifiers work against it. */
   --portal-accent: 40 98 59;

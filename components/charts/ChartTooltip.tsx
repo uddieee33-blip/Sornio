@@ -10,7 +10,7 @@ export function ChartTooltip({ active, payload, label, money = true }: { active?
   useLocaleRefresh();
   if (!active || !payload || payload.length === 0) return null;
   return (
-    <div className="rounded-xl border border-stone-200 bg-panel/95 px-3.5 py-2.5 shadow-2xl backdrop-blur">
+    <div className="rounded-xl border border-stone-200 bg-panel/98 px-3.5 py-2.5 shadow-2xl">
       {label ? <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-stone-600">{label}</p> : null}
       {payload.map((entry, index) => (
         <p key={index} className="flex items-center gap-2 text-sm font-semibold text-stone-900 tabular-nums">

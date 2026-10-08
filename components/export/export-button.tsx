@@ -82,7 +82,7 @@ export function ExportButton({ kinds = ORDER, label = 'Export' }: { kinds?: Expo
       {open ? (
         <div
           role="menu"
-          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-stone-200 bg-panel/97 p-1.5 shadow-float backdrop-blur-xl animate-fade-up"
+          className="absolute right-0 z-50 mt-2 w-60 overflow-hidden rounded-2xl border border-stone-200 bg-panel/98 p-1.5 shadow-float animate-fade-up"
         >
           <p className="flex items-center gap-1.5 px-2.5 py-2 text-[10px] font-bold uppercase tracking-wider text-stone-600">
             <Receipt size={11} /> Download your records
