@@ -49,6 +49,7 @@ import {
 import {
   buildInternalCode,
   guessSymbology,
+  isInternalCode,
   isValidGtin,
   looksLikeCode,
   normalizeCode,
@@ -635,6 +636,12 @@ export function buildSeedState(): StoreState {
 
 export type StoreActions = {
   addProduct: (input: Omit<Product, 'id'>) => ActionResult;
+  /**
+   * Bulk-add catalogue items from a validated import preview. Rows are
+   * re-validated here — the preview is a convenience, never the last line of
+   * defence — and opening stock lands on the stock ledger like any new item.
+   */
+  importProducts: (rows: Array<Omit<Product, 'id'>>) => ActionResult & { added: number; rejected: number };
   toggleProductStatus: (productId: string) => void;
   recordSale: (input: {
     lines: SaleLine[];
@@ -645,6 +652,11 @@ export type StoreActions = {
   }) => SaleResult;
   recordExpense: (input: { category: string; amount: number; method: PaymentMethod }) => ActionResult;
   addCustomer: (input: { name: string; phone?: string; email?: string; details?: string; bank?: BankDetails }) => ActionResult;
+  /**
+   * Bulk-add customers from a validated import preview, opening balances
+   * included — a migration that loses the khata is not a migration.
+   */
+  importCustomers: (rows: Array<{ name: string; phone?: string; email?: string; details?: string; openingBalance?: number }>) => ActionResult & { added: number; rejected: number };
   updateCustomer: (customerId: string, patch: Partial<Pick<Customer, 'name' | 'phone' | 'email' | 'details' | 'bank' | 'openingBalance'>>) => ActionResult;
   addPlan: (input: { name: string; type: MembershipPlan['type']; durationMonths: number; price: number; description?: string }) => ActionResult;
   addMember: (input: { name: string; phone: string; preferredChannel: Member['preferredChannel'] }) => ActionResult;
@@ -1071,6 +1083,108 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       return { ok: true };
     },
 
+    importProducts(rows) {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return { ok: false, error: 'Nothing to import.', added: 0, rejected: 0 };
+      }
+      // Re-validate every row exactly as the single-item path does. The import
+      // preview already checked this; the store checks it again because a
+      // preview is a convenience, not a gate.
+      const accepted: { input: Omit<Product, 'id'>; productId: string; name: string }[] = [];
+      let rejected = 0;
+      const claimedCodes = new Map<string, string>();
+      const claimedSkus = new Map<string, string>();
+      for (const product of stateRef.current.products) {
+        for (const code of [product.barcode, product.internalCode]) {
+          if (code) claimedCodes.set(code.trim().toUpperCase(), product.name);
+        }
+        if (product.sku) claimedSkus.set(product.sku.trim().toUpperCase(), product.name);
+      }
+      for (const input of rows) {
+        if (!input || !input.name?.trim()) {
+          rejected += 1;
+          continue;
+        }
+        const numericValues = [input.sellingPrice, input.cost, input.stock, input.reorderLevel];
+        if (input.taxRate !== undefined) numericValues.push(input.taxRate);
+        if (!numericValues.every((value) => Number.isFinite(value) && value >= 0)) {
+          rejected += 1;
+          continue;
+        }
+        if (input.itemType !== 'product' && input.itemType !== 'service') {
+          rejected += 1;
+          continue;
+        }
+
+        const suppliedCode = (input.barcode ?? input.internalCode ?? '').trim();
+        if (suppliedCode) {
+          if (!looksLikeCode(suppliedCode)) {
+            rejected += 1;
+            continue;
+          }
+          const gtinShaped = [8, 12, 13, 14].includes(suppliedCode.length) && /^\d+$/.test(suppliedCode);
+          if (gtinShaped && !isValidGtin(suppliedCode)) {
+            rejected += 1;
+            continue;
+          }
+        }
+        const code = suppliedCode.toUpperCase();
+        const sku = input.sku?.trim().toUpperCase() ?? '';
+        if ((code && claimedCodes.has(code)) || (sku && claimedSkus.has(sku))) {
+          rejected += 1;
+          continue;
+        }
+        if (code) claimedCodes.set(code, input.name.trim());
+        if (sku) claimedSkus.set(sku, input.name.trim());
+
+        // The scanning engine distinguishes a DukaanOS internal code by its
+        // check digit. Keep it in that slot even if a caller supplied it as a
+        // barcode; a malformed lookalike remains an ordinary barcode.
+        const internal = suppliedCode && isInternalCode(suppliedCode) ? suppliedCode.toUpperCase() : undefined;
+        const normalizedInput: Omit<Product, 'id'> = {
+          ...input,
+          name: input.name.trim(),
+          itemType: input.itemType,
+          stock: input.itemType === 'service' ? 0 : input.stock,
+          reorderLevel: input.itemType === 'service' ? 0 : input.reorderLevel,
+          sku: sku || undefined,
+          barcode: internal ? undefined : suppliedCode || undefined,
+          internalCode: internal,
+        };
+        accepted.push({ input: normalizedInput, productId: newId('p'), name: normalizedInput.name });
+      }
+      if (accepted.length === 0) {
+        return { ok: false, error: 'No valid rows in the file.', added: 0, rejected };
+      }
+      const at = new Date().toISOString();
+      setState((current) => ({
+        ...current,
+        products: [...current.products, ...accepted.map(({ input, productId, name }) => ({ ...input, id: productId, name }))],
+        // Opening stock is a movement like any other: the first balance on the
+        // item's ledger is the count the migration carried across.
+        stockMovements: pushMovements(
+          current.stockMovements,
+          accepted.map(({ productId, name, input }) =>
+            input.itemType === 'product'
+              ? buildMovement({
+                  id: newId('mv'),
+                  productId,
+                  productName: name,
+                  at,
+                  reason: 'opening',
+                  delta: input.stock,
+                  balanceBefore: 0,
+                  note: `New item${input.category ? ` in ${input.category}` : ''} — opening count ${input.stock}${input.unit ? ` ${input.unit}` : ''}`,
+                  unit: unitFor(input.itemType, input.unit),
+                })
+              : null,
+          ),
+        ),
+      }));
+      track('product', `Imported ${accepted.length} rows from a CSV file; ${rejected} skipped.`);
+      return { ok: true, added: accepted.length, rejected };
+    },
+
     toggleProductStatus(productId) {
       setState((current) => ({
         ...current,
@@ -1256,6 +1370,61 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       }));
       track('customer', `Customer \"${name.trim()}\" added.`);
       return { ok: true };
+    },
+
+    importCustomers(rows) {
+      if (!Array.isArray(rows) || rows.length === 0) {
+        return { ok: false, error: 'Nothing to import.', added: 0, rejected: 0 };
+      }
+      // Re-validate every row exactly as the single-customer path does, and
+      // keep the opening balance — a migration that loses the khata is not a
+      // migration.
+      const accepted: Customer[] = [];
+      let rejected = 0;
+      const claimedPhones = new Set(
+        stateRef.current.customers
+          .map((customer) => customer.phone?.replace(/\D/g, '') ?? '')
+          .filter(Boolean),
+      );
+      const at = new Date().toISOString();
+      for (const row of rows) {
+        if (!row || !row.name?.trim()) {
+          rejected += 1;
+          continue;
+        }
+        const balance = row.openingBalance ?? 0;
+        if (!Number.isFinite(balance)) {
+          rejected += 1;
+          continue;
+        }
+        const email = row.email?.trim() ?? '';
+        if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          rejected += 1;
+          continue;
+        }
+        const phone = row.phone?.trim() ?? '';
+        const phoneKey = phone.replace(/\D/g, '');
+        if (phoneKey && claimedPhones.has(phoneKey)) {
+          rejected += 1;
+          continue;
+        }
+        if (phoneKey) claimedPhones.add(phoneKey);
+        accepted.push({
+          id: newId('customer'),
+          name: row.name.trim(),
+          phone: phone || undefined,
+          email: email || undefined,
+          details: row.details?.trim() || undefined,
+          openingBalance: balance,
+          createdAt: at,
+        });
+      }
+      if (accepted.length === 0) {
+        return { ok: false, error: 'No valid rows in the file.', added: 0, rejected };
+      }
+      setState((current) => ({ ...current, customers: [...current.customers, ...accepted] }));
+      track('customer', `Imported ${accepted.length} rows from a CSV file; ${rejected} skipped.`);
+      return { ok: true, added: accepted.length, rejected };
     },
 
     updateCustomer(customerId, patch) {

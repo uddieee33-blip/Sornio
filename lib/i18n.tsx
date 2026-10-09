@@ -100,7 +100,7 @@ const CORE_MESSAGES = {
   'nav.why': 'Why pay',
   'nav.compare': 'Compare',
   'nav.faq': 'Questions',
-  'hero.promise': 'Free plan forever · 3-day full trial · Growth ₹499/month · No card, no auto-debit',
+  'hero.promise': 'Free plan forever · 7-day full trial · Growth ₹499/month · No card, no auto-debit',
   'why.title': 'Why owners pay for this',
   'why.sub': 'Not for a dashboard. For the money the dashboard finds.',
   'compare.title': 'Free forever, or paid and automated',

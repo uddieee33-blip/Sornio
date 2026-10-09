@@ -3,12 +3,13 @@
 import { useLocaleRefresh } from '@/lib/i18n';
 
 import { useMemo, useState } from 'react';
-import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, Tag, X } from 'lucide-react';
+import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, Tag, Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { ImportDialog } from '@/components/import/import-dialog';
 import { BarcodeScanner } from '@/components/scanning/barcode-scanner';
 import { formatCurrency, type Product } from '@/lib/business-data';
 import { useDukaanStore } from '@/lib/store';
@@ -52,6 +53,7 @@ export default function ProductsPage() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [selected, setSelected] = useState<Product | null>(null);
+  const [importOpen, setImportOpen] = useState(false);
 
   const categories = useMemo(() => Array.from(new Set(state.products.map((p) => p.category))).sort(), [state.products]);
 
@@ -260,9 +262,18 @@ export default function ProductsPage() {
         <Card className="animate-fade-up">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <CardTitle icon={<Package size={17} />}>Product list</CardTitle>
-            <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setImportOpen(true)}
+                className="inline-flex items-center gap-2 rounded-xl border border-stone-200 bg-stone-100 px-3.5 py-2 text-sm font-semibold text-stone-800 transition hover:bg-stone-200"
+              >
+                <Upload size={14} /> Import CSV
+              </button>
+              <div className="relative">
+                <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
+              </div>
             </div>
           </div>
 
@@ -284,7 +295,15 @@ export default function ProductsPage() {
           </div>
 
           {state.products.length === 0 ? (
-            <EmptyState icon={Package} title="No items yet" description="A new business starts with an empty catalog. Add your first product or service — every sale, stock movement, and profit figure will flow from it." />
+            <EmptyState
+              icon={Package}
+              title="No items yet"
+              description="A new business starts with an empty catalog. Add your first product or service — every sale, stock movement, and profit figure will flow from it."
+            >
+              <Button onClick={() => setImportOpen(true)}>
+                <Upload size={16} /> Import CSV
+              </Button>
+            </EmptyState>
           ) : visible.length === 0 ? (
             <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600">No items match the current search/filter.</p>
           ) : (
@@ -425,6 +444,8 @@ export default function ProductsPage() {
           </div>
         </div>
       ) : null}
+
+      {importOpen ? <ImportDialog kind="products" onClose={() => setImportOpen(false)} /> : null}
     </div>
   );
 }

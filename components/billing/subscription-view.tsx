@@ -52,6 +52,7 @@ import { useNow } from '@/lib/perf/clock';
 import { formatCurrency } from '@/lib/business-data';
 import {
   PLAN_CATALOGUE,
+  TRIAL_DAYS,
   lockedModulesFor,
   lockedModuleFromParam,
   monthKey,
@@ -211,7 +212,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
           <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
             {!trialUsed ? (
               <Button onClick={() => void startTrial()} disabled={busy}>
-                <Sparkles size={15} /> {busy ? 'Starting…' : 'Unlock it now — 3-day free trial'}
+                <Sparkles size={15} /> {busy ? 'Starting…' : `Unlock it now — ${TRIAL_DAYS}-day free trial`}
               </Button>
             ) : (
               <Link
@@ -284,7 +285,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
                 </p>
               ) : (
                 <Button className="w-full" onClick={() => void startTrial()} disabled={busy}>
-                  <Sparkles size={15} /> Start 3-day full trial
+                  <Sparkles size={15} /> {`Start ${TRIAL_DAYS}-day full trial`}
                 </Button>
               )
             ) : null}
