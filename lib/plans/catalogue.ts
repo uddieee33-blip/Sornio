@@ -54,7 +54,7 @@ const STARTER_MODULES: ModuleKey[] = ALL_MODULES.filter(
 ).concat(ALWAYS_OPEN_MODULES);
 
 /** Shown wherever a plan is described, in the owner's terms. */
-export const TRIAL_DAYS = 3;
+export const TRIAL_DAYS = 7;
 
 /** How long everything keeps working after a paid period ends. */
 export const GRACE_DAYS = 7;
@@ -66,7 +66,7 @@ export const PLAN_CATALOGUE: PlanDefinition[] = [
   {
     id: 'trial',
     name: 'Full trial',
-    tagline: 'Every module, every feature, three days, no card, no UPI mandate.',
+    tagline: `Every module, every feature, ${TRIAL_DAYS} days, no card, no UPI mandate.`,
     for: 'Owners deciding whether DukaanOS fits how they actually work.',
     prices: [{ interval: 'forever', amount: 0, months: 0 }],
     trialDays: TRIAL_DAYS,
@@ -82,7 +82,7 @@ export const PLAN_CATALOGUE: PlanDefinition[] = [
       'No card, no mandate, no auto-debit — it simply ends',
       'Nothing is deleted when it ends: your records stay, and the free plan takes over',
     ],
-    excluded: ['Lasts 3 days by design — after that, keep what you recorded on the free plan or pick a paid plan'],
+    excluded: [`Lasts ${TRIAL_DAYS} days by design — after that, keep what you recorded on the free plan or pick a paid plan`],
   },
   {
     id: 'starter',

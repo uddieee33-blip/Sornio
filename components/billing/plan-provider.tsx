@@ -20,6 +20,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useDukaanStore } from '@/lib/store';
 import {
+  TRIAL_DAYS,
   describeState,
   planById,
   resolveEntitlement,
@@ -128,7 +129,9 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     () =>
       run(
         () => postPlan({ action: 'start-trial' }),
-        () => `Trial started — every module is unlocked for the next 3 days.`,
+        () => {
+          return `Trial started — every module is unlocked for the next ${TRIAL_DAYS} days.`;
+        },
       ),
     [run],
   );

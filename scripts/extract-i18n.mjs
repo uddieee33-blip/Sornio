@@ -131,7 +131,7 @@ const CORE_MESSAGES = [
   'Why pay',
   'Compare',
   'Questions',
-  'Free plan forever · 3-day full trial · Growth ₹499/month · No card, no auto-debit',
+  'Free plan forever · 7-day full trial · Growth ₹499/month · No card, no auto-debit',
   'Why owners pay for this',
   'Not for a dashboard. For the money the dashboard finds.',
   'Free forever, or paid and automated',

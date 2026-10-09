@@ -13,6 +13,7 @@ import { CustomerDetailModal } from '@/components/customers/customer-detail-moda
 import { formatCurrency } from '@/lib/business-data';
 import { isValidUpiId, upiAccentColor } from '@/lib/upi';
 import { ExportButton } from '@/components/export/export-button';
+import { ImportButton } from '@/components/import/import-dialog';
 import { useDukaanStore, type Customer } from '@/lib/store';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
@@ -67,6 +68,7 @@ export default function CustomersPage() {
             <Badge tone="brand" dot>
               {upiReadyCount}/{state.customers.length} QR-ready
             </Badge>
+            <ImportButton kind="customers" label="Import CSV" />
             <ExportButton kinds={['customers', 'everything']} label="Export list" />
           </>
         }

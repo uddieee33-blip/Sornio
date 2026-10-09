@@ -96,19 +96,23 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 | `/dashboard` | Business reality dashboard with alerts |
 | `/business` | Business setup with type-specific templates |
 | `/scan` | **Scan Station** — counter scan, goods-inward scan, unmatched-code triage, printable labels (only for trades that scan) |
-| `/products`, `/inventory`, `/suppliers` | Full catalog CRUD (add/edit/archive), barcode capture, stock, supply chain |
+| `/products`, `/inventory`, `/suppliers` | Full catalog CRUD, barcode capture, stock and supply chain; bulk CSV import for another app’s catalogue, with row preview and opening-stock ledger entries |
 | `/sales`, `/billing`, `/payments`, `/expenses` | Money in and money out (Cash/UPI/Card/Bank Transfer/Other) |
 | `/cashflow`, `/profitability` | Cash movements by account · margins & per-product profit |
 | `/transactions`, `/reports`, `/comparisons` | Ledger traceability and analysis |
 | `/memberships` | Plans, subscriptions, renewal reminders |
 | `/reminders` | Personalized SMS & WhatsApp renewal drafts (deep links, no proxy needed) |
-| `/customers` | Profiles, balances, receivables, unique UPI QR per customer |
+| `/customers` | Profiles, opening balances, receivables, unique UPI QR per customer; bulk CSV import |
 | `/marketing` | Campaign tracking; spend is booked as a real expense |
 | `/team` | Roles & permissions matrix |
 | `/audit` | Real, timestamped audit history of every financial change |
 | `/insights` | AI business health score, insights, growth tips |
 | `/alerts`, `/settings` | Notifications, interactive preferences, audit trail |
 | `/subscription` | **Your Plan** — what this console costs, what it has used, what a lapsed plan does, and the UPI path to switch it on |
+
+### Move an existing catalogue across
+
+Products and customers can be imported from a CSV on their own pages. The header matcher understands common exports (`Item Name`, `MRP`, `Sale Price`, `Purchase Rate`, `EAN`, `Qty`, `GST`, `Party Name`, `Mobile`, and opening-balance variants), and the downloadable templates round-trip DukaanOS's own CSV headers. Every row is previewed before confirmation; duplicate barcodes, SKUs and customer phone numbers are skipped, and product opening stock becomes a stock-ledger movement. CSV/TSV/semicolon files up to 2 MB and 5,000 rows are read in the browser — nothing is uploaded. Excel workbooks must first be saved as CSV; this import does not migrate historical sales, expenses or messages from another system.
 
 ## Scanning & capture — barcodes at the counter, fingers at the desk
 
@@ -506,7 +510,7 @@ product: once, as data, at the edge, before a page renders.
 | Plan | Price | Opens | Limits |
 | --- | --- | --- | --- |
 | **Starter** | ₹0 forever | The whole counter: billing, receipts, stock, suppliers, udhaar khata, Scan Station, UPI QR, ledger, reports, audit chain, Trust Centre, your plan | 25 UPI collections/month · 200 items · 2 seats · 1 branch |
-| **Full trial** | ₹0, 3 days | Every module, no card, no mandate — it simply ends | — |
+| **Full trial** | ₹0, 7 days | Every module, no card, no mandate — it simply ends | — |
 | **Growth** | ₹499/month · ₹999/quarter · ₹4,990/year | Everything in Starter, unlimited, **plus** the automations: memberships & renewals, reminders, check-ins, day book, marketing, margins, comparisons | 10 seats · 1 branch |
 | **Scale** | ₹1,999/quarter · ₹6,999/year | Everything in Growth, unlimited | Multi-branch · unlimited seats · priority support |
 
@@ -736,7 +740,7 @@ plugin supports 10. `npm audit`'s suggested "fix" is a downgrade to
 
 - The live demo runs the full domain model client-side (`lib/store.tsx`) so every flow is exercisable without a live Supabase project; the schema is ready for server-side wiring.
 - Accounting is a general-purpose calculation layer, not jurisdiction-specific tax/legal advice.
-- DukaanOS's own billing is **shipped**, not deferred: a free plan that cannot lapse, a 3-day full trial, three paid plans, a signed plan cookie enforced at the edge, and activation codes minted from a verified payment. What is deliberately *not* built is an auto-debit mandate — there is no card on file anywhere in this product, by design.
+- DukaanOS's own billing is **shipped**, not deferred: a free plan that cannot lapse, a 7-day full trial, three paid plans, a signed plan cookie enforced at the edge, and activation codes minted from a verified payment. What is deliberately *not* built is an auto-debit mandate — there is no card on file anywhere in this product, by design.
 - On a local-first install (no Supabase), the console runs on the owner's own device, so the entitlement gate there is a commitment encoded in software, not DRM. That is said plainly rather than dressed up; the hosted path enforces it server-side, where it can be.
 
 ## Security architecture

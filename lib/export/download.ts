@@ -18,6 +18,7 @@
 
 import { toCsv } from '@/lib/security/sanitize';
 import { redact } from '@/lib/security/redact';
+import { CUSTOMER_CSV_HEADERS, PRODUCT_CSV_HEADERS } from './headers';
 import type { StoreState } from '@/lib/store';
 
 export type ExportKind = 'transactions' | 'customers' | 'products' | 'expenses' | 'everything';
@@ -102,9 +103,7 @@ export function buildExpensesCsv(state: StoreState): string {
 }
 
 export function buildProductsCsv(state: StoreState): string {
-  const rows: (string | number | null | undefined)[][] = [
-    ['Name', 'Category', 'Type', 'Selling price', 'Cost price', 'Stock', 'Reorder level', 'Status'],
-  ];
+  const rows: (string | number | null | undefined)[][] = [[...PRODUCT_CSV_HEADERS]];
   for (const product of state.products) {
     rows.push([
       product.name,
@@ -121,9 +120,7 @@ export function buildProductsCsv(state: StoreState): string {
 }
 
 export function buildCustomersCsv(state: StoreState): string {
-  const rows: (string | number | null | undefined)[][] = [
-    ['Name', 'Phone', 'Email', 'Opening balance', 'Notes', 'Added'],
-  ];
+  const rows: (string | number | null | undefined)[][] = [[...CUSTOMER_CSV_HEADERS]];
   for (const customer of state.customers) {
     rows.push([
       customer.name,
