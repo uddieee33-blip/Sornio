@@ -130,7 +130,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       run(
         () => postPlan({ action: 'start-trial' }),
         () => {
-          return `Trial started — every module is unlocked for the next ${TRIAL_DAYS} days.`;
+          return `Full trial started — every module, every feature, every limit removed for the next ${TRIAL_DAYS} days. Experience the complete console.`;
         },
       ),
     [run],
@@ -194,7 +194,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     const lapsed = entitlement.lapsedFrom;
     actions.recordPlanEvent(
       lapsed === 'trial'
-        ? 'Free trial ended — console moved to the free plan, paid automations paused. No records were removed.'
+        ? 'Full trial ended — you experienced every module and every feature. Console moved to the free plan, paid automations paused. No records were removed.'
         : lapsed
           ? `${planById(lapsed).name} period ended — console moved to the free plan, paid automations paused. No records were removed.`
           : 'Paid period ended — console moved to the free plan, paid automations paused. No records were removed.',

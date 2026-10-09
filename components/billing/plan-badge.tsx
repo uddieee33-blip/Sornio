@@ -32,7 +32,7 @@ export function PlanBadge({ className = '' }: { className?: string }) {
         ? `Free · ${Math.max(usage.allowance - usage.upiCollections, 0)} UPI left`
         : 'Free plan'
       : entitlement.state === 'trialing'
-        ? `Trial · ${entitlement.daysLeft}d left`
+        ? `Full Trial · ${entitlement.daysLeft}d left`
         : entitlement.state === 'grace'
           ? `${entitlement.plan.name} · renew in ${entitlement.daysLeft}d`
           : entitlement.state === 'expired'
@@ -43,7 +43,7 @@ export function PlanBadge({ className = '' }: { className?: string }) {
     entitlement.state === 'free'
       ? 'You are on the free plan: the whole counter, ledger and audit chain, at ₹0. Tap to see what the paid automations add.'
       : entitlement.state === 'trialing'
-        ? 'Trial running — every module is unlocked. Tap to pick a plan before it ends.'
+        ? 'Full trial running — every module, every feature, every limit removed. Experience the complete console. Tap to pick a plan before it ends.'
         : entitlement.state === 'grace'
           ? 'Your period has ended and everything keeps working for a few more days. Renew to keep the automations.'
           : entitlement.state === 'expired'
