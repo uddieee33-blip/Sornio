@@ -164,8 +164,8 @@ export function describeState(entitlement: Entitlement): string {
   switch (entitlement.state) {
     case 'trialing':
       return entitlement.daysLeft === 1
-        ? 'Trial: last day. Everything is unlocked.'
-        : `Trial: ${entitlement.daysLeft} days left. Everything is unlocked.`;
+        ? 'Trial: last day. Every module, every feature, every limit removed — experience the full console.'
+        : `Trial: ${entitlement.daysLeft} days left. Every module, every feature, every limit removed — experience the full console.`;
     case 'active':
       return `${entitlement.plan.name} is active — ${entitlement.daysLeft} day${entitlement.daysLeft === 1 ? '' : 's'} left in this period.`;
     case 'grace':

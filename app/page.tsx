@@ -655,7 +655,7 @@ export default function LandingPage() {
                   href={isFree ? '/auth' : `/auth?plan=${plan.id}&interval=${price.interval}`}
                   className={`mt-6 flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-bold transition ${plan.popular ? 'bg-brand-gradient text-white shadow-glow hover:brightness-110' : 'border border-stone-200 bg-white text-stone-800 hover:border-brand-400/40 hover:bg-stone-100'}`}
                 >
-                  {isFree ? 'Start free — no card' : `Start ${TRIAL_DAYS}-day trial, then ${plan.name}`} <ArrowRight size={15} />
+                  {isFree ? 'Start free — no card' : `Experience everything — ${TRIAL_DAYS}-day trial, then ${plan.name}`} <ArrowRight size={15} />
                 </Link>
                 {!isFree ? (
                   <p className="mt-2 text-center text-[11px] text-stone-600">
@@ -735,7 +735,7 @@ export default function LandingPage() {
         <div className="relative overflow-hidden rounded-3xl border border-brand-500/25 bg-gradient-to-br from-brand-500/[0.12] to-amber-500/[0.08] p-10 text-center md:p-14">
           <h2 className="relative font-display text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">Start free. Pay only when the automations earn it.</h2>
           <p className="relative mx-auto mt-4 max-w-xl text-sm text-stone-600 md:text-base">
-            Sign in, add your business and your bank, record your first sale — and take the seven-day full trial whenever you want to see the paid console.
+            Sign in, add your business and your bank, record your first sale — and take the seven-day full trial to experience every module, every feature, every limit removed.
             If it does not find money for you, stay on the free plan forever.
           </p>
           <div className="relative mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">

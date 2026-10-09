@@ -157,7 +157,7 @@ export async function POST(request: Request) {
         return json({ error: 'Your trial is already running.', record }, 409);
       }
       if (record?.trialUsedAt) {
-        return json({ error: 'This device has already used its free trial. Pick a plan to keep the automations.' }, 409);
+        return json({ error: 'This device has already used its full trial — you experienced every module and every feature. Pick a plan to keep them all.' }, 409);
       }
       if (record && record.planId !== 'starter' && record.renewsAt > nowSeconds) {
         return json({ error: `Your ${planById(record.planId).name} plan is active — you do not need a trial.` }, 409);
@@ -170,7 +170,7 @@ export async function POST(request: Request) {
         activatedBy: 'self',
         trialUsedAt: nowSeconds,
       };
-      return issue(trial, transport, { changed: true, message: `Trial started — everything is unlocked for ${TRIAL_DAYS} days.` });
+      return issue(trial, transport, { changed: true, message: `Full trial started — every module, every feature, every limit removed for ${TRIAL_DAYS} days. Experience the complete console.` });
     }
 
     case 'choose-plan': {

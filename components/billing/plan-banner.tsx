@@ -44,8 +44,8 @@ export function PlanBanner() {
     tone = 'amber';
     text =
       entitlement.daysLeft <= 1
-        ? 'Your trial ends today. Pick a plan to keep the automations — your records stay either way.'
-        : `Your trial ends in ${entitlement.daysLeft} days. Pick a plan to keep the automations.`;
+        ? 'Your full trial ends today — you have experienced every module and every feature. Pick a plan to keep them all — your records stay either way.'
+        : `Your full trial ends in ${entitlement.daysLeft} days — every module, every limit removed. Pick a plan to keep the full console.`;
     cta = 'Pick a plan';
   } else if (entitlement.state === 'free' && remaining !== null && remaining <= 5) {
     tone = 'brand';

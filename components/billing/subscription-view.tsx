@@ -201,18 +201,17 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
             </span>
             <div className="min-w-0">
               <h2 className="font-display text-base font-bold text-stone-900">
-                {portalLabelFor(lockedFromUrl)} needs {planById('growth').name}
+                {portalLabelFor(lockedFromUrl)} is paused on your current plan
               </h2>
               <p className="mt-1 text-sm leading-relaxed text-stone-600">
-                It is paused on your current plan — but a customer standing at the desk should never leave unpaid.
-                Your records for it are untouched, and everything reappears the moment a plan is active.
+                Start the {TRIAL_DAYS}-day full trial to experience this and every other feature with no limits — or pick a paid plan to keep it permanently. Your records are untouched either way.
               </p>
             </div>
           </div>
           <div className="mt-4 flex flex-col gap-2.5 sm:flex-row sm:flex-wrap">
             {!trialUsed ? (
               <Button onClick={() => void startTrial()} disabled={busy}>
-                <Sparkles size={15} /> {busy ? 'Starting…' : `Unlock it now — ${TRIAL_DAYS}-day free trial`}
+                <Sparkles size={15} /> {busy ? 'Starting…' : `Experience everything — ${TRIAL_DAYS}-day full trial`}
               </Button>
             ) : (
               <Link
@@ -281,11 +280,11 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
             {entitlement.state === 'free' || entitlement.state === 'expired' ? (
               trialUsed ? (
                 <p className="rounded-xl bg-stone-50 px-3 py-2.5 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
-                  The free trial has already been used on this device. A paid plan is the only way to unlock the automations — and the first one starts the day you pay.
+                  The full trial has already been used on this device — you experienced every module and every feature. A paid plan is the only way to keep them all — and the first one starts the day you pay.
                 </p>
               ) : (
                 <Button className="w-full" onClick={() => void startTrial()} disabled={busy}>
-                  <Sparkles size={15} /> {`Start ${TRIAL_DAYS}-day full trial`}
+                  <Sparkles size={15} /> {`Experience everything — ${TRIAL_DAYS}-day full trial`}
                 </Button>
               )
             ) : null}
