@@ -63,6 +63,28 @@ const PUBLIC_PREFIXES = [
 /** Where a signed-in owner lands when they have not said otherwise. */
 export const DEFAULT_NEXT = '/onboarding';
 
+/** Where an owner who has already finished setup lands. */
+export const CONSOLE_HOME = '/home';
+
+/**
+ * The fallback a sign-in ends at, given what the account already knows.
+ *
+ * One owner in two used to land here: `/onboarding` was the only fallback, so a
+ * returning shopkeeper was greeted by name and then walked through the three
+ * steps they had already filled in. The setup screen is now what it always
+ * should have been — the door for an owner who has not finished, and a
+ * "we remembered you" screen for one who has — but the redirect is decided
+ * *before* the page loads, because a page that has to correct itself is a flicker
+ * this app refuses everywhere else.
+ *
+ * Only an answer the server can vouch for counts as finished: see
+ * `storedSetupComplete`, which derives it from the stored fields rather than
+ * trusting a flag, and returns `false` for every kind of "we cannot tell".
+ */
+export function signInFallback(setupComplete: boolean): string {
+  return setupComplete ? CONSOLE_HOME : DEFAULT_NEXT;
+}
+
 /** Targets `safeNext` refuses because redirecting there would loop. */
 const NEVER_TARGETS = ['/auth', '/api', '/_next'] as const;
 

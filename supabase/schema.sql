@@ -4,6 +4,11 @@ CREATE TABLE IF NOT EXISTS businesses (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   name TEXT NOT NULL,
   slug TEXT UNIQUE,
+  -- Who created this business. Provisioning a tenant is two rows that each
+  -- depend on the other (a business needs a member, a member needs a business),
+  -- so the insert policy keys off this column instead of the membership table:
+  -- see "Increment 10" at the bottom of this file for why that had to change.
+  owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   business_type TEXT,
   currency TEXT NOT NULL DEFAULT 'INR',
   timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
@@ -675,3 +680,93 @@ CREATE POLICY "Business members request a plan payment" ON platform_payment_requ
 
 CREATE POLICY "Business members read their payment requests" ON platform_payment_requests
   FOR SELECT USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- ---------------------------------------------------------------------------
+-- Increment 10 — the remembered owner profile
+-- ---------------------------------------------------------------------------
+--
+-- Until now everything an owner typed during setup lived only in the encrypted
+-- vault of the browser that typed it. The console could therefore say "Welcome
+-- back" — the session cookie knows who signed in — and then ask that person for
+-- their own name, phone, business name, trade and UPI id, because none of it had
+-- ever left the first device. This table is the copy that outlives a device.
+--
+-- One row per business, keyed to the owner who set it up. What it holds is the
+-- profile and the collection details a QR is built from. What it never holds is
+-- a UPI PIN, an OTP, a card number or a password — the app does not collect
+-- those, so there is nothing here for a leaked row to give away beyond the
+-- business's own contact and bank display details.
+
+-- Provisioning a tenant used to be impossible under RLS. The old insert policy
+-- on `businesses` required a membership row for the new business to already
+-- exist, and a membership row cannot exist before the business it points at —
+-- so a brand-new owner's first sync failed with a policy violation and the app
+-- reported "new row violates row-level security". Owning the row you are
+-- inserting is the check that breaks the deadlock, and it grants no more than
+-- the membership insert beside it already did.
+ALTER TABLE businesses ADD COLUMN IF NOT EXISTS owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL;
+CREATE INDEX IF NOT EXISTS idx_businesses_owner_id ON businesses (owner_id);
+
+DROP POLICY IF EXISTS "Business members manage their businesses" ON businesses;
+CREATE POLICY "Business members manage their businesses" ON businesses
+  FOR INSERT WITH CHECK (
+    owner_id = auth.uid()
+    OR id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid())
+  );
+
+CREATE TABLE IF NOT EXISTS owner_profiles (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- UNIQUE, not just indexed: a business has exactly one owner profile, and a
+  -- second row would be a second answer to "what is this shop called".
+  business_id UUID NOT NULL UNIQUE REFERENCES businesses(id) ON DELETE CASCADE,
+  -- The owner these details belong to. Kept so a transferred business does not
+  -- silently keep answering to somebody who left.
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+
+  owner_name TEXT NOT NULL DEFAULT '',
+  owner_phone TEXT NOT NULL DEFAULT '',
+  owner_email TEXT NOT NULL DEFAULT '',
+  business_name TEXT NOT NULL DEFAULT '',
+  description TEXT NOT NULL DEFAULT '',
+  template_id TEXT NOT NULL DEFAULT '',
+  currency TEXT NOT NULL DEFAULT 'INR',
+  timezone TEXT NOT NULL DEFAULT 'Asia/Kolkata',
+
+  -- The collection UPI id the QR is derived from, and the bank display details
+  -- printed beside it on a receipt. Never credentials.
+  upi_id TEXT,
+  bank JSONB NOT NULL DEFAULT '{}'::jsonb,
+
+  -- Derived from the fields above on every write (see `isSetupComplete` in
+  -- `lib/sync/profile.ts`) so a row cannot claim to be finished setup while
+  -- missing the UPI id every collection QR needs.
+  setup_complete BOOLEAN NOT NULL DEFAULT FALSE,
+
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  -- The editing device's clock, not the server's: two devices compare this to
+  -- decide whose copy is newer, and only their own clocks share a meaning.
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_owner_profiles_business_id ON owner_profiles (business_id);
+CREATE INDEX IF NOT EXISTS idx_owner_profiles_user_id ON owner_profiles (user_id);
+
+ALTER TABLE owner_profiles ENABLE ROW LEVEL SECURITY;
+
+-- Every member can read the profile: the desk needs the business name on a
+-- receipt and the UPI id on a collection panel, and a staff member who could
+-- not see them would have to ask the owner at every sale.
+CREATE POLICY "Business members view the owner profile" ON owner_profiles
+  FOR SELECT USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- Writing is the same shape as reshaping the console: it reroutes where the
+-- shop's money lands, so it is the owner and the manager, and nobody else.
+CREATE POLICY "Owners and managers save the owner profile" ON owner_profiles
+  FOR INSERT WITH CHECK (
+    business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid() AND role IN ('owner','manager'))
+  );
+
+CREATE POLICY "Owners and managers update the owner profile" ON owner_profiles
+  FOR UPDATE USING (
+    business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid() AND role IN ('owner','manager'))
+  );

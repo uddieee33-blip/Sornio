@@ -51,7 +51,9 @@ import {
   resolveMembership,
   safeNext,
   sealOwnerSession,
+  signInFallback,
 } from '@/lib/auth';
+import { storedSetupComplete } from '@/lib/sync/profile-server';
 
 /** An email is capped at 254 by RFC 5321; a password longer than this is a bug. */
 const MAX_BODY_BYTES = 8 * 1024;
@@ -147,7 +149,10 @@ export async function POST(request: Request) {
       action,
       mode: 'local',
       provider: 'local',
-      next: safeNext(requested, '/onboarding'),
+      // There is no account storage here to ask whether this owner is already
+      // set up, so setup is the only honest destination — and on a local build
+      // the screen it opens has the device's own vault to prefill from.
+      next: safeNext(requested, signInFallback(false)),
       identity: renderable({
         provider: 'local',
         userId: issued.claims.userId,
@@ -198,6 +203,13 @@ export async function POST(request: Request) {
     // membership row is normal for a brand-new owner, and means "this device's
     // own business", which is why it resolves to owner rather than to nothing.
     const membership = await resolveMembership(user.id);
+
+    // "Welcome back" has to mean something. An owner whose profile the account
+    // already holds goes straight to the console; only an owner who has never
+    // finished setup is sent to the setup screen. The answer comes from the
+    // stored fields themselves, so a row that claims to be complete while
+    // missing the UPI id every collection QR needs still gets setup.
+    const fallback = signInFallback(await storedSetupComplete(user.id));
     const issued = await sealOwnerSession({
       userId: user.id,
       tenantId: membership?.tenantId ?? '',
@@ -211,7 +223,7 @@ export async function POST(request: Request) {
       action,
       mode: 'supabase',
       provider: 'supabase',
-      next: safeNext(requested, '/onboarding'),
+      next: safeNext(requested, fallback),
       scoped: Boolean(membership?.tenantId),
       identity: renderable({
         provider: 'supabase',
