@@ -85,28 +85,38 @@ async function ensureBusiness(
   const existing = await businessIdFor(client, userId);
   if (existing) return { id: existing };
 
-  const { data: business, error: businessError } = await client
-    .from('businesses')
-    .insert({
-      name: snapshot.businessName || 'My Business',
-      owner_id: userId,
-      business_type: snapshot.templateId || null,
-      description: snapshot.description || null,
-      currency: snapshot.currency || 'INR',
-      timezone: snapshot.timezone || 'Asia/Kolkata',
-    })
-    .select('id')
-    .single();
-  if (businessError || !business) {
-    return { error: businessError?.message ?? 'Could not create the business record.' };
-  }
+  /*
+   * The id is minted here, and the insert deliberately does *not* chain
+   * `.select('id')`.
+   *
+   * That chain is the shape everybody reaches for, and under row-level security
+   * it is a trap: Postgres serves the `RETURNING` row through the table's SELECT
+   * policies, and the SELECT policy on `businesses` asks for a membership row —
+   * the one row that cannot exist yet, because its foreign key points at the
+   * business being inserted. The insert succeeds, the read comes back empty, and
+   * the owner is told their profile could not be saved on the one request that
+   * was supposed to set them up. Minting the id keeps the two writes independent
+   * and needs nothing read back.
+   */
+  const businessId = crypto.randomUUID();
+
+  const { error: businessError } = await client.from('businesses').insert({
+    id: businessId,
+    name: snapshot.businessName || 'My Business',
+    owner_id: userId,
+    business_type: snapshot.templateId || null,
+    description: snapshot.description || null,
+    currency: snapshot.currency || 'INR',
+    timezone: snapshot.timezone || 'Asia/Kolkata',
+  });
+  if (businessError) return { error: businessError.message };
 
   const { error: memberError } = await client
     .from('business_members')
-    .insert({ business_id: business.id, user_id: userId, role: 'owner' });
+    .insert({ business_id: businessId, user_id: userId, role: 'owner' });
   if (memberError) return { error: memberError.message };
 
-  return { id: String(business.id) };
+  return { id: businessId };
 }
 
 export async function GET() {

@@ -13,6 +13,9 @@ coverage/
 .next/
 out/
 
+# Verifier scratch space (scripts/verify-*.mjs compile into here and clean up)
+.cache/
+
 # Production
 build/
 dist/
