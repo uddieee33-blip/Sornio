@@ -36,6 +36,7 @@ import { saveStoredProfile } from '@/lib/sync/profile-sync';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
 import { signOutAndLeave } from '@/lib/auth/client';
+import { JoinBusiness } from '@/components/team/join-business';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
@@ -479,6 +480,15 @@ export default function OnboardingPage() {
             </p>
           ) : null}
         </div>
+
+        {/* A teammate who received an invite code must not be marched through
+            creating a business they do not own — their door is the code. (The
+            component hides itself when this deployment cannot redeem one.) */}
+        {!alreadySetup ? (
+          <div className="mt-4">
+            <JoinBusiness compact />
+          </div>
+        ) : null}
 
         <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-stone-600">
           <Banknote size={13} className="text-emerald-500" /> No payment gateway · money lands straight in your bank · customer data stays on your device

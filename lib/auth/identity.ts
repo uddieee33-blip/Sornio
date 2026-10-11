@@ -24,6 +24,7 @@ import { cookies } from 'next/headers';
 
 import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
 import { dominantRole, type Role } from '@/lib/security/rbac';
+import { appRoleForMembership } from '@/lib/team/roles';
 import { SESSION_COOKIE, SESSION_IDLE_SECONDS, actorLabel, type SessionClaims } from '@/lib/security/session';
 import { openOwnerSession, providerForClaims, type SessionProvider } from './cookie';
 
@@ -55,23 +56,12 @@ export function actorNameFor(email: string | null | undefined): string {
 
 /**
  * The roles `supabase/schema.sql` allows in `business_members`, mapped onto the
- * four the app enforces. Anything unrecognised is not upgraded to the nearest
- * neighbour — `dominantRole` drops it to the least powerful role instead.
+ * four the app enforces. The table now lives in `lib/team/roles.ts` — the same
+ * module the team API writes with — so the sign-in path and the management
+ * path can never disagree about what a seat means. Anything unrecognised is
+ * not upgraded to the nearest neighbour — it drops to the least powerful role.
  */
-const MEMBERSHIP_ROLES: Record<string, Role> = {
-  owner: 'owner',
-  manager: 'manager',
-  accountant: 'auditor',
-  auditor: 'auditor',
-  staff: 'cashier',
-  cashier: 'cashier',
-  viewer: 'auditor',
-};
-
-function membershipRole(value: unknown): Role {
-  const mapped = typeof value === 'string' ? MEMBERSHIP_ROLES[value.trim().toLowerCase()] : undefined;
-  return mapped ?? 'auditor';
-}
+const membershipRole = appRoleForMembership;
 
 /**
  * The owner's strongest membership: which business this is, and in what capacity.

@@ -124,6 +124,17 @@ export function ruleForPath(
   if (pathname.startsWith('/api/portal')) {
     return { scope: 'portal', rule: table.portal };
   }
+  // Redeeming an invite code is a credential attempt in every meaningful
+  // sense — an 8-symbol secret, guessable only by asking the server. It draws
+  // on the same tight budget as the sign-in form, not on the team's own.
+  if (pathname.startsWith('/api/team/redeem')) {
+    return { scope: 'auth', rule: table.auth };
+  }
+  // Invites, removals and role changes are rare in a busy shop and constant
+  // for a script enumerating endpoints; their own bucket keeps it that way.
+  if (pathname.startsWith('/api/team')) {
+    return { scope: 'team', rule: table.team };
+  }
   // Plans are money: their own bucket, tighter than the portal's, so guessing
   // activation codes or hammering the endpoint costs far more than it is worth.
   if (pathname.startsWith('/api/subscription')) {
