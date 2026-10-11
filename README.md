@@ -484,6 +484,7 @@ honoured without a second code path to keep in sync.
 - **`lib/business-data.ts`** — the financial engine: financial snapshots are calculated **only** from recorded transactions (revenue, COGS, operating expenses, cash flow, inventory value). No values are fabricated.
 - **`lib/store.tsx`** — the live store (`DukaanStoreProvider` + `useDukaanStore`). Owners can record sales and expenses, add products/customers/plans/members, enroll and renew subscriptions, raise/collect invoices, check members in and out, and run a booking day book; every action writes transactions into the ledger and the whole console recalculates. State persists locally (reset from Settings) and — when Supabase is configured — syncs to Postgres in the background.
 - **`lib/sync/supabase-sync.ts`** — the persistence adapter bridging the live store to the multi-tenant schema. It provisions the owner's `businesses` + `business_members` row, then pushes products, ledger entries, customers, campaigns, audit, and settings, all scoped by `business_id`.
+- **`lib/sync/profile.ts`** + **`profile-sync.ts`** + **`profile-server.ts`** + **`app/api/profile/route.ts`** — the owner profile that outlives a device (see *The profile that outlives a device*, below). `profile.ts` is the pure half: the wire shape, the allow-list that validates a payload coming in from a browser, the derivation of `setup_complete`, and the one function (`remoteWins`) that decides whose copy is newer. `npm run verify:profile` runs all of it.
 - **`lib/supabase/`** — Supabase client + config guard (`isSupabaseConfigured`). With placeholder credentials the app stays fully local-first; with real credentials the same code paths sync to the database.
 - **`supabase/schema.sql`** — multi-tenant Postgres schema. Every tenant table carries `business_id` and is protected by row-level security policies scoped to `business_members`.
 
@@ -541,6 +542,7 @@ whose period ended keeps every module for seven days while the owner renews.
 | Recording | `lib/plans/usage.ts` + `lib/store.tsx` | The free plan's one real limit — 25 UPI collections a month — is checked where money is recorded, before a single line is written. |
 | Surface | `components/billing/plan-{provider,badge,banner}.tsx` | The owner is told exactly what is paused, in the console's own trade words, and where to fix it. |
 | Server | `app/api/subscription/route.ts` | The only place a plan can change. |
+| Server | `app/api/profile/route.ts` | The only place the owner profile is stored or read back. |
 
 ### What a lapsed plan does — and refuses to do
 
@@ -606,6 +608,8 @@ really twelve months.
 
 **Platform billing** (Increment 9) is kept out of the tenant's own books, because mixing our revenue into a business's ledger would corrupt both: `platform_subscriptions` (which plan a business is on, when its period ends, how it was granted, and the payment reference it came from) and `platform_payment_requests` (what an owner asked to buy, and its UPI reference). A business may read its own plan and *request* a payment — RLS gives members `select` plus `insert`-as-`requested` and nothing else, so **activation is not reachable from a browser**, only from the operator side.
 
+**The remembered owner profile** (Increment 10) adds `owner_profiles` — one row per business (`business_id UNIQUE`), holding the owner's name, phone and address, the business name and trade, and the collection UPI id plus bank display details the QR is drawn from. Never a UPI PIN, an OTP, a card number or a password: the app collects none of those, so a leaked row gives away nothing the business did not already print on its own receipts. RLS lets every member *read* it (the desk needs the business name on a receipt and the UPI id on a collection panel) and only `owner`/`manager` *write* it, because that UPI id is where the shop's money lands. The same increment gives `businesses` an `owner_id` and rewrites its insert policy: the old one required a membership row that cannot exist before the business it points at, so a brand-new owner's very first sync died on a policy violation. Provisioning therefore mints the business id instead of reading it back from the insert, because Postgres serves a `RETURNING` row through the table's *select* policies — and the select policy on `businesses` asks for that same not-yet-existent membership row. `insert(…).select('id').single()` looks right and returns nothing, forever; `npm run verify:profile` runs the real route against a client that enforces these policies, so the trap cannot quietly come back.
+
 **Row Level Security** is enabled on every tenant table with policies scoped to `business_members` — one business can never read or write another business's rows.
 
 ## Persistence & sync (local-first)
@@ -616,6 +620,20 @@ The store is **local-first by design**, so the console works fully even before a
 - **Real Supabase credentials + a signed-in owner** → the adapter in `lib/sync/supabase-sync.ts` provisions the tenant and **debounced-pushes** products (with their barcodes and internal codes), ledger transactions, customers, marketing campaigns, the audit trail, settings, the scan log, and fingerprint enrolments to Postgres. Settings shows the live sync status and a **Sync now** action, and `/auth` performs real Supabase sign-in / sign-up.
 
 Every failure is reported as a status, never as a crash — the app always keeps working on the local copy.
+
+### The profile that outlives a device
+
+Setup used to live in exactly one place: the encrypted vault of the browser that typed it. So the console could greet an owner by name — the session cookie knows who signed in — and then ask that person for their own phone number, business name, trade and UPI id, because none of it had ever left the first device. A second phone, a reinstalled PWA or a cleared browser started from nothing.
+
+Three changes, in the order an owner meets them:
+
+1. **The setup screen reads before it draws.** `app/onboarding/page.tsx` waits for the vault to hydrate, then mirrors the store into its fields until the owner starts typing. It used to seed its inputs on the first render — before anything had been read — which is why the form was blank on *every* login, even on the device that had every answer on it.
+2. **The profile is stored against the account.** `PUT /api/profile` upserts one `owner_profiles` row for the signed-in owner's business. The tenant is resolved from `business_members`, never from the request body; the payload passes an eleven-field allow-list; `setup_complete` is derived from the fields on the server rather than trusted from the client. Owner/manager only, CSRF-checked, on its own rate bucket.
+3. **Sign-in ends where the owner left off.** The sign-in endpoint asks `storedSetupComplete()` and sends a set-up owner to `/home` instead of back through the three steps. On a device that has forgotten, `GET /api/profile` fills the store after hydration and the console reshapes itself around the remembered trade.
+
+Which copy wins is one pure function, `remoteWins`: last write on the editing device's own clock, ties to the device, a local profile with no timestamp loses to anything the account holds, and a timestamp outside 2020–2100 is worth nothing — so a clock set to 2099 cannot win every merge forever, and a pull can never undo what an owner is typing.
+
+On a **local-first build** there is no account storage and the endpoint says so plainly (`mode: 'local'`, a `501` on write). The vault is still the record, the setup screen still prefills from it, and nothing pretends otherwise.
 
 ## Environment variables
 
@@ -682,15 +700,17 @@ npm run dev                  # http://localhost:3000
 npm run typecheck            # no type errors — JavaScript-API compiler (TypeScript 6.x)
 npm run typecheck:native     # no type errors — native compiler (TypeScript 7.x, tsgo)
 npm run lint                 # no lint problems
-npm run verify               # all eleven verification suites, below
+npm run verify               # all thirteen verification suites, below
 npm run verify:scanning      # the barcode engine, checked against published examples
 npm run verify:billing       # the plan lifecycle, the locks, and the money
 npm run verify:inventory     # 108 packets minus three really is 105
+npm run verify:import        # a CSV migration that loses a khata is not a migration
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
 npm run verify:security      # 48 invariants the security layer is not allowed to lose
 npm run verify:auth          # the session lifecycle, the gate, and the public paths
+npm run verify:profile       # the remembered owner profile: round trip, merge, allow-list
 npm run verify:pwa           # the install manifest, its icons, and the gate in front of them
 npm run verify:i18n          # key, slot and coverage parity across 22 languages
 npm run verify:render        # the two rendering rules a browser can see, and React cannot forgive

@@ -25,6 +25,8 @@ export {
   isSupabaseAuthCookieName,
   safeNext,
   signInDestination,
+  signInFallback,
+  CONSOLE_HOME,
   DEFAULT_NEXT,
   type AuthGateInput,
   type AuthGateVerdict,

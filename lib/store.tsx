@@ -15,6 +15,13 @@ import { businessTemplates, defaultBusinessSettings, type BusinessSettings, type
 import { portalForTemplate, portalHasModule } from '@/lib/portals/registry';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
+import {
+  adoptRemoteProfile,
+  profileFromSnapshot,
+  remoteWins,
+  snapshotFromProfile,
+  type ProfileSnapshot,
+} from '@/lib/sync/profile';
 import type { RenderedIdentity } from '@/lib/auth/identity';
 import { GENESIS_HASH, appendAuditEntry, isChained, type AuditActor, type AuditSeverity } from '@/lib/security/audit';
 import { vaultClear, vaultRead, vaultWrite } from '@/lib/security/vault';
@@ -168,6 +175,16 @@ export type BusinessProfile = {
    * Never PINs, OTPs, passwords, or card numbers.
    */
   bank?: BankDetails;
+  /**
+   * When this profile was last edited, on this device's clock.
+   *
+   * It is the only tiebreaker the sync has: when a profile comes back from the
+   * account (`GET /api/profile`), `remoteWins` compares this with the stored
+   * copy and the newer one is kept. Absent means "written before the profile
+   * could leave this device", which loses to anything the account knows — the
+   * details are on the server and the device has forgotten them.
+   */
+  updatedAt?: string;
 };
 
 export const defaultBusinessProfile: BusinessProfile = {
@@ -200,6 +217,36 @@ function presetForPortal(templateId: string): Partial<BusinessSettings> {
   };
 }
 
+/**
+ * Adopt a profile that came back from the owner's account.
+ *
+ * The profile fields are replaced wholesale — a partial merge would leave a
+ * half-remembered owner, which is the exact bug this restores from. Settings are
+ * only touched when the *trade* changed, because the trade is what decides which
+ * modules exist: a returning gym on a fresh device has to come back as a gym,
+ * while a returning gym on the device that already knew it keeps whatever the
+ * owner switched off in Settings last month.
+ */
+function stateWithRemoteProfile(current: StoreState, snapshot: ProfileSnapshot): StoreState {
+  const profile = profileFromSnapshot(snapshot);
+  const tradeChanged = Boolean(profile.templateId) && profile.templateId !== current.profile.templateId;
+  return {
+    ...current,
+    profile: { ...current.profile, ...profile },
+    settings: tradeChanged ? { ...current.settings, ...presetForPortal(profile.templateId) } : current.settings,
+  };
+}
+
+/**
+ * Is there anything here an owner actually typed?
+ *
+ * A brand-new install pushes nothing: the default profile is a placeholder, and
+ * writing it to the account would overwrite the details waiting there from the
+ * owner's other device. One typed field is enough to say "this is real".
+ */
+function isWorthSaving(snapshot: ProfileSnapshot): boolean {
+  return Boolean(snapshot.ownerName || snapshot.upiId || snapshot.templateId);
+}
 
 export type StoreState = {
   /** True while viewing the clearly-separated demo business (sample data). */
@@ -974,6 +1021,83 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
   }, [hydrated]);
 
   const syncingEnabled = supabaseMode && authed && hydrated;
+
+  /* ------------------------------------------------------------------------
+   * The profile that outlives this device.
+   *
+   * Order matters, and it is the order the owner experiences: hydrate the local
+   * vault, find out who is signed in, then ask the account what that person
+   * already told us. On the device that typed it, step three changes nothing —
+   * the local copy is the newer one. On a second phone, or after a reinstall,
+   * step three is the difference between "Welcome back" and a form asking the
+   * owner for their own phone number.
+   * ---------------------------------------------------------------------- */
+  const lastSyncedProfileStamp = useRef<string>('');
+
+  useEffect(() => {
+    if (!hydrated || !supabaseMode || !authed) return;
+    let cancelled = false;
+
+    import('@/lib/sync/profile-sync')
+      .then(({ fetchStoredProfile }) => fetchStoredProfile())
+      .then((result) => {
+        if (cancelled || !result.ok || !result.profile) return;
+        const stored = result.profile;
+        const localTemplateId = stateRef.current.profile.templateId;
+        // `adoptRemoteProfile` is the only place that decides whether the copy
+        // on this device is the newer one, so an owner who edits during the
+        // round trip never has the edit undone by the reply.
+        setState((current) => {
+          const adopted = adoptRemoteProfile(current.profile, stored);
+          return adopted ? stateWithRemoteProfile(current, adopted) : current;
+        });
+        if (remoteWins(stateRef.current.profile.updatedAt, stored.updatedAt)) {
+          // Remembered, not edited: pushing it straight back would be a write
+          // that changes nothing and a sync spinner that lies about it.
+          lastSyncedProfileStamp.current = stored.updatedAt;
+        }
+        // The console's shape follows the trade, and the trade now lives in a
+        // cookie the edge reads — so publish it, or the first server render of
+        // the next page still paints the old navigation.
+        if (stored.templateId && stored.templateId !== localTemplateId) {
+          void import('@/lib/portals/sync').then(({ publishPortal }) => publishPortal(stored.templateId));
+        }
+      })
+      .catch(() => {
+        // Offline or throttled: the local vault copy stands, and the console
+        // works on it. Nothing here is worth interrupting a shop for.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [hydrated, supabaseMode, authed]);
+
+  // The profile is saved on its own debounce rather than riding the full-state
+  // push below: setup is the one thing an owner expects to have survived the
+  // moment they see it on screen, and it must not wait behind a rewrite of
+  // every product and ledger row in the business.
+  const profilePushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => {
+    if (!syncingEnabled) return;
+    const snapshot = snapshotFromProfile(state.profile);
+    const stamp = snapshot.updatedAt;
+    if (!isWorthSaving(snapshot) || !stamp || stamp === lastSyncedProfileStamp.current) return;
+
+    profilePushTimer.current = setTimeout(() => {
+      lastSyncedProfileStamp.current = stamp;
+      setSyncStatus('syncing');
+      import('@/lib/sync/profile-sync')
+        .then(({ saveStoredProfile }) => saveStoredProfile(snapshot))
+        .then((result) => setSyncStatus(result.ok ? 'synced' : 'error'))
+        .catch(() => setSyncStatus('error'));
+    }, 900);
+
+    return () => {
+      if (profilePushTimer.current) clearTimeout(profilePushTimer.current);
+    };
+  }, [state.profile, syncingEnabled]);
 
   // Debounced push: any state change schedules a background sync 2s later.
   useEffect(() => {
@@ -2135,6 +2259,9 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...current.profile,
           ...patch,
           ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+          // Stamped last so no patch can leave it stale: this is the value the
+          // sync compares against the account's copy to decide which is newer.
+          updatedAt: new Date().toISOString(),
         },
       }));
       return { ok: true };
@@ -2146,7 +2273,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       const preset = presetForPortal(templateId);
       setState((current) => ({
         ...current,
-        profile: { ...current.profile, templateId },
+        profile: { ...current.profile, templateId, updatedAt: new Date().toISOString() },
         settings: { ...current.settings, ...preset },
       }));
       track('settings', `Applied the "${template.name}" business template — modules configured for ${template.category} operations.`);
@@ -2177,6 +2304,15 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       if (!syncingEnabled) return;
       setSyncStatus('syncing');
       try {
+        // The profile goes first and on its own: it is the small, important
+        // half, and a failure in the ledger push must not take the owner's own
+        // name and UPI id down with it.
+        const snapshot = snapshotFromProfile(stateRef.current.profile);
+        if (isWorthSaving(snapshot)) {
+          const { saveStoredProfile } = await import('@/lib/sync/profile-sync');
+          const saved = await saveStoredProfile(snapshot);
+          if (saved.ok) lastSyncedProfileStamp.current = snapshot.updatedAt;
+        }
         const result = await pushStateToSupabase(stateRef.current);
         setSyncStatus(result.ok ? 'synced' : 'error');
       } catch {

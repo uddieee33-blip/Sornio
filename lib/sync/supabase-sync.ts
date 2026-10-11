@@ -75,20 +75,28 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
     return { id: String(membership.business_id) };
   }
 
-  const { data: business, error: businessError } = await supabase
+  /*
+   * The id is minted here rather than read back from the insert, for the reason
+   * spelled out in `app/api/profile/route.ts`: a `RETURNING` row is served
+   * through the table's SELECT policies, and the policy on `businesses` asks for
+   * a membership row that cannot exist before the business it points at. The
+   * insert would succeed and the read come back empty, so the tenant would never
+   * be provisioned and every push after it would fail the same way.
+   */
+  const businessId = crypto.randomUUID();
+
+  const { error: businessError } = await supabase
     .from('businesses')
-    .insert({ name: businessName, owner_id: user.id, currency: 'INR' })
-    .select('id')
-    .single();
-  if (businessError || !business) return { error: businessError?.message ?? 'Could not create business.' };
+    .insert({ id: businessId, name: businessName, owner_id: user.id, currency: 'INR' });
+  if (businessError) return { error: businessError.message };
 
   const { error: memberError } = await supabase
     .from('business_members')
-    .insert({ business_id: business.id, user_id: user.id, role: 'owner' });
+    .insert({ business_id: businessId, user_id: user.id, role: 'owner' });
   if (memberError) return { error: memberError.message };
 
-  cacheBusinessId(String(business.id));
-  return { id: String(business.id) };
+  cacheBusinessId(businessId);
+  return { id: businessId };
 }
 
 /** Push the core financial records for the tenant to Supabase. */

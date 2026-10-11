@@ -1,8 +1,26 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+/**
+ * Setup — and, for a returning owner, the proof that setup happened.
+ *
+ * Two rules govern this screen, and both came from the same complaint: "it says
+ * welcome back and then asks me for my own phone number".
+ *
+ *   1. **Nothing is rendered until the records are read.** The vault hydrates
+ *      after mount and the account's copy arrives a beat later still, so a form
+ *      that seeded its inputs on the first render seeded them from the empty
+ *      default profile — blank fields, every single login, on a device that had
+ *      every answer on it. The screen now waits, then mirrors the store until
+ *      the owner types.
+ *   2. **A remembered profile says so out loud.** The heading, the summary of
+ *      what was remembered, and the line under the save button all name where
+ *      the details live — this owner's account, or this device only — because
+ *      "it worked this time" is not the same as "it will work on my phone".
+ */
+
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Cloud, HardDrive, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
@@ -13,6 +31,9 @@ import { portalIcon } from '@/lib/portals/icons';
 import { disabledModules, portalForTemplate, PORTALS } from '@/lib/portals/registry';
 import { navSectionsFor } from '@/lib/portals/nav';
 import { publishPortal } from '@/lib/portals/sync';
+import { snapshotFromProfile } from '@/lib/sync/profile';
+import { saveStoredProfile } from '@/lib/sync/profile-sync';
+import { currentSyncMode } from '@/lib/supabase/config';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
 import { signOutAndLeave } from '@/lib/auth/client';
 
@@ -27,9 +48,11 @@ const STEPS = [
 
 export default function OnboardingPage() {
   const router = useRouter();
-  const { state, actions } = useDukaanStore();
+  const { state, actions, hydrated } = useDukaanStore();
   const profile = state.profile;
   const alreadySetup = profile.templateId !== '' && profile.name !== 'My Business';
+  /** Whether a save can outlive this device, or is this device's alone. */
+  const accountBacked = currentSyncMode() === 'supabase';
 
   const [step, setStep] = useState(1);
   const [ownerName, setOwnerName] = useState(profile.ownerName ?? '');
@@ -45,6 +68,49 @@ export default function OnboardingPage() {
   const [ifsc, setIfsc] = useState(profile.bank?.ifsc ?? '');
   const [error, setError] = useState<string | null>(null);
   const [finishing, setFinishing] = useState(false);
+  /**
+   * Set on the save's own outcome, so the button can report where it landed.
+   * A flag object rather than a `'account' | 'device'` string, because the
+   * extractor reads a bare string literal as product copy — and a state value
+   * is not a sentence anybody should be asked to translate.
+   */
+  const [savedTo, setSavedTo] = useState<{ account: boolean } | null>(null);
+
+  /**
+   * One flag for the whole form: has the owner started typing?
+   *
+   * A ref rather than state, because it only ever gates an effect — rendering
+   * never depends on it, and putting it in state would re-run the very effect
+   * that reads it.
+   */
+  const touched = useRef(false);
+  const markTouched = () => {
+    touched.current = true;
+  };
+
+  /**
+   * Mirror the store into the fields until the owner takes over.
+   *
+   * This is the fix for the blank form. The profile arrives in two stages —
+   * from the encrypted vault when hydration completes, and from the account a
+   * moment later if this device had forgotten it — and both land as a new
+   * `profile` object. Seeding only in the `useState` initializers caught
+   * neither: they ran once, on the first render, against the empty default.
+   */
+  useEffect(() => {
+    if (!hydrated || touched.current) return;
+    setOwnerName(profile.ownerName ?? '');
+    setOwnerPhone(profile.ownerPhone ?? '');
+    setOwnerEmail(profile.ownerEmail ?? '');
+    setBusinessName(profile.name === 'My Business' ? '' : profile.name);
+    setTemplateId(profile.templateId);
+    setDescription(profile.description);
+    setUpiId(profile.upiId ?? profile.bank?.upiId ?? '');
+    setAccountHolder(profile.bank?.accountHolder ?? '');
+    setBankName(profile.bank?.bankName ?? '');
+    setAccountNumber(profile.bank?.accountNumber ?? '');
+    setIfsc(profile.bank?.ifsc ?? '');
+  }, [hydrated, profile]);
 
   const leave = () => void signOutAndLeave();
 
@@ -52,6 +118,24 @@ export default function OnboardingPage() {
   const deepLink = useMemo(
     () => (upiValid ? buildUpiDeepLink({ payeeVpa: upiId.trim(), payeeName: businessName.trim() || ownerName.trim() || 'My Business' }) : ''),
     [upiValid, upiId, businessName, ownerName],
+  );
+
+  /**
+   * What the records already knew about this owner, for the "nothing to
+   * re-enter" panel. Empty until hydration (and, on a device that had forgotten,
+   * until the account answers), which is exactly when the panel should not show.
+   */
+  const remembered = useMemo(
+    () =>
+      [
+        { label: 'Business name', value: profile.name !== 'My Business' ? profile.name : '' },
+        { label: 'Business type', value: businessTemplates.find((template) => template.id === profile.templateId)?.name ?? '' },
+        { label: 'Your full name', value: profile.ownerName ?? '' },
+        { label: 'Phone', value: profile.ownerPhone ?? '' },
+        { label: 'Email', value: profile.ownerEmail ?? '' },
+        { label: 'Collection UPI ID', value: profile.upiId ?? profile.bank?.upiId ?? '' },
+      ].filter((item) => item.value !== ''),
+    [profile],
   );
 
   const next = () => {
@@ -69,14 +153,14 @@ export default function OnboardingPage() {
     }
   };
 
-  const finish = () => {
+  const finish = async () => {
     setError(null);
     if (!upiValid) return setError('A valid UPI ID is required to generate your collection QR (e.g. businessname@okhdfcbank).');
     if (ifsc.trim() && !isValidIfsc(ifsc.trim().toUpperCase())) return setError('That IFSC code does not look right (e.g. HDFC0001234).');
     if (accountNumber.trim() && !/^\d{6,20}$/.test(accountNumber.replace(/\s/g, ''))) return setError('Account numbers have 6–20 digits.');
 
     setFinishing(true);
-    const profileResult = actions.updateProfile({
+    const patch = {
       name: businessName,
       description,
       ownerName: ownerName.trim(),
@@ -90,7 +174,8 @@ export default function OnboardingPage() {
         accountNumber: accountNumber.replace(/\s/g, '') || undefined,
         ifsc: ifsc.trim().toUpperCase() || undefined,
       },
-    });
+    };
+    const profileResult = actions.updateProfile(patch);
     if (!profileResult.ok) {
       setError(profileResult.error ?? 'Could not save your profile.');
       setFinishing(false);
@@ -101,8 +186,48 @@ export default function OnboardingPage() {
     // then already paints the right navigation, with no flicker. If the call
     // fails the in-app gate still holds, and the provider retries on mount.
     void publishPortal(templateId);
+
+    /*
+     * The account copy is written here rather than left to the store's
+     * debounce. The owner is about to leave this screen, possibly closing the
+     * tab on the way out, and "saved" has to mean it reached the place that will
+     * answer when they sign in on their phone next week.
+     */
+    if (accountBacked) {
+      const saved = await saveStoredProfile(
+        snapshotFromProfile({ ...profile, ...patch, templateId, updatedAt: new Date().toISOString() }),
+      );
+      setSavedTo({ account: saved.ok });
+      setTimeout(() => router.push('/home'), saved.ok ? 1000 : 600);
+      return;
+    }
+    setSavedTo({ account: false });
     setTimeout(() => router.push('/home'), 600);
   };
+
+  /*
+   * Before the records are read there is nothing honest to draw. A form here
+   * would be a form seeded from the empty default profile — the bug this screen
+   * exists to stop — so the owner sees the shape of the screen arriving instead,
+   * for the few milliseconds it takes.
+   */
+  if (!hydrated) {
+    return (
+      <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+        <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
+        <div className="w-full max-w-3xl">
+          <div className="mb-6 flex flex-col items-center">
+            <BrandWordmark width={190} priority className="h-auto w-[190px]" />
+            <div className="mt-4 h-6 w-64 animate-pulse rounded-full bg-stone-200" />
+            <div className="mt-2 h-4 w-80 animate-pulse rounded-full bg-stone-100" />
+          </div>
+          <div className="h-72 animate-pulse rounded-3xl border border-stone-200 bg-stone-50 shadow-card" />
+          <p className="mt-5 text-center text-xs text-stone-500">Reading your records from this device…</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
@@ -114,13 +239,22 @@ export default function OnboardingPage() {
         <div className="mb-6 flex flex-col items-center text-center">
           <BrandWordmark width={190} priority className="h-auto w-[190px]" />
           <h1 className="mt-2 font-display text-2xl font-bold text-stone-900">
-            {alreadySetup ? 'Review your business profile' : 'Set up your business in 3 steps'}
+            {alreadySetup ? 'Welcome back' : 'Set up your business in 3 steps'}
           </h1>
           <p className="mt-1.5 max-w-md text-sm text-stone-600">
             {alreadySetup
-              ? 'Everything below stays on your device — update anything, then jump into the console.'
+              ? 'We remembered your details — change anything you need to, or go straight into the console.'
               : 'Direct payments to your own bank, your customers’ data on your own device. No gateway, no middleman.'}
           </p>
+          {alreadySetup ? (
+            <button
+              type="button"
+              onClick={() => router.push('/home')}
+              className="mt-4 inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 text-sm font-bold text-white shadow-glow-sm transition hover:brightness-110"
+            >
+              Open console <ArrowRight size={15} />
+            </button>
+          ) : null}
         </div>
 
         {/* Stepper */}
@@ -151,17 +285,44 @@ export default function OnboardingPage() {
 
           {step === 1 ? (
             <div className="space-y-4">
-              <div><span className={labelClass}>Your full name</span><input className={inputClass} placeholder="Rohit Kapoor" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} /></div>
+              <div><span className={labelClass}>Your full name</span><input className={inputClass} placeholder="Rohit Kapoor" value={ownerName} onChange={(e) => { markTouched(); setOwnerName(e.target.value); }} /></div>
               <div className="grid gap-4 md:grid-cols-2">
-                <div><span className={labelClass}>Phone number</span><input className={inputClass} placeholder="+91 98xxx xxxxx" value={ownerPhone} onChange={(e) => setOwnerPhone(e.target.value)} /></div>
-                <div><span className={labelClass}>Email (optional)</span><input className={inputClass} placeholder="you@business.com" value={ownerEmail} onChange={(e) => setOwnerEmail(e.target.value)} /></div>
+                <div><span className={labelClass}>Phone number</span><input className={inputClass} placeholder="+91 98xxx xxxxx" value={ownerPhone} onChange={(e) => { markTouched(); setOwnerPhone(e.target.value); }} /></div>
+                <div><span className={labelClass}>Email (optional)</span><input className={inputClass} placeholder="you@business.com" value={ownerEmail} onChange={(e) => { markTouched(); setOwnerEmail(e.target.value); }} /></div>
               </div>
+
+              {remembered.length > 0 ? (
+                /*
+                 * The answer to "did it actually remember me?". Read from the
+                 * stored profile rather than the fields beside it, so this panel
+                 * can never be flattered by something the owner just typed.
+                 */
+                <div className="rounded-2xl bg-emerald-500/[0.07] px-4 py-3.5 ring-1 ring-inset ring-emerald-500/20">
+                  <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
+                    <Check size={12} /> Already on file — nothing to re-enter
+                  </p>
+                  <dl className="mt-2.5 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
+                    {remembered.map((item) => (
+                      <div key={item.label} className="flex items-baseline justify-between gap-3 border-b border-emerald-500/10 pb-1">
+                        <dt className="text-[11px] font-semibold text-stone-600">{item.label}</dt>
+                        <dd className="truncate text-xs font-bold text-stone-900">{item.value}</dd>
+                      </div>
+                    ))}
+                  </dl>
+                  <p className="mt-2.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-stone-600">
+                    {accountBacked ? <Cloud size={12} className="mt-0.5 shrink-0" /> : <HardDrive size={12} className="mt-0.5 shrink-0" />}
+                    {accountBacked
+                      ? 'Held against your DukaanOS account, so signing in on another phone or tablet brings all of it back.'
+                      : 'Held in this device’s encrypted vault. Connect Supabase credentials and it follows you to any device.'}
+                  </p>
+                </div>
+              ) : null}
             </div>
           ) : null}
 
           {step === 2 ? (
             <div className="space-y-4">
-              <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={businessName} onChange={(e) => setBusinessName(e.target.value)} /></div>
+              <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={businessName} onChange={(e) => { markTouched(); setBusinessName(e.target.value); }} /></div>
               <div>
                 <span className={labelClass}>What kind of business is it?</span>
                 <p className="mb-3 text-xs leading-relaxed text-stone-600">
@@ -177,7 +338,7 @@ export default function OnboardingPage() {
                     return (
                       <button
                         key={template.id}
-                        onClick={() => setTemplateId(template.id)}
+                        onClick={() => { markTouched(); setTemplateId(template.id); }}
                         aria-pressed={active}
                         className={`rounded-2xl p-3.5 text-left ring-1 ring-inset transition ${
                           active ? 'bg-portal/[0.10] ring-portal/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'
@@ -225,7 +386,7 @@ export default function OnboardingPage() {
                   </div>
                 ) : null}
               </div>
-              <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => setDescription(e.target.value)} /></div>
+              <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => { markTouched(); setDescription(e.target.value); }} /></div>
             </div>
           ) : null}
 
@@ -234,13 +395,13 @@ export default function OnboardingPage() {
               <div className="space-y-4">
                 <div>
                   <span className={labelClass}>Your UPI ID — this powers your QR</span>
-                  <input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} />
+                  <input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => { markTouched(); setUpiId(e.target.value); }} />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <div><span className={labelClass}>Account holder</span><input className={inputClass} placeholder={ownerName || 'Account holder name'} value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} /></div>
-                  <div><span className={labelClass}>Bank name</span><input className={inputClass} placeholder="HDFC Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} /></div>
-                  <div><span className={labelClass}>Account number</span><input className={inputClass} placeholder="XXXXXXXXXXXX" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></div>
-                  <div><span className={labelClass}>IFSC code</span><input className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value)} /></div>
+                  <div><span className={labelClass}>Account holder</span><input className={inputClass} placeholder={ownerName || 'Account holder name'} value={accountHolder} onChange={(e) => { markTouched(); setAccountHolder(e.target.value); }} /></div>
+                  <div><span className={labelClass}>Bank name</span><input className={inputClass} placeholder="HDFC Bank" value={bankName} onChange={(e) => { markTouched(); setBankName(e.target.value); }} /></div>
+                  <div><span className={labelClass}>Account number</span><input className={inputClass} placeholder="XXXXXXXXXXXX" value={accountNumber} onChange={(e) => { markTouched(); setAccountNumber(e.target.value); }} /></div>
+                  <div><span className={labelClass}>IFSC code</span><input className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => { markTouched(); setIfsc(e.target.value); }} /></div>
                 </div>
                 <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-700/90 ring-1 ring-inset ring-emerald-500/20">
                   <ShieldCheck size={13} className="mr-1.5 inline" />
@@ -293,11 +454,30 @@ export default function OnboardingPage() {
                 Continue <ArrowRight size={15} />
               </button>
             ) : (
-              <button onClick={finish} disabled={finishing} className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 text-sm font-bold text-white shadow-glow-sm transition hover:brightness-110 disabled:opacity-60">
+              <button onClick={() => { void finish(); }} disabled={finishing} className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 text-sm font-bold text-white shadow-glow-sm transition hover:brightness-110 disabled:opacity-60">
                 {finishing ? <><Lock size={15} /> Saving…</> : <>{alreadySetup ? 'Save & open console' : 'Finish setup'} <ArrowRight size={15} /></>}
               </button>
             )}
           </div>
+
+          {savedTo ? (
+            /*
+             * Where the save actually landed, said out loud. "Saved" on its own
+             * is the claim that was broken: the details were in memory, the
+             * owner closed the tab, and the next login asked for everything
+             * again. Naming the destination makes the difference visible.
+             */
+            <p className={`mt-4 flex items-center justify-center gap-1.5 text-xs font-semibold animate-fade-in ${
+              savedTo.account ? 'text-emerald-700' : 'text-amber-700'
+            }`}>
+              {savedTo.account ? <Cloud size={13} /> : <HardDrive size={13} />}
+              {savedTo.account
+                ? 'Saved to your account — sign in on any device and it will all be here.'
+                : accountBacked
+                  ? 'Saved on this device. Your account could not be reached, so try a sync from Settings before you switch devices.'
+                  : 'Saved on this device — this build has no account storage to put it in.'}
+            </p>
+          ) : null}
         </div>
 
         <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-stone-600">

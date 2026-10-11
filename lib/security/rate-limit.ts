@@ -135,6 +135,14 @@ export function ruleForPath(
   if (pathname.startsWith('/api/master')) {
     return { scope: 'master', rule: table.master };
   }
+  // The owner profile carries the collection UPI id — the address the shop's
+  // money lands at — so a write to it is money-adjacent and gets its own bucket.
+  // Twenty a minute is generous for an owner saving a setup screen and useless
+  // to a script rewriting a payee address in a loop. Reads are unaffected: the
+  // edge routes GETs on any /api path to the apiRead bucket before this.
+  if (pathname.startsWith('/api/profile')) {
+    return { scope: 'profile', rule: table.profile };
+  }
   // Violation reports arrive from the browser, unauthenticated, and a hostile
   // page can aim a browser at this endpoint. Its own bucket keeps a report
   // flood from eating the budget the console needs to work.
