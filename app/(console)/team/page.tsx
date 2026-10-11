@@ -19,6 +19,7 @@ import { Check, Minus, ShieldCheck, Store, Users } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
+import { TeamManager } from '@/components/team/team-manager';
 import { PERMISSION_LABELS, PERMISSIONS, ROLES, ROLE_DESCRIPTIONS, ROLE_LABELS, can } from '@/lib/security/rbac';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
@@ -42,6 +43,9 @@ export default function TeamPage() {
         subtitle="Roles decide what a teammate may do; your business type decides which modules exist in the first place. Both are enforced — the client hides what a role cannot do, and the database refuses it."
         actions={<Badge tone="brand" dot>{ROLES.length} roles</Badge>}
       />
+
+      {/* Who actually has a seat — the live roster, as the database sees it. */}
+      <TeamManager />
 
       {/* What this console carries — the same list the sidebar shows. */}
       <Card className="mb-6 animate-fade-up">
@@ -134,8 +138,9 @@ export default function TeamPage() {
         </div>
         <p className="mt-4 flex items-center gap-2 rounded-2xl border border-brand-500/20 bg-brand-500/[0.06] p-3.5 text-xs leading-relaxed text-brand-700">
           <Users size={14} className="shrink-0" />
-          With Supabase connected, each invited teammate signs in and row-level security restricts every query to your business and their role.
-          Until then the same matrix is applied in the client, and every change is written to the audit chain.
+          With sync connected, the owner hands out roles from the console above: each invited teammate signs in with their own
+          email, and row-level security restricts every query to your business. Without it, the same matrix is applied in the
+          client on this device, and every change is written to the audit chain.
         </p>
       </Card>
     </div>

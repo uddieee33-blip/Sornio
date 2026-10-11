@@ -90,9 +90,13 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
     .insert({ id: businessId, name: businessName, owner_id: user.id, currency: 'INR' });
   if (businessError) return { error: businessError.message };
 
+  // The database trigger `on_business_created` already seats the creator as
+  // owner; this upsert covers deployments whose schema predates the trigger.
+  // Either path must converge to exactly one row, so a duplicate is success,
+  // not failure — it used to abort the whole first sync.
   const { error: memberError } = await supabase
     .from('business_members')
-    .insert({ business_id: businessId, user_id: user.id, role: 'owner' });
+    .upsert({ business_id: businessId, user_id: user.id, role: 'owner' }, { onConflict: 'business_id,user_id', ignoreDuplicates: true });
   if (memberError) return { error: memberError.message };
 
   cacheBusinessId(businessId);

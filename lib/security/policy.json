@@ -149,10 +149,14 @@
       "limit": 20,
       "windowMs": 60000
     },
-    "portal": {
-      "limit": 8,
-      "windowMs": 60000
-    },
+ "portal": {
+  "limit": 8,
+  "windowMs": 60000
+ },
+ "team": {
+  "limit": 20,
+  "windowMs": 60000
+ },
     "plan": {
       "limit": 12,
       "windowMs": 60000

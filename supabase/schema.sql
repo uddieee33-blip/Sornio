@@ -8,6 +8,8 @@ CREATE TABLE IF NOT EXISTS businesses (
   -- depend on the other (a business needs a member, a member needs a business),
   -- so the insert policy keys off this column instead of the membership table:
   -- see "Increment 10" at the bottom of this file for why that had to change.
+  -- The `on_business_created` trigger below then turns this column into the
+  -- owner seat in business_members automatically.
   owner_id UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   business_type TEXT,
   currency TEXT NOT NULL DEFAULT 'INR',
@@ -27,6 +29,24 @@ CREATE TABLE IF NOT EXISTS business_members (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (business_id, user_id)
+);
+
+-- Single-use, expiring invitations into a business. The owner mints a code on
+-- the Team screen; only its SHA-256 hash lives here, so reading this table
+-- hands out nothing. `role` is deliberately not allowed to be 'owner' — a
+-- second owner is an ownership transfer, which is a different ceremony.
+CREATE TABLE IF NOT EXISTS team_invites (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id UUID NOT NULL REFERENCES businesses(id) ON DELETE CASCADE,
+  role TEXT NOT NULL CHECK (role IN ('manager','accountant','staff','viewer')),
+  code_hash TEXT NOT NULL UNIQUE,
+  label TEXT,
+  created_by UUID,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_by UUID,
+  used_at TIMESTAMPTZ,
+  revoked_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE TABLE IF NOT EXISTS customers (
@@ -212,9 +232,14 @@ CREATE INDEX IF NOT EXISTS idx_expenses_business_id ON expenses (business_id);
 CREATE INDEX IF NOT EXISTS idx_transactions_business_id ON transactions (business_id);
 CREATE INDEX IF NOT EXISTS idx_inventory_movements_business_id ON inventory_movements (business_id);
 CREATE INDEX IF NOT EXISTS idx_audit_logs_business_id ON audit_logs (business_id);
+CREATE INDEX IF NOT EXISTS idx_team_invites_business_id ON team_invites (business_id);
 
 ALTER TABLE businesses ENABLE ROW LEVEL SECURITY;
 ALTER TABLE business_members ENABLE ROW LEVEL SECURITY;
+-- RLS enabled with *no policies on purpose*: every keyhole open, no keys.
+-- Only the service-role server code in app/api/team reads or writes invites,
+-- and it justifies each access itself (owner role, tenant match) first.
+ALTER TABLE team_invites ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE suppliers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE categories ENABLE ROW LEVEL SECURITY;
@@ -231,8 +256,21 @@ ALTER TABLE audit_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Business members view their businesses" ON businesses
   FOR SELECT USING (id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
 
+-- The original INSERT policy below is the deadlock "Increment 10" repairs at
+-- the bottom of this file: a membership cannot exist before the business it
+-- points at, so demanding one here blocks first provisioning. That increment
+-- drops and recreates it keyed on `owner_id`. Kept byte-identical for the
+-- historical record; do not "fix" it in place.
 CREATE POLICY "Business members manage their businesses" ON businesses
   FOR INSERT WITH CHECK (id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- Renames, timezone and the like: owner and manager seats may update the row
+-- their business actually owns; nobody else may touch it. Increment 10 fixed
+-- insertion; this covers the update path it did not (the sync client renames
+-- the tenant row on every push).
+CREATE POLICY "Owners and managers update their business" ON businesses
+  FOR UPDATE USING (id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid() AND role IN ('owner','manager')))
+  WITH CHECK (id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid() AND role IN ('owner','manager')));
 
 CREATE POLICY "User can manage own business membership records" ON business_members
   FOR ALL USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
@@ -297,6 +335,29 @@ CREATE POLICY "Business members view audit logs" ON audit_logs
 
 CREATE POLICY "Business members insert audit logs" ON audit_logs
   FOR INSERT WITH CHECK (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
+
+-- Every new business automatically seats its creator as owner. This is what
+-- makes "who is using the app" true from the very first record: no business
+-- can exist without an accountable owner, and the client never has to
+-- remember to enrol itself.
+CREATE OR REPLACE FUNCTION add_owner_membership()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  INSERT INTO business_members (business_id, user_id, role)
+  VALUES (NEW.id, COALESCE(NEW.owner_id, auth.uid()), 'owner')
+  ON CONFLICT (business_id, user_id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS on_business_created ON businesses;
+CREATE TRIGGER on_business_created
+  AFTER INSERT ON businesses
+  FOR EACH ROW EXECUTE FUNCTION add_owner_membership();
 
 -- ---------------------------------------------------------------------------
 -- Universal business, billing, membership, and AI insight models
