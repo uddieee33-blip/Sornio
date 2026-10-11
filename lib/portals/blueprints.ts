@@ -845,9 +845,6 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
           { href: '/sales' },
           { href: '/scan' },
           { href: '/billing' },
-          { href: '/payments' },
-          { href: '/expenses' },
-          { href: '/transactions' },
           { href: '/marketing' },
         ],
       },
@@ -863,7 +860,13 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       },
       {
         title: 'Money',
-        links: [{ href: '/cashflow' }, { href: '/profitability' }],
+        links: [
+          { href: '/payments' },
+          { href: '/expenses' },
+          { href: '/transactions' },
+          { href: '/cashflow' },
+          { href: '/profitability' },
+        ],
       },
       {
         title: 'Analysis',

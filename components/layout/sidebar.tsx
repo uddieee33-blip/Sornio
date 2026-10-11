@@ -1,16 +1,15 @@
 'use client';
 
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Lock, Sparkles } from 'lucide-react';
+import { Lock } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
-import { usePlan } from '@/components/billing/plan-provider';
-import { checkPlanAccess } from '@/lib/plans/routes';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { AccountRow } from '@/components/layout/account-menu';
+import { NavigationSections } from '@/components/layout/navigation-sections';
 import type { RenderedIdentity } from '@/lib/auth/identity';
 import { useDukaanStore } from '@/lib/store';
 
@@ -38,7 +37,7 @@ import { useDukaanStore } from '@/lib/store';
  * `transform`, which keeps it on the compositor. When nothing is active (a
  * route outside the menu) it fades out in place instead of jumping to zero.
  */
-function useActiveIndicator(pathname: string | null, deps: unknown) {
+function useActiveIndicator(pathname: string | null, nav: unknown, layoutRevision: number) {
   const navRef = useRef<HTMLElement>(null);
   const [box, setBox] = useState<{ top: number; height: number } | null>(null);
 
@@ -51,17 +50,18 @@ function useActiveIndicator(pathname: string | null, deps: unknown) {
       return;
     }
     setBox({ top: active.offsetTop, height: active.offsetHeight });
-  }, [pathname, deps]);
+  }, [pathname, nav, layoutRevision]);
 
   return { navRef, box };
 }
 
 export function Sidebar({ identity = null }: { identity?: RenderedIdentity | null }) {
   const pathname = usePathname();
+  const [layoutRevision, setLayoutRevision] = useState(0);
   const { state, hydrated, persistence } = useDukaanStore();
   const { portal, nav, revealAll } = usePortal();
-  const { entitlement } = usePlan();
-  const { navRef, box } = useActiveIndicator(pathname, nav);
+  const onNavigationLayoutChange = useCallback(() => setLayoutRevision((revision) => revision + 1), []);
+  const { navRef, box } = useActiveIndicator(pathname, nav, layoutRevision);
 
   const businessName = state.profile.name?.trim() || 'My Business';
   const statusLine = !hydrated
@@ -95,7 +95,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
         </div>
       </div>
 
-      <nav ref={navRef} aria-label="Main navigation" className="relative flex-1 space-y-6 overflow-y-auto px-4 pb-6">
+      <nav ref={navRef} aria-label="Main navigation" className="relative flex-1 overflow-y-auto px-4 pb-6">
         {/* The travelling indicator. `aria-hidden` because the current page is
             already announced by `aria-current` on the link itself — this is
             the visual half of the same fact, not a second one. */}
@@ -109,54 +109,15 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
             top: 0,
           }}
         />
-        {nav.map((section) => (
-          <div key={section.title}>
-            <p className="flex items-center gap-1.5 px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
-              {section.title}
-              {revealAll && section.title === 'Everything else' ? (
-                <Sparkles size={10} className="text-portal" aria-label="Revealed by Everything On" />
-              ) : null}
-            </p>
-            <div className="space-y-1">
-              {section.links.map((item) => {
-                const Icon = item.icon;
-                const active = pathname === item.href;
-                /* Prefetch only what this plan can open. A locked module's
-                   prefetch is answered with a redirect to the paywall, so
-                   warming it buys a redirect chain and nothing the owner's
-                   click would not have fetched anyway — seven locked modules
-                   meant fifteen wasted requests on every console page view. */
-                const open = checkPlanAccess(entitlement, item.href).allowed;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    prefetch={open}
-                    data-nav-active={active ? 'true' : undefined}
-                    data-press="soft"
-                    aria-current={active ? 'page' : undefined}
-                    className={`group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-base ease-settle ${
-                      active
-                        ? 'bg-portal/10 text-portal ring-1 ring-inset ring-portal/25'
-                        : 'text-stone-600 hover:translate-x-0.5 hover:bg-stone-50 hover:text-stone-900'
-                    }`}
-                  >
-                    <span
-                      className={`flex h-7 w-7 items-center justify-center rounded-lg transition-all duration-base ease-spring ${
-                        active
-                          ? 'bg-portal-gradient scale-105 text-white shadow-glow-sm'
-                          : 'bg-stone-50 text-stone-600 group-hover:scale-105 group-hover:text-stone-700'
-                      }`}
-                    >
-                      <Icon size={15} strokeWidth={2.2} />
-                    </span>
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
+        <NavigationSections
+          key={portal.id}
+          sections={nav}
+          activePath={pathname}
+          variant="sidebar"
+          idPrefix="sidebar-navigation"
+          revealAll={revealAll}
+          onLayoutChange={onNavigationLayoutChange}
+        />
       </nav>
 
       <div className="space-y-2 border-t border-stone-200 p-4">

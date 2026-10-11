@@ -247,12 +247,12 @@ check(
  * which is how fifteen wasted requests per page view ended up in the
  * navigation budget.
  */
-const sidebar = read('components', 'layout', 'sidebar.tsx');
+const navigation = read('components', 'layout', 'navigation-sections.tsx');
 const routeWarmup = read('components', 'perf', 'route-warmup.tsx');
 check(
   'the console never prefetches a module the plan does not open',
-  /checkPlanAccess\s*\(/.test(withoutComments(sidebar)) &&
-    /prefetch=\{open\}/.test(sidebar) &&
+  /checkPlanAccess\s*\(/.test(withoutComments(navigation)) &&
+    /prefetch=\{open\}/.test(navigation) &&
     /checkPlanAccess\s*\(/.test(withoutComments(routeWarmup)),
   'the sidebar or the route warmer prefetches without consulting the plan. Locked modules then answer with a redirect to the paywall, so every console page view spends its navigation budget fetching screens the owner cannot open.',
 );
