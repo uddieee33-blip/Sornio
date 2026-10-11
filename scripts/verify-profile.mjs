@@ -476,7 +476,7 @@ console.log('\n6. The endpoint against a client that enforces the schema’s own
  * Anything the route calls that is not implemented here throws, so a change that
  * reaches for a new method fails loudly instead of passing silently.
  */
-function createFakeSupabase({ uid, tables, violations }) {
+function createFakeSupabase({ uid, tables, violations, missing = [] }) {
   const membershipsFor = (userId, roles) =>
     tables.business_members.filter((row) => row.user_id === userId && (!roles || roles.includes(row.role)));
   const businessesFor = (userId) => membershipsFor(userId).map((row) => row.business_id);
@@ -515,6 +515,30 @@ function createFakeSupabase({ uid, tables, violations }) {
   };
 
   const build = (table) => {
+    // A deployment whose owner shipped the code before running the SQL. Postgres
+    // answers with a relation error; the app has to degrade rather than throw.
+    if (missing.includes(table)) {
+      const error = { message: `relation "public.${table}" does not exist` };
+      /*
+       * The resolved value has to be a plain object. Resolving a thenable with
+       * *itself* makes `await` call `.then` again, forever — the first version of
+       * this did exactly that and hung the suite, which is a fair warning that a
+       * fake builder has to be as careful as the one it stands in for.
+       */
+      const chain = {
+        select: () => chain,
+        eq: () => chain,
+        order: () => chain,
+        limit: () => chain,
+        insert: () => chain,
+        update: () => chain,
+        upsert: () => chain,
+        maybeSingle: () => Promise.resolve({ data: null, error }),
+        single: () => Promise.resolve({ data: null, error }),
+        then: (resolve, reject) => Promise.resolve({ data: null, error }).then(resolve, reject),
+      };
+      return chain;
+    }
     const rows = () => (tables[table] ??= []);
     const filters = [];
     let limitCount = null;
@@ -785,6 +809,30 @@ await checkAsync('another user cannot read this business’s profile', async () 
   assertEqual(body.businessId, null, 'they have no business here');
   assertEqual(body.profile, null, 'so they see no profile');
   actAs(OWNER_ID);
+});
+
+// The state an owner is actually in between deploying this branch and running
+// Increment 10: the code is live and the table is not there yet. Nothing may
+// throw, nothing may claim to have saved, and the console must still open.
+await checkAsync('a deployment that has not run the migration degrades instead of breaking', async () => {
+  const unmigrated = { businesses: [], business_members: [], owner_profiles: [] };
+  const before = client;
+  const beforeUid = session.uid;
+  globalThis.__verifyProfileFake.client = () =>
+    createFakeSupabase({ uid: beforeUid, tables: unmigrated, violations, missing: ['owner_profiles'] });
+
+  const read = await endpoint.GET();
+  const readBody = await read.json();
+  assertEqual(read.status, 200, `the read still answers (body: ${JSON.stringify(readBody)})`);
+  assertEqual(readBody.profile, null, 'with no profile to show');
+
+  const write = await save(PAYLOAD);
+  const writeBody = await write.json();
+  assertEqual(write.status, 500, 'the save says it did not work');
+  assertEqual(writeBody.ok, false, 'and never claims otherwise');
+  assert(/could not save/i.test(writeBody.error ?? ''), `the reason is a sentence, not a stack (${writeBody.error})`);
+
+  globalThis.__verifyProfileFake.client = () => before;
 });
 
 rmSync(outDir, { recursive: true, force: true });

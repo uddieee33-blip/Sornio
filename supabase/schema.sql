@@ -753,19 +753,29 @@ CREATE INDEX IF NOT EXISTS idx_owner_profiles_user_id ON owner_profiles (user_id
 
 ALTER TABLE owner_profiles ENABLE ROW LEVEL SECURITY;
 
+-- Postgres has no `CREATE POLICY IF NOT EXISTS`, and this increment is the one
+-- an owner is most likely to paste into the SQL editor twice — once when they
+-- set up, again when they are told to "just re-run the bottom of the file". A
+-- second run that dies halfway leaves the table live and its policies half
+-- applied, which is worse than either outcome on its own. So each policy is
+-- dropped first, and this whole increment can be run as many times as needed.
+
 -- Every member can read the profile: the desk needs the business name on a
 -- receipt and the UPI id on a collection panel, and a staff member who could
 -- not see them would have to ask the owner at every sale.
+DROP POLICY IF EXISTS "Business members view the owner profile" ON owner_profiles;
 CREATE POLICY "Business members view the owner profile" ON owner_profiles
   FOR SELECT USING (business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid()));
 
 -- Writing is the same shape as reshaping the console: it reroutes where the
 -- shop's money lands, so it is the owner and the manager, and nobody else.
+DROP POLICY IF EXISTS "Owners and managers save the owner profile" ON owner_profiles;
 CREATE POLICY "Owners and managers save the owner profile" ON owner_profiles
   FOR INSERT WITH CHECK (
     business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid() AND role IN ('owner','manager'))
   );
 
+DROP POLICY IF EXISTS "Owners and managers update the owner profile" ON owner_profiles;
 CREATE POLICY "Owners and managers update the owner profile" ON owner_profiles
   FOR UPDATE USING (
     business_id IN (SELECT business_id FROM business_members WHERE user_id = auth.uid() AND role IN ('owner','manager'))
