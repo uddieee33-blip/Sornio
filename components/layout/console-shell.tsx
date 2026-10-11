@@ -63,7 +63,6 @@ function ConsoleFrame({ children, identity }: { children: ReactNode; identity: R
           onOpenCommand={openPalette}
           onOpenMobileMenu={openMobileMenu}
           mobileMenuOpen={mobileMenuOpen}
-          identity={identity}
         />
         <DemoBanner />
         <PlanBanner />

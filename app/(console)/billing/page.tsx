@@ -78,8 +78,12 @@ export default function BillingPage() {
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">
           {selected ? (
-            <Card className="print-area animate-fade-up relative overflow-hidden">
+            <Card className="print-area invoice-print-area animate-fade-up relative overflow-hidden">
               <div className="no-print pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
+              <div className="invoice-watermark" aria-hidden="true">
+                <span className="invoice-watermark-mark">D</span>
+                <span className="invoice-watermark-name">DukaanOS</span>
+              </div>
               <div className="mb-5 flex items-center justify-between">
                 <div>
                   <p className="font-display text-lg font-bold text-stone-900 print:text-2xl">{state.profile.name}</p>

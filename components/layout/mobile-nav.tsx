@@ -11,6 +11,7 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { PORTAL_ICONS } from '@/lib/portals/icons';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { AccountRow } from '@/components/layout/account-menu';
+import { NavigationSections } from '@/components/layout/navigation-sections';
 import type { RenderedIdentity } from '@/lib/auth/identity';
 
 export function MobileNav({
@@ -138,39 +139,15 @@ export function MobileNav({
           </div>
         </div>
 
-        <nav aria-label="Main navigation" className="flex-1 space-y-6 overflow-y-auto px-4 py-5">
-          {nav.map((section) => (
-            <section key={section.title} aria-label={section.title}>
-              <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-[0.2em] text-stone-600">
-                {section.title}
-              </p>
-              <div className="space-y-1">
-                {section.links.map((item) => {
-                  const Icon = item.icon;
-                  const active = pathname === item.href;
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={onClose}
-                      aria-current={active ? 'page' : undefined}
-                      className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
-                        active
-                          ? 'bg-portal/10 text-portal ring-1 ring-inset ring-portal/25'
-                          : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'
-                      }`}
-                    >
-                      <span className={`flex h-8 w-8 items-center justify-center rounded-lg ${active ? 'bg-portal-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 group-hover:text-stone-700'}`}>
-                        <Icon size={16} strokeWidth={2.1} />
-                      </span>
-                      <span className="flex-1">{item.label}</span>
-                      {active ? <span className="h-1.5 w-1.5 rounded-full bg-portal" /> : null}
-                    </Link>
-                  );
-                })}
-              </div>
-            </section>
-          ))}
+        <nav aria-label="Main navigation" className="flex-1 overflow-y-auto px-4 py-5">
+          <NavigationSections
+            key={portal.id}
+            sections={nav}
+            activePath={pathname}
+            variant="mobile"
+            idPrefix="mobile-navigation"
+            onNavigate={onClose}
+          />
         </nav>
 
         <div className="space-y-2 border-t border-stone-200 p-4">

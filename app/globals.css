@@ -574,7 +574,48 @@ html[data-privacy='on'][data-away='true'] [data-sensitive] {
   .no-print, .no-print * { display: none !important; }
   .print-area table thead { background: #f4f4f5 !important; }
   .print-area table thead th { color: #3f3f46 !important; }
+
+  /* Reserve a slim rail so the DukaanOS mark sits beside the invoice without
+     covering amounts or customer details in a saved PDF. */
+  .print-area.invoice-print-area { padding-right: 12mm !important; }
+  .print-area .invoice-watermark {
+    position: absolute;
+    top: 50%;
+    right: 0;
+    z-index: 2;
+    display: flex !important;
+    align-items: center;
+    justify-content: center;
+    gap: 2mm;
+    padding: 5mm 1.5mm;
+    border-right: 1px solid #d4d4d8;
+    color: #28623b !important;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    writing-mode: vertical-rl;
+    transform: translateY(-50%);
+  }
+  .print-area .invoice-watermark-mark {
+    display: flex;
+    width: 5mm;
+    height: 5mm;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid #28623b;
+    border-radius: 1.3mm;
+    background: transparent !important;
+    color: #28623b !important;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 0;
+    writing-mode: horizontal-tb;
+  }
+  .print-area .invoice-watermark-name { color: #28623b !important; }
 }
+
+/* The brand rail belongs to a printed/downloaded invoice, not the live desk. */
+.invoice-watermark { display: none; }
 
 /* ---------- Desk collection motion ---------- */
 
