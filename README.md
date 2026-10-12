@@ -711,7 +711,7 @@ npm run verify:import        # a CSV migration that loses a khata is not a migra
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 48 invariants the security layer is not allowed to lose
+npm run verify:security      # 52 invariants the security layer is not allowed to lose
 npm run verify:auth          # the session lifecycle, the gate, and the public paths
 npm run verify:profile       # the remembered owner profile: round trip, merge, allow-list
 npm run verify:pwa           # the install manifest, its icons, and the gate in front of them
@@ -884,6 +884,14 @@ runs bare `next build` gets Turbopack, and the deployment then reports success
 while serving a page that never hydrates. `verify:security` reads both files and
 fails the build if either drifts.
 
+The same file pins `installCommand` to `npm ci`, and `package.json` pins
+`engines.node` to the version `ci.yml` builds on. Left to its defaults a host
+runs `npm install`, which re-resolves the floating ranges in `package.json`
+against the live registry at build time: the tree it installs is the one the
+registry happened to serve that minute, not the one the lockfile records and CI
+proved. That is how a deployment fails with nothing in the diff to explain it,
+and how a rebuild of the same commit quietly ships different code.
+
 `upgrade-insecure-requests` rides with the posture, not with production. It is
 emitted in `strict` posture only: on a production build served over plain HTTP
 — a local `next start`, or a hosted preview — it rewrites every same-origin
@@ -939,6 +947,17 @@ a page that never hydrates — and set `NEXT_PUBLIC_APP_URL` to the public https
 origin. Without that variable the app stays in embed posture: it works, but it
 makes no claim of HSTS, `X-Frame-Options` or `upgrade-insecure-requests` on your
 domain's behalf, and it keeps allowing the preview origins to frame it.
+
+Both decisions are written down where a host reads them — `vercel.json` carries
+the build and install commands, `package.json` carries the Node version — so a
+deployment needs the environment variables and nothing else. A project that
+overrides one of those three in its dashboard is overriding a choice this
+repository makes and checks.
+
+When a deployment fails while CI is green, read the host's build log before the
+diff. The same commit that built a minute ago is being built on a cold
+dependency cache by a different runtime, and the two things that differ — what
+got installed, and on which Node — are exactly what those pins exist to remove.
 
 ### What is never collected
 
@@ -1063,7 +1082,7 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 48 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 52 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it, installs with `npm ci`, and builds on the Node version CI proves — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:auth` | The session lifecycle, the auth gate kept ahead of the portal and plan policies, and every public path still public |
 | `verify:pwa` | The install manifest parses, its icons match their declared sizes, the flattened ones carry no transparency, the splash colours track the default paint, and the gate leaves the manifest public |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |

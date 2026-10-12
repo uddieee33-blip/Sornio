@@ -33,6 +33,11 @@
  *      feature off the air with no error anywhere.
  *   8. **security.txt has not expired.** RFC 9116 says an expired file is
  *      invalid, and a stale contact address is how a real report gets dropped.
+ *   9. **The host builds what CI proved.** `vercel.json` pins the build
+ *      command, the install command, and — through `engines.node` — the
+ *      runtime. A host that resolves its own dependency tree, or picks its own
+ *      Node version, makes every green CI run irrelevant; and a cold build
+ *      that fails for want of either reads exactly like a code regression.
  *
  * Run: npm run verify:security
  */
@@ -120,6 +125,30 @@ check(
   'the deployment host builds with the same toolchain',
   vercelConfig !== null && /(npm|yarn|pnpm) run build|--webpack/.test(vercelConfig.buildCommand ?? ''),
   'vercel.json is missing or does not run `npm run build`. A host that runs bare `next build` is building with Turbopack, whose runtime cannot satisfy require-trusted-types-for: the deployment reports success, serves 200, and never hydrates.',
+);
+
+/*
+ * …and it has to install what CI installs, on the Node version CI proves.
+ * The host's default install is `npm install`, which re-resolves the floating
+ * ranges in package.json against the live registry instead of reading
+ * package-lock.json. Two builds of the same commit can then install different
+ * trees, and a cold build that meets a registry hiccup fails in a way no local
+ * run reproduces — the failure looks like the code changed when nothing did.
+ * `engines.node` is the same argument about the runtime: Vercel reads it
+ * whenever the project carries no dashboard override, so the host cannot drift
+ * to a Node version this tree has never been built on.
+ */
+const ciWorkflow = exists('.github', 'workflows', 'ci.yml') ? read('.github', 'workflows', 'ci.yml') : '';
+const ciNodeVersion = ciWorkflow.match(/node-version:\s*['"]?(\d+(?:\.\d+)*(?:\.\d+)?)/)?.[1] ?? '';
+check(
+  'the deployment host installs what CI installs',
+  vercelConfig?.installCommand === 'npm ci' && /\brun:\s*npm ci\b/.test(ciWorkflow),
+  'vercel.json no longer pins installCommand to `npm ci`, or ci.yml stopped using it. Without the pin the host runs `npm install` and resolves the dependency tree from the registry at build time, so a green CI run no longer says anything about what the deployment installed.',
+);
+check(
+  'the deployment host runs the Node version CI proves',
+  ciNodeVersion !== '' && String(manifest.engines?.node ?? '').startsWith(ciNodeVersion),
+  `package.json engines.node does not match the node-version ci.yml builds on (${ciNodeVersion || 'unreadable'}). A host with no dashboard override picks its Node version from engines, so an unpinned or mismatched engines means the deployment is built on a runtime this tree has never been verified against.`,
 );
 
 check(
