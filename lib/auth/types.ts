@@ -13,3 +13,15 @@ export type AuthMode = 'supabase' | 'local';
 
 /** The fixed codes `/auth` knows how to phrase. */
 export type AuthFailureNotice = 'link' | 'local' | 'unavailable';
+
+/**
+ * The fixed codes the "confirm it's you" step can fail with.
+ *
+ * Fixed, for the same reason the notices above are: the endpoint knows *what*
+ * went wrong, the screen owns *how it is said*, and neither should be improvised
+ * from provider text. `confirm-session-ended` is the one that changes the screen
+ * rather than the message — the account session behind the app session is gone,
+ * so there is nothing left to confirm against and the full sign-in form is the
+ * only honest door.
+ */
+export type ConfirmFailureCode = 'confirm-failed' | 'confirm-session-ended' | 'confirm-unavailable' | 'unreachable';

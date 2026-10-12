@@ -36,7 +36,9 @@ import {
   resolveMembership,
   safeNext,
   sealOwnerSession,
+  signInFallback,
 } from '@/lib/auth';
+import { storedSetupComplete } from '@/lib/sync/profile-server';
 
 /** Codes `/auth` knows how to phrase. Adding one means adding the copy for it. */
 const FAILURE_NOTICES = new Set(['link', 'local', 'unavailable']);
@@ -53,7 +55,10 @@ export async function GET(request: Request) {
   const fail = (code: string) => toSignIn(code, url);
   const code = url.searchParams.get('code');
   const providerError = url.searchParams.get('error');
-  const target = safeNext(url.searchParams.get('next'), '/onboarding');
+  // Held as the raw parameter until the owner is known: where a clicked link
+  // lands depends on whether this account has anything left to set up, and that
+  // answer only exists after the code is redeemed.
+  const requested = url.searchParams.get('next');
 
   if (providerError) return fail('link');
   if (!code) return fail('link');
@@ -80,6 +85,19 @@ export async function GET(request: Request) {
       displayName: actorNameFor(data.user.email),
       remember,
     });
+
+    /*
+     * Where the link lands, decided now that the owner is known.
+     *
+     * Recovery and confirmation are the two links a returning owner clicks most,
+     * and both used to end at setup — so the shopkeeper who reset a password was
+     * walked back through the three steps they had already filled in, bank
+     * details and collection QR included, on the way to a console they had
+     * already set up. The fallback is the same rule the sign-in endpoint applies:
+     * an account whose stored profile is finished goes to the console, and only
+     * an unfinished one goes to setup.
+     */
+    const target = safeNext(requested, signInFallback(await storedSetupComplete(data.user.id)));
 
     const response = NextResponse.redirect(new URL(target, url), 307);
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transportForRequest(request), issued.maxAge));

@@ -22,7 +22,7 @@
 
 import { CSRF_COOKIE, CSRF_HEADER } from '@/lib/security/csrf';
 import type { RenderedIdentity } from './identity';
-import type { AuthMode } from './types';
+import type { AuthMode, ConfirmFailureCode } from './types';
 
 export type { RenderedIdentity };
 
@@ -41,6 +41,19 @@ export type SignInResult = {
   pending?: string;
   identity?: RenderedIdentity | null;
   mode?: AuthMode;
+};
+
+export type ConfirmResult = {
+  ok: boolean;
+  error?: string;
+  /**
+   * A fixed code, never provider text. `confirm-session-ended` is the one that
+   * changes the screen instead of the message: there is no account session left
+   * to confirm against, so the door has to become the full sign-in form.
+   */
+  code?: ConfirmFailureCode;
+  next?: string;
+  identity?: RenderedIdentity | null;
 };
 
 export type IdentityResponse = {
@@ -135,6 +148,26 @@ export async function submitCredentials(input: SignInInput): Promise<SignInResul
   // An empty `error` with `ok: false` is a server bug, not a message; never show
   // a red box that says nothing.
   return { ...result, error: result.ok ? undefined : result.error };
+}
+
+/**
+ * The welcome door's gate: confirm the person at the keyboard owns this session.
+ *
+ * No email is sent, because none is asked for. The endpoint reads the address
+ * from the provider session the request arrived with, so the browser never has
+ * to hold it — the door only ever had `ki•••` to show — and the password can
+ * only ever be checked against the account this device is already signed in to.
+ *
+ * `next` is passed only when this browser has an answer of its own (a requested
+ * destination, or a vault that says setup is finished); otherwise the endpoint
+ * decides from the account row it can read after the password checks out.
+ */
+export async function confirmConsoleAccess(password: string, next?: string): Promise<ConfirmResult> {
+  return submit<ConfirmResult>(
+    '/api/auth/session',
+    { action: 'confirm', password, ...(next ? { next } : {}) },
+    'That did not work. Check the password and try again.',
+  );
 }
 
 /**

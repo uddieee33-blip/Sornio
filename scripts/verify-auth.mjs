@@ -34,15 +34,23 @@
  *      a report gets dropped.
  *   6. **A `next` parameter is not a redirect permission.** The absolute, the
  *      protocol-relative, and the backslash form are all refused.
- *   7. **A provider cookie only counts when there is a provider.** On a
+ *   7. **The door into the console is earned, and it opens where the owner
+ *      belongs.** A session cookie proves the browser was authenticated, not that
+ *      the owner is the one now tapping Continue — so a console-bound door asks
+ *      for the account password, or this device's own owner password on a build
+ *      with no provider, and a setup-bound door does not. Where it goes is decided
+ *      from the account row and the vault rather than from a hardcoded
+ *      `/onboarding`, which is how a shopkeeper who had already given us their bank
+ *      details kept being handed their own phone number to type again.
+ *   8. **A provider cookie only counts when there is a provider.** On a
  *      local-first build, `sb-…-auth-token` in a request is somebody's guess.
- *   8. **The password is read and forgotten.** No log call anywhere in the auth
+ *   9. **The password is read and forgotten.** No log call anywhere in the auth
  *      routes, and no branch of the recovery endpoint that leaks whether an
  *      address has an account.
- *   9. **The edge imports the pure halves.** `@/lib/auth` pulls in
+ *  10. **The edge imports the pure halves.** `@/lib/auth` pulls in
  *      `next/headers`; a middleware that reaches for it grows a Node dependency
  *      and fails at runtime in the one place that must never fail.
- *  10. **The unguarded Supabase clients stay deleted.** `lib/supabase/user.ts`
+ *  11. **The unguarded Supabase clients stay deleted.** `lib/supabase/user.ts`
  *      and `server.ts` built a client from whatever env said, including the
  *      placeholders, and hung. They are gone; this fails if they come back.
  *
@@ -386,7 +394,82 @@ check('no open-redirect shape survives safeNext', () => {
 });
 
 // ---------------------------------------------------------------------------
-// 7. where a provider link comes back to
+// 7. where the door goes, and what it costs to walk through
+// ---------------------------------------------------------------------------
+
+check('a requested destination outranks both records', () => {
+  const doors = { requested: '/audit?locked=1', accountSetupComplete: false, deviceSetupComplete: false };
+  assertEqual(gate.welcomeDestination(doors), '/audit?locked=1', 'a bookmark is an instruction, not a suggestion');
+  assertEqual(gate.signInNextParam(doors), '/audit?locked=1', 'and the endpoint is told the same thing');
+});
+
+check('either record saying "finished" sends the door to the console', () => {
+  const none = { requested: null, accountSetupComplete: false, deviceSetupComplete: false };
+  assertEqual(gate.welcomeDestination({ ...none, accountSetupComplete: true }), gate.CONSOLE_HOME, 'the account row is the only answer a second phone has');
+  assertEqual(gate.welcomeDestination({ ...none, deviceSetupComplete: true }), gate.CONSOLE_HOME, 'and the vault is the only answer a local-first build has');
+  assertEqual(gate.welcomeDestination(none), gate.DEFAULT_NEXT, 'an owner who has not finished still gets setup');
+  assertEqual(gate.signInFallback(true), gate.CONSOLE_HOME, 'the endpoint applies the same rule after it has verified credentials');
+});
+
+check('the form stays quiet when only the server can answer', () => {
+  assertEqual(
+    gate.signInNextParam({ requested: null, accountSetupComplete: true, deviceSetupComplete: false }),
+    undefined,
+    'a browser guess would overwrite the answer the endpoint reads from the account row',
+  );
+  assertEqual(
+    gate.signInNextParam({ requested: null, accountSetupComplete: false, deviceSetupComplete: true }),
+    gate.CONSOLE_HOME,
+    'a vault that says finished is worth sending',
+  );
+  assertEqual(
+    gate.signInNextParam({ requested: null, accountSetupComplete: false, deviceSetupComplete: false }),
+    undefined,
+    'and neither knowing means the endpoint decides',
+  );
+});
+
+check('a door into the console is earned, a door into setup is not', () => {
+  assertEqual(gate.doorNeedsConfirmation(gate.CONSOLE_HOME), true, 'behind it are the takings, the khata and the customer list');
+  assertEqual(gate.doorNeedsConfirmation('/audit?locked=1'), true, 'a deep link is still a console route');
+  assertEqual(gate.doorNeedsConfirmation(gate.DEFAULT_NEXT), false, 'setup holds nothing worth guarding yet');
+});
+
+check('the sign-in screen asks before it opens the console', () => {
+  const form = read('components', 'auth', 'auth-form.tsx');
+  assert(/doorNeedsConfirmation\(/.test(form), 'the gate comes from the shared rule, not from a literal in the markup');
+  assert(/confirmConsoleAccess\(/.test(form), 'a hosted door confirms against the provider, through this origin');
+  assert(/verifyPin\(/.test(form), 'and a local-first door against the owner password this device owns');
+  assert(/markUnlocked\(/.test(form), 'asked once: the console must not demand the same passcode a second time');
+  assert(/readLockRecord\(\)/.test(form), 'read at click time — a value that only arrives with an effect is one a fast tap can beat');
+});
+
+check('the confirmation sends a password and nothing that identifies anybody', () => {
+  const client = read('lib', 'auth', 'client.ts');
+  assert(/action: 'confirm'/.test(client), 'the browser calls one action, on this origin');
+  assert(!/action: 'confirm'[\s\S]{0,140}email/.test(client), 'no address travels with it: the endpoint reads the session it arrived with');
+  const source = read('app', 'api', 'auth', 'session', 'route.ts');
+  assert(/action !== 'confirm'/.test(source), 'and the endpoint answers it');
+  assert(/getSessionUser\(\)/.test(source), 'the address is resolved server-side');
+  assert(/signInWithPassword\(\{ email: user\.email, password \}\)/.test(source), 'then checked by the provider, not by this app');
+  assert(/code: 'confirm-session-ended'/.test(source), 'a session with nothing behind it says so instead of pretending to verify');
+  assert(/code: 'confirm-unavailable'/.test(source), 'and a build with no provider says that too, rather than inventing a hash to compare');
+});
+
+check('no landing walks a finished owner back through setup', () => {
+  const page = read('app', 'auth', 'page.tsx');
+  assert(!/safeNext\(params\.next, '\/onboarding'\)/.test(page), "the door's default is decided from the account, not hardcoded");
+  assert(/storedSetupComplete\(\)/.test(page), 'the page asks the stored profile before the first paint');
+  const callback = read('app', 'api', 'auth', 'callback', 'route.ts');
+  assert(/signInFallback\(await storedSetupComplete\(/.test(callback), 'a recovery or confirmation link lands where the account says the owner belongs');
+  assert(!/get\('next'\), '\/onboarding'\)/.test(callback), 'and the hardcoded setup default is gone from the callback too');
+  const setup = read('app', 'onboarding', 'page.tsx');
+  assert(/snapshotFromProfile\(profile\)\.setupComplete/.test(setup), 'one definition of "finished", the same one the endpoint derives');
+  assert(/showSummary/.test(setup), 'a finished owner is shown what is on file before being shown a form to fill it in with');
+});
+
+// ---------------------------------------------------------------------------
+// 8. where a provider link comes back to
 // ---------------------------------------------------------------------------
 
 check('the callback url is built on the canonical origin, never a placeholder', () => {
@@ -401,7 +484,7 @@ check('the callback url is built on the canonical origin, never a placeholder', 
 });
 
 // ---------------------------------------------------------------------------
-// 8. what the routes around it must keep doing
+// 9. what the routes around it must keep doing
 // ---------------------------------------------------------------------------
 
 for (const name of ['session', 'reset', 'callback', 'password']) {

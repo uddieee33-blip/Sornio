@@ -89,7 +89,7 @@ Every business gets a subset of these, labelled in its own words — see *Portal
 | Route | Purpose |
 | --- | --- |
 | `/` | Landing — tagline, live charts, direct "start your business" flow |
-| `/auth` → `/onboarding` | Sign in → 3-step setup: owner details, business + template, bank/UPI → owner's own collection QR |
+| `/auth` → `/onboarding` **or** `/home` | Sign in → 3-step setup (owner details, business + template, bank/UPI → owner's own collection QR) for an owner who has not finished. An owner who has is confirmed and lands in the console — see *The door is earned* below |
 | `/home` | **Owner Cockpit** — portal-specific: headline, four live figures, the list that needs action today, quick actions |
 | `/check-ins` | Front desk attendance for gyms and studios — one tap per visit, tied to the member record |
 | `/appointments` | The day book for salons, clinics and service studios; completing a slot records the revenue once |
@@ -631,7 +631,8 @@ Three changes, in the order an owner meets them:
 
 1. **The setup screen reads before it draws.** `app/onboarding/page.tsx` waits for the vault to hydrate, then mirrors the store into its fields until the owner starts typing. It used to seed its inputs on the first render — before anything had been read — which is why the form was blank on *every* login, even on the device that had every answer on it.
 2. **The profile is stored against the account.** `PUT /api/profile` upserts one `owner_profiles` row for the signed-in owner's business. The tenant is resolved from `business_members`, never from the request body; the payload passes an eleven-field allow-list; `setup_complete` is derived from the fields on the server rather than trusted from the client. Owner/manager only, CSRF-checked, on its own rate bucket.
-3. **Sign-in ends where the owner left off.** The sign-in endpoint asks `storedSetupComplete()` and sends a set-up owner to `/home` instead of back through the three steps. On a device that has forgotten, `GET /api/profile` fills the store after hydration and the console reshapes itself around the remembered trade.
+3. **Sign-in ends where the owner left off.** Every door asks `storedSetupComplete()` and sends a set-up owner to `/home` instead of back through the three steps: the sign-in endpoint, the callback that redeems a confirmation or recovery link, and the `/auth` page itself before it paints. The setup screen agrees — it shows what is already on file, bank details included, and keeps the form one tap away for anybody who wants to change something. On a device that has forgotten, `GET /api/profile` fills the store after hydration and the console reshapes itself around the remembered trade.
+4. **The door is earned.** `welcomeDestination` decides where "Continue" goes from three answers — what the caller asked for, what the account holds, what this device's vault holds — and `doorNeedsConfirmation` decides whether it opens on a tap. A console-bound door does not: a session cookie proves the *browser* was authenticated, not that the owner is the one standing at the counter, and behind that door are the day's takings, the customer list and the khata. So `POST /api/auth/session` with `action: 'confirm'` re-checks the account password against the provider — reading the address from the session the request arrived with, so no email ever has to reach the browser — and re-mints the cookie afterwards. A local-first build has no provider to ask, and says so (`confirm-unavailable`) rather than inventing a hash to compare in the browser; there the door asks for the same 6-digit owner password the counter lock uses, marks the tab unlocked, and the console does not ask twice. A door into *setup* opens on a tap: there is nothing behind it yet to guard, and asking a brand-new sign-up for the password they typed a minute ago is theatre.
 
 Which copy wins is one pure function, `remoteWins`: last write on the editing device's own clock, ties to the device, a local profile with no timestamp loses to anything the account holds, and a timestamp outside 2020–2100 is worth nothing — so a clock set to 2099 cannot win every merge forever, and a pull can never undo what an owner is typing.
 
@@ -710,7 +711,7 @@ npm run verify:import        # a CSV migration that loses a khata is not a migra
 npm run verify:lock          # the counter PIN: hashing, lockout, storage
 npm run verify:theme         # contrast on all ten paints, and that the CSS is not stale
 npm run verify:motion        # the reveal contract, and that nothing escapes --motion-scale
-npm run verify:security      # 48 invariants the security layer is not allowed to lose
+npm run verify:security      # 52 invariants the security layer is not allowed to lose
 npm run verify:auth          # the session lifecycle, the gate, and the public paths
 npm run verify:profile       # the remembered owner profile: round trip, merge, allow-list
 npm run verify:pwa           # the install manifest, its icons, and the gate in front of them
@@ -883,6 +884,14 @@ runs bare `next build` gets Turbopack, and the deployment then reports success
 while serving a page that never hydrates. `verify:security` reads both files and
 fails the build if either drifts.
 
+The same file pins `installCommand` to `npm ci`, and `package.json` pins
+`engines.node` to the version `ci.yml` builds on. Left to its defaults a host
+runs `npm install`, which re-resolves the floating ranges in `package.json`
+against the live registry at build time: the tree it installs is the one the
+registry happened to serve that minute, not the one the lockfile records and CI
+proved. That is how a deployment fails with nothing in the diff to explain it,
+and how a rebuild of the same commit quietly ships different code.
+
 `upgrade-insecure-requests` rides with the posture, not with production. It is
 emitted in `strict` posture only: on a production build served over plain HTTP
 — a local `next start`, or a hosted preview — it rewrites every same-origin
@@ -938,6 +947,17 @@ a page that never hydrates — and set `NEXT_PUBLIC_APP_URL` to the public https
 origin. Without that variable the app stays in embed posture: it works, but it
 makes no claim of HSTS, `X-Frame-Options` or `upgrade-insecure-requests` on your
 domain's behalf, and it keeps allowing the preview origins to frame it.
+
+Both decisions are written down where a host reads them — `vercel.json` carries
+the build and install commands, `package.json` carries the Node version — so a
+deployment needs the environment variables and nothing else. A project that
+overrides one of those three in its dashboard is overriding a choice this
+repository makes and checks.
+
+When a deployment fails while CI is green, read the host's build log before the
+diff. The same commit that built a minute ago is being built on a cold
+dependency cache by a different runtime, and the two things that differ — what
+got installed, and on which Node — are exactly what those pins exist to remove.
 
 ### What is never collected
 
@@ -1062,7 +1082,7 @@ disagreement:
 | `verify:lock` | The PIN, its hashing, and its lockout |
 | `verify:theme` | Contrast on all ten paints; staleness of the generated CSS |
 | `verify:motion` | The reveal contract, that every `animate-*` class exists, and that nothing escapes `--motion-scale` |
-| `verify:security` | 48 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
+| `verify:security` | 52 invariants: no `'unsafe-inline'`, no build-time nonce, penalty box before rate limiter, a bucket per mutating endpoint with reads budgeted above writes, prefetches budgeted apart from navigation, no strike earned by a read, every cookie shape decided from the request and the framed shape `Secure; SameSite=None; Partitioned`, the host trusted over `x-forwarded-proto`, the production build toolchain is one that can honour Trusted Types — and that the deployment host runs it, installs with `npm ci`, and builds on the Node version CI proves — `upgrade-insecure-requests` only in strict posture, the console never prefetches a module the plan does not open, one CSRF exemption, no probe shadowing a real route, security.txt unexpired, the report endpoint still storing nothing |
 | `verify:auth` | The session lifecycle, the auth gate kept ahead of the portal and plan policies, and every public path still public |
 | `verify:pwa` | The install manifest parses, its icons match their declared sizes, the flattened ones carry no transparency, the splash colours track the default paint, and the gate leaves the manifest public |
 | `verify:i18n` | Exact key, slot, and coverage parity across all 22 languages |
