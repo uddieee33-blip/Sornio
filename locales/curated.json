@@ -158,7 +158,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "Մूल्य, খৰচ, ষ্টক, পুনৰ অৰ্ডাৰ আৰু কৰৰ ঘৰত বৈধ সংখ্যা নাই।",
     "Import complete": "আমদানি সম্পূৰ্ণ",
     "Imported {{0}} records. Opening values carried across.": "{{0}}টা তথ্য আমদানি কৰা হৈছে; আৰম্ভণিৰ তথ্যও ৰখা হৈছে।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "আঁসোৱাহ/নকল শাৰী: {{0}}; সাজু: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "আঁসোৱাহ/নকল শাৰী: {{0}}; সাজু: {{1}}.",
+    "Confirm it’s you": "এইটো আপুনি বুলি নিশ্চিত কৰক",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "কনছ'ল খোলাৰ আগতে Continue-এ আপোনাৰ পাছৱৰ্ড বিচাৰে — চাইন-ইন কৰা ডিভাইচ আৰু কাউণ্টাৰত থকা সঠিক মানুহ একে নহয়।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "এই ডিভাইচত আপোনাৰ সত্ৰ খোলা আছে। কনছ'লত সোমাবলৈ আপোনাৰ একাউণ্টৰ পাছৱৰ্ড দিয়ক।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "এই ডিভাইচ চাইন ইন কৰা আছে। কনছ'ল খোলিবলৈ সুৰক্ষা পৃষ্ঠাত ছেট কৰা মালিকৰ পাছৱৰ্ড দিয়ক।",
+    "No owner password is set on this device — Continue opens the console as it is.": "এই ডিভাইচত মালিকৰ পাছৱৰ্ড ছেট কৰা নাই — Continue-এ কনছ'ল যেনে আছে তেনে খুলি দিব।",
+    "Review or change my details": "মোৰ তথ্য চাওক বা সলনি কৰক",
+    "That password did not match this account.": "সেই পাছৱৰ্ড এই একাউণ্টৰ সৈতে নিমিলে।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "এই বিল্ডত নিশ্চিত কৰিবলৈ কোনো একাউণ্ট পাছৱৰ্ড নাই। এই ডিভাইচত ছেট কৰা কনছ'ল পাছক'ড ব্যৱহাৰ কৰক।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "এই ডিভাইচ একাউণ্টৰ পৰা চাইন আউট হৈছে। কনছ'ল খোলিবলৈ আপোনাৰ ইমেইল আৰু পাছৱৰ্ডেৰে চাইন ইন কৰক।",
+    "The lock screen shows how to clear it": "লক স্ক্ৰীনে ইয়াক মচি পেলাবৰ উপায় দেখুৱায়"
   },
   "bn": {
     "Sign in": "সাইন ইন করুন",
@@ -324,7 +334,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "দাম, খরচ, স্টক, পুনরায় অর্ডার বা করের ঘরগুলির একটিতে বৈধ সংখ্যা নেই।",
     "Import complete": "আমদানি সম্পূর্ণ",
     "Imported {{0}} records. Opening values carried across.": "{{0}}টি রেকর্ড আমদানি হয়েছে; শুরুর স্টক ও ব্যালেন্সও রাখা হয়েছে।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "ত্রুটি/ডুপ্লিকেট সারি: {{0}}; প্রস্তুত: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "ত্রুটি/ডুপ্লিকেট সারি: {{0}}; প্রস্তুত: {{1}}.",
+    "Confirm it’s you": "এটা আপনি কিনা নিশ্চিত করুন",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "কনসোল খোলার আগে Continue আপনার পাসওয়ার্ড চায় — সাইন-ইন করা ডিভাইস আর কাউন্টারে সঠিক ব্যক্তি এক নয়।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "এই ডিভাইসে আপনার সেশন খোলা আছে। কনসোলে প্রবেশ করতে আপনার অ্যাকাউন্টের পাসওয়ার্ড দিন।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "এই ডিভাইস সাইন ইন করা আছে। কনসোল খুলতে নিরাপত্তা পৃষ্ঠায় সেট করা মালিকের পাসওয়ার্ড দিন।",
+    "No owner password is set on this device — Continue opens the console as it is.": "এই ডিভাইসে মালিকের পাসওয়ার্ড সেট নেই — Continue কনসোলটি যেমন আছে তেমনি খুলে দেবে।",
+    "Review or change my details": "আমার তথ্য দেখুন বা পরিবর্তন করুন",
+    "That password did not match this account.": "ওই পাসওয়ার্ড এই অ্যাকাউন্টের সাথে মেলে না।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "এই বিল্ডে নিশ্চিত করার মতো কোনো অ্যাকাউন্ট পাসওয়ার্ড নেই। এই ডিভাইসে সেট করা কনসোল পাসকোড ব্যবহার করুন।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "এই ডিভাইস অ্যাকাউন্ট থেকে সাইন আউট হয়েছে। কনসোল খুলতে আপনার ইমেল ও পাসওয়ার্ড দিয়ে সাইন ইন করুন।",
+    "The lock screen shows how to clear it": "লক স্ক্রিন এটি মুছে ফেলার উপায় দেখায়"
   },
   "brx": {
     ", and how it is enforced is shown live in the": ", आरो बेखौ माबोरै लागु खालामनाय जायो बेखौ लाइभ दिन्थियो",
@@ -485,7 +505,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "बेसेन, खरच, स्टक, फिन दाजाबदेरनाय एबा टैक्स फोरमायथियाव मोनसे थारैनाय अनजिमा नङा।",
     "Import complete": "आयात जाबाय",
     "Imported {{0}} records. Opening values carried across.": "{{0}} फोरमायथि आयात जाबाय; गिबि स्टक आरो बेलेंसखौबो दोनबाय।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "गोरोन्थि।/डुप्लिकेट सारि: {{0}}; खाबु: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "गोरोन्थि।/डुप्लिकेट सारि: {{0}}; खाबु: {{1}}.",
+    "Confirm it’s you": "नोंथां गाव नङा निश्विथि खालाम।",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कनसोलखौ खेवनैयाव Continue-आं पासवर्दखौ सोलोनगोन। साइन-इन खालामाखै डिभाइस आरो काउण्टराव बराबरि मनुख एक नांगै।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "बे डिभाइसाव नोंआरि सेसन खेवदों। कनसोलआव हाबांनोआरि खाता पासवर्दखौ हिरें।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "बे डिभाइस साइन इन खालामाखै। कनसोलखौ खेवनोआरि रैखाथि बिलायाव दोनखाखै बिगोमा पासवर्दखौ हिरें।",
+    "No owner password is set on this device — Continue opens the console as it is.": "बे डिभाइसाव बिगोमा पासवर्द दोनखै — Continue-आं कनसोलखौ गबदिन खेव फांगायगा।",
+    "Review or change my details": "आंनि फोरमायथिखौ नाय या सोलाय",
+    "That password did not match this account.": "बे पासवर्दां बे खाता थाखाय गोबर नङाखै।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "बे बिल्डाव निश्विथि गोनांथि खाता पासवर्द गैया। बे डिभाइसाव दोनखाखै कनसोल पासक'डखौ बाहायनांगौ।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "बे डिभाइस खाता थांखै साइन आउट जादों। कनसोलखौ खेवनोआरि नोंआरि इमेल आरो पासवर्दां साइन इन खालाम।",
+    "The lock screen shows how to clear it": "लक स्क्रिनआं बेखौ माखान खालामनायनि बाहायखौ दिंथिदों।"
   },
   "doi": {
     ", and how it is enforced is shown live in the": ", ते एह् किस चाल्ली लागू होंदा ऐ, एह् लाइव दिक्खेआ जंदा ऐ",
@@ -646,7 +676,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "कीमत, लागत, स्टॉक, रीऑर्डर जां टैक्स चा खाने च इक मान्य संख्या नेईं।",
     "Import complete": "आयात पूरा",
     "Imported {{0}} records. Opening values carried across.": "{{0}} रिकॉर्ड आयात होए; शुरुआत दा स्टॉक ते बैलेंस बी रखे गे।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "गलती/डुप्लिकेट कतार: {{0}}; तैयार: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "गलती/डुप्लिकेट कतार: {{0}}; तैयार: {{1}}.",
+    "Confirm it’s you": "ई तुंही ऐंदा पुष्टि करो",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कंसोल खुलन तोर Continue तुंदा पासवर्ड मंगदा ऐ — साइन इन कीता डिवाइस ते काउंटर ते सही इनसान इक नेईं ने।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "इस डिवाइस पर तुंदा सेशन खुल्ला ऐ। कंसोल च वाने आस्तै तुंदा खाता पासवर्ड लिखो।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "इ डिवाइस साइन इन ऐ। कंसोल खोलनै आस्तै सुरक्षा पृष्ठ पर सेट कीता मालिक पासवर्ड लिखो।",
+    "No owner password is set on this device — Continue opens the console as it is.": "इ डिवाइस पर मालिक पासवर्ड सेट नेईं ऐ — Continue कंसोल ने जेड़ा ऐ ओड़ा खोल देदा ऐ।",
+    "Review or change my details": "मेरे ब्योरे देखो या बदलो",
+    "That password did not match this account.": "ओ पासवर्ड इस खाता सैं नेईं मिल्दा ऐ।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "इस बिल्ड च पुष्टि आस्तै कोई खाता पासवर्ड नेईं ऐ। इ डिवाइस पर सेट कीता कंसोल पासकोड बर्तन करो।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "इ डिवाइस खाता थमा साइन आउट ऐ। कंसोल खोलनै आस्तै अपने ईमेल ते पासवर्ड सैं साइन इन करो।",
+    "The lock screen shows how to clear it": "लॉक स्क्रीन इसगी मिटाने दा रास्ता दस्दा ऐ"
   },
   "gu": {
     "Sign in": "સાઇન ઇન કરો",
@@ -812,7 +852,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "કિંમત, ખર્ચ, સ્ટોક, ફરી ઓર્ડર અથવા કરના કોષોમાંથી એકમાં માન્ય સંખ્યા નથી.",
     "Import complete": "આયાત પૂર્ણ",
     "Imported {{0}} records. Opening values carried across.": "{{0}} રેકોર્ડ આયાત થયા; શરૂઆતનો સ્ટોક અને બેલેન્સ પણ જળવાયા.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "ભૂલ/ડુપ્લિકેટ પંક્તિ: {{0}}; તૈયાર: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "ભૂલ/ડુપ્લિકેટ પંક્તિ: {{0}}; તૈયાર: {{1}}.",
+    "Confirm it’s you": "આ તમે જ છો તેની ખાતરી કરો",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "કન્સોલ ખૂલે તે પહેલાં Continue તમારો પાસવર્ડ માંગે છે — સાઇન-ઇન થયેલું ડિવાઇસ અને કાઉન્ટર પરની સાચી વ્યક્તિ એક નથી.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "આ ડિવાઇસ પર તમારું સત્ર ખુલ્લું છે. કન્સોલમાં પ્રવેશવા માટે તમારો એકાઉન્ટ પાસવર્ડ દાખલ કરો.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "આ ડિવાઇસ સાઇન ઇન છે. કન્સોલ ખોલવા માટે સુરક્ષા પૃષ્ઠ પર સેટ કરેલો માલિકનો પાસવર્ડ દાખલ કરો.",
+    "No owner password is set on this device — Continue opens the console as it is.": "આ ડિવાઇસ પર માલિકનો પાસવર્ડ સેટ નથી — Continue કન્સોલ જેમ છે તેમ ખોલી નાખશે.",
+    "Review or change my details": "મારી વિગતો જુઓ અથવા બદલો",
+    "That password did not match this account.": "તે પાસવર્ડ આ એકાઉન્ટ સાથે મેળ ખાતો નથી.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "આ બિલ્ડમાં ખાતરી કરવા માટે કોઈ એકાઉન્ટ પાસવર્ડ નથી. આ ડિવાઇસ પર સેટ કરેલો કન્સોલ પાસકોડ વાપરો.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "આ ડિવાઇસ એકાઉન્ટથી સાઇન આઉટ છે. કન્સોલ ખોલવા માટે તમારા ઇમેઇલ અને પાસવર્ડથી સાઇન ઇન કરો.",
+    "The lock screen shows how to clear it": "લૉક સ્ક્રીન તે સાફ કરવાની રીત બતાવે છે"
   },
   "hi": {
     "Sign in": "साइन इन करें",
@@ -1064,7 +1114,17 @@
     "You cannot remove yourself. Transfer ownership first, or use a second owner account.": "आप स्वयं को नहीं हटा सकते। पहले मालिकाना हस्तांतरित करें, या दूसरे मालिक खाते का उपयोग करें।",
     "You joined as": "आप इस भूमिका में जुड़े:",
     "your own": "अपनी",
-    "your teammate": "आपके साथी"
+    "your teammate": "आपके साथी",
+    "Confirm it’s you": "पुष्टि करें कि यह आप ही हैं",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कंसोल खुलने से पहले Continue आपका पासवर्ड मांगता है — साइन-इन डिवाइस और काउंटर पर सही व्यक्ति एक नहीं होते।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "इस डिवाइस पर आपका सत्र खुला है। कंसोल में जाने के लिए अपना अकाउंट पासवर्ड दर्ज करें।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "यह डिवाइस साइन इन है। कंसोल खोलने के लिए सुरक्षा पृष्ठ पर सेट किया गया स्वामी पासवर्ड दर्ज करें।",
+    "No owner password is set on this device — Continue opens the console as it is.": "इस डिवाइस पर कोई स्वामी पासवर्ड सेट नहीं है — Continue कंसोल को जैसे है वैसे ही खोल देगा।",
+    "Review or change my details": "मेरी जानकारी देखें या बदलें",
+    "That password did not match this account.": "वह पासवर्ड इस अकाउंट से मेल नहीं खाता।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "इस बिल्ड में पुष्टि के लिए कोई अकाउंट पासवर्ड नहीं है। इस डिवाइस पर सेट किया गया कंसोल पासकोड इस्तेमाल करें।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "यह डिवाइस अकाउंट से साइन आउट है। कंसोल खोलने के लिए अपने ईमेल और पासवर्ड से साइन इन करें।",
+    "The lock screen shows how to clear it": "लॉक स्क्रीन उसे हटाने का तरीका बताती है"
   },
   "kn": {
     ", and how it is enforced is shown live in the": ", ಮತ್ತು ಅದನ್ನು ಹೇಗೆ ಜಾರಿಗೊಳಿಸಲಾಗುತ್ತದೆ ಎಂಬುದು ನೇರವಾಗಿ ಕಾಣಿಸುತ್ತದೆ",
@@ -1225,7 +1285,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "ಬೆಲೆ, ವೆಚ್ಚ, ಸ್ಟಾಕ್, ಮರುಆರ್ಡರ್ ಅಥವಾ ತೆರಿಗೆ ಕೋಶಗಳಲ್ಲಿ ಮಾನ್ಯ ಸಂಖ್ಯೆಯಿಲ್ಲ.",
     "Import complete": "ಆಮದು ಪೂರ್ಣ",
     "Imported {{0}} records. Opening values carried across.": "{{0}} ದಾಖಲೆಗಳನ್ನು ಆಮದು ಮಾಡಲಾಗಿದೆ; ಆರಂಭಿಕ ಸ್ಟಾಕ್ ಮತ್ತು ಬಾಕಿಯೂ ಉಳಿಸಲಾಗಿದೆ.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "ದೋಷ/ನಕಲು ಸಾಲು: {{0}}; ಸಿದ್ಧ: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "ದೋಷ/ನಕಲು ಸಾಲು: {{0}}; ಸಿದ್ಧ: {{1}}.",
+    "Confirm it’s you": "ಇದು ನೀವೇ ಎಂದು ಖಚಿತಪಡಿಸಿ",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "ಕನ್ಸೋಲ್ ತೆರೆಯುವ ಮೊದಲು Continue ನಿಮ್ಮ ಪಾಸ್‌ವರ್ಡ್ ಕೇಳುತ್ತದೆ — ಸೈನ್-ಇನ್ ಆದ ಸಾಧನ ಮತ್ತು ಕೌಂಟರ್‌ನಲ್ಲಿರುವ ಸರಿಯಾದ ವ್ಯಕ್ತಿ ಒಂದಲ್ಲ.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ಈ ಸಾಧನದಲ್ಲಿ ನಿಮ್ಮ ಸೆಶನ್ ತೆರೆದಿದೆ. ಕನ್ಸೋಲ್‌ಗೆ ಹೋಗಲು ನಿಮ್ಮ ಖಾತೆಯ ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ಈ ಸಾಧನ ಸೈನ್ ಇನ್ ಆಗಿದೆ. ಕನ್ಸೋಲ್ ತೆರೆಯಲು ಭದ್ರತಾ ಪುಟದಲ್ಲಿ ಹೊಂದಿಸಿದ ಮಾಲೀಕರ ಪಾಸ್‌ವರ್ಡ್ ನಮೂದಿಸಿ.",
+    "No owner password is set on this device — Continue opens the console as it is.": "ಈ ಸಾಧನದಲ್ಲಿ ಮಾಲೀಕರ ಪಾಸ್‌ವರ್ಡ್ ಹೊಂದಿಸಿಲ್ಲ — Continue ಕನ್ಸೋಲ್ ಅನ್ನು ಇರುವಂತೆಯೇ ತೆರೆಯುತ್ತದೆ.",
+    "Review or change my details": "ನನ್ನ ವಿವರಗಳನ್ನು ಪರಿಶೀಲಿಸಿ ಅಥವಾ ಬದಲಾಯಿಸಿ",
+    "That password did not match this account.": "ಆ ಪಾಸ್‌ವರ್ಡ್ ಈ ಖಾತೆಗೆ ಹೊಂದಿಕೆಯಾಗಲಿಲ್ಲ.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ಈ ಬಿಲ್ಡ್‌ನಲ್ಲಿ ದೃಢೀಕರಿಸಲು ಖಾತೆ ಪಾಸ್‌ವರ್ಡ್ ಇಲ್ಲ. ಈ ಸಾಧನದಲ್ಲಿ ಹೊಂದಿಸಿದ ಕನ್ಸೋಲ್ ಪಾಸ್‌ಕೋಡ್ ಬಳಸಿ.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ಈ ಸಾಧನ ಖಾತೆಯಿಂದ ಸೈನ್ ಔಟ್ ಆಗಿದೆ. ಕನ್ಸೋಲ್ ತೆರೆಯಲು ನಿಮ್ಮ ಇಮೇಲ್ ಮತ್ತು ಪಾಸ್‌ವರ್ಡ್‌ನೊಂದಿಗೆ ಸೈನ್ ಇನ್ ಮಾಡಿ.",
+    "The lock screen shows how to clear it": "ಅದನ್ನು ತೆರವುಗೊಳಿಸುವ ದಾರಿಯನ್ನು ಲಾಕ್ ಸ್ಕ್ರೀನ್ ತೋರಿಸುತ್ತದೆ"
   },
   "kok": {
     ", and how it is enforced is shown live in the": ", आनी हें कशें लागू जाता तें लायव दिसता",
@@ -1386,7 +1456,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "किंमत, खर्च, स्टॉक, परत मागणी वा कराच्या खणांत योग्य संख्या ना.",
     "Import complete": "आयात पुराय",
     "Imported {{0}} records. Opening values carried across.": "{{0}} नोंदी आयात केल्यात; सुरवातीचो स्टॉक आनी शिल्लक राखली.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "चूक/दुबार ओळ: {{0}}; तयार: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "चूक/दुबार ओळ: {{0}}; तयार: {{1}}.",
+    "Confirm it’s you": "हें तुमचेंच आसा तें खात्री करात",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कंसोल उगडचे पयलीं Continue तुमचो पासवर्ड विचारता — सायन इन केल्लें उपकरण आनी काऊंटरावयलो सारको मनीस एक न्हय.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ह्या उपकरणाचेर तुमचें सत्र उगडें आसा. कंसolaंत वचपाक तुमचो खाते पासवर्ड बरयात.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "हें उपकरण सायन इन आसा. कंसोल उगडपाक सुरक्षा पानाचेर सेट केल्लो मालक पासवर्ड बरयात.",
+    "No owner password is set on this device — Continue opens the console as it is.": "ह्या उपकरणाचेर मालक पासवर्ड सेट केल्लो ना — Continue कंसोल जशें आसा तशें उगडटलें.",
+    "Review or change my details": "माची म्हायती पळयात वा बदलात",
+    "That password did not match this account.": "तो पासवर्ड ह्या खात्याक जुळना.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ह्या बिल्डांत पुश्टीकरणाक खाते पासवर्ड ना. ह्या उपकरणाचेर सेट केल्लो कंसोल पासकोड वापरात.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "हें उपकरण खात्यांतल्यान सायन आउट जालां. कंसोल उगडपाक तुमच्या ईमेल आनी पासवर्डान सायन इन करात.",
+    "The lock screen shows how to clear it": "लॉक स्क्रीन तें कशें पुसचें तें दाखयता"
   },
   "ks": {
     ", and how it is enforced is shown live in the": "، تہٕ یہٕ کتھ پٲٹھؠ چھُ لاگوٗ گژھان، تِہٕ چھُ لایو نظرِ گژھان",
@@ -1547,7 +1627,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "قیمت، خرچہ، سٹاک، ری آرڈر یا ٹیکس کالمس منز چھنہٕ اکھ درست نمبر۔",
     "Import complete": "امپورٹ مکمل",
     "Imported {{0}} records. Opening values carried across.": "{{0}} ریکارڈ امپورٹ گٔے؛ شروعاتی سٹاک تہٕ بیلنس تہِ محفوظ۔",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "غلطی۔/نقل قطار: {{0}}; تیار: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "غلطی۔/نقل قطار: {{0}}; تیار: {{1}}.",
+    "Confirm it’s you": "تصدیق کٔریو زِ یہ چھُ تُہی",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "کنسول کھلنہٕ برۆنٛہ Continue تُہند پاس ورڈ پوچھان چھُ — سائن اِن آمُت ڈیوائس تہٕ کاؤنٛٹرَس پؠٹھ موجود صحیح شخصٕ اَکھ وٲحِد نَہ چھِنہٕ۔",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ہمس ڈیوائس پؠٹھ تُہند سیشن پُٹھ کھلُن چھُ۔ کنسولس مَنٛز وُنٛدِنہٕ خٲطرٕ پنُن کھاتہٕ پاس ورڈ لیکھو۔",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "یہ ڈیوائس سائن اِن چھُ۔ کنسول کھلنہٕ خٲطرٕ سیکیورٹی پیج پؠٹھ سیٹ کرنہٕ آمُت مالک پاس ورڈ لیکھو۔",
+    "No owner password is set on this device — Continue opens the console as it is.": "ہمس ڈیوائس پؠٹھ مالک پاس ورڈ سیٹ نَہ چھُ — Continue کنسولس یَتھ پٲٹھؠ چھُ تَتھ پٲٹھؠ کھولن چھُ۔",
+    "Review or change my details": "میون تفصیلات وچھو یا بدلاو",
+    "That password did not match this account.": "ژو پاس ورڈ اَتھ کھاتس سٟتؠ نَہ رَلاو۔",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ہمس بلڈس مَنٛز تصدیق خٲطرٕ کانٛہہ کھاتہٕ پاس ورڈ نَہ چھُ۔ ہمِس ڈیوائس پؠٹھ سیٹ کرنہٕ آمُت کنسول پاس کوڈ اِستعمال کٔریو۔",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "یہ ڈیوائس کھاتہٕ پؠٹھ سائن آؤٹ چھُ۔ کنسول کھلنہٕ خٲطرٕ پننِس ای میل تہٕ پاس ورڈ سٟتؠ سائن اِن کٔریو۔",
+    "The lock screen shows how to clear it": "لاک سکرین چھُ اَمہِ صاف کرنُک رٲہ ڏکھاوان۔"
   },
   "mai": {
     ", and how it is enforced is shown live in the": ", आ ई केना लागू होइत अछि से लाइव देखाइत अछि",
@@ -1708,7 +1798,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "मूल्य, लागत, स्टॉक, फेर ऑर्डर वा टैक्सक कोनो कॉलम मे वैध संख्या नहि अछि।",
     "Import complete": "आयात पूरा",
     "Imported {{0}} records. Opening values carried across.": "{{0}} रिकॉर्ड आयात भेल; शुरुआती स्टॉक आ बैलेंस सेहो राखल गेल।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "दोष/डुप्लिकेट पंक्ति: {{0}}; तैयार: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "दोष/डुप्लिकेट पंक्ति: {{0}}; तैयार: {{1}}.",
+    "Confirm it’s you": "ई अहाँ थिकहुन पुष्टि करू",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कंसोल खुलबा सँ पहिने Continue अहाँक पासवर्ड पूछैत अछि — साइन-इन डिवाइस आउ काउंटर पर सही व्यक्ति एक नहि छी।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ई डिवाइस पर अहाँक सत्र खुलल अछि। कंसोल मे जाएबाक लेल अपन खाता पासवर्ड लिखू।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ई डिवाइस साइन इन अछि। कंसोल खोलबाक लेल सुरक्षा पृष्ठ पर सेट कएल मालिक पासवर्ड लिखू।",
+    "No owner password is set on this device — Continue opens the console as it is.": "ई डिवाइस पर मालिक पासवर्ड सेट नहि अछि — Continue कंसोल केँ जहिना अछि तहिना खोलि देत।",
+    "Review or change my details": "हमर विवरण देखू या बदलू",
+    "That password did not match this account.": "ओ पासवर्ड ई खाता सँ नहि मिलैत अछि।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ई बिल्ड मे पुष्टि करबाक लेल खाता पासवर्ड नहि अछि। ई डिवाइस पर सेट कएल कंसोल पासकोड प्रयोग करू।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ई डिवाइस खाता सँ साइन आउट अछि। कंसोल खोलबाक लेल अपन ईमेल आओर पासवर्ड सँ साइन इन करू।",
+    "The lock screen shows how to clear it": "लॉक स्क्रीन एकरा हटेबाक तरीका देखाबैत अछि"
   },
   "ml": {
     ", and how it is enforced is shown live in the": ", അത് എങ്ങനെ നടപ്പാക്കുന്നു എന്നതും തത്സമയം കാണാം",
@@ -1869,7 +1969,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "വില, ചെലവ്, സ്റ്റോക്ക്, റീഓർഡർ അല്ലെങ്കിൽ നികുതി സെല്ലിൽ സാധുവായ സംഖ്യയില്ല.",
     "Import complete": "ഇറക്കുമതി പൂർത്തിയായി",
     "Imported {{0}} records. Opening values carried across.": "{{0}} രേഖകൾ ഇറക്കുമതി ചെയ്തു; തുടക്ക സ്റ്റോക്കും ബാലൻസും നിലനിർത്തി.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "പിശക്/തനിപ്പകർപ്പ് വരി: {{0}}; തയ്യാർ: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "പിശക്/തനിപ്പകർപ്പ് വരി: {{0}}; തയ്യാർ: {{1}}.",
+    "Confirm it’s you": "ഇത് നിങ്ങൾ തന്നെയാണെന്ന് ഉറപ്പാക്കുക",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "കൺസോൾ തുറക്കുന്നതിന് മുമ്പ് Continue നിങ്ങളുടെ പാസ്‌വേഡ് ചോദിക്കും — സൈൻ ഇൻ ചെയ്‌ത ഉപകരണവും കൗണ്ടറിലുള്ള ശരിയായ വ്യക്തിയും ഒന്നല്ല.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ഈ ഉപകരണത്തിൽ നിങ്ങളുടെ സെഷൻ തുറന്നിരിക്കുന്നു. കൺസോളിലേക്ക് കടക്കാൻ നിങ്ങളുടെ അക്കൗണ്ട് പാസ്‌വേഡ് നൽകുക.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ഈ ഉപകരണം സൈൻ ഇൻ ചെയ്തിരിക്കുന്നു. കൺസോൾ തുറക്കാൻ സുരക്ഷാ പേജിൽ സജ്ജമാക്കിയ ഉടമയുടെ പാസ്‌വേഡ് നൽകുക.",
+    "No owner password is set on this device — Continue opens the console as it is.": "ഈ ഉപകരണത്തിൽ ഉടമയുടെ പാസ്‌വേഡ് സജ്ജമാക്കിയിട്ടില്ല — Continue കൺസോൾ അതുപോലെ തുറക്കും.",
+    "Review or change my details": "എന്റെ വിവരങ്ങൾ പരിശോധിക്കുക അല്ലെങ്കിൽ മാറ്റുക",
+    "That password did not match this account.": "ആ പാസ്‌വേഡ് ഈ അക്കൗണ്ടുമായി പൊരുത്തപ്പെടുന്നില്ല.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ഈ ബിൽഡിൽ സ്ഥിരീകരിക്കാൻ അക്കൗണ്ട് പാസ്‌വേഡ് ഇല്ല. ഈ ഉപകരണത്തിൽ സജ്ജമാക്കിയ കൺസോൾ പാസ്‌കോഡ് ഉപയോഗിക്കുക.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ഈ ഉപകരണം അക്കൗണ്ടിൽ നിന്ന് സൈൻ ഔട്ട് ചെയ്തിരിക്കുന്നു. കൺസോൾ തുറക്കാൻ നിങ്ങളുടെ ഇമെയിലും പാസ്‌വേഡും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക.",
+    "The lock screen shows how to clear it": "അത് മായ്ക്കുന്ന വഴി ലോക്ക് സ്ക്രീൻ കാണിക്കുന്നു"
   },
   "mni": {
     ", and how it is enforced is shown live in the": ", ꯑꯃꯁꯨꯡ ꯃꯁꯤ ꯀꯔꯝꯅ ꯆꯠꯅꯍꯜꯂꯤꯕꯅꯣ ꯍꯥꯏꯕꯗꯨ ꯂꯥꯏꯚ ꯑꯣꯏꯅ ꯎꯎꯏ",
@@ -2030,7 +2140,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "ꯃꯃꯜ, ꯆꯤꯡꯊꯣꯡ, ꯏꯟꯚꯦꯟꯇꯔꯤ, ꯔꯤꯑꯣꯔꯗꯔ ꯅꯠꯇ꯭ꯔꯒꯥ ꯇꯦꯛꯁ ꯀꯣꯂꯃꯗꯥ ꯑꯃꯠꯇꯥ ꯌꯥꯝꯅꯥ ꯅꯝꯕꯔ ꯂꯩꯇꯦ꯫",
     "Import complete": "ꯏꯝꯄꯣꯔꯠ ꯂꯣꯌꯅꯥ",
     "Imported {{0}} records. Opening values carried across.": "{{0}} ꯔꯦꯀꯣꯔꯗ ꯏꯝꯄꯣꯔꯠ ꯇꯧꯔꯦ; ꯑꯍꯥꯟꯕꯥ ꯁ꯭ꯇꯣꯛ ꯑꯃꯁꯨꯡ ꯕꯦꯂꯦꯟꯁ ꯑꯗꯨꯁꯨ ꯂꯩꯔꯦ꯫",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "ꯑꯁꯣꯏꯕ/ꯗꯨꯄ꯭ꯂꯤꯀꯦꯠ ꯂꯥꯏꯟ: {{0}}; ꯊꯧꯗꯣꯛ: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "ꯑꯁꯣꯏꯕ/ꯗꯨꯄ꯭ꯂꯤꯀꯦꯠ ꯂꯥꯏꯟ: {{0}}; ꯊꯧꯗꯣꯛ: {{1}}.",
+    "Confirm it’s you": "ꯃꯁꯤ ꯅꯍꯥꯛꯀꯤꯅꯤ ꯍꯥꯏꯕꯗꯨ ꯆꯦꯠꯍꯟꯕꯤꯌꯨ",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "ꯀꯟꯁꯣꯜ ꯍꯥꯡꯗꯣꯛꯄꯗꯒꯤ ꯃꯃꯥꯡꯗ Continue ꯅ ꯅꯍꯥꯛꯀꯤ ꯄꯥꯁꯋꯥꯔꯗ ꯍꯪꯂꯛꯀꯅꯤ — ꯁꯥꯏꯟ ꯏꯟ ꯇꯧꯔꯕ ꯗꯤꯚꯥꯏꯁ ꯑꯃꯁꯨꯡ ꯀꯥꯎꯟꯇꯔꯗ ꯂꯩꯕ ꯆꯨꯝꯂꯕ ꯃꯤꯑꯣꯏ ꯑꯃꯠꯇ ꯅꯠꯇꯦ꯫",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤꯗ ꯅꯍꯥꯛꯀꯤ ꯁꯦꯁꯟ ꯍꯥꯡꯗꯣꯛꯂꯦ꯫ ꯀꯟꯁꯣꯜꯗ ꯆꯪꯅꯕ ꯅꯍꯥꯛꯀꯤ ꯑꯦꯀꯥꯎꯟꯠ ꯄꯥꯁꯋꯥꯔꯗ ꯌꯦꯟꯁꯤꯟꯕꯤꯌꯨ꯫",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤ ꯁꯥꯏꯟ ꯏꯟ ꯇꯧꯔꯦ꯫ ꯀꯟꯁꯣꯜ ꯍꯥꯡꯗꯣꯛꯅꯕ ꯁꯦꯛꯌꯨꯔꯤꯇꯤ ꯄꯦꯖꯗ ꯁꯦꯠ ꯇꯧꯈꯤꯕ ꯑꯣꯅꯔ ꯄꯥꯁꯋꯥꯔꯗ ꯌꯦꯟꯁꯤꯟꯕꯤꯌꯨ꯫",
+    "No owner password is set on this device — Continue opens the console as it is.": "ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤꯗ ꯑꯣꯅꯔ ꯄꯥꯁꯋꯥꯔꯗ ꯑꯃꯠꯇ ꯁꯦꯠ ꯇꯧꯗꯦ — Continue ꯅ ꯀꯟꯁꯣꯜꯕꯨ ꯂꯩꯕꯃꯈꯩ ꯍꯥꯡꯗꯣꯛꯂꯛꯀꯅꯤ꯫",
+    "Review or change my details": "ꯑꯩꯒꯤ ꯄꯥꯎꯇꯥꯛꯁꯤꯡ ꯌꯦꯡꯕꯤꯌꯨ ꯅꯠꯇ꯭ꯔꯒ ꯁꯣꯛꯊꯣꯛꯄꯤꯌꯨ",
+    "That password did not match this account.": "ꯄꯥꯁꯋꯥꯔꯗ ꯑꯗꯨ ꯑꯦꯀꯥꯎꯟꯠ ꯑꯁꯤꯒ ꯆꯥꯅꯗꯦ꯫",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ꯕꯤꯜꯗ ꯑꯁꯤꯗ ꯆꯦꯠꯍꯟꯅꯕ ꯑꯦꯀꯥꯎꯟꯠ ꯄꯥꯁꯋꯥꯔꯗ ꯂꯩꯇꯦ꯫ ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤꯗ ꯁꯦꯠ ꯇꯧꯔꯕ ꯀꯟꯁꯣꯜ ꯄꯥꯁꯀꯣꯗ ꯁꯤꯖꯤꯟꯅꯕꯤꯌꯨ꯫",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤ ꯑꯦꯀꯥꯎꯟꯠꯇꯒꯤ ꯁꯥꯏꯟ ꯑꯥꯎꯠ ꯇꯧꯔꯦ꯫ ꯀꯟꯁꯣꯜ ꯍꯥꯡꯗꯣꯛꯅꯕ ꯅꯍꯥꯛꯀꯤ ꯏꯃꯦꯜ ꯑꯃꯁꯨꯡ ꯄꯥꯁꯋꯥꯔꯗꯒꯤ ꯁꯥꯏꯟ ꯏꯟ ꯇꯧꯕꯤꯌꯨ꯫",
+    "The lock screen shows how to clear it": "ꯃꯁꯤ ꯀꯔꯝꯅ ꯊꯥꯖꯒꯅꯤ ꯍꯥꯏꯕꯗꯨ ꯂꯣꯛ ꯁ꯭ꯛꯔꯤꯟꯅ ꯎꯠꯂꯤ"
   },
   "mr": {
     "Sign in": "साइन इन करा",
@@ -2203,7 +2323,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "किंमत, खर्च, साठा, पुनर्मागणी किंवा कराच्या रकान्यांपैकी एका ठिकाणी वैध संख्या नाही.",
     "Import complete": "आयात पूर्ण",
     "Imported {{0}} records. Opening values carried across.": "{{0}} नोंदी आयात केल्या; सुरुवातीचा साठा आणि शिल्लकही ठेवली.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "त्रुटी/डुप्लिकेट ओळ: {{0}}; तयार: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "त्रुटी/डुप्लिकेट ओळ: {{0}}; तयार: {{1}}.",
+    "Confirm it’s you": "हे तुम्हीच आहात याची खात्री करा",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कंसोल उघडण्यापूर्वी Continue तुमचा पासवर्ड विचारतो — साइन-इन केलेले डिव्हाइस आणि काउंटरवरील योग्य व्यक्ती एक नसते.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "या डिव्हाइसवर तुमचे सत्र खुले आहे. कंसोलमध्ये जाण्यासाठी तुमचा अकाउंट पासवर्ड टाका.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "हे डिव्हाइस साइन इन आहे. कंसोल उघडण्यासाठी सुरक्षा पृष्ठावर सेट केलेला मालक पासवर्ड टाका.",
+    "No owner password is set on this device — Continue opens the console as it is.": "या डिव्हाइसवर मालक पासवर्ड सेट नाही — Continue कंसोल जसा आहे तसा उघडतो.",
+    "Review or change my details": "माझी माहिती पहा किंवा बदला",
+    "That password did not match this account.": "तो पासवर्ड या खात्याशी जुळत नाही.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "या बिल्डमध्ये पुष्टीसाठी खाते पासवर्ड नाही. या डिव्हाइसवर सेट केलेला कंसोल पासकोड वापरा.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "हे डिव्हाइस खात्यातून साइन आउट आहे. कंसोल उघडण्यासाठी तुमच्या ईमेल आणि पासवर्डने साइन इन करा.",
+    "The lock screen shows how to clear it": "लॉक स्क्रीन तो साफ करण्याचा मार्ग दाखवते"
   },
   "ne": {
     ", and how it is enforced is shown live in the": ", र यो कसरी लागू हुन्छ भन्ने प्रत्यक्ष देखिन्छ",
@@ -2364,7 +2494,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "मूल्य, लागत, स्टक, पुनः अर्डर वा करको कुनै एक कोठामा मान्य सङ्ख्या छैन।",
     "Import complete": "आयात पूरा",
     "Imported {{0}} records. Opening values carried across.": "{{0}} रेकर्ड आयात भए; सुरुको स्टक र ब्यालेन्स पनि राखियो।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "त्रुटि/नक्कल पङ्क्ति: {{0}}; तयार: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "त्रुटि/नक्कल पङ्क्ति: {{0}}; तयार: {{1}}.",
+    "Confirm it’s you": "यो तपाईं नै हो भनी पुष्टि गर्नुहोस्",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कन्सोल खुल्नुअघि Continue ले तपाईंको पासवर्ड माग्छ — साइन-इन गरिएको यन्त्र र काउन्टरमा रहेको सही व्यक्ति एउटा होइन।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "यस यन्त्रमा तपाईंको सत्र खुला छ। कन्सोलमा जान आफ्नो खाता पासवर्ड राख्नुहोस्।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "यो यन्त्र साइन इन छ। कन्सोल खोल्न सुरक्षा पृष्ठमा सेट गरिएको मालिक पासवर्ड राख्नुहोस्।",
+    "No owner password is set on this device — Continue opens the console as it is.": "यस यन्त्रमा मालिक पासवर्ड सेट गरिएको छैन — Continue ले कन्सोल जस्तो छ त्यस्तै खोल्छ।",
+    "Review or change my details": "मेरा विवरणहरू हेर्नुहोस् वा बदल्नुहोस्",
+    "That password did not match this account.": "त्यो पासवर्ड यस खातासँग मिलेन।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "यस बिल्डमा पुष्टि गर्न खाता पासवर्ड छैन। यस यन्त्रमा सेट गरिएको कन्सोल पासकोड प्रयोग गर्नुहोस्।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "यो यन्त्र खाताबाट साइन आउट भएको छ। कन्सोल खोल्न आफ्नो इमेल र पासवर्डबाट साइन इन गर्नुहोस्।",
+    "The lock screen shows how to clear it": "लक स्क्रिनले यसलाई मेटाउने तरिका देखाउँछ"
   },
   "or": {
     ", and how it is enforced is shown live in the": ", ଏବଂ ଏହା କିପରି ଲାଗୁ ହୁଏ ତାହା ସିଧା ଦେଖାଯାଏ",
@@ -2525,7 +2665,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "ମୂଲ୍ୟ, ଖର୍ଚ୍ଚ, ଷ୍ଟକ୍, ପୁନଃ ଅର୍ଡର୍ କିମ୍ବା ଟିକସ୍ ଘର ମଧ୍ୟରୁ ଗୋଟିଏରେ ବୈଧ ସଂଖ୍ୟା ନାହିଁ।",
     "Import complete": "ଆମଦାନୀ ସମ୍ପୂର୍ଣ୍ଣ",
     "Imported {{0}} records. Opening values carried across.": "{{0}} ରେକର୍ଡ ଆମଦାନୀ ହେଲା; ଆରମ୍ଭର ଷ୍ଟକ୍ ଓ ବାଲାନ୍ସ ମଧ୍ୟ ରହିଲା।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "ତ୍ରୁଟି/ନକଲ ଧାଡ଼ି: {{0}}; ପ୍ରସ୍ତୁତ: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "ତ୍ରୁଟି/ନକଲ ଧାଡ଼ି: {{0}}; ପ୍ରସ୍ତୁତ: {{1}}.",
+    "Confirm it’s you": "ଏହା ଆପଣ ହିଁ ଅଟନ୍ତି ବୋଲି ନିଶ୍ଚିତ କରନ୍ତୁ",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "କନସୋଲ ଖୋଲିବା ପୂର୍ବରୁ Continue ଆପଣଙ୍କ ପାସୱାର୍ଡ ମାଗେ — ସାଇନ୍-ଇନ୍ ହୋଇଥିବା ଡିଭାଇସ ଏବଂ କାଉଣ୍ଟରରେ ଥିବା ସଠିକ୍ ବ୍ୟକ୍ତି ଏକେ ନୁହଁନ୍ତି।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ଏହି ଡିଭାଇସରେ ଆପଣଙ୍କ ସେଶନ ଖୋଲା ଅଛି। କନସୋଲକୁ ଯିବା ପାଇଁ ଆପଣଙ୍କ ଆକାଉଣ୍ଟ ପାସୱାର୍ଡ ଦିଅନ୍ତୁ।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ଏହି ଡିଭାଇସ ସାଇନ୍-ଇନ୍ ହୋଇଛି। କନସୋଲ ଖୋଲିବା ପାଇଁ ସୁରକ୍ଷା ପୃଷ୍ଠାରେ ସେଟ୍ କରିଥିବା ମାଲିକ ପାସୱାର୍ଡ ଦିଅନ୍ତୁ।",
+    "No owner password is set on this device — Continue opens the console as it is.": "ଏହି ଡିଭାଇସରେ ମାଲିକ ପାସୱାର୍ଡ ସେଟ୍ ହୋଇନାହିଁ — Continue କନସୋଲକୁ ଯେମିତି ଅଛି ସେମିତି ଖୋଲିବ।",
+    "Review or change my details": "ମୋର ବିବରଣୀ ଦେଖନ୍ତୁ କିମ୍ବା ବଦଳାନ୍ତୁ",
+    "That password did not match this account.": "ସେହି ପାସୱାର୍ଡ ଏହି ଆକାଉଣ୍ଟ ସହ ମେଳ ଖାଇଲା ନାହିଁ।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ଏହି ବିଲ୍ଡରେ ନିଶ୍ଚିତ କରିବା ପାଇଁ କୌଣସି ଆକାଉଣ୍ଟ ପାସୱାର୍ଡ ନାହିଁ। ଏହି ଡିଭାଇସରେ ସେଟ୍ ହୋଇଥିବା କନସୋଲ ପାସକୋଡ ବ୍ୟବହାର କରନ୍ତୁ।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ଏହି ଡିଭାଇସ ଆକାଉଣ୍ଟରୁ ସାଇନ୍-ଆଉଟ୍ ହୋଇଛି। କନସୋଲ ଖୋଲିବା ପାଇଁ ଆପଣଙ୍କ ଇମେଲ ଓ ପାସୱାର୍ଡ ସହ ସାଇନ୍-ଇନ୍ କରନ୍ତୁ।",
+    "The lock screen shows how to clear it": "ଏହାକୁ ସଫା କରିବାର ଉପାୟ ଲକ୍ ସ୍କ୍ରିନ୍ ଦେଖାଏ"
   },
   "pa": {
     "Sign in": "ਸਾਈਨ ਇਨ ਕਰੋ",
@@ -2768,7 +2918,17 @@
     "You cannot remove yourself. Transfer ownership first, or use a second owner account.": "ਤੁਸੀਂ ਆਪਣੇ ਆਪ ਨੂੰ ਨਹੀਂ ਹਟਾ ਸਕਦੇ। ਪਹਿਲਾਂ ਮਲਕੀਅਤ ਟ੍ਰਾਂਸਫਰ ਕਰੋ, ਜਾਂ ਦੂਜੇ ਮਾਲਕ ਖਾਤੇ ਦੀ ਵਰਤੋਂ ਕਰੋ।",
     "You joined as": "ਤੁਸੀਂ ਇਸ ਭੂਮਿਕਾ ਵਿੱਚ ਜੁੜੇ:",
     "your own": "ਆਪਣੀ",
-    "your teammate": "ਤੁਹਾਡੇ ਸਾਥੀ"
+    "your teammate": "ਤੁਹਾਡੇ ਸਾਥੀ",
+    "Confirm it’s you": "ਪੁਸ਼ਟੀ ਕਰੋ ਕਿ ਇਹ ਤੁਸੀਂ ਹੀ ਹੋ",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "ਕੰਸੋਲ ਖੁੱਲ੍ਹਣ ਤੋਂ ਪਹਿਲਾਂ Continue ਤੁਹਾਡਾ ਪਾਸਵਰਡ ਮੰਗਦਾ ਹੈ — ਸਾਇਨ-ਇਨ ਕੀਤਾ ਡਿਵਾਈਸ ਅਤੇ ਕਾਊਂਟਰ ’ਤੇ ਸਹੀ ਵਿਅਕਤੀ ਇੱਕ ਨਹੀਂ ਹਨ।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਤੁਹਾਡਾ ਸੈਸ਼ਨ ਖੁੱਲ੍ਹਾ ਹੈ। ਕੰਸੋਲ ਵਿੱਚ ਜਾਣ ਲਈ ਆਪਣਾ ਖਾਤਾ ਪਾਸਵਰਡ ਭਰੋ।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ਇਹ ਡਿਵਾਈਸ ਸਾਇਨ ਇਨ ਹੈ। ਕੰਸੋਲ ਖੋਲ੍ਹਣ ਲਈ ਸੁਰੱਖਿਆ ਪੰਨੇ ’ਤੇ ਸੈੱਟ ਕੀਤਾ ਮਾਲਕ ਪਾਸਵਰਡ ਭਰੋ।",
+    "No owner password is set on this device — Continue opens the console as it is.": "ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਮਾਲਕ ਪਾਸਵਰਡ ਸੈੱਟ ਨਹੀਂ ਹੈ — Continue ਕੰਸੋਲ ਨੂੰ ਜਿਵੇਂ ਹੈ ਤਿਵੇਂ ਖੋਲ੍ਹ ਦੇਵੇਗਾ।",
+    "Review or change my details": "ਮੇਰੇ ਵੇਰਵੇ ਵੇਖੋ ਜਾਂ ਬਦਲੋ",
+    "That password did not match this account.": "ਉਹ ਪਾਸਵਰਡ ਇਸ ਖਾਤੇ ਨਾਲ ਮੇਲ ਨਹੀਂ ਖਾਂਦਾ।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ਇਸ ਬਿਲਡ ਵਿੱਚ ਪੁਸ਼ਟੀ ਲਈ ਕੋਈ ਖਾਤਾ ਪਾਸਵਰਡ ਨਹੀਂ ਹੈ। ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਸੈੱਟ ਕੀਤਾ ਕੰਸੋਲ ਪਾਸਕੋਡ ਵਰਤੋ।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ਇਹ ਡਿਵਾਈਸ ਖਾਤੇ ਤੋਂ ਸਾਇਨ ਆਉਟ ਹੈ। ਕੰਸੋਲ ਖੋਲ੍ਹਣ ਲਈ ਆਪਣੇ ਈਮੇਲ ਅਤੇ ਪਾਸਵਰਡ ਨਾਲ ਸਾਇਨ ਇਨ ਕਰੋ।",
+    "The lock screen shows how to clear it": "ਲਾਕ ਸਕ੍ਰੀਨ ਇਸਨੂੰ ਹਟਾਉਣ ਦਾ ਤਰੀਕਾ ਦੱਸਦੀ ਹੈ"
   },
   "sa": {
     ", and how it is enforced is shown live in the": ", एतत् च कथं प्रवर्त्यते इति साक्षात् दृश्यते",
@@ -2929,7 +3089,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "मूल्यव्ययभण्डारपुनरादेशकरकोष्ठकेषु वैधसंख्या नास्ति।",
     "Import complete": "आयातः पूर्णः",
     "Imported {{0}} records. Opening values carried across.": "{{0}} अभिलेखाः आयाताः; प्रारम्भिकभण्डारं शेषराशिश्च रक्षितम्।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "त्रुटि/प्रतिलिपिः पङ्क्तिः: {{0}}; सज्जम्: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "त्रुटि/प्रतिलिपिः पङ्क्तिः: {{0}}; सज्जम्: {{1}}.",
+    "Confirm it’s you": "एतत् भवान् एव इति पुष्टिं कुर्वन्तु",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "कंसोल उद्घाटनात् प्राक् Continue भवतः गुप्तशब्दं पृच्छति — साइन-इन्-उपकरणं तथा काउण्टर्-स्थः सम्यक् व्यक्तिः न एकम्।",
+    "Your session is open on this device. Enter your account password to walk into the console.": "अस्मिन् उपकरणे भवतः सत्रम् उद्घाटितम् अस्ति। कंसोलं प्रवेष्टुं स्वस्य खातगुप्तशब्दं लिखन्तु।",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "इदम् उपकरणं साइन-इन् अस्ति। कंसोलम् उद्घाटयितुं सुरक्षापृष्ठे स्थापितं स्वामिगुप्तशब्दं लिखन्तु।",
+    "No owner password is set on this device — Continue opens the console as it is.": "अस्मिन् उपकरणे स्वामिगुप्तशब्दः स्थापितः नास्ति — Continue कंसोलं यथा अस्ति तथा उद्घाटयिष्यति।",
+    "Review or change my details": "मम विवरणं पश्यन्तु परिवर्तयन्तु वा",
+    "That password did not match this account.": "सः गुप्तशब्दः अनेन खातेन न सम्यक् मेलति।",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "अस्मिन् बिल्ड् पुष्ट्यर्थं खातगुप्तशब्दः नास्ति। अस्मिन् उपकरणे स्थापितं कंसोल-गुप्तसङ्केतं उपयुज्यताम्।",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "इदम् उपकरणं खातात् साइन-आउट् अभवत्। कंसोलम् उद्घाटयितुं स्वस्य ईमेल-गुप्तशब्दाभ्यां साइन-इन् कुर्वन्तु।",
+    "The lock screen shows how to clear it": "लॉक-पटलं तस्य विलोपनमार्गं दर्शयति"
   },
   "sat": {
     ", and how it is enforced is shown live in the": ", ᱟᱨ ᱱᱚᱣᱟ ᱪᱮᱫ ᱞᱮᱠᱟᱛᱮ ᱞᱟᱜᱩ ᱦᱩᱭᱩᱜ-ᱟ ᱚᱱᱟ ᱞᱟᱭᱤᱵᱷ ᱞᱮᱠᱟᱛᱮ ᱧᱮᱞᱚᱜ-ᱟ",
@@ -3090,7 +3260,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "ᱢᱩᱞᱭ, ᱠᱷᱚᱨᱚᱪ, ᱥᱴᱚᱠ, ᱨᱤᱚᱨᱰᱟᱨ ᱟᱨ ᱴᱮᱠᱥ ᱠᱚᱴᱷᱟ ᱨᱮ ᱵᱟᱛᱟᱣ ᱮᱞ ᱵᱟᱝ ᱢᱮᱱᱟᱜᱼᱟ.",
     "Import complete": "ᱤᱢᱯᱳᱨᱴ ᱯᱩᱨᱟᱹ",
     "Imported {{0}} records. Opening values carried across.": "{{0}} ᱨᱮᱠᱚᱨᱰ ᱤᱢᱯᱳᱨᱴ ᱟᱠᱟᱱᱟ; ᱮᱦᱚᱵ ᱥᱴᱚᱠ ᱟᱨ ᱵᱟᱞᱮᱱᱥ ᱦᱚᱸ ᱫᱚᱦᱚ ᱟᱠᱟᱱᱟ।",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "ᱵᱟᱝ ᱜᱟᱱ/ᱰᱩᱯᱞᱤᱠᱮᱴ ᱞᱟᱭᱤᱱ: {{0}}; ᱥᱟᱹᱡᱟᱣ: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "ᱵᱟᱝ ᱜᱟᱱ/ᱰᱩᱯᱞᱤᱠᱮᱴ ᱞᱟᱭᱤᱱ: {{0}}; ᱥᱟᱹᱡᱟᱣ: {{1}}.",
+    "Confirm it’s you": "ᱱᱚᱣᱟ ᱟᱢᱟᱜ ᱜᱮ ᱢᱮᱱᱛᱮ ᱵᱟᱰᱟᱭ ᱢᱮ",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "ᱠᱚᱱᱥᱚᱞ ᱡᱷᱤᱡ ᱞᱟᱦᱟ ᱨᱮ Continue ᱟᱢᱟᱜ ᱯᱟᱥᱣᱟᱨᱰ ᱮ ᱠᱩᱞᱤᱭᱟ — ᱥᱟᱭᱤᱱ ᱤᱱ ᱟᱠᱟᱱ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱟᱨ ᱠᱟᱣᱱᱴᱚᱨ ᱨᱮᱱ ᱴᱷᱤᱠ ᱦᱚᱲ ᱫᱚ ᱢᱤᱫ ᱵᱟᱝ ᱠᱟᱱᱟᱠᱚᱣᱟ᱾",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱨᱮ ᱟᱢᱟᱜ ᱥᱮᱥᱚᱱ ᱡᱷᱤᱡ ᱟᱠᱟᱱᱟ᱾ ᱠᱚᱱᱥᱚᱞ ᱨᱮ ᱵᱚᱞᱚ ᱞᱟᱹᱜᱤᱫ ᱟᱢᱟᱜ ᱮᱠᱟᱣᱱᱴ ᱯᱟᱥᱣᱟᱨᱰ ᱚᱞ ᱢᱮᱸ",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱥᱟᱭᱤᱱ ᱤᱱ ᱟᱠᱟᱱᱟ᱾ ᱠᱚᱱᱥᱚᱞ ᱡᱷᱤᱡ ᱞᱟᱹᱜᱤᱫ ᱨᱩᱠᱷᱤᱭᱟᱹ ᱥᱟᱦᱴᱟ ᱨᱮ ᱥᱮᱴ ᱟᱠᱟᱱ ᱢᱟᱞᱤᱠ ᱯᱟᱥᱣᱟᱨᱰ ᱚᱞ ᱢᱮᱸ",
+    "No owner password is set on this device — Continue opens the console as it is.": "ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱨᱮ ᱢᱟᱞᱤᱠ ᱯᱟᱥᱣᱟᱨᱰ ᱥᱮᱴ ᱵᱟᱝ ᱟᱠᱟᱱᱟ — Continue ᱠᱚᱱᱥᱚᱞ ᱡᱮᱢᱚᱱ ᱢᱮᱱᱟᱜᱼᱟ ᱚᱱᱟ ᱜᱮ ᱡᱷᱤᱡ ᱮᱫᱟ᱾",
+    "Review or change my details": "ᱤᱧᱟᱜ ᱵᱤᱵᱨᱚᱱ ᱧᱮᱞ ᱢᱮ ᱵᱟᱝᱠᱷᱟᱱ ᱵᱚᱫᱚᱞ ᱢᱮᱸ",
+    "That password did not match this account.": "ᱚᱱᱟ ᱯᱟᱥᱣᱟᱨᱰ ᱱᱚᱣᱟ ᱮᱠᱟᱣᱱᱴ ᱥᱟᱶ ᱵᱟᱝ ᱢᱮᱥᱟ ᱠᱮᱫᱟ᱾",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ᱱᱚᱣᱟ ᱵᱤᱞᱰ ᱨᱮ ᱵᱟᱰᱟᱭ ᱞᱟᱹᱜᱤᱫ ᱮᱠᱟᱣᱱᱴ ᱯᱟᱥᱣᱟᱨᱰ ᱵᱟᱹᱱᱩᱜᱼᱟ᱾ ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱨᱮ ᱥᱮᱴ ᱟᱠᱟᱱ ᱠᱚᱱᱥᱚᱞ ᱯᱟᱥᱠᱚᱰ ᱵᱮᱵᱷᱟᱨ ᱢᱮᱸ",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱮᱠᱟᱣᱱᱴ ᱠᱷᱚᱱ ᱥᱟᱭᱤᱱ ᱟᱣᱩᱴ ᱟᱠᱟᱱᱟ᱾ ᱠᱚᱱᱥᱚᱞ ᱡᱷᱤᱡ ᱞᱟᱹᱜᱤᱫ ᱟᱢᱟᱜ ᱤᱢᱮᱞ ᱟᱨ ᱯᱟᱥᱣᱟᱨᱰ ᱛᱮ ᱥᱟᱭᱤᱱ ᱤᱱ ᱢᱮᱸ",
+    "The lock screen shows how to clear it": "ᱞᱚᱠ ᱥᱠᱨᱤᱱ ᱚᱱᱟ ᱜᱚᱴᱟ ᱞᱟᱹᱜᱤᱫ ᱦᱚᱨ ᱮ ᱩᱫᱩᱜᱟ"
   },
   "sd": {
     ", and how it is enforced is shown live in the": "، ۽ اهو ڪيئن لاڳو ٿئي ٿو، اهو لائيو نظر اچي ٿو",
@@ -3251,7 +3431,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "قيمت، خرچ، اسٽاڪ، ٻيهر آرڊر يا ٽيڪس جي خاني مان ڪنهن ۾ صحيح نمبر ناهي.",
     "Import complete": "درآمد مڪمل",
     "Imported {{0}} records. Opening values carried across.": "{{0}} رڪارڊ درآمد ٿيا؛ شروعاتي اسٽاڪ ۽ بيلنس به محفوظ رهيا.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "غلطي/نقل قطار: {{0}}; تيار: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "غلطي/نقل قطار: {{0}}; تيار: {{1}}.",
+    "Confirm it’s you": "تصديق ڪريو ته اهو توهان آهيو",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "ڪنسول کلڻ کان اڳ Continue توهان جو پاسورڊ گهرندو آهي — سائن اِن ٿيل ڊيوائس ۽ ڪائونٽر تي موجود صحيح ماڻهو هڪجهڙا ناهن.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "هن ڊيوائس تي توهان جو سيشن کليل آهي. ڪنسول ۾ وڃڻ لاءِ پنهنجو اڪائونٽ پاسورڊ لکو.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "هي ڊيوائس سائن اِن آهي. ڪنسول کولڻ لاءِ سيڪيورٽي صفحي تي مقرر ڪيل مالڪ پاسورڊ لکو.",
+    "No owner password is set on this device — Continue opens the console as it is.": "هن ڊيوائس تي مالڪ پاسورڊ مقرر نه آهي — Continue ڪنسول کي جيئن آهي تيئن کوليندو.",
+    "Review or change my details": "منهنجا تفصيل ڏسو يا بدلايو",
+    "That password did not match this account.": "اهو پاسورڊ هن اڪائونٽ سان نه مليو.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "هن بلڊ ۾ تصديق لاءِ ڪوبه اڪائونٽ پاسورڊ ناهي. هن ڊيوائس تي مقرر ڪيل ڪنسول پاس ڪوڊ استعمال ڪريو.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "هي ڊيوائس اڪائونٽ مان سائن آئوٽ آهي. ڪنسول کولڻ لاءِ پنهنجي اي ميل ۽ پاسورڊ سان سائن اِن ڪريو.",
+    "The lock screen shows how to clear it": "لاڪ اسڪرين ان کي صاف ڪرڻ جو طريقو ڏيکاريندي آهي"
   },
   "ta": {
     "Sign in": "சைன் இன்",
@@ -3417,7 +3607,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "விலை, செலவு, இருப்பு, மறுஆர்டர் அல்லது வரி பெட்டிகளில் ஒன்றில் சரியான எண் இல்லை.",
     "Import complete": "இறக்குமதி முடிந்தது",
     "Imported {{0}} records. Opening values carried across.": "{{0}} பதிவுகள் இறக்குமதி செய்யப்பட்டன; தொடக்க இருப்பும் நிலுவையும் வைத்திருக்கப்பட்டன.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "பிழை/நகல் வரி: {{0}}; தயார்: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "பிழை/நகல் வரி: {{0}}; தயார்: {{1}}.",
+    "Confirm it’s you": "இது நீங்கள் தான் என உறுதிப்படுத்தவும்",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "கன்சோல் திறக்கும் முன் Continue உங்கள் கடவுச்சொல்லைக் கேட்கும் — சைன்-இன் ஆன சாதனமும் கவுண்டரில் உள்ள சரியான நபரும் ஒன்றல்ல.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "இந்த சாதனத்தில் உங்கள் அமர்வு திறந்துள்ளது. கன்சோலுக்குள் செல்ல உங்கள் கணக்கு கடவுச்சொல்லை உள்ளிடவும்.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "இந்த சாதனம் சைன் இன் ஆகியுள்ளது. கன்சோலைத் திறக்க பாதுகாப்பு பக்கத்தில் அமைத்த உரிமையாளர் கடவுச்சொல்லை உள்ளிடவும்.",
+    "No owner password is set on this device — Continue opens the console as it is.": "இந்த சாதனத்தில் உரிமையாளர் கடவுச்சொல் அமைக்கப்படவில்லை — Continue கன்சோலை அப்படியே திறக்கும்.",
+    "Review or change my details": "என் விவரங்களைப் பார்த்து அல்லது மாற்றவும்",
+    "That password did not match this account.": "அந்த கடவுச்சொல் இந்த கணக்குடன் பொருந்தவில்லை.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "இந்த பில்டில் உறுதிப்படுத்த கணக்கு கடவுச்சொல் இல்லை. இந்த சாதனத்தில் அமைக்கப்பட்ட கன்சோல் குறியீட்டைப் பயன்படுத்தவும்.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "இந்த சாதனம் கணக்கிலிருந்து சைன் அவுட் ஆகியுள்ளது. கன்சோலைத் திறக்க உங்கள் மின்னஞ்சல் மற்றும் கடவுச்சொல்லுடன் சைன் இன் செய்யவும்.",
+    "The lock screen shows how to clear it": "அதை அழிக்கும் வழியை பூட்டுத் திரை காட்டுகிறது"
   },
   "te": {
     "Sign in": "సైన్ ఇన్ చేయండి",
@@ -3583,7 +3783,17 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "ధర, ఖర్చు, స్టాక్, రీఆర్డర్ లేదా పన్ను గడులలో ఒకదానిలో సరైన సంఖ్య లేదు.",
     "Import complete": "దిగుమతి పూర్తయింది",
     "Imported {{0}} records. Opening values carried across.": "{{0}} రికార్డులు దిగుమతి అయ్యాయి; ప్రారంభ స్టాక్ మరియు బ్యాలెన్స్ కూడా అలాగే ఉన్నాయి.",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "లోపం/నకలు వరుస: {{0}}; సిద్ధం: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "లోపం/నకలు వరుస: {{0}}; సిద్ధం: {{1}}.",
+    "Confirm it’s you": "ఇది మీరే అని నిర్ధారించుకోండి",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "కన్సోల్ తెరవడానికి ముందు Continue మీ పాస్‌వర్డ్‌ను అడుగుతుంది — సైన్-ఇన్ చేసిన పరికరం మరియు కౌంటర్‌లో ఉన్న సరైన వ్యక్తి ఒకటి కాదు.",
+    "Your session is open on this device. Enter your account password to walk into the console.": "ఈ పరికరంలో మీ సెషన్ తెరిచి ఉంది. కన్సోల్‌లోకి వెళ్లడానికి మీ ఖాతా పాస్‌వర్డ్‌ను నమోదు చేయండి.",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "ఈ పరికరం సైన్ ఇన్ చేయబడింది. కన్సోల్ తెరవడానికి సెక్యూరిటీ పేజీలో సెట్ చేసిన యజమాని పాస్‌వర్డ్‌ను నమోదు చేయండి.",
+    "No owner password is set on this device — Continue opens the console as it is.": "ఈ పరికరంలో యజమాని పాస్‌వర్డ్ సెట్ చేయబడలేదు — Continue కన్సోల్‌ను ఉన్నదున్నట్లుగా తెరుస్తుంది.",
+    "Review or change my details": "నా వివరాలను సమీక్షించండి లేదా మార్చండి",
+    "That password did not match this account.": "ఆ పాస్‌వర్డ్ ఈ ఖాతాతో సరిపోలలేదు.",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "ఈ బిల్డ్‌లో నిర్ధారించడానికి ఖాతా పాస్‌వర్డ్ లేదు. ఈ పరికరంలో సెట్ చేసిన కన్సోల్ పాస్‌కోడ్‌ను ఉపయోగించండి.",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "ఈ పరికరం ఖాతా నుండి సైన్ అవుట్ అయింది. కన్సోల్ తెరవడానికి మీ ఇమెయిల్ మరియు పాస్‌వర్డ్‌తో సైన్ ఇన్ చేయండి.",
+    "The lock screen shows how to clear it": "దాన్ని తొలగించే మార్గాన్ని లాక్ స్క్రీన్ చూపుతుంది"
   },
   "ur": {
     "Sign in": "سائن اِن کریں",
@@ -3749,6 +3959,16 @@
     "One of the price, cost, stock, reorder or tax cells is not a valid number.": "قیمت، لاگت، اسٹاک، دوبارہ آرڈر یا ٹیکس کے خانوں میں سے کسی ایک میں درست نمبر نہیں ہے۔",
     "Import complete": "درآمد مکمل",
     "Imported {{0}} records. Opening values carried across.": "{{0}} ریکارڈ درآمد ہوئے؛ ابتدائی اسٹاک اور بیلنس بھی محفوظ رہے۔",
-    "Showing {{0}} issue rows and {{1}} ready rows.": "غلطی/نقل قطار: {{0}}; تیار: {{1}}."
+    "Showing {{0}} issue rows and {{1}} ready rows.": "غلطی/نقل قطار: {{0}}; تیار: {{1}}.",
+    "Confirm it’s you": "تصدیق کریں کہ یہ آپ ہیں",
+    "Continue asks for your password before the console opens — a signed-in device is not the same as the right person at the counter.": "کونسول کھلنے سے پہلے Continue آپ کا پاس ورڈ مانگتا ہے — سائن اِن ڈیوائس اور کاؤنٹر پر موجود صحیح شخص ایک نہیں ہوتے۔",
+    "Your session is open on this device. Enter your account password to walk into the console.": "اس ڈیوائس پر آپ کا سیشن کھلا ہے۔ کونسول میں جانے کے لیے اپنا اکاؤنٹ پاس ورڈ درج کریں۔",
+    "This device is signed in. Enter the owner password you set on the Security page to open the console.": "یہ ڈیوائس سائن اِن ہے۔ کونسول کھولنے کے لیے سیکیورٹی صفحے پر سیٹ کیا گیا مالک پاس ورڈ درج کریں۔",
+    "No owner password is set on this device — Continue opens the console as it is.": "اس ڈیوائس پر مالک پاس ورڈ سیٹ نہیں ہے — Continue کونسول کو جیسا ہے ویسا ہی کھول دے گا۔",
+    "Review or change my details": "میری تفصیلات دیکھیں یا تبدیل کریں",
+    "That password did not match this account.": "وہ پاس ورڈ اس اکاؤنٹ سے مطابقت نہیں رکھتا۔",
+    "This build has no account password to confirm. Use the console passcode set on this device.": "اس بلڈ میں تصدیق کے لیے کوئی اکاؤنٹ پاس ورڈ نہیں ہے۔ اس ڈیوائس پر سیٹ کیا گیا کونسول پاس کوڈ استعمال کریں۔",
+    "This device is signed out of the account. Sign in with your email and password to open the console.": "یہ ڈیوائس اکاؤنٹ سے سائن آؤٹ ہے۔ کونسول کھولنے کے لیے اپنے ای میل اور پاس ورڈ سے سائن اِن کریں۔",
+    "The lock screen shows how to clear it": "لاک اسکرین اسے صاف کرنے کا طریقہ دکھاتی ہے"
   }
 }

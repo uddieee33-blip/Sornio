@@ -21,15 +21,19 @@
 
 export {
   checkAuthAccess,
+  doorNeedsConfirmation,
   isPublicPath,
   isSupabaseAuthCookieName,
   safeNext,
   signInDestination,
   signInFallback,
+  signInNextParam,
+  welcomeDestination,
   CONSOLE_HOME,
   DEFAULT_NEXT,
   type AuthGateInput,
   type AuthGateVerdict,
+  type DestinationInput,
 } from './routes';
 
 export {

@@ -2,7 +2,9 @@
  * The session endpoint — the only place a DukaanOS session is created or ended.
  *
  *   GET    → who is at this console, if anybody. Safe to call anonymously.
- *   POST   → `sign-in` / `sign-up`, and an `httpOnly` session cookie on success.
+ *   POST   → `sign-in` / `sign-up` / `confirm`, and an `httpOnly` session cookie
+ *            on success. `confirm` is the welcome door's "it is me": a password
+ *            against the session this request already arrived with, no email.
  *   DELETE → sign out: the provider session on this device, then the app cookie.
  *
  * What is deliberately *not* here, and why:
@@ -35,8 +37,9 @@
 
 import { NextResponse } from 'next/server';
 
-import { getGuardedServerClient } from '@/lib/security/guard';
+import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
 import { transportForRequest } from '@/lib/security/transport';
+import type { CookieTransport } from '@/lib/security/cookies';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
 import {
@@ -98,6 +101,139 @@ function readCredentials(payload: unknown): { email: string; password: string; r
   return { email, password, remember: body?.remember !== false };
 }
 
+/**
+ * The confirmation door's own wording for a provider refusal.
+ *
+ * It differs from `signInMessage` in one place, and the reason is the field the
+ * owner is looking at: this door has no email box, so "Email or password is
+ * incorrect" would send them hunting for a half of the form that does not exist.
+ * Everything else — a rate limit, an unconfirmed address — is the same sentence
+ * the sign-in form uses, because it is the same provider saying it.
+ */
+function confirmMessage(message: string): string {
+  if (/invalid login credentials/i.test(message)) return 'That password did not match this account.';
+  return signInMessage(message);
+}
+
+/**
+ * `confirm` — the welcome door's "it is me".
+ *
+ * The door can prove the *browser* was signed in; it cannot prove who is reading
+ * it. On a counter tablet left open overnight those are two different people, and
+ * a bare "Continue" hands the second one the day's takings, the customer list and
+ * the khata. So the door asks for the account password before it opens — the same
+ * distinction the counter PIN and the owner-password gate in Settings are built
+ * on, applied at the one moment it matters most.
+ *
+ * Two things this deliberately does not do:
+ *
+ *   • **It does not take an email.** The address is read from the provider
+ *     session inside this request, so it never has to travel to the browser (the
+ *     door shows `ki•••`, and that is all it has ever shown), and so this
+ *     endpoint cannot be pointed at somebody else's account to test a password
+ *     against it. What it confirms is always *this* session's owner.
+ *   • **It does not re-decide the role.** A membership row that fails to load
+ *     mid-request must not turn a cashier into an owner, which is what the
+ *     `?? 'owner'` on the sign-in path would do here. Confirming refreshes the
+ *     window on the session that already exists; anything it cannot re-read stays
+ *     exactly as it was.
+ *
+ * On success the session is re-minted from the verified credentials, so the door
+ * is not a ceremony: the cookie that opens the console was issued *after* the
+ * password was checked, and the idle clock starts again from there.
+ */
+async function confirmSession(payload: unknown, requested: unknown, transport: CookieTransport): Promise<NextResponse> {
+  const password = typeof (payload as { password?: unknown } | null)?.password === 'string' ? (payload as { password: string }).password : '';
+  if (password.length < LIMITS.minPassword) {
+    return json({ ok: false, error: `Password must be at least ${LIMITS.minPassword} characters.` }, 422);
+  }
+
+  const identity = await currentIdentity();
+  if (!identity) {
+    return json(
+      { ok: false, code: 'confirm-session-ended', error: 'This device is signed out of the account. Sign in with your email and password to open the console.' },
+      401,
+    );
+  }
+
+  const client = await getGuardedServerClient();
+  if (!client) {
+    /*
+     * Local-first: there is no provider to ask and nothing to compare against.
+     * Inventing a password hash in the browser would sell a guarantee this app
+     * refuses to sell — see the note at the top of this file — so the door falls
+     * back to the console passcode this device owns, and the reply says plainly
+     * that nothing was checked here. A misconfigured deployment must not look
+     * like a wrong password.
+     */
+    return json(
+      { ok: false, code: 'confirm-unavailable', error: 'This build has no account password to confirm. Use the console passcode set on this device.' },
+      422,
+    );
+  }
+
+  const user = await getSessionUser();
+  // An app session with no provider session behind it is a session the provider
+  // has already ended. Nothing can be confirmed against it, and the honest door
+  // is the full sign-in form — which is what this code tells the screen to show.
+  if (!user?.email) {
+    return json(
+      { ok: false, code: 'confirm-session-ended', error: 'This device is signed out of the account. Sign in with your email and password to open the console.' },
+      401,
+    );
+  }
+
+  try {
+    const { error } = await client.auth.signInWithPassword({ email: user.email, password });
+    if (error) return json({ ok: false, code: 'confirm-failed', error: confirmMessage(error.message) }, 401);
+
+    const membership = await resolveMembership(user.id);
+    // A provider-backed identity already carries a tenant and a role this
+    // deployment vouched for; keep them if the row cannot be re-read right now.
+    const carried = identity.provider === 'supabase';
+    const tenantId = membership?.tenantId ?? (carried ? identity.tenantId : '');
+    const role = membership?.role ?? (carried ? identity.role : 'owner');
+    // `remember` is not re-asked: the promise this session was issued under is
+    // the promise it keeps. Confirming who is typing must not quietly turn a
+    // browser-session cookie into a two-week one.
+    const remember = identity.remember;
+    const issued = await sealOwnerSession({
+      userId: user.id,
+      tenantId,
+      role,
+      displayName: actorNameFor(user.email),
+      remember,
+    });
+
+    const response = json({
+      ok: true,
+      action: 'confirm',
+      mode: 'supabase',
+      provider: 'supabase',
+      confirmed: true,
+      // Re-answered here, after the password was checked, for the same reason
+      // the sign-in path answers it: the account row says whether this owner has
+      // anything left to set up, and an owner who has finished goes to the
+      // console rather than back through their own bank details.
+      next: safeNext(requested, signInFallback(await storedSetupComplete(user.id))),
+      scoped: Boolean(tenantId),
+      identity: renderable({
+        provider: 'supabase',
+        userId: user.id,
+        tenantId,
+        role: issued.claims.role,
+        displayName: issued.claims.displayName,
+        expiresAt: issued.claims.exp,
+        remember,
+      }),
+    });
+    response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+    return response;
+  } catch {
+    return json({ ok: false, code: 'unreachable', error: 'Could not reach the authentication service. Please try again.' }, 503);
+  }
+}
+
 /** GET — report the identity, mutate nothing. */
 export async function GET() {
   const identity = await currentIdentity();
@@ -123,16 +259,21 @@ export async function POST(request: Request) {
   }
 
   const action = (payload as { action?: unknown } | null)?.action;
-  if (action !== 'sign-in' && action !== 'sign-up') {
+  if (action !== 'sign-in' && action !== 'sign-up' && action !== 'confirm') {
     return json({ ok: false, error: 'Unknown action.' }, 422);
   }
+
+  const requested = (payload as { next?: unknown } | null)?.next;
+  const transport = transportForRequest(request);
+
+  // Confirmation has no email to read, so it branches before the field check
+  // rather than borrowing a validation that would refuse every request to it.
+  if (action === 'confirm') return confirmSession(payload, requested, transport);
 
   const credentials = readCredentials(payload);
   if (typeof credentials === 'string') return json({ ok: false, error: credentials }, 422);
 
   const { email, password, remember } = credentials;
-  const requested = (payload as { next?: unknown } | null)?.next;
-  const transport = transportForRequest(request);
   const client = await getGuardedServerClient();
 
   // ---- Local-first: no provider, so the session is the device's own. ----
@@ -179,7 +320,7 @@ export async function POST(request: Request) {
       const { data, error } = await client.auth.signUp({
         email,
         password,
-        options: { emailRedirectTo: callbackUrl(safeNext(requested, '/onboarding'), request) },
+        options: { emailRedirectTo: callbackUrl(safeNext(requested, signInFallback(false)), request) },
       });
       if (error) return json({ ok: false, code: 'sign-up-failed', error: signUpMessage(error.message) }, 401);
 

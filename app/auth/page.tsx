@@ -7,6 +7,7 @@ import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { currentIdentity, renderable } from '@/lib/auth/identity';
 import { safeNext } from '@/lib/auth/routes';
+import { storedSetupComplete } from '@/lib/sync/profile-server';
 import { isPlanId } from '@/lib/plans';
 import type { BillingInterval } from '@/lib/plans';
 import type { AuthFailureNotice } from '@/lib/auth/types';
@@ -14,19 +15,29 @@ import type { AuthFailureNotice } from '@/lib/auth/types';
 /**
  * Sign-in, decided on the server.
  *
- * Three questions have answers that only exist before the first paint, which is
+ * Four questions have answers that only exist before the first paint, which is
  * why this is a server component with a client form inside it rather than one
  * client page:
  *
- *   1. **Is somebody already signed in?** If they are, the screen is a door
- *      ("Welcome back — Continue"), not a password request. Asking for
- *      credentials you have already verified is how a session looks optional.
- *   2. **Where does a successful sign-in go?** `?next=/audit` from a bookmark, or
- *      `/onboarding` for a new owner. The value is run through `safeNext` *here*,
+ *   1. **Is somebody already signed in?** If they are, the screen is a door — but
+ *      a door that still has to be earned. The session proves this *browser* was
+ *      authenticated; it says nothing about who is standing at the counter now,
+ *      and behind the door are the day's takings. So a door into the console asks
+ *      for the account password (or this device's console passcode on a
+ *      local-first build) before it opens, and a door into setup — an owner who
+ *      has not finished — opens on its own, because there is nothing behind it to
+ *      guard and asking for the password they typed a minute ago is theatre.
+ *   2. **Where does that door go?** Not to setup, for an owner who has already
+ *      finished it. The account's stored profile answers that here, before the
+ *      paint, so the owner is never greeted by name and then walked back through
+ *      their own bank details. `welcomeDestination` holds the rule; the endpoint
+ *      re-applies it after credentials are verified.
+ *   3. **Where does a successful sign-in go?** `?next=/audit` from a bookmark, or
+ *      whatever question 2 answered. The value is run through `safeNext` *here*,
  *      on the way in, so the form never has to be trusted to refuse an open
  *      redirect — and the endpoint that actually redirects validates it again,
  *      because a page argument is not a security boundary.
- *   3. **Is there a plan intent to carry?** The pricing table links
+ *   4. **Is there a plan intent to carry?** The pricing table links
  *      `?plan=growth&interval=year`. Honouring it means an owner who came from a
  *      price lands on Your Plan; dropping it sends them to bank details while the
  *      thing they asked about evaporates.
@@ -43,14 +54,27 @@ function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');
 }
 
-/** The destination a signed-in owner is sent to, if they asked for one. */
-function resolveDestination(params: Record<string, string | string[] | undefined>): string {
+/**
+ * The destination the *caller* asked for, or `null` when they did not.
+ *
+ * `null` is the interesting answer. It means the page has no opinion, so the
+ * question is answered from what the account knows — and the sign-in endpoint
+ * gets to answer it again after the credentials are verified, which is the only
+ * moment the stored profile can be read for an owner this device had forgotten.
+ * A page that always handed the form a literal `/onboarding` would overwrite that
+ * with a guess made before anybody was authenticated.
+ */
+function explicitDestination(params: Record<string, string | string[] | undefined>): string | null {
   const plan = param(params.plan);
   const interval = param(params.interval);
   if (isPlanId(plan) && plan !== 'trial' && INTERVALS.includes(interval as BillingInterval)) {
     return `/subscription?plan=${plan}&interval=${interval}`;
   }
-  return safeNext(params.next, '/onboarding');
+  const next = param(params.next);
+  if (!next.trim()) return null;
+  // `''` as the fallback so a refused value comes back as "nobody asked", not as
+  // a destination this page invented.
+  return safeNext(next, '') || null;
 }
 
 export default async function AuthPage({
@@ -60,7 +84,19 @@ export default async function AuthPage({
 }) {
   const params = await searchParams;
   const identity = renderable(await currentIdentity());
-  const destination = resolveDestination(params);
+  const requested = explicitDestination(params);
+  /*
+   * Only worth asking when somebody is signed in: `storedSetupComplete` resolves
+   * the business from the provider session, so an anonymous request would spend a
+   * database round trip to be told `false` — the answer it already had.
+   *
+   * This is the server's half of where the door goes. The form supplies the half
+   * only the browser can answer (a local-first build has no row to read, only the
+   * vault on this device), and the endpoint answers the whole question again once
+   * credentials are verified — so a returning owner on a phone that has forgotten
+   * them still lands in the console instead of back in setup.
+   */
+  const accountSetupComplete = identity ? await storedSetupComplete() : false;
   const notice = NOTICES.includes(param(params.error) as AuthFailureNotice)
     ? (param(params.error) as AuthFailureNotice)
     : null;
@@ -86,7 +122,8 @@ export default async function AuthPage({
 
         <AuthForm
           supabaseReady={isSupabaseConfigured()}
-          destination={destination}
+          requested={requested}
+          accountSetupComplete={accountSetupComplete}
           notice={notice}
           identity={identity}
         />

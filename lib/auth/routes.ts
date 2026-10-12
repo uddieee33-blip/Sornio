@@ -85,6 +85,76 @@ export function signInFallback(setupComplete: boolean): string {
   return setupComplete ? CONSOLE_HOME : DEFAULT_NEXT;
 }
 
+/**
+ * What the sign-in screen knows about where this owner is going.
+ *
+ * Two of the three answers come from different places and neither can replace
+ * the other:
+ *
+ *   • `requested` is the owner's own — a bookmarked `?next=/audit`, or a price
+ *     they clicked. It has already been through `safeNext`, and it wins;
+ *   • `accountSetupComplete` is the server's, from the stored profile row. It is
+ *     the only answer that exists on a second phone or after a reinstall;
+ *   • `deviceSetupComplete` is this browser's, from the encrypted vault. It is
+ *     the only answer a local-first build has, because there is no row to read.
+ *
+ * Either "finished" counts, and both are needed: the server cannot see a local
+ * install's vault, and the vault cannot see an account this device forgot.
+ */
+export type DestinationInput = {
+  requested: string | null;
+  accountSetupComplete: boolean;
+  deviceSetupComplete: boolean;
+};
+
+/**
+ * Where the "Welcome back" door goes.
+ *
+ * It used to go to `/onboarding` unconditionally — the page's own default — so
+ * an owner who had filled in all three steps, bank details and collection QR
+ * included, was greeted by name and then handed their own phone number to type
+ * again. The door now opens into the console for anybody either record says is
+ * set up, and into setup only for an owner who genuinely has not finished.
+ */
+export function welcomeDestination(input: DestinationInput): string {
+  if (input.requested) return input.requested;
+  return input.accountSetupComplete || input.deviceSetupComplete ? CONSOLE_HOME : DEFAULT_NEXT;
+}
+
+/**
+ * What the form sends as `next`, or `undefined` for "you decide".
+ *
+ * Omitting it is the point. The endpoint re-answers the question *after* the
+ * credentials are verified, from the account row it can now read — so a
+ * returning owner signing in on a device that has forgotten them still lands in
+ * the console, even though this browser's vault was empty when the page
+ * rendered. A form that always sent its own guess would overwrite that answer
+ * with the stale one, which is exactly how the bug this replaces survived a fix
+ * to the endpoint.
+ */
+export function signInNextParam(input: DestinationInput): string | undefined {
+  if (input.requested) return input.requested;
+  return input.deviceSetupComplete ? CONSOLE_HOME : undefined;
+}
+
+/**
+ * Does the door have to be earned before it opens?
+ *
+ * A door into the console does: behind it are the day's takings, the customer
+ * list and the khata, on a tablet that sits on a counter anybody can reach. A
+ * session cookie proves the *browser* was signed in, not that the person now
+ * tapping Continue is the owner who signed it in — which is the same distinction
+ * the counter PIN and the owner-password gate in Settings are built on.
+ *
+ * A door into setup does not. There is nothing behind it but a form the owner
+ * has not filled in yet, and asking a brand-new sign-up for the password they
+ * typed thirty seconds ago teaches them that the app does not know what it just
+ * did.
+ */
+export function doorNeedsConfirmation(destination: string): boolean {
+  return destination !== DEFAULT_NEXT;
+}
+
 /** Targets `safeNext` refuses because redirecting there would loop. */
 const NEVER_TARGETS = ['/auth', '/api', '/_next'] as const;
 
