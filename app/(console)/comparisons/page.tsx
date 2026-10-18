@@ -16,10 +16,14 @@ export default function ComparisonsPage() {
   const snapshot = useFinancialSnapshot();
   const comparison = getComparisonData(snapshot);
 
+  // Previous-period figures only appear once the ledger holds real prior activity.
+  // Until then the chart shows the current period alone; nothing is invented.
+  const hasHistory = comparison.some((item) => item.previous !== null);
+
   const chartData = comparison.map((item) => ({
     name: item.label,
     Current: Math.round(item.current),
-    Previous: Math.round(item.previous),
+    Previous: item.previous === null ? 0 : Math.round(item.previous),
   }));
 
   return (
@@ -31,6 +35,11 @@ export default function ComparisonsPage() {
           <CardTitle icon={<Columns2 size={17} />}>Current vs previous period</CardTitle>
           <Badge tone="brand" dot>Live from ledger</Badge>
         </div>
+        {!hasHistory && (
+          <p className="mb-4 text-sm text-stone-600">
+            There is no previous-period activity in the ledger yet, so only the current period is shown.
+          </p>
+        )}
         <div className="h-72 w-full">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -48,7 +57,8 @@ export default function ComparisonsPage() {
 
       <div className="grid gap-6 md:grid-cols-2">
         {comparison.map((item) => {
-          const change = item.previous > 0 ? ((item.current - item.previous) / item.previous) * 100 : 0;
+          const previous = item.previous;
+          const change = previous !== null && previous > 0 ? ((item.current - previous) / previous) * 100 : 0;
           const improving = item.label === 'Operating Expenses' ? change <= 0 : change >= 0;
           const TrendIcon = change >= 0 ? ArrowUpRight : ArrowDownRight;
           return (
@@ -58,9 +68,13 @@ export default function ComparisonsPage() {
                   <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600"><Columns2 size={16} /></span>
                   <h2 className="text-base font-semibold text-stone-900">{item.label}</h2>
                 </div>
-                <Badge tone={improving ? 'emerald' : 'red'}>
-                  <span className="inline-flex items-center gap-1"><TrendIcon size={12} /> {change >= 0 ? '+' : ''}{change.toFixed(1)}%</span>
-                </Badge>
+                {previous === null || previous <= 0 ? (
+                  <Badge tone="brand">No prior period yet</Badge>
+                ) : (
+                  <Badge tone={improving ? 'emerald' : 'red'}>
+                    <span className="inline-flex items-center gap-1"><TrendIcon size={12} /> {change >= 0 ? '+' : ''}{change.toFixed(1)}%</span>
+                  </Badge>
+                )}
               </div>
               <div className="mt-5 grid grid-cols-2 gap-3">
                 <div className="rounded-2xl bg-brand-500/[0.08] p-4 ring-1 ring-inset ring-brand-500/20">
@@ -69,12 +83,16 @@ export default function ComparisonsPage() {
                 </div>
                 <div className="rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
                   <p className="text-xs font-semibold uppercase tracking-wide text-stone-600">Previous</p>
-                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-stone-600">{formatCurrency(item.previous)}</p>
+                  <p className="mt-1.5 font-display text-xl font-bold tabular-nums text-stone-600">
+                    {previous === null ? 'Not recorded yet' : formatCurrency(previous)}
+                  </p>
                 </div>
               </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-100">
-                <div className="h-full rounded-full bg-brand-gradient transition-all duration-700" style={{ width: `${Math.min(Math.abs(change), 100)}%`, opacity: item.label === 'Operating Expenses' ? 0.6 : 1 }} />
-              </div>
+              {previous !== null && (
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-stone-100">
+                  <div className="h-full rounded-full bg-brand-gradient transition-all duration-700" style={{ width: `${Math.min(Math.abs(change), 100)}%`, opacity: item.label === 'Operating Expenses' ? 0.6 : 1 }} />
+                </div>
+              )}
             </Card>
           );
         })}

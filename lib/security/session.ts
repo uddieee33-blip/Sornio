@@ -76,7 +76,12 @@ async function sign(payloadSegment: string, secret: string): Promise<string> {
 export function resolveSessionSecret(): string {
   const configured = (process.env.DUKAANOS_SESSION_SECRET ?? '').trim();
   if (configured.length >= 32) return configured;
-  // Deterministic-per-host fallback so local mode still gets integrity checks.
+  // Production fails closed. The old fallback was derived from a public URL, so
+  // anyone could forge a session for any tenant on a deployment that forgot the
+  // secret. Local development keeps a fixed fallback so `next dev` still works.
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('DUKAANOS_SESSION_SECRET (32+ characters) is required in production. Refusing to sign sessions without it.');
+  }
   return `dukaanos-local::${process.env.NEXT_PUBLIC_APP_URL ?? 'sandbox'}::v1`;
 }
 

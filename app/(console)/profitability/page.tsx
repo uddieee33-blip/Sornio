@@ -15,7 +15,7 @@ import { useDukaanStore } from '@/lib/store';
 export default function ProfitabilityPage() {
   useLocaleRefresh();
   const { state } = useDukaanStore();
-  const financials = summarizeFinancials(state.transactions);
+  const financials = summarizeFinancials(state.transactions, state.products);
 
   // Product-level profitability from traceable sale line items.
   const productRows = useMemo(() => {

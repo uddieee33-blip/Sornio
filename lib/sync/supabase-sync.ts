@@ -6,13 +6,22 @@
  *  - With placeholder credentials → never touches the network.
  *  - With real credentials + a signed-in user → syncs tenant-scoped rows.
  *
- * The adapter is deliberately conservative: push is debounced from the
- * store provider, pull is explicit (owner-triggered), and every failure is
- * reported as a status rather than crashing the app.
+ * Repairs in this file (see the recovery plan, October 2026):
+ *  - A push is ONE database call (`push_tenant_snapshot`). The old code deleted
+ *    every table and then inserted, so a failure midway left the cloud empty.
+ *    A function runs in a single transaction: all of it, or none of it.
+ *  - Row ids are stable. The same local record always maps to the same uuid,
+ *    so a re-sync replaces rather than duplicates, and history keeps its links.
+ *  - The database refuses an empty snapshot over a populated business, so a
+ *    device that has not restored yet cannot wipe the shop.
+ *  - `fetchCloudSnapshot` restores the catalogue, ledger, customers and stock
+ *    ledger onto an empty device. It used to return a text summary and nothing
+ *    reached the screen.
  */
 import { getBrowserSupabaseClient } from '@/lib/supabase/client';
-import type { StoreState } from '@/lib/store';
-import type { StockMovementReason } from '@/lib/inventory';
+import type { StoreState, Customer } from '@/lib/store';
+import type { Product, Transaction } from '@/lib/business-data';
+import { STOCK_LEDGER_LIMIT, type StockMovement, type StockMovementReason } from '@/lib/inventory';
 
 export type SyncStatus = 'local' | 'idle' | 'syncing' | 'synced' | 'error';
 
@@ -29,9 +38,18 @@ const SYNC_MOVEMENT_TYPE: Record<StockMovementReason, 'purchase' | 'sale' | 'adj
   return: 'return',
 };
 
+const REASON_FROM_TYPE: Record<string, StockMovementReason> = {
+  opening: 'opening',
+  sale: 'sale',
+  purchase: 'goods-inward',
+  adjustment: 'count',
+  return: 'return',
+};
+
 export type SyncResult = { ok: boolean; error?: string };
 
 const BUSINESS_ID_KEY = 'dukaanos-business-id';
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export function getCachedBusinessId(): string | null {
   try {
@@ -49,6 +67,20 @@ function cacheBusinessId(id: string) {
   }
 }
 
+/**
+ * A deterministic uuid for a local record, scoped to its business. Local ids
+ * like `p1` or `t-8f2c…` are not uuids, and a fresh random uuid per push would
+ * make every sync a new set of rows. A uuid that is already a uuid (a record
+ * restored from the cloud) is kept as it is.
+ */
+export async function stableId(businessId: string, kind: string, localId: string): Promise<string> {
+  if (UUID_RE.test(localId)) return localId.toLowerCase();
+  const bytes = new TextEncoder().encode(`dukaanos:${businessId}:${kind}:${localId}`);
+  const digest = new Uint8Array(await crypto.subtle.digest('SHA-256', bytes));
+  const hex = Array.from(digest.subarray(0, 16), (b) => b.toString(16).padStart(2, '0')).join('');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-5${hex.slice(13, 16)}-8${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
+}
+
 /** Ensure a business row + owner membership exist for the signed-in user. */
 export async function ensureBusiness(businessName = 'My Business'): Promise<{ id: string } | { error: string }> {
   const supabase = getBrowserSupabaseClient();
@@ -62,7 +94,7 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
     if (existing) return { id: existing.id as string };
   }
 
-  // Reuse a business already owned by this user, else create one.
+  // Reuse a business this user already belongs to, else create one.
   const { data: membership } = await supabase
     .from('business_members')
     .select('business_id')
@@ -76,12 +108,9 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
   }
 
   /*
-   * The id is minted here rather than read back from the insert, for the reason
-   * spelled out in `app/api/profile/route.ts`: a `RETURNING` row is served
-   * through the table's SELECT policies, and the policy on `businesses` asks for
-   * a membership row that cannot exist before the business it points at. The
-   * insert would succeed and the read come back empty, so the tenant would never
-   * be provisioned and every push after it would fail the same way.
+   * The id is minted here rather than read back from the insert: a RETURNING
+   * row is served through the table's SELECT policies, which ask for a
+   * membership that cannot exist before the business it points at.
    */
   const businessId = crypto.randomUUID();
 
@@ -90,159 +119,116 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
     .insert({ id: businessId, name: businessName, owner_id: user.id, currency: 'INR' });
   if (businessError) return { error: businessError.message };
 
-  // The database trigger `on_business_created` already seats the creator as
-  // owner; this upsert covers deployments whose schema predates the trigger.
-  // Either path must converge to exactly one row, so a duplicate is success,
-  // not failure — it used to abort the whole first sync.
-  const { error: memberError } = await supabase
-    .from('business_members')
-    .upsert({ business_id: businessId, user_id: user.id, role: 'owner' }, { onConflict: 'business_id,user_id', ignoreDuplicates: true });
-  if (memberError) return { error: memberError.message };
-
+  // The owner membership is written by the database trigger `on_business_created`
+  // (SECURITY DEFINER). Clients cannot insert membership rows any more: that
+  // policy let any signed-in user seat themselves as owner of any business.
   cacheBusinessId(businessId);
   return { id: businessId };
 }
 
-/** Push the core financial records for the tenant to Supabase. */
-export async function pushStateToSupabase(state: StoreState): Promise<SyncResult> {
+/** Build the one payload the database replaces a business's records with. */
+// (See pushStateToSupabase for the single atomic call that consumes it.)
+async function buildSnapshot(state: StoreState, businessId: string) {
   const supabase = getBrowserSupabaseClient();
-  const business = await ensureBusiness(state.profile.name || 'My Business');
-  if ('error' in business) return { ok: false, error: business.error };
-  const businessId = business.id;
 
-  // Keep the tenant row's name in sync with the live business profile.
-  await supabase.from('businesses').update({ name: state.profile.name || 'My Business' }).eq('id', businessId);
-
-  // ---- Products (with category lookup/creation by name) ----
+  // Categories: one per distinct name, stable per business.
   const categoryNames = Array.from(new Set(state.products.map((p) => p.category))).filter(Boolean);
   const categoryIdByName = new Map<string, string>();
-  for (const name of categoryNames) {
-    const { data: existing } = await supabase.from('categories').select('id').eq('business_id', businessId).eq('name', name).maybeSingle();
-    if (existing) {
-      categoryIdByName.set(name, String(existing.id));
-    } else {
-      const { data: created } = await supabase.from('categories').insert({ business_id: businessId, name }).select('id').single();
-      if (created) categoryIdByName.set(name, String(created.id));
-    }
+  for (const name of categoryNames) categoryIdByName.set(name, await stableId(businessId, 'category', name));
+  const categories = categoryNames.map((name) => ({ id: categoryIdByName.get(name), name }));
+
+  const productIdByLocal = new Map<string, string>();
+  for (const product of state.products) {
+    productIdByLocal.set(product.id, await stableId(businessId, 'product', product.id));
   }
 
-  const { error: productDeleteError } = await supabase.from('products').delete().eq('business_id', businessId);
-  if (productDeleteError) return { ok: false, error: `products: ${productDeleteError.message}` };
-  if (state.products.length > 0) {
-    const rows = state.products.map((product) => ({
-      business_id: businessId,
-      name: product.name,
-      item_type: product.itemType,
-      description: product.description ?? product.category,
-      category_id: categoryIdByName.get(product.category) ?? null,
-      selling_price: product.sellingPrice,
-      cost_price: product.cost,
-      tax_rate: product.taxRate ?? 0,
-      current_stock: product.stock,
-      reorder_level: product.reorderLevel,
-      sku: product.sku ?? null,
-      unit: product.unit ?? null,
-      // The codes a counter scanner reads, and how a loose item is weighed.
-      barcode: product.barcode ?? null,
-      internal_code: product.internalCode ?? null,
-      loose_mode: product.looseMode ?? null,
-      scale_number: product.scaleNumber ?? null,
-      active: product.status === 'Active',
-    }));
-    const { error } = await supabase.from('products').insert(rows);
-    if (error) return { ok: false, error: `products: ${error.message}` };
-  }
+  const products = state.products.map((product) => ({
+    id: productIdByLocal.get(product.id),
+    name: product.name,
+    item_type: product.itemType,
+    category_id: categoryIdByName.get(product.category) ?? null,
+    // Description falls back to the category, as it always has.
+    description: product.description ?? product.category,
+    selling_price: product.sellingPrice,
+    cost_price: product.cost,
+    tax_rate: product.taxRate ?? 0,
+    current_stock: product.stock,
+    reorder_level: product.reorderLevel,
+    sku: product.sku ?? null,
+    unit: product.unit ?? null,
+    barcode: product.barcode ?? null,
+    internal_code: product.internalCode ?? null,
+    loose_mode: product.looseMode ?? null,
+    scale_number: product.scaleNumber ?? null,
+    active: product.status === 'Active',
+  }));
 
-  // ---- Transactions (the ledger) ----
-  const { error: txDeleteError } = await supabase.from('transactions').delete().eq('business_id', businessId);
-  if (txDeleteError) return { ok: false, error: `transactions: ${txDeleteError.message}` };
-  if (state.transactions.length > 0) {
-    const txRows = state.transactions.map((tx) => ({
-      business_id: businessId,
+  const transactions = await Promise.all(
+    state.transactions.map(async (tx) => ({
+      id: await stableId(businessId, 'transaction', tx.id),
       type: tx.type,
+      subtype: tx.paymentMethod ?? null,
       amount: tx.amount,
       account_type: tx.account,
       direction: tx.direction,
-      subtype: tx.paymentMethod ?? null,
       notes: tx.description,
+      // The line items of a sale, so product profitability and history survive a
+      // reinstall. Product ids are rewritten to the same stable ids as the catalogue.
+      items: tx.items
+        ? tx.items.map((item) => ({ ...item, productId: productIdByLocal.get(item.productId) ?? item.productId }))
+        : null,
       created_at: `${tx.date}T12:00:00.000Z`,
-    }));
-    const { error } = await supabase.from('transactions').insert(txRows);
-    if (error) return { ok: false, error: `transactions: ${error.message}` };
-  }
+    })),
+  );
 
-  // ---- Customers ----
-  const { error: customerDeleteError } = await supabase.from('customers').delete().eq('business_id', businessId);
-  if (customerDeleteError) return { ok: false, error: `customers: ${customerDeleteError.message}` };
-  if (state.customers.length > 0) {
-    const customerRows = state.customers.map((customer) => ({
-      business_id: businessId,
+  const customers = await Promise.all(
+    state.customers.map(async (customer) => ({
+      id: await stableId(businessId, 'customer', customer.id),
       name: customer.name,
       phone: customer.phone ?? null,
       email: customer.email ?? null,
       notes: customer.details ?? null,
       active: true,
-    }));
-    const { error } = await supabase.from('customers').insert(customerRows);
-    if (error) return { ok: false, error: `customers: ${error.message}` };
-  }
+    })),
+  );
 
-  // ---- Marketing campaigns ----
-  const { error: campaignDeleteError } = await supabase.from('marketing_campaigns').delete().eq('business_id', businessId);
-  if (campaignDeleteError) return { ok: false, error: `marketing_campaigns: ${campaignDeleteError.message}` };
-  if (state.campaigns.length > 0) {
-    const campaignRows = state.campaigns.map((campaign) => ({
-      business_id: businessId,
+  const campaigns = await Promise.all(
+    state.campaigns.map(async (campaign) => ({
+      id: await stableId(businessId, 'campaign', campaign.id),
       name: campaign.name,
       channel: campaign.channel,
       spend: campaign.spend,
       notes: campaign.notes ?? null,
       start_date: campaign.startDate,
-    }));
-    const { error } = await supabase.from('marketing_campaigns').insert(campaignRows);
-    if (error) return { ok: false, error: `marketing_campaigns: ${error.message}` };
-  }
+    })),
+  );
 
-  // ---- Scan events (the counter's read log, including unmatched codes) ----
-  const { error: scanDeleteError } = await supabase.from('scan_events').delete().eq('business_id', businessId);
-  if (scanDeleteError) return { ok: false, error: `scan_events: ${scanDeleteError.message}` };
-  if (state.scanEvents.length > 0) {
-    const scanRows = state.scanEvents.slice(0, 500).map((event) => ({
-      business_id: businessId,
+  // The counter's read log, including codes that matched nothing.
+  const scanEvents = await Promise.all(
+    state.scanEvents.slice(0, 2000).map(async (event) => ({
+      id: await stableId(businessId, 'scan', event.id),
       code: event.code,
       symbology: event.symbology,
       source: event.source,
       context: event.context,
       outcome: event.outcome,
-      // Product ids are minted client-side and re-created on push, so the
-      // readable name travels with the row; the link is best-effort.
-      product_id: null,
+      product_id: event.productId ? (productIdByLocal.get(event.productId) ?? null) : null,
       product_name: event.productName ?? null,
       quantity: event.quantity ?? null,
       scanned_by: event.by ?? null,
       created_at: event.at,
-    }));
-    const { error } = await supabase.from('scan_events').insert(scanRows);
-    if (error) return { ok: false, error: `scan_events: ${error.message}` };
-  }
+    })),
+  );
 
-  // ---- Stock ledger (see lib/inventory) ----
-  // The movement history is the shop's proof for every on-hand figure, so it
-  // travels with the data: same signed delta, same balance it produced. Keyed by
-  // the device's movement id, and matched to the item by name (the same way the
-  // rest of this push resolves products) so a re-sync updates rather than
-  // duplicates.
-  const { error: movementDeleteError } = await supabase.from('inventory_movements').delete().eq('business_id', businessId);
-  if (movementDeleteError) return { ok: false, error: `inventory_movements: ${movementDeleteError.message}` };
-  if (state.stockMovements.length > 0) {
-    const productRows = await supabase.from('products').select('id, name').eq('business_id', businessId);
-    const productIdByName = new Map<string, string>((productRows.data ?? []).map((row) => [String(row.name), String(row.id)]));
-    const movementRows = state.stockMovements.slice(0, 2000).flatMap((movement) => {
-      const productId = productIdByName.get(movement.productName);
+  // The stock ledger is the proof behind every on-hand figure, so it is sent in
+  // full up to the local ledger limit (it used to stop at 2,000 silently).
+  const stockMovements = await Promise.all(
+    state.stockMovements.slice(0, STOCK_LEDGER_LIMIT).flatMap((movement) => {
+      const productId = productIdByLocal.get(movement.productId);
       if (!productId) return [];
       return [
-        {
-          business_id: businessId,
+        (async () => ({
+          id: await stableId(businessId, 'movement', movement.id),
           product_id: productId,
           movement_type: SYNC_MOVEMENT_TYPE[movement.reason],
           quantity: Math.abs(movement.delta),
@@ -253,59 +239,91 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
           unit: movement.unit ?? null,
           notes: movement.note,
           created_at: movement.at,
-        },
+        }))(),
       ];
-    });
-    if (movementRows.length > 0) {
-      const { error } = await supabase.from('inventory_movements').insert(movementRows);
-      if (error) return { ok: false, error: `inventory_movements: ${error.message}` };
-    }
-  }
+    }),
+  );
 
-  // ---- Fingerprint enrolments (credential ids only — never biometric data) ----
-  const { error: biometricDeleteError } = await supabase.from('biometric_credentials').delete().eq('business_id', businessId);
-  if (biometricDeleteError) return { ok: false, error: `biometric_credentials: ${biometricDeleteError.message}` };
+  // Fingerprint enrolments: credential ids only, never biometric data. Members
+  // are matched by name, as products always were; the member table is not rewritten.
+  let biometricCredentials: Record<string, unknown>[] = [];
   if (state.biometricCredentials.length > 0) {
-    const memberRows = await supabase.from('members').select('id, name').eq('business_id', businessId);
-    const memberIdByName = new Map<string, string>(
-      (memberRows.data ?? []).map((row) => [String(row.name), String(row.id)]),
+    const { data: memberRows } = await supabase.from('members').select('id, name').eq('business_id', businessId);
+    const memberIdByName = new Map<string, string>((memberRows ?? []).map((row) => [String(row.name), String(row.id)]));
+    biometricCredentials = await Promise.all(
+      state.biometricCredentials.flatMap((credential) => {
+        const memberId = memberIdByName.get(credential.memberName);
+        if (!memberId) return [];
+        return [
+          (async () => ({
+            id: await stableId(businessId, 'biometric', credential.credentialId),
+            member_id: memberId,
+            credential_id: credential.credentialId,
+            attachment: credential.attachment,
+            label: credential.label,
+            use_count: credential.useCount,
+            last_used_at: credential.lastUsedAt ?? null,
+            created_at: credential.createdAt,
+          }))(),
+        ];
+      }),
     );
-    const biometricRows = state.biometricCredentials.flatMap((credential) => {
-      const memberId = memberIdByName.get(credential.memberName);
-      if (!memberId) return [];
-      return [
-        {
-          business_id: businessId,
-          member_id: memberId,
-          credential_id: credential.credentialId,
-          attachment: credential.attachment,
-          label: credential.label,
-          use_count: credential.useCount,
-          last_used_at: credential.lastUsedAt ?? null,
-          created_at: credential.createdAt,
-        },
-      ];
-    });
-    if (biometricRows.length > 0) {
-      const { error } = await supabase.from('biometric_credentials').insert(biometricRows);
-      if (error) return { ok: false, error: `biometric_credentials: ${error.message}` };
+  }
+
+  return {
+    categories,
+    products,
+    transactions,
+    customers,
+    campaigns,
+    scanEvents,
+    stockMovements,
+    biometricCredentials,
+  };
+}
+
+/** Push the tenant's records to Supabase in one atomic database call. */
+export async function pushStateToSupabase(state: StoreState): Promise<SyncResult> {
+  const supabase = getBrowserSupabaseClient();
+  const business = await ensureBusiness(state.profile.name || 'My Business');
+  if ('error' in business) return { ok: false, error: business.error };
+  const businessId = business.id;
+
+  // Keep the tenant row's name in sync with the live business profile.
+  await supabase.from('businesses').update({ name: state.profile.name || 'My Business' }).eq('id', businessId);
+
+  const snapshot = await buildSnapshot(state, businessId);
+  const { error } = await supabase.rpc('push_tenant_snapshot', {
+    p_business_id: businessId,
+    p_snapshot: snapshot,
+    p_allow_empty: false,
+  });
+  if (error) {
+    // P0001: this device has nothing but the cloud has records. Nothing was written.
+    if (error.code === 'P0001') {
+      return { ok: false, error: 'This device has no records yet, but the cloud copy does. Restore from the cloud before syncing.' };
     }
+    return { ok: false, error: `sync: ${error.message}` };
   }
 
-  // ---- Audit log (append-only) ----
+  // Audit trail: append-only, deduplicated by a stable id so each push only adds
+  // entries the cloud has not seen. (It used to re-insert the same 50 every push.)
   if (state.audit.length > 0) {
-    const auditRows = state.audit.slice(0, 50).map((entry) => ({
-      business_id: businessId,
-      actor_user_id: null,
-      entity_type: entry.type,
-      action: entry.type,
-      details: { summary: entry.summary, actor: entry.actor, reference: entry.reference ?? null, at: entry.createdAt },
-      created_at: entry.createdAt,
-    }));
-    await supabase.from('audit_logs').insert(auditRows);
+    const auditRows = await Promise.all(
+      state.audit.slice(0, 300).map(async (entry) => ({
+        id: await stableId(businessId, 'audit', `${entry.createdAt}|${entry.type}|${entry.summary}`),
+        business_id: businessId,
+        actor_user_id: null,
+        entity_type: entry.type,
+        action: entry.type,
+        details: { summary: entry.summary, actor: entry.actor, reference: entry.reference ?? null, at: entry.createdAt },
+        created_at: entry.createdAt,
+      })),
+    );
+    await supabase.from('audit_logs').upsert(auditRows, { onConflict: 'id', ignoreDuplicates: true });
   }
 
-  // ---- Business settings ----
+  // Business settings: one row per business, updated in place.
   const { data: settingsRow } = await supabase.from('business_settings').select('id').eq('business_id', businessId).maybeSingle();
   const settingsPayload = {
     receipt_mode: state.settings.receiptMode,
@@ -328,42 +346,115 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
   return { ok: true };
 }
 
+export type CloudSnapshot = {
+  products: Product[];
+  transactions: Transaction[];
+  customers: Customer[];
+  stockMovements: StockMovement[];
+};
+
 /**
- * Pull the tenant's persisted records back into the app.
- * Owner-triggered only — never overwrites local work silently.
+ * Read the tenant's records back in the console's own shapes, for restoring an
+ * empty device. Read-only: it never writes to the cloud or to local state. The
+ * caller decides whether to apply it.
+ *
+ * Not carried by the cloud schema (so not restored): a customer's opening balance
+ * and bank/UPI details, and the audit chain's hashes.
  */
-export async function pullStateFromSupabase(): Promise<{ ok: boolean; error?: string; summary?: string }> {
+export async function fetchCloudSnapshot(): Promise<
+  { ok: true; empty: boolean; snapshot: CloudSnapshot } | { ok: false; error: string }
+> {
   const supabase = getBrowserSupabaseClient();
-  const cached = getCachedBusinessId();
-  if (!cached) return { ok: false, error: 'No business connected on this device yet.' };
+  // A brand-new device has no cached business yet: find the one this user belongs to.
+  let businessId = getCachedBusinessId();
+  if (!businessId) {
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData?.user?.id;
+    if (!userId) return { ok: false, error: 'Not signed in.' };
+    const { data: membership } = await supabase
+      .from('business_members')
+      .select('business_id')
+      .eq('user_id', userId)
+      .limit(1)
+      .maybeSingle();
+    if (!membership?.business_id) return { ok: false, error: 'No business connected to this account yet.' };
+    businessId = String(membership.business_id);
+    cacheBusinessId(businessId);
+  }
 
-  const [{ data: productRows }, { data: txRows }, { data: customerRows }, { data: scanRows }, { data: credentialRows }] =
-    await Promise.all([
-      supabase.from('products').select('*').eq('business_id', cached),
-      supabase.from('transactions').select('*').eq('business_id', cached).order('created_at', { ascending: true }),
-      supabase.from('customers').select('*').eq('business_id', cached),
-      // Capture records: the scan log and the enrolled credential ids. Both are
-      // additive to the catalogue above, so a missing table (an older project
-      // that has not run Increment 8 yet) must not turn the whole pull into an
-      // error — the summary simply says they are not there.
-      supabase.from('scan_events').select('code, outcome').eq('business_id', cached),
-      supabase.from('biometric_credentials').select('member_id, credential_id, use_count').eq('business_id', cached),
-    ]);
+  const [productRes, txRes, customerRes, movementRes] = await Promise.all([
+    supabase.from('products').select('*, categories(name)').eq('business_id', businessId),
+    supabase.from('transactions').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
+    supabase.from('customers').select('*').eq('business_id', businessId),
+    supabase.from('inventory_movements').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
+  ]);
+  const failed = [productRes, txRes, customerRes, movementRes].find((res) => res.error);
+  if (failed?.error) return { ok: false, error: failed.error.message };
 
-  const products = productRows ?? [];
-  const coded = products.filter(
-    (row) => (typeof row.barcode === 'string' && row.barcode !== '') || (typeof row.internal_code === 'string' && row.internal_code !== ''),
-  ).length;
-  const unmatched = (scanRows ?? []).filter((row) => row.outcome === 'unmatched').length;
+  const productRows = productRes.data ?? [];
+  const nameById = new Map<string, string>(productRows.map((row) => [String(row.id), String(row.name)]));
 
-  const capture: string[] = [];
-  if (coded > 0) capture.push(`, ${coded} carrying a scannable code`);
-  if (scanRows) capture.push(`, ${scanRows.length} scans on record${unmatched > 0 ? ` (${unmatched} still waiting for a code)` : ''}`);
-  if (credentialRows) capture.push(`, ${credentialRows.length} fingerprint enrolment${credentialRows.length === 1 ? '' : 's'}`);
-  if (scanRows === null && credentialRows === null) capture.push('; no capture tables found — run the scanning section of supabase/schema.sql');
+  const products: Product[] = productRows.map((row) => {
+    const category = (row.categories as { name?: string } | null)?.name ?? String(row.description ?? 'General');
+    return {
+      id: String(row.id),
+      name: String(row.name),
+      category,
+      itemType: row.item_type === 'service' ? 'service' : 'product',
+      sellingPrice: Number(row.selling_price),
+      cost: Number(row.cost_price),
+      stock: Number(row.current_stock),
+      reorderLevel: Number(row.reorder_level),
+      status: row.active === false ? 'Inactive' : 'Active',
+      taxRate: Number(row.tax_rate) || undefined,
+      description: (row.description as string | null) ?? undefined,
+      sku: (row.sku as string | null) ?? undefined,
+      unit: (row.unit as string | null) ?? undefined,
+      barcode: (row.barcode as string | null) ?? undefined,
+      internalCode: (row.internal_code as string | null) ?? undefined,
+      looseMode: (row.loose_mode as Product['looseMode']) ?? undefined,
+      scaleNumber: (row.scale_number as number | null) ?? undefined,
+    };
+  });
+
+  const transactions: Transaction[] = (txRes.data ?? []).map((row) => ({
+    id: String(row.id),
+    type: row.type as Transaction['type'],
+    description: String(row.notes ?? ''),
+    amount: Number(row.amount),
+    direction: row.direction as Transaction['direction'],
+    account: row.account_type as Transaction['account'],
+    paymentMethod: (row.subtype as Transaction['paymentMethod']) ?? undefined,
+    date: String(row.created_at).slice(0, 10),
+    items: (row.items as Transaction['items']) ?? undefined,
+  }));
+
+  const customers: Customer[] = (customerRes.data ?? []).map((row) => ({
+    id: String(row.id),
+    name: String(row.name),
+    phone: (row.phone as string | null) ?? undefined,
+    email: (row.email as string | null) ?? undefined,
+    details: (row.notes as string | null) ?? undefined,
+    openingBalance: 0,
+    createdAt: String(row.created_at),
+  }));
+
+  const stockMovements: StockMovement[] = (movementRes.data ?? []).map((row) => ({
+    id: String(row.movement_key ?? row.id),
+    productId: String(row.product_id),
+    productName: nameById.get(String(row.product_id)) ?? 'Item',
+    at: String(row.created_at),
+    reason: REASON_FROM_TYPE[String(row.movement_type)] ?? 'count',
+    delta: Number(row.delta ?? 0),
+    balance: Number(row.balance_after ?? 0),
+    note: String(row.notes ?? ''),
+    reference: (row.reference_text as string | null) ?? undefined,
+    unit: (row.unit as string | null) ?? undefined,
+  }));
 
   return {
     ok: true,
-    summary: `Found ${products.length} products${capture.join('')}, ${(txRows?.length ?? 0)} ledger entries, ${(customerRows?.length ?? 0)} customers for this business.`,
+    empty: products.length === 0 && transactions.length === 0 && customers.length === 0,
+    snapshot: { products, transactions, customers, stockMovements },
   };
 }

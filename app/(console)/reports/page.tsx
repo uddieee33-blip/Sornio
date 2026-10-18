@@ -17,7 +17,7 @@ import { ExportButton } from '@/components/export/export-button';
 export default function ReportsPage() {
   useLocaleRefresh();
   const { state } = useDukaanStore();
-  const financials = summarizeFinancials(state.transactions);
+  const financials = summarizeFinancials(state.transactions, state.products);
   const revenueByCategory = revenueByCategoryHint(state.transactions);
   const expenseByCategory = expensesByCategory(state.transactions);
   const byMethod = paymentsByMethod(state.transactions);

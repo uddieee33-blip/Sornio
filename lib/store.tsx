@@ -1099,6 +1099,40 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     };
   }, [state.profile, syncingEnabled]);
 
+  // Restore onto an empty device. A new phone, a reinstall, or a cleared browser
+  // starts with nothing; the cloud may already hold the shop's records. Once per
+  // session, and only into a device that has no records at all — never over
+  // local work. The push guard in the database refuses an empty snapshot over
+  // a populated business, so the order of these two effects cannot lose data.
+  const restoreAttempted = useRef(false);
+  useEffect(() => {
+    if (!hydrated || !supabaseMode || !authed || restoreAttempted.current) return;
+    restoreAttempted.current = true;
+    import('@/lib/sync/supabase-sync')
+      .then(({ fetchCloudSnapshot }) => fetchCloudSnapshot())
+      .then((result) => {
+        if (!result.ok || result.empty) return;
+        const cloud = result.snapshot;
+        setState((current) => {
+          const deviceIsEmpty =
+            current.products.length === 0 && current.transactions.length === 0 && current.customers.length === 0;
+          if (!deviceIsEmpty || current.demoMode) return current;
+          return {
+            ...current,
+            products: cloud.products,
+            transactions: cloud.transactions,
+            customers: cloud.customers,
+            stockMovements: cloud.stockMovements,
+          };
+        });
+      })
+      .catch(() => {
+        // Offline or throttled: the device keeps working on what it has. The
+        // next session tries again.
+        restoreAttempted.current = false;
+      });
+  }, [hydrated, supabaseMode, authed]);
+
   // Debounced push: any state change schedules a background sync 2s later.
   useEffect(() => {
     if (!syncingEnabled) return;
@@ -2365,5 +2399,5 @@ export function useDukaanSelector<T>(select: (state: StoreState) => T): T {
 /** Convenience selector: the financial snapshot recomputed from live transactions. */
 export function useFinancialSnapshot() {
   const { state } = useDukaanStore();
-  return useMemo(() => summarizeFinancials(state.transactions), [state.transactions]);
+  return useMemo(() => summarizeFinancials(state.transactions, state.products), [state.transactions, state.products]);
 }

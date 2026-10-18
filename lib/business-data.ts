@@ -1,4 +1,5 @@
 import { getActiveFormattingLocale } from './locale';
+import { stockValueAtCost } from './inventory';
 
 export type Product = {
   id: string;
@@ -121,7 +122,7 @@ export type BusinessSnapshot = {
  * Financial values are ONLY calculated from transaction records.
  * No values are hardcoded or fabricated.
  */
-export function summarizeFinancials(transactions: Transaction[]): BusinessSnapshot {
+export function summarizeFinancials(transactions: Transaction[], products: Product[]): BusinessSnapshot {
   // REVENUE: sum of all sales recorded as incoming revenue
   const revenue = transactions
     .filter((t) => t.type === 'sale' && t.direction === 'in')
@@ -144,12 +145,13 @@ export function summarizeFinancials(transactions: Transaction[]): BusinessSnapsh
 
   const netRevenue = revenue - refunds;
 
-  // GROSS PROFIT: revenue - COGS
-  const grossProfit = Math.max(netRevenue - cogs, 0);
+  // GROSS PROFIT: revenue - COGS. A loss is shown as a negative figure, never
+  // clamped to zero: clamping hid trading losses from the owner.
+  const grossProfit = netRevenue - cogs;
   const grossMargin = netRevenue > 0 ? (grossProfit / netRevenue) * 100 : 0;
 
   // OPERATING PROFIT: gross profit - operating expenses
-  const operatingProfit = Math.max(grossProfit - operatingExpenses, 0);
+  const operatingProfit = grossProfit - operatingExpenses;
 
   // NET PROFIT: operating profit (simplified, excluding taxes for now)
   const netProfit = operatingProfit;
@@ -169,27 +171,27 @@ export function summarizeFinancials(transactions: Transaction[]): BusinessSnapsh
   // CASH BALANCE: net cash flow from recorded transactions
   const cashBalance = netCashFlow;
 
-  // INVENTORY VALUE: total value of stock adjustments (negative means stock was consumed)
-  const inventoryValue = Math.abs(
+  // INVENTORY VALUE: stock on the shelf today, at cost (on-hand x cost, from the
+  // catalogue). It used to sum stock adjustments, which is the cost of goods
+  // already sold, not the stock still held.
+  const inventoryValue = stockValueAtCost(products);
+
+  // Per-account balances are net: money in less money out. Expenses and payments
+  // post an outflow to the account they were paid from, so counting inflows alone
+  // overstated every account that spends.
+  const netFor = (account: Transaction['account']) =>
     transactions
-      .filter((t) => t.type === 'stock_adjustment')
-      .reduce((sum, t) => sum + (t.direction === 'out' ? -t.amount : t.amount), 0),
-  );
+      .filter((t) => t.account === account)
+      .reduce((sum, t) => sum + (t.direction === 'in' ? t.amount : -t.amount), 0);
 
-  // BANK BALANCE: sum of bank transfers in
-  const bankBalance = transactions
-    .filter((t) => t.account === 'bank' && t.direction === 'in')
-    .reduce((sum, t) => sum + t.amount, 0);
+  // BANK BALANCE: net bank account movement
+  const bankBalance = netFor('bank');
 
-  // UPI BALANCE: sum of UPI payments in
-  const upiBalance = transactions
-    .filter((t) => t.account === 'upi' && t.direction === 'in')
-    .reduce((sum, t) => sum + t.amount, 0);
+  // UPI BALANCE: net UPI account movement
+  const upiBalance = netFor('upi');
 
-  // CARD RECEIVABLES: sum of card payments not yet settled
-  const cardReceivables = transactions
-    .filter((t) => t.account === 'card' && t.direction === 'in')
-    .reduce((sum, t) => sum + t.amount, 0);
+  // CARD: net card account movement (settlement is not modelled yet)
+  const cardReceivables = netFor('card');
 
   // CUSTOMER RECEIVABLES: unpaid sales (tracked separately, not calculated from this demo data)
   // In a real system, this would be sales with status='unpaid'
@@ -253,19 +255,24 @@ export function getAlerts(snapshot: BusinessSnapshot, products: Product[]) {
 
 export function getInsights(snapshot: BusinessSnapshot) {
   return [
-    `Revenue increased to ${formatCurrency(snapshot.revenue)} because sales were recorded in the current period.`,
+    `Net revenue recorded is ${formatCurrency(snapshot.revenue)}.`,
     `Cash balance is ${formatCurrency(snapshot.cashBalance)} after recorded inflows and outflows.`,
-    `Inventory decreased because stock was consumed through sales and stock adjustments.`,
+    `Inventory on hand is worth ${formatCurrency(snapshot.inventoryValue)} at cost.`,
     `Gross profit is ${formatCurrency(snapshot.grossProfit)} at ${snapshot.grossMargin.toFixed(1)}% margin.`,
   ];
 }
 
-export function getComparisonData(snapshot: BusinessSnapshot) {
+/**
+ * Current figures against the previous period. `previous` is null until the
+ * ledger holds real prior-period activity. It used to be the current figure
+ * multiplied by invented factors (0.82, 0.76, 1.13, 0.91) and presented as history.
+ */
+export function getComparisonData(snapshot: BusinessSnapshot): { label: string; current: number; previous: number | null }[] {
   return [
-    { label: 'Revenue', current: snapshot.revenue, previous: Math.max(snapshot.revenue * 0.82, 0) },
-    { label: 'Gross Profit', current: snapshot.grossProfit, previous: Math.max(snapshot.grossProfit * 0.76, 0) },
-    { label: 'Operating Expenses', current: snapshot.operatingExpenses, previous: Math.max(snapshot.operatingExpenses * 1.13, 0) },
-    { label: 'Net Cash Flow', current: snapshot.netCashFlow, previous: Math.max(snapshot.netCashFlow * 0.91, 0) },
+    { label: 'Revenue', current: snapshot.revenue, previous: null },
+    { label: 'Gross Profit', current: snapshot.grossProfit, previous: null },
+    { label: 'Operating Expenses', current: snapshot.operatingExpenses, previous: null },
+    { label: 'Net Cash Flow', current: snapshot.netCashFlow, previous: null },
   ];
 }
 
