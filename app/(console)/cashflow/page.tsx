@@ -15,7 +15,7 @@ import { useDukaanStore } from '@/lib/store';
 export default function CashFlowPage() {
   useLocaleRefresh();
   const { state } = useDukaanStore();
-  const financials = summarizeFinancials(state.transactions, state.products);
+  const financials = summarizeFinancials(state.transactions, state.products, state.customers);
   const inflows = cashInSeries(state.transactions);
   const outflows = cashOutSeries(state.transactions);
 

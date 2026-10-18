@@ -52,7 +52,7 @@ export type Transaction = {
   amount: number;
   direction: 'in' | 'out';
   account: 'cash' | 'bank' | 'upi' | 'card' | 'receivables' | 'payables' | 'revenue' | 'expense' | 'inventory';
-  paymentMethod?: 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Other';
+  paymentMethod?: 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Credit' | 'Other';
   date: string;
   /** Present on sale transactions: the exact items sold (product profitability + history). */
   items?: SaleItemRef[];
@@ -122,7 +122,11 @@ export type BusinessSnapshot = {
  * Financial values are ONLY calculated from transaction records.
  * No values are hardcoded or fabricated.
  */
-export function summarizeFinancials(transactions: Transaction[], products: Product[]): BusinessSnapshot {
+export function summarizeFinancials(
+  transactions: Transaction[],
+  products: Product[],
+  customers: Array<{ openingBalance?: number }> = [],
+): BusinessSnapshot {
   // REVENUE: sum of all sales recorded as incoming revenue
   const revenue = transactions
     .filter((t) => t.type === 'sale' && t.direction === 'in')
@@ -193,13 +197,14 @@ export function summarizeFinancials(transactions: Transaction[], products: Produ
   // CARD: net card account movement (settlement is not modelled yet)
   const cardReceivables = netFor('card');
 
-  // CUSTOMER RECEIVABLES: unpaid sales (tracked separately, not calculated from this demo data)
-  // In a real system, this would be sales with status='unpaid'
-  const customerReceivables = 0;
+  // CUSTOMER RECEIVABLES: credit sales and opening balances, less dues collected.
+  // Collections are not yet attributed to a single customer, so the balance is
+  // one shop-wide figure; the opening balances are added here.
+  const openingDues = customers.reduce((sum, customer) => sum + (customer.openingBalance ?? 0), 0);
+  const customerReceivables = netFor('receivables') + openingDues;
 
-  // PAYABLES: unpaid expenses to suppliers (tracked separately)
-  // In a real system, this would be from supplier invoice records
-  const payables = 0;
+  // PAYABLES: goods received on credit, less supplier payments.
+  const payables = netFor('payables');
 
   return {
     revenue: netRevenue,
@@ -224,6 +229,16 @@ export function summarizeFinancials(transactions: Transaction[], products: Produ
 
 export function getAlerts(snapshot: BusinessSnapshot, products: Product[]) {
   const alerts: { type: string; message: string; tone: 'amber' | 'red' | 'sky' }[] = [];
+
+  // Stock below zero means a sale or a count ran ahead of the recorded deliveries.
+  const oversold = products.filter((p) => p.itemType !== 'service' && p.stock < 0);
+  if (oversold.length > 0) {
+    alerts.push({
+      type: 'oversold',
+      message: `${oversold.length} item(s) show negative stock — check the count against the shelf and record any missing delivery.`,
+      tone: 'red',
+    });
+  }
 
   const lowStockProducts = products.filter((p) => p.stock <= p.reorderLevel && p.status === 'Active');
   if (lowStockProducts.length > 0) {

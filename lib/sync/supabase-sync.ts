@@ -7,7 +7,7 @@
  *  - With real credentials + a signed-in user → syncs tenant-scoped rows.
  *
  * Repairs in this file (see the recovery plan, October 2026):
- *  - A push is ONE database call (`push_tenant_snapshot`). The old code deleted
+ *  - A push is ONE database call (`sync_tenant_snapshot`). The old code deleted
  *    every table and then inserted, so a failure midway left the cloud empty.
  *    A function runs in a single transaction: all of it, or none of it.
  *  - Row ids are stable. The same local record always maps to the same uuid,
@@ -189,6 +189,8 @@ async function buildSnapshot(state: StoreState, businessId: string) {
       email: customer.email ?? null,
       notes: customer.details ?? null,
       active: true,
+      opening_balance: customer.openingBalance ?? 0,
+      bank_details: customer.bank ?? null,
     })),
   );
 
@@ -282,67 +284,75 @@ async function buildSnapshot(state: StoreState, businessId: string) {
   };
 }
 
-/** Push the tenant's records to Supabase in one atomic database call. */
+/** What a counter device may not do is a message the owner can act on, not a code. */
+function explainSyncError(error: { code?: string; message: string }): string {
+  if (error.code === '42501') return 'Your role on this business cannot change its records. Ask the owner or a manager.';
+  return `sync: ${error.message}`;
+}
+
+/**
+ * Push the tenant's records to Supabase in one atomic, role-aware call.
+ * The database decides what this member may write (see sync_tenant_snapshot):
+ * a counter device's catalogue and settings are ignored, a viewer's push is
+ * refused, and ledger lines are only ever added.
+ */
 export async function pushStateToSupabase(state: StoreState): Promise<SyncResult> {
   const supabase = getBrowserSupabaseClient();
   const business = await ensureBusiness(state.profile.name || 'My Business');
   if ('error' in business) return { ok: false, error: business.error };
   const businessId = business.id;
 
-  // Keep the tenant row's name in sync with the live business profile.
-  await supabase.from('businesses').update({ name: state.profile.name || 'My Business' }).eq('id', businessId);
+  const records = await buildSnapshot(state, businessId);
 
-  const snapshot = await buildSnapshot(state, businessId);
-  const { error } = await supabase.rpc('push_tenant_snapshot', {
-    p_business_id: businessId,
-    p_snapshot: snapshot,
-    p_allow_empty: false,
-  });
-  if (error) {
-    // P0001: this device has nothing but the cloud has records. Nothing was written.
-    if (error.code === 'P0001') {
-      return { ok: false, error: 'This device has no records yet, but the cloud copy does. Restore from the cloud before syncing.' };
-    }
-    return { ok: false, error: `sync: ${error.message}` };
-  }
+  // Audit trail: append-only, deduplicated by a stable id, so each push adds only
+  // what the cloud has not seen (it used to re-insert the same 50 every push).
+  const audit = await Promise.all(
+    state.audit.slice(0, 300).map(async (entry) => ({
+      id: await stableId(businessId, 'audit', `${entry.createdAt}|${entry.type}|${entry.summary}`),
+      entity_type: entry.type,
+      action: entry.type,
+      details: { summary: entry.summary, actor: entry.actor, reference: entry.reference ?? null, at: entry.createdAt },
+      created_at: entry.createdAt,
+    })),
+  );
 
-  // Audit trail: append-only, deduplicated by a stable id so each push only adds
-  // entries the cloud has not seen. (It used to re-insert the same 50 every push.)
-  if (state.audit.length > 0) {
-    const auditRows = await Promise.all(
-      state.audit.slice(0, 300).map(async (entry) => ({
-        id: await stableId(businessId, 'audit', `${entry.createdAt}|${entry.type}|${entry.summary}`),
-        business_id: businessId,
-        actor_user_id: null,
-        entity_type: entry.type,
-        action: entry.type,
-        details: { summary: entry.summary, actor: entry.actor, reference: entry.reference ?? null, at: entry.createdAt },
-        created_at: entry.createdAt,
-      })),
-    );
-    await supabase.from('audit_logs').upsert(auditRows, { onConflict: 'id', ignoreDuplicates: true });
-  }
-
-  // Business settings: one row per business, updated in place.
-  const { data: settingsRow } = await supabase.from('business_settings').select('id').eq('business_id', businessId).maybeSingle();
-  const settingsPayload = {
-    receipt_mode: state.settings.receiptMode,
-    send_sms_reminders: state.settings.sendSmsReminders,
-    send_whatsapp_reminders: state.settings.sendWhatsappReminders,
-    auto_generate_invoice_number: state.settings.autoGenerateInvoiceNumber,
-    tax_rate: state.settings.taxRate,
-    allow_memberships: state.settings.allowMemberships,
-    allow_inventory: state.settings.allowInventory,
-    allow_appointments: state.settings.allowAppointments,
-    allow_digital_receipts: state.settings.allowDigitalReceipts,
-    allow_physical_receipts: state.settings.allowPhysicalReceipts,
+  const snapshot = {
+    ...records,
+    businessName: state.profile.name || 'My Business',
+    settings: {
+      receipt_mode: state.settings.receiptMode,
+      send_sms_reminders: state.settings.sendSmsReminders,
+      send_whatsapp_reminders: state.settings.sendWhatsappReminders,
+      auto_generate_invoice_number: state.settings.autoGenerateInvoiceNumber,
+      tax_rate: state.settings.taxRate,
+      allow_memberships: state.settings.allowMemberships,
+      allow_inventory: state.settings.allowInventory,
+      allow_appointments: state.settings.allowAppointments,
+      allow_digital_receipts: state.settings.allowDigitalReceipts,
+      allow_physical_receipts: state.settings.allowPhysicalReceipts,
+    },
+    audit,
   };
-  if (settingsRow) {
-    await supabase.from('business_settings').update(settingsPayload).eq('business_id', businessId);
-  } else {
-    await supabase.from('business_settings').insert({ business_id: businessId, ...settingsPayload });
-  }
 
+  const { error } = await supabase.rpc('sync_tenant_snapshot', { p_business_id: businessId, p_snapshot: snapshot });
+  if (error) return { ok: false, error: explainSyncError(error) };
+  return { ok: true };
+}
+
+/**
+ * "Start a fresh business" on the console: wipe this business's operating records
+ * in the cloud too, so they cannot come back on the next restore. Owner only; the
+ * database checks the role. Audit history is kept.
+ */
+export async function resetCloudBusiness(): Promise<SyncResult> {
+  const businessId = getCachedBusinessId();
+  if (!businessId) return { ok: true };
+  const supabase = getBrowserSupabaseClient();
+  const { error } = await supabase.rpc('reset_tenant_data', { p_business_id: businessId });
+  if (error) {
+    if (error.code === '42501') return { ok: false, error: 'Only the owner can reset the business in the cloud.' };
+    return { ok: false, error: `reset: ${error.message}` };
+  }
   return { ok: true };
 }
 
@@ -358,8 +368,7 @@ export type CloudSnapshot = {
  * empty device. Read-only: it never writes to the cloud or to local state. The
  * caller decides whether to apply it.
  *
- * Not carried by the cloud schema (so not restored): a customer's opening balance
- * and bank/UPI details, and the audit chain's hashes.
+ * Not carried by the cloud schema (so not restored): the audit chain's hashes.
  */
 export async function fetchCloudSnapshot(): Promise<
   { ok: true; empty: boolean; snapshot: CloudSnapshot } | { ok: false; error: string }
@@ -435,7 +444,8 @@ export async function fetchCloudSnapshot(): Promise<
     phone: (row.phone as string | null) ?? undefined,
     email: (row.email as string | null) ?? undefined,
     details: (row.notes as string | null) ?? undefined,
-    openingBalance: 0,
+    openingBalance: Number(row.opening_balance ?? 0),
+    bank: (row.bank_details as Customer['bank']) ?? undefined,
     createdAt: String(row.created_at),
   }));
 

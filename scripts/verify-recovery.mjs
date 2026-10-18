@@ -227,7 +227,7 @@ const migrationSource = readFileSync(
 const storeSource = readFileSync(join(root, 'lib/store.tsx'), 'utf8');
 
 check('the push is one atomic database call, not delete-then-insert', () => {
-  assert(syncSource.includes(".rpc('push_tenant_snapshot'"), 'push must call push_tenant_snapshot');
+  assert(syncSource.includes(".rpc('sync_tenant_snapshot'"), 'push must call sync_tenant_snapshot');
   assert(!/\.delete\(\)\.eq\('business_id'/.test(syncSource), 'client must not delete tenant rows directly');
 });
 
@@ -261,9 +261,13 @@ check('the membership self-write policy is dropped after it is created', () => {
   assert(migrationSource.includes(`DROP POLICY IF EXISTS ${name}`), 'migration does not drop it');
 });
 
-check('the RPC is revoked from anonymous callers and runs as the invoker', () => {
-  assert(/REVOKE ALL ON FUNCTION push_tenant_snapshot[^;]*FROM PUBLIC, anon/.test(migrationSource), 'revoke missing');
-  assert(/SECURITY INVOKER/.test(migrationSource), 'function must be SECURITY INVOKER so RLS applies');
+check('the RPC is revoked from anonymous callers and checks the role itself', () => {
+  assert(/REVOKE ALL ON FUNCTION sync_tenant_snapshot[^;]*FROM PUBLIC, anon/.test(migrationSource), 'revoke missing');
+  // SECURITY DEFINER is deliberate: under INVOKER a counter device's stock update
+  // matches zero rows (RLS), so the function enforces roles and business ids itself.
+  const body = migrationSource.slice(migrationSource.indexOf('FUNCTION sync_tenant_snapshot'));
+  assert(/tenant_role\(p_business_id\)/.test(body), 'sync must check the caller role via tenant_role');
+  assert(/SET search_path = public/.test(body), 'definer function must pin search_path');
 });
 
 rmSync(outDir, { recursive: true, force: true });
