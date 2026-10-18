@@ -72,6 +72,11 @@ async function sign(payloadSegment: string, secret: string): Promise<string> {
   return btoa(binary).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 }
 
+/** The per-host development key. One definition, so minting and opening agree. */
+function localFallbackSecret(): string {
+  return `dukaanos-local::${process.env.NEXT_PUBLIC_APP_URL ?? 'sandbox'}::v1`;
+}
+
 /** The signing secret is per-deployment; sessions from another key are rejected. */
 export function resolveSessionSecret(): string {
   const configured = (process.env.DUKAANOS_SESSION_SECRET ?? '').trim();
@@ -82,7 +87,25 @@ export function resolveSessionSecret(): string {
   if (process.env.NODE_ENV === 'production') {
     throw new Error('DUKAANOS_SESSION_SECRET (32+ characters) is required in production. Refusing to sign sessions without it.');
   }
-  return `dukaanos-local::${process.env.NEXT_PUBLIC_APP_URL ?? 'sandbox'}::v1`;
+  return localFallbackSecret();
+}
+
+/**
+ * The verification-side answer to `resolveSessionSecret`.
+ *
+ * Opening a cookie must never throw — the edge proxy calls this on every
+ * request, so a resolver that throws turns one missing environment variable
+ * into a site-wide 500 ("DUKAANOS_SESSION_SECRET … is required in production"
+ * from the middleware, every path, every verb). `null` means "this deployment
+ * can verify nothing": no cookie opens, no session is honoured, and
+ * `resolveSessionSecret` still refuses to *mint* anything. Same fail-closed
+ * posture as a throw, without failing *down*.
+ */
+export function sessionVerificationSecret(): string | null {
+  const configured = (process.env.DUKAANOS_SESSION_SECRET ?? '').trim();
+  if (configured.length >= 32) return configured;
+  if (process.env.NODE_ENV === 'production') return null;
+  return localFallbackSecret();
 }
 
 export async function createSession(
@@ -108,9 +131,13 @@ export async function createSession(
 
 export async function verifySession(
   token: string | undefined | null,
-  secret: string = resolveSessionSecret(),
+  secret: string | null = sessionVerificationSecret(),
 ): Promise<SessionResult> {
   if (!token) return { valid: false, reason: 'missing' };
+  // No verification key means no token can be verified — including this one.
+  // That is a deployment problem, not a forgery, but the caller's answer is the
+  // same either way: not signed in.
+  if (secret === null) return { valid: false, reason: 'unknown-key' };
   const parts = token.split('.');
   if (parts.length !== 2 || !parts[0] || !parts[1]) return { valid: false, reason: 'malformed' };
 

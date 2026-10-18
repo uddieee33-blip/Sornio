@@ -168,7 +168,9 @@
     "That password did not match this account.": "সেই পাছৱৰ্ড এই একাউণ্টৰ সৈতে নিমিলে।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "এই বিল্ডত নিশ্চিত কৰিবলৈ কোনো একাউণ্ট পাছৱৰ্ড নাই। এই ডিভাইচত ছেট কৰা কনছ'ল পাছক'ড ব্যৱহাৰ কৰক।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "এই ডিভাইচ একাউণ্টৰ পৰা চাইন আউট হৈছে। কনছ'ল খোলিবলৈ আপোনাৰ ইমেইল আৰু পাছৱৰ্ডেৰে চাইন ইন কৰক।",
-    "The lock screen shows how to clear it": "লক স্ক্ৰীনে ইয়াক মচি পেলাবৰ উপায় দেখুৱায়"
+    "The lock screen shows how to clear it": "লক স্ক্ৰীনে ইয়াক মচি পেলাবৰ উপায় দেখুৱায়",
+    "unknown-key": "অজ্ঞাত চাবি",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "এই ডিপ্লয়মেণ্টটোৰ ছেছন খোলিব নোৱাৰে: DUKAANOS_SESSION_SECRET নাই বা 32 আখৰতকৈ সৰু। ইয়াক হস্টৰ এনভাইৰণমেণ্টত ছেট কৰক — GET /api/health ইয়াৰ অৱস্থা জনায়।"
   },
   "bn": {
     "Sign in": "সাইন ইন করুন",
@@ -344,7 +346,9 @@
     "That password did not match this account.": "ওই পাসওয়ার্ড এই অ্যাকাউন্টের সাথে মেলে না।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "এই বিল্ডে নিশ্চিত করার মতো কোনো অ্যাকাউন্ট পাসওয়ার্ড নেই। এই ডিভাইসে সেট করা কনসোল পাসকোড ব্যবহার করুন।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "এই ডিভাইস অ্যাকাউন্ট থেকে সাইন আউট হয়েছে। কনসোল খুলতে আপনার ইমেল ও পাসওয়ার্ড দিয়ে সাইন ইন করুন।",
-    "The lock screen shows how to clear it": "লক স্ক্রিন এটি মুছে ফেলার উপায় দেখায়"
+    "The lock screen shows how to clear it": "লক স্ক্রিন এটি মুছে ফেলার উপায় দেখায়",
+    "unknown-key": "অজ্ঞাত কী",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "এই ডিপ্লয়মেন্ট সেশন খুলতে পারছে না: DUKAANOS_SESSION_SECRET নেই অথবা 32 অক্ষরের চেয়ে ছোট। হোস্টের এনভায়রনমেন্টে এটি সেট করুন — GET /api/health এর অবস্থা জানায়।"
   },
   "brx": {
     ", and how it is enforced is shown live in the": ", आरो बेखौ माबोरै लागु खालामनाय जायो बेखौ लाइभ दिन्थियो",
@@ -515,7 +519,9 @@
     "That password did not match this account.": "बे पासवर्दां बे खाता थाखाय गोबर नङाखै।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "बे बिल्डाव निश्विथि गोनांथि खाता पासवर्द गैया। बे डिभाइसाव दोनखाखै कनसोल पासक'डखौ बाहायनांगौ।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "बे डिभाइस खाता थांखै साइन आउट जादों। कनसोलखौ खेवनोआरि नोंआरि इमेल आरो पासवर्दां साइन इन खालाम।",
-    "The lock screen shows how to clear it": "लक स्क्रिनआं बेखौ माखान खालामनायनि बाहायखौ दिंथिदों।"
+    "The lock screen shows how to clear it": "लक स्क्रिनआं बेखौ माखान खालामनायनि बाहायखौ दिंथिदों।",
+    "unknown-key": "मोनथि’मायि किल्ली",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "बे डिप्लाइमेन्टआ सेसन खेवनो हायाखै: DUKAANOS_SESSION_SECRET गैया एबा 32 आख’रनि खमा। बेखौ हस्टनि एनभाइरनमेन्टआव सेट गायनानै — GET /api/health बेनि थाखाय दिनथाया।"
   },
   "doi": {
     ", and how it is enforced is shown live in the": ", ते एह् किस चाल्ली लागू होंदा ऐ, एह् लाइव दिक्खेआ जंदा ऐ",
@@ -686,7 +692,9 @@
     "That password did not match this account.": "ओ पासवर्ड इस खाता सैं नेईं मिल्दा ऐ।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "इस बिल्ड च पुष्टि आस्तै कोई खाता पासवर्ड नेईं ऐ। इ डिवाइस पर सेट कीता कंसोल पासकोड बर्तन करो।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "इ डिवाइस खाता थमा साइन आउट ऐ। कंसोल खोलनै आस्तै अपने ईमेल ते पासवर्ड सैं साइन इन करो।",
-    "The lock screen shows how to clear it": "लॉक स्क्रीन इसगी मिटाने दा रास्ता दस्दा ऐ"
+    "The lock screen shows how to clear it": "लॉक स्क्रीन इसगी मिटाने दा रास्ता दस्दा ऐ",
+    "unknown-key": "अनजाण कुंजी",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "एह डिप्लायमेंट च सैशन नेईं खु्हल सकदा: DUKAANOS_SESSION_SECRET मजूद नेईं जां 32 अक्खरां शा छैट्टा ऐ। इसी होस्ट दे एनवायरमेंट च सैट करो — GET /api/health इसदी स्थिति दस्सदा ऐ।"
   },
   "gu": {
     "Sign in": "સાઇન ઇન કરો",
@@ -862,7 +870,9 @@
     "That password did not match this account.": "તે પાસવર્ડ આ એકાઉન્ટ સાથે મેળ ખાતો નથી.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "આ બિલ્ડમાં ખાતરી કરવા માટે કોઈ એકાઉન્ટ પાસવર્ડ નથી. આ ડિવાઇસ પર સેટ કરેલો કન્સોલ પાસકોડ વાપરો.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "આ ડિવાઇસ એકાઉન્ટથી સાઇન આઉટ છે. કન્સોલ ખોલવા માટે તમારા ઇમેઇલ અને પાસવર્ડથી સાઇન ઇન કરો.",
-    "The lock screen shows how to clear it": "લૉક સ્ક્રીન તે સાફ કરવાની રીત બતાવે છે"
+    "The lock screen shows how to clear it": "લૉક સ્ક્રીન તે સાફ કરવાની રીત બતાવે છે",
+    "unknown-key": "અજ્ઞાત કી",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "આ ડિપ્લોયમેન્ટ સત્રો ખોલી શકતું નથી: DUKAANOS_SESSION_SECRET ગેરહાજર છે અથવા 32 અક્ષરો કરતાં ટૂંકું છે. તેને હોસ્ટના એન્વાયર્નમેન્ટમાં સેટ કરો — GET /api/health તેની સ્થિતિ બતાવે છે."
   },
   "hi": {
     "Sign in": "साइन इन करें",
@@ -1124,7 +1134,9 @@
     "That password did not match this account.": "वह पासवर्ड इस अकाउंट से मेल नहीं खाता।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "इस बिल्ड में पुष्टि के लिए कोई अकाउंट पासवर्ड नहीं है। इस डिवाइस पर सेट किया गया कंसोल पासकोड इस्तेमाल करें।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "यह डिवाइस अकाउंट से साइन आउट है। कंसोल खोलने के लिए अपने ईमेल और पासवर्ड से साइन इन करें।",
-    "The lock screen shows how to clear it": "लॉक स्क्रीन उसे हटाने का तरीका बताती है"
+    "The lock screen shows how to clear it": "लॉक स्क्रीन उसे हटाने का तरीका बताती है",
+    "unknown-key": "अज्ञात कुंजी",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "यह डिप्लॉयमेंट सत्र नहीं खोल सकता: DUKAANOS_SESSION_SECRET मौजूद नहीं है या 32 अक्षरों से छोटा है। इसे होस्ट के एनवायरनमेंट में सेट करें — GET /api/health इसकी स्थिति बताता है।"
   },
   "kn": {
     ", and how it is enforced is shown live in the": ", ಮತ್ತು ಅದನ್ನು ಹೇಗೆ ಜಾರಿಗೊಳಿಸಲಾಗುತ್ತದೆ ಎಂಬುದು ನೇರವಾಗಿ ಕಾಣಿಸುತ್ತದೆ",
@@ -1295,7 +1307,9 @@
     "That password did not match this account.": "ಆ ಪಾಸ್‌ವರ್ಡ್ ಈ ಖಾತೆಗೆ ಹೊಂದಿಕೆಯಾಗಲಿಲ್ಲ.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ಈ ಬಿಲ್ಡ್‌ನಲ್ಲಿ ದೃಢೀಕರಿಸಲು ಖಾತೆ ಪಾಸ್‌ವರ್ಡ್ ಇಲ್ಲ. ಈ ಸಾಧನದಲ್ಲಿ ಹೊಂದಿಸಿದ ಕನ್ಸೋಲ್ ಪಾಸ್‌ಕೋಡ್ ಬಳಸಿ.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ಈ ಸಾಧನ ಖಾತೆಯಿಂದ ಸೈನ್ ಔಟ್ ಆಗಿದೆ. ಕನ್ಸೋಲ್ ತೆರೆಯಲು ನಿಮ್ಮ ಇಮೇಲ್ ಮತ್ತು ಪಾಸ್‌ವರ್ಡ್‌ನೊಂದಿಗೆ ಸೈನ್ ಇನ್ ಮಾಡಿ.",
-    "The lock screen shows how to clear it": "ಅದನ್ನು ತೆರವುಗೊಳಿಸುವ ದಾರಿಯನ್ನು ಲಾಕ್ ಸ್ಕ್ರೀನ್ ತೋರಿಸುತ್ತದೆ"
+    "The lock screen shows how to clear it": "ಅದನ್ನು ತೆರವುಗೊಳಿಸುವ ದಾರಿಯನ್ನು ಲಾಕ್ ಸ್ಕ್ರೀನ್ ತೋರಿಸುತ್ತದೆ",
+    "unknown-key": "ಗೊತ್ತಿರದ ಕೀಲಿ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ಈ ಡಿಪ್ಲಾಯ್‌ಮೆಂಟ್ ಅಧಿವೇಶನಗಳನ್ನು ತೆರೆಯಲಾಗುತ್ತಿಲ್ಲ: DUKAANOS_SESSION_SECRET ಇಲ್ಲ ಅಥವಾ 32 ಅಕ್ಷರಗಳಿಗಿಂತ ಚಿಕ್ಕದಾಗಿದೆ. ಅದನ್ನು ಹೋಸ್ಟ್‌ನ ಎನ್ವಿರಾನ್‌ಮೆಂಟ್‌ನಲ್ಲಿ ಹೊಂದಿಸಿ — GET /api/health ಅದರ ಸ್ಥಿತಿಯನ್ನು ತಿಳಿಸುತ್ತದೆ."
   },
   "kok": {
     ", and how it is enforced is shown live in the": ", आनी हें कशें लागू जाता तें लायव दिसता",
@@ -1466,7 +1480,9 @@
     "That password did not match this account.": "तो पासवर्ड ह्या खात्याक जुळना.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ह्या बिल्डांत पुश्टीकरणाक खाते पासवर्ड ना. ह्या उपकरणाचेर सेट केल्लो कंसोल पासकोड वापरात.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "हें उपकरण खात्यांतल्यान सायन आउट जालां. कंसोल उगडपाक तुमच्या ईमेल आनी पासवर्डान सायन इन करात.",
-    "The lock screen shows how to clear it": "लॉक स्क्रीन तें कशें पुसचें तें दाखयता"
+    "The lock screen shows how to clear it": "लॉक स्क्रीन तें कशें पुसचें तें दाखयता",
+    "unknown-key": "अज्ञात कुंको",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "हो डिप्लायमेंट सत्रां उगडूंक शकना: DUKAANOS_SESSION_SECRET ना वा 32 अक्षरां परस ल्हान. ताका हॉस्टच्या एन्व्हायरमेंटांत सेट करात — GET /api/health ताची स्थिती सांगता."
   },
   "ks": {
     ", and how it is enforced is shown live in the": "، تہٕ یہٕ کتھ پٲٹھؠ چھُ لاگوٗ گژھان، تِہٕ چھُ لایو نظرِ گژھان",
@@ -1637,7 +1653,9 @@
     "That password did not match this account.": "ژو پاس ورڈ اَتھ کھاتس سٟتؠ نَہ رَلاو۔",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ہمس بلڈس مَنٛز تصدیق خٲطرٕ کانٛہہ کھاتہٕ پاس ورڈ نَہ چھُ۔ ہمِس ڈیوائس پؠٹھ سیٹ کرنہٕ آمُت کنسول پاس کوڈ اِستعمال کٔریو۔",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "یہ ڈیوائس کھاتہٕ پؠٹھ سائن آؤٹ چھُ۔ کنسول کھلنہٕ خٲطرٕ پننِس ای میل تہٕ پاس ورڈ سٟتؠ سائن اِن کٔریو۔",
-    "The lock screen shows how to clear it": "لاک سکرین چھُ اَمہِ صاف کرنُک رٲہ ڏکھاوان۔"
+    "The lock screen shows how to clear it": "لاک سکرین چھُ اَمہِ صاف کرنُک رٲہ ڏکھاوان۔",
+    "unknown-key": "نامعلوم کی",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "یہ ڈیپلائمنٹ سیشن کھولِتھ نہِہیکان: DUKAANOS_SESSION_SECRET موجود نہِ یا 32 حَرَفَن پؠٹھ کھوتُک آسِہ۔ یِمِ ہاسٹَکؠ انوائرَنمنٹَس منز سیٹ کَرِو — GET /api/health اَتھ حالَت دِشاو۔"
   },
   "mai": {
     ", and how it is enforced is shown live in the": ", आ ई केना लागू होइत अछि से लाइव देखाइत अछि",
@@ -1808,7 +1826,9 @@
     "That password did not match this account.": "ओ पासवर्ड ई खाता सँ नहि मिलैत अछि।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ई बिल्ड मे पुष्टि करबाक लेल खाता पासवर्ड नहि अछि। ई डिवाइस पर सेट कएल कंसोल पासकोड प्रयोग करू।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ई डिवाइस खाता सँ साइन आउट अछि। कंसोल खोलबाक लेल अपन ईमेल आओर पासवर्ड सँ साइन इन करू।",
-    "The lock screen shows how to clear it": "लॉक स्क्रीन एकरा हटेबाक तरीका देखाबैत अछि"
+    "The lock screen shows how to clear it": "लॉक स्क्रीन एकरा हटेबाक तरीका देखाबैत अछि",
+    "unknown-key": "अज्ञात कुंजी",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ई डिप्लायमेंट सत्र नहि खोलि सकै छै: DUKAANOS_SESSION_SECRET नहि अछि अथवा 32 अक्षर सँ छोट अछि। एकरा होस्टक एनवायरनमेंट सँ सेट करू — GET /api/health एकर स्थिति बतबै छै।"
   },
   "ml": {
     ", and how it is enforced is shown live in the": ", അത് എങ്ങനെ നടപ്പാക്കുന്നു എന്നതും തത്സമയം കാണാം",
@@ -1979,7 +1999,9 @@
     "That password did not match this account.": "ആ പാസ്‌വേഡ് ഈ അക്കൗണ്ടുമായി പൊരുത്തപ്പെടുന്നില്ല.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ഈ ബിൽഡിൽ സ്ഥിരീകരിക്കാൻ അക്കൗണ്ട് പാസ്‌വേഡ് ഇല്ല. ഈ ഉപകരണത്തിൽ സജ്ജമാക്കിയ കൺസോൾ പാസ്‌കോഡ് ഉപയോഗിക്കുക.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ഈ ഉപകരണം അക്കൗണ്ടിൽ നിന്ന് സൈൻ ഔട്ട് ചെയ്തിരിക്കുന്നു. കൺസോൾ തുറക്കാൻ നിങ്ങളുടെ ഇമെയിലും പാസ്‌വേഡും ഉപയോഗിച്ച് സൈൻ ഇൻ ചെയ്യുക.",
-    "The lock screen shows how to clear it": "അത് മായ്ക്കുന്ന വഴി ലോക്ക് സ്ക്രീൻ കാണിക്കുന്നു"
+    "The lock screen shows how to clear it": "അത് മായ്ക്കുന്ന വഴി ലോക്ക് സ്ക്രീൻ കാണിക്കുന്നു",
+    "unknown-key": "അജ്ഞാത കീ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ഈ ഡിപ്ലോയ്‌മെന്റിന് സെഷനുകൾ തുറക്കാൻ കഴിയില്ല: DUKAANOS_SESSION_SECRET ഇല്ല അല്ലെങ്കിൽ 32 അക്ഷരങ്ങളിൽ കുറവാണ്. അത് ഹോസ്റ്റിന്റെ എൻവിറോൺമെന്റിൽ സെറ്റ് ചെയ്യുക — GET /api/health അതിന്റെ അവസ്ഥ അറിയിക്കുന്നു."
   },
   "mni": {
     ", and how it is enforced is shown live in the": ", ꯑꯃꯁꯨꯡ ꯃꯁꯤ ꯀꯔꯝꯅ ꯆꯠꯅꯍꯜꯂꯤꯕꯅꯣ ꯍꯥꯏꯕꯗꯨ ꯂꯥꯏꯚ ꯑꯣꯏꯅ ꯎꯎꯏ",
@@ -2150,7 +2172,9 @@
     "That password did not match this account.": "ꯄꯥꯁꯋꯥꯔꯗ ꯑꯗꯨ ꯑꯦꯀꯥꯎꯟꯠ ꯑꯁꯤꯒ ꯆꯥꯅꯗꯦ꯫",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ꯕꯤꯜꯗ ꯑꯁꯤꯗ ꯆꯦꯠꯍꯟꯅꯕ ꯑꯦꯀꯥꯎꯟꯠ ꯄꯥꯁꯋꯥꯔꯗ ꯂꯩꯇꯦ꯫ ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤꯗ ꯁꯦꯠ ꯇꯧꯔꯕ ꯀꯟꯁꯣꯜ ꯄꯥꯁꯀꯣꯗ ꯁꯤꯖꯤꯟꯅꯕꯤꯌꯨ꯫",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ꯗꯤꯚꯥꯏꯁ ꯑꯁꯤ ꯑꯦꯀꯥꯎꯟꯠꯇꯒꯤ ꯁꯥꯏꯟ ꯑꯥꯎꯠ ꯇꯧꯔꯦ꯫ ꯀꯟꯁꯣꯜ ꯍꯥꯡꯗꯣꯛꯅꯕ ꯅꯍꯥꯛꯀꯤ ꯏꯃꯦꯜ ꯑꯃꯁꯨꯡ ꯄꯥꯁꯋꯥꯔꯗꯒꯤ ꯁꯥꯏꯟ ꯏꯟ ꯇꯧꯕꯤꯌꯨ꯫",
-    "The lock screen shows how to clear it": "ꯃꯁꯤ ꯀꯔꯝꯅ ꯊꯥꯖꯒꯅꯤ ꯍꯥꯏꯕꯗꯨ ꯂꯣꯛ ꯁ꯭ꯛꯔꯤꯟꯅ ꯎꯠꯂꯤ"
+    "The lock screen shows how to clear it": "ꯃꯁꯤ ꯀꯔꯝꯅ ꯊꯥꯖꯒꯅꯤ ꯍꯥꯏꯕꯗꯨ ꯂꯣꯛ ꯁ꯭ꯛꯔꯤꯟꯅ ꯎꯠꯂꯤ",
+    "unknown-key": "ꯃꯤꯠꯂꯟ ꯀꯤ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ꯗꯤꯄ꯭ꯂꯥꯌꯃꯦꯟꯠ ꯏꯅꯥ ꯁꯦꯁꯟ ꯂꯥꯎꯒꯤꯗꯕꯨ ꯃꯇꯦꯅꯇꯦ: DUKAANOS_SESSION_SECRET ꯂꯛꯅꯌꯦꯃꯒꯨꯝꯅꯥ 32 ꯑꯦꯛꯁꯔꯇꯒꯤꯒꯛꯅꯥ ꯑꯔꯝꯕꯥ ꯂꯏ। ꯃꯁꯤꯒꯤ ꯍꯣꯁ꯭ꯠꯒꯤ ꯏꯟꯕꯥꯌꯔꯝꯃꯦꯟꯠꯗꯥ ꯁꯦꯠ ꯂꯥꯎꯕꯨ — GET /api/health ꯃꯁꯤꯒꯤ ꯍꯥꯂꯠꯇꯥꯋꯥꯎꯅꯌꯤ।"
   },
   "mr": {
     "Sign in": "साइन इन करा",
@@ -2333,7 +2357,9 @@
     "That password did not match this account.": "तो पासवर्ड या खात्याशी जुळत नाही.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "या बिल्डमध्ये पुष्टीसाठी खाते पासवर्ड नाही. या डिव्हाइसवर सेट केलेला कंसोल पासकोड वापरा.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "हे डिव्हाइस खात्यातून साइन आउट आहे. कंसोल उघडण्यासाठी तुमच्या ईमेल आणि पासवर्डने साइन इन करा.",
-    "The lock screen shows how to clear it": "लॉक स्क्रीन तो साफ करण्याचा मार्ग दाखवते"
+    "The lock screen shows how to clear it": "लॉक स्क्रीन तो साफ करण्याचा मार्ग दाखवते",
+    "unknown-key": "अपरिचीत कळ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "हा डिप्लॉयमेंट सत्रे उघडू शकत नाही: DUKAANOS_SESSION_SECRET आढळला नाही किंवा 32 अक्षरांपेक्षा लहान आहे. ते होस्टच्या एनव्हायरमेंटमध्ये सेट करा — GET /api/health त्याची स्थिती सांगते."
   },
   "ne": {
     ", and how it is enforced is shown live in the": ", र यो कसरी लागू हुन्छ भन्ने प्रत्यक्ष देखिन्छ",
@@ -2504,7 +2530,9 @@
     "That password did not match this account.": "त्यो पासवर्ड यस खातासँग मिलेन।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "यस बिल्डमा पुष्टि गर्न खाता पासवर्ड छैन। यस यन्त्रमा सेट गरिएको कन्सोल पासकोड प्रयोग गर्नुहोस्।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "यो यन्त्र खाताबाट साइन आउट भएको छ। कन्सोल खोल्न आफ्नो इमेल र पासवर्डबाट साइन इन गर्नुहोस्।",
-    "The lock screen shows how to clear it": "लक स्क्रिनले यसलाई मेटाउने तरिका देखाउँछ"
+    "The lock screen shows how to clear it": "लक स्क्रिनले यसलाई मेटाउने तरिका देखाउँछ",
+    "unknown-key": "अज्ञात कुञ्जी",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "यो डिप्लोयमेन्टले सत्रहरू खोल्न सक्दैन: DUKAANOS_SESSION_SECRET छैन वा 32 अक्षरभन्दा छोटो छ। यसलाई होस्टको एनभायरनमेन्टमा सेट गर्नुहोस् — GET /api/health यसको स्थिति बताउँछ।"
   },
   "or": {
     ", and how it is enforced is shown live in the": ", ଏବଂ ଏହା କିପରି ଲାଗୁ ହୁଏ ତାହା ସିଧା ଦେଖାଯାଏ",
@@ -2675,7 +2703,9 @@
     "That password did not match this account.": "ସେହି ପାସୱାର୍ଡ ଏହି ଆକାଉଣ୍ଟ ସହ ମେଳ ଖାଇଲା ନାହିଁ।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ଏହି ବିଲ୍ଡରେ ନିଶ୍ଚିତ କରିବା ପାଇଁ କୌଣସି ଆକାଉଣ୍ଟ ପାସୱାର୍ଡ ନାହିଁ। ଏହି ଡିଭାଇସରେ ସେଟ୍ ହୋଇଥିବା କନସୋଲ ପାସକୋଡ ବ୍ୟବହାର କରନ୍ତୁ।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ଏହି ଡିଭାଇସ ଆକାଉଣ୍ଟରୁ ସାଇନ୍-ଆଉଟ୍ ହୋଇଛି। କନସୋଲ ଖୋଲିବା ପାଇଁ ଆପଣଙ୍କ ଇମେଲ ଓ ପାସୱାର୍ଡ ସହ ସାଇନ୍-ଇନ୍ କରନ୍ତୁ।",
-    "The lock screen shows how to clear it": "ଏହାକୁ ସଫା କରିବାର ଉପାୟ ଲକ୍ ସ୍କ୍ରିନ୍ ଦେଖାଏ"
+    "The lock screen shows how to clear it": "ଏହାକୁ ସଫା କରିବାର ଉପାୟ ଲକ୍ ସ୍କ୍ରିନ୍ ଦେଖାଏ",
+    "unknown-key": "ଅଜ୍ଞାତ କୀ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ଏହି ଡିପ୍ଲଏମେଣ୍ଟ ସେସନ୍ ଖୋଲିପାରୁନାହିଁ: DUKAANOS_SESSION_SECRET ନାହିଁ କିମ୍ବା 32 ଅକ୍ଷରରୁ କମ୍ ଅଛି। ଏହାକୁ ହୋଷ୍ଟର ଏନଭାଇରନମେଣ୍ଟରେ ସେଟ୍ କରନ୍ତୁ — GET /api/health ଏହାର ସ୍ଥିତି ଜଣାଏ।"
   },
   "pa": {
     "Sign in": "ਸਾਈਨ ਇਨ ਕਰੋ",
@@ -2928,7 +2958,9 @@
     "That password did not match this account.": "ਉਹ ਪਾਸਵਰਡ ਇਸ ਖਾਤੇ ਨਾਲ ਮੇਲ ਨਹੀਂ ਖਾਂਦਾ।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ਇਸ ਬਿਲਡ ਵਿੱਚ ਪੁਸ਼ਟੀ ਲਈ ਕੋਈ ਖਾਤਾ ਪਾਸਵਰਡ ਨਹੀਂ ਹੈ। ਇਸ ਡਿਵਾਈਸ ’ਤੇ ਸੈੱਟ ਕੀਤਾ ਕੰਸੋਲ ਪਾਸਕੋਡ ਵਰਤੋ।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ਇਹ ਡਿਵਾਈਸ ਖਾਤੇ ਤੋਂ ਸਾਇਨ ਆਉਟ ਹੈ। ਕੰਸੋਲ ਖੋਲ੍ਹਣ ਲਈ ਆਪਣੇ ਈਮੇਲ ਅਤੇ ਪਾਸਵਰਡ ਨਾਲ ਸਾਇਨ ਇਨ ਕਰੋ।",
-    "The lock screen shows how to clear it": "ਲਾਕ ਸਕ੍ਰੀਨ ਇਸਨੂੰ ਹਟਾਉਣ ਦਾ ਤਰੀਕਾ ਦੱਸਦੀ ਹੈ"
+    "The lock screen shows how to clear it": "ਲਾਕ ਸਕ੍ਰੀਨ ਇਸਨੂੰ ਹਟਾਉਣ ਦਾ ਤਰੀਕਾ ਦੱਸਦੀ ਹੈ",
+    "unknown-key": "ਅਣਜਾਣ ਕੁੰਜੀ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ਇਹ ਡਿਪਲਾਏਮੈਂਟ ਸ਼ੈਸ਼ਨ ਨਹੀਂ ਖੋਲ੍ਹ ਸਕਦਾ: DUKAANOS_SESSION_SECRET ਮੌਜੂਦ ਨਹੀਂ ਜਾਂ 32 ਅੱਖਰਾਂ ਤੋਂ ਛੋਟਾ ਹੈ। ਇਸਨੂੰ ਹੋਸਟ ਦੇ ਐਨਵਾਇਰਨਮੈਂਟ ਵਿੱਚ ਸੈੱਟ ਕਰੋ — GET /api/health ਇਸਦੀ ਸਥਿਤੀ ਦੱਸਦਾ ਹੈ।"
   },
   "sa": {
     ", and how it is enforced is shown live in the": ", एतत् च कथं प्रवर्त्यते इति साक्षात् दृश्यते",
@@ -3099,7 +3131,9 @@
     "That password did not match this account.": "सः गुप्तशब्दः अनेन खातेन न सम्यक् मेलति।",
     "This build has no account password to confirm. Use the console passcode set on this device.": "अस्मिन् बिल्ड् पुष्ट्यर्थं खातगुप्तशब्दः नास्ति। अस्मिन् उपकरणे स्थापितं कंसोल-गुप्तसङ्केतं उपयुज्यताम्।",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "इदम् उपकरणं खातात् साइन-आउट् अभवत्। कंसोलम् उद्घाटयितुं स्वस्य ईमेल-गुप्तशब्दाभ्यां साइन-इन् कुर्वन्तु।",
-    "The lock screen shows how to clear it": "लॉक-पटलं तस्य विलोपनमार्गं दर्शयति"
+    "The lock screen shows how to clear it": "लॉक-पटलं तस्य विलोपनमार्गं दर्शयति",
+    "unknown-key": "अज्ञात-कुञ्जी",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "अयं प्रतिस्थापनः सत्राणि उद्घाटयितुं न शक्नोति: DUKAANOS_SESSION_SECRET अनुपस्थितम् अस्ति अथवा 32 अक्षरेभ्यः लघु अस्ति। तत् होस्ट-परिवेशे स्थापयतु — GET /api/health तस्य स्थितिं दर्शयति।"
   },
   "sat": {
     ", and how it is enforced is shown live in the": ", ᱟᱨ ᱱᱚᱣᱟ ᱪᱮᱫ ᱞᱮᱠᱟᱛᱮ ᱞᱟᱜᱩ ᱦᱩᱭᱩᱜ-ᱟ ᱚᱱᱟ ᱞᱟᱭᱤᱵᱷ ᱞᱮᱠᱟᱛᱮ ᱧᱮᱞᱚᱜ-ᱟ",
@@ -3270,7 +3304,9 @@
     "That password did not match this account.": "ᱚᱱᱟ ᱯᱟᱥᱣᱟᱨᱰ ᱱᱚᱣᱟ ᱮᱠᱟᱣᱱᱴ ᱥᱟᱶ ᱵᱟᱝ ᱢᱮᱥᱟ ᱠᱮᱫᱟ᱾",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ᱱᱚᱣᱟ ᱵᱤᱞᱰ ᱨᱮ ᱵᱟᱰᱟᱭ ᱞᱟᱹᱜᱤᱫ ᱮᱠᱟᱣᱱᱴ ᱯᱟᱥᱣᱟᱨᱰ ᱵᱟᱹᱱᱩᱜᱼᱟ᱾ ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱨᱮ ᱥᱮᱴ ᱟᱠᱟᱱ ᱠᱚᱱᱥᱚᱞ ᱯᱟᱥᱠᱚᱰ ᱵᱮᱵᱷᱟᱨ ᱢᱮᱸ",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱮᱠᱟᱣᱱᱴ ᱠᱷᱚᱱ ᱥᱟᱭᱤᱱ ᱟᱣᱩᱴ ᱟᱠᱟᱱᱟ᱾ ᱠᱚᱱᱥᱚᱞ ᱡᱷᱤᱡ ᱞᱟᱹᱜᱤᱫ ᱟᱢᱟᱜ ᱤᱢᱮᱞ ᱟᱨ ᱯᱟᱥᱣᱟᱨᱰ ᱛᱮ ᱥᱟᱭᱤᱱ ᱤᱱ ᱢᱮᱸ",
-    "The lock screen shows how to clear it": "ᱞᱚᱠ ᱥᱠᱨᱤᱱ ᱚᱱᱟ ᱜᱚᱴᱟ ᱞᱟᱹᱜᱤᱫ ᱦᱚᱨ ᱮ ᱩᱫᱩᱜᱟ"
+    "The lock screen shows how to clear it": "ᱞᱚᱠ ᱥᱠᱨᱤᱱ ᱚᱱᱟ ᱜᱚᱴᱟ ᱞᱟᱹᱜᱤᱫ ᱦᱚᱨ ᱮ ᱩᱫᱩᱜᱟ",
+    "unknown-key": "ᱵᱟᱝ ᱧᱮᱞᱚᱜ ᱠᱤ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ᱱᱤᱛᱚᱜ ᱨᱮᱫᱟᱜ ᱵᱤᱱᱰᱟᱹᱭ ᱠᱟᱛᱮ ᱱᱚᱛᱱᱟᱹᱭ ᱥᱮᱥᱚᱱ ᱵᱟᱝ ᱡᱷᱤᱞᱟᱹᱭ ᱵᱟᱝ ᱫᱟᱲᱮᱭᱟᱜᱼᱟ: DUKAANOS_SESSION_SECRET ᱵᱟᱝ ᱠᱟᱱᱟ ᱥᱮ 32 ᱟᱠᱷᱨ ᱠᱷᱚᱱ ᱠᱟᱹᱴᱤᱧ ᱠᱟᱱᱟ. ᱱᱤᱛᱚᱜ ᱚᱱᱤ ᱴᱷᱮᱱ ᱤᱱᱵᱟᱭᱟᱨᱟᱱᱢᱮᱱᱴ ᱨᱮ ᱥᱮᱴ ᱵᱤᱰᱟᱹᱭ — GET /api/health ᱱᱤᱛᱚᱜ ᱠᱚᱜ ᱠᱚ ᱩᱞᱟᱹᱭ ᱟᱭ."
   },
   "sd": {
     ", and how it is enforced is shown live in the": "، ۽ اهو ڪيئن لاڳو ٿئي ٿو، اهو لائيو نظر اچي ٿو",
@@ -3441,7 +3477,9 @@
     "That password did not match this account.": "اهو پاسورڊ هن اڪائونٽ سان نه مليو.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "هن بلڊ ۾ تصديق لاءِ ڪوبه اڪائونٽ پاسورڊ ناهي. هن ڊيوائس تي مقرر ڪيل ڪنسول پاس ڪوڊ استعمال ڪريو.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "هي ڊيوائس اڪائونٽ مان سائن آئوٽ آهي. ڪنسول کولڻ لاءِ پنهنجي اي ميل ۽ پاسورڊ سان سائن اِن ڪريو.",
-    "The lock screen shows how to clear it": "لاڪ اسڪرين ان کي صاف ڪرڻ جو طريقو ڏيکاريندي آهي"
+    "The lock screen shows how to clear it": "لاڪ اسڪرين ان کي صاف ڪرڻ جو طريقو ڏيکاريندي آهي",
+    "unknown-key": "نامعلوم ڪي",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "هي ڊپلائيمينٽ سيشن نه کولي سگهي ٿو: DUKAANOS_SESSION_SECRET موجود ناهي يا 32 اکرن کان ڇوڙو آهي. ان جي هوسٽ جي انوائرانمينٽ ۾ سيٽ ڪريو — GET /api/health ان جي حالت ٻڌائي ٿو."
   },
   "ta": {
     "Sign in": "சைன் இன்",
@@ -3617,7 +3655,9 @@
     "That password did not match this account.": "அந்த கடவுச்சொல் இந்த கணக்குடன் பொருந்தவில்லை.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "இந்த பில்டில் உறுதிப்படுத்த கணக்கு கடவுச்சொல் இல்லை. இந்த சாதனத்தில் அமைக்கப்பட்ட கன்சோல் குறியீட்டைப் பயன்படுத்தவும்.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "இந்த சாதனம் கணக்கிலிருந்து சைன் அவுட் ஆகியுள்ளது. கன்சோலைத் திறக்க உங்கள் மின்னஞ்சல் மற்றும் கடவுச்சொல்லுடன் சைன் இன் செய்யவும்.",
-    "The lock screen shows how to clear it": "அதை அழிக்கும் வழியை பூட்டுத் திரை காட்டுகிறது"
+    "The lock screen shows how to clear it": "அதை அழிக்கும் வழியை பூட்டுத் திரை காட்டுகிறது",
+    "unknown-key": "அறியப்படாத விசை",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "இந்த டிப்ளாய்மென்ட் அமர்வுகளைத் திறக்க முடியாது: DUKAANOS_SESSION_SECRET இல்லை அல்லது 32 எழுத்துகளுக்கும் குறைவாக உள்ளது. ஹோஸ்டின் என்வீரான்மென்ட்டில் அதை அமைக்கவும் — GET /api/health அதன் நிலையைத் தெரிவிக்கும்."
   },
   "te": {
     "Sign in": "సైన్ ఇన్ చేయండి",
@@ -3793,7 +3833,9 @@
     "That password did not match this account.": "ఆ పాస్‌వర్డ్ ఈ ఖాతాతో సరిపోలలేదు.",
     "This build has no account password to confirm. Use the console passcode set on this device.": "ఈ బిల్డ్‌లో నిర్ధారించడానికి ఖాతా పాస్‌వర్డ్ లేదు. ఈ పరికరంలో సెట్ చేసిన కన్సోల్ పాస్‌కోడ్‌ను ఉపయోగించండి.",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "ఈ పరికరం ఖాతా నుండి సైన్ అవుట్ అయింది. కన్సోల్ తెరవడానికి మీ ఇమెయిల్ మరియు పాస్‌వర్డ్‌తో సైన్ ఇన్ చేయండి.",
-    "The lock screen shows how to clear it": "దాన్ని తొలగించే మార్గాన్ని లాక్ స్క్రీన్ చూపుతుంది"
+    "The lock screen shows how to clear it": "దాన్ని తొలగించే మార్గాన్ని లాక్ స్క్రీన్ చూపుతుంది",
+    "unknown-key": "తెలియని కీ",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "ఈ డిప్లాయ్‌మెంట్ సెషన్‌లను తెరవలేకపోతోంది: DUKAANOS_SESSION_SECRET లేదు లేదా 32 అక్షరాల కంటే తక్కువగా ఉంది. దాన్ని హోస్ట్ ఎన్విరాన్‌మెంట్‌లో సెట్ చేయండి — GET /api/health దాని స్థితిని తెలియజేస్తుంది."
   },
   "ur": {
     "Sign in": "سائن اِن کریں",
@@ -3969,6 +4011,8 @@
     "That password did not match this account.": "وہ پاس ورڈ اس اکاؤنٹ سے مطابقت نہیں رکھتا۔",
     "This build has no account password to confirm. Use the console passcode set on this device.": "اس بلڈ میں تصدیق کے لیے کوئی اکاؤنٹ پاس ورڈ نہیں ہے۔ اس ڈیوائس پر سیٹ کیا گیا کونسول پاس کوڈ استعمال کریں۔",
     "This device is signed out of the account. Sign in with your email and password to open the console.": "یہ ڈیوائس اکاؤنٹ سے سائن آؤٹ ہے۔ کونسول کھولنے کے لیے اپنے ای میل اور پاس ورڈ سے سائن اِن کریں۔",
-    "The lock screen shows how to clear it": "لاک اسکرین اسے صاف کرنے کا طریقہ دکھاتی ہے"
+    "The lock screen shows how to clear it": "لاک اسکرین اسے صاف کرنے کا طریقہ دکھاتی ہے",
+    "unknown-key": "نامعلوم کی",
+    "This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.": "یہ ڈپلائمنٹ سیشن نہیں کھول سکتا: DUKAANOS_SESSION_SECRET موجود نہیں یا 32 حروف سے چھوٹا ہے۔ اسے ہوسٹ کے انوائرمنٹ میں سیٹ کریں — GET /api/health اس کی حالت بتاتا ہے۔"
   }
 }
