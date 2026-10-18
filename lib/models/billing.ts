@@ -1,5 +1,5 @@
 export type ReceiptMode = 'digital' | 'physical' | 'both';
-export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Other';
+export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Credit' | 'Other';
 export type PaymentStatus = 'paid' | 'pending' | 'partial' | 'failed';
 
 export type InvoiceItem = {
@@ -135,7 +135,7 @@ export function summarizePaymentRecords(records: PaymentRecord[]) {
       acc[record.paymentMethod] = (acc[record.paymentMethod] ?? 0) + record.amount;
     }
     return acc;
-  }, { Cash: 0, UPI: 0, Card: 0, 'Bank Transfer': 0, Other: 0 });
+  }, { Cash: 0, UPI: 0, Card: 0, 'Bank Transfer': 0, Credit: 0, Other: 0 });
 
   return { collected, failed, pending, byMethod };
 }

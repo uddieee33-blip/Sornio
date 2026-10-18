@@ -407,6 +407,8 @@ function methodAccount(method: PaymentMethod): Transaction['account'] {
       return 'card';
     case 'Bank Transfer':
       return 'bank';
+    // Credit (and Other, until the owner decides) is money owed to the business.
+    case 'Credit':
     default:
       return 'receivables';
   }
@@ -746,7 +748,13 @@ export type StoreActions = {
   recordStockInward: (input: {
     lines: { productId: string; quantity: number; cost?: number }[];
     supplier?: string;
+    /** Paid now from an account, or owed to the supplier (payables). */
+    payment: { mode: 'paid'; method: PaymentMethod } | { mode: 'credit' };
   }) => ActionResult;
+  /** Collect money owed by customers (credit sales and opening balances). */
+  collectDue: (input: { amount: number; method: PaymentMethod; customerName?: string }) => ActionResult;
+  /** Pay a supplier from what the business owes them (payables). */
+  paySupplier: (input: { amount: number; method: PaymentMethod; supplier?: string }) => ActionResult;
   // ---- Fingerprint check-in (gym & fitness) ----
   enrollBiometric: (input: { memberId: string; credentialId: string; label: string }) => ActionResult;
   revokeBiometric: (credentialId: string) => ActionResult;
@@ -859,7 +867,7 @@ function buildRevenueTransactions(description: string, amount: number, method: P
     {
       id: newId('t'),
       type: 'payment',
-      description: `${method} received for ${description.toLowerCase()}`,
+      description: method === 'Credit' ? `On credit — ${description.toLowerCase()}` : `${method} received for ${description.toLowerCase()}`,
       amount,
       direction: 'in',
       account: methodAccount(method),
@@ -1098,6 +1106,40 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       if (profilePushTimer.current) clearTimeout(profilePushTimer.current);
     };
   }, [state.profile, syncingEnabled]);
+
+  // Restore onto an empty device. A new phone, a reinstall, or a cleared browser
+  // starts with nothing; the cloud may already hold the shop's records. Once per
+  // session, and only into a device that has no records at all — never over
+  // local work. The push guard in the database refuses an empty snapshot over
+  // a populated business, so the order of these two effects cannot lose data.
+  const restoreAttempted = useRef(false);
+  useEffect(() => {
+    if (!hydrated || !supabaseMode || !authed || restoreAttempted.current) return;
+    restoreAttempted.current = true;
+    import('@/lib/sync/supabase-sync')
+      .then(({ fetchCloudSnapshot }) => fetchCloudSnapshot())
+      .then((result) => {
+        if (!result.ok || result.empty) return;
+        const cloud = result.snapshot;
+        setState((current) => {
+          const deviceIsEmpty =
+            current.products.length === 0 && current.transactions.length === 0 && current.customers.length === 0;
+          if (!deviceIsEmpty || current.demoMode) return current;
+          return {
+            ...current,
+            products: cloud.products,
+            transactions: cloud.transactions,
+            customers: cloud.customers,
+            stockMovements: cloud.stockMovements,
+          };
+        });
+      })
+      .catch(() => {
+        // Offline or throttled: the device keeps working on what it has. The
+        // next session tries again.
+        restoreAttempted.current = false;
+      });
+  }, [hydrated, supabaseMode, authed]);
 
   // Debounced push: any state change schedules a background sync 2s later.
   useEffect(() => {
@@ -1405,7 +1447,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           products: current.products.map((product) => {
             const line = validLines.find((entry) => entry.productId === product.id);
             if (!line || product.itemType !== 'product') return product;
-            return { ...product, stock: Math.max(product.stock - line.quantity, 0) };
+            return { ...product, stock: product.stock - line.quantity };
           }),
         };
       });
@@ -1427,6 +1469,48 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
     recordConsoleEvent(summary) {
       track('settings', summary.slice(0, 240));
+    },
+
+    collectDue({ amount, method, customerName }) {
+      if (method === 'Credit') return { ok: false, error: 'Choose how the money was received: cash, UPI, card or bank transfer.' };
+      if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
+      const outstanding = summarizeFinancials(stateRef.current.transactions, stateRef.current.products, stateRef.current.customers).customerReceivables;
+      if (outstanding <= 0) return { ok: false, error: 'No customer dues are outstanding.' };
+      if (amount > outstanding + 0.005) return { ok: false, error: `Only ${formatAuditAmount(outstanding)} is outstanding.` };
+      const date = todayISO();
+      const who = customerName?.trim() || undefined;
+      const label = who ? ` from ${who}` : '';
+      setState((current) => ({
+        ...current,
+        transactions: [
+          ...current.transactions,
+          { id: newId('t'), type: 'payment', description: `Due collected${label} — ${method}`, amount, direction: 'in', account: methodAccount(method), paymentMethod: method, date },
+          { id: newId('t'), type: 'payment', description: `Due collected${label}`, amount, direction: 'out', account: 'receivables', date },
+        ],
+      }));
+      track('sale', `Collected ${formatAuditAmount(amount)} of dues${label} via ${method}.`);
+      return { ok: true };
+    },
+
+    paySupplier({ amount, method, supplier }) {
+      if (method === 'Credit' || method === 'Other') return { ok: false, error: 'Pay with cash, UPI, card or bank transfer.' };
+      if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'Amount must be greater than zero.' };
+      const owed = summarizeFinancials(stateRef.current.transactions, stateRef.current.products, stateRef.current.customers).payables;
+      if (owed <= 0) return { ok: false, error: 'Nothing is owed to suppliers.' };
+      if (amount > owed + 0.005) return { ok: false, error: `Only ${formatAuditAmount(owed)} is owed to suppliers.` };
+      const date = todayISO();
+      const who = supplier?.trim() || undefined;
+      const label = who ? ` to ${who}` : '';
+      setState((current) => ({
+        ...current,
+        transactions: [
+          ...current.transactions,
+          { id: newId('t'), type: 'payment', description: `Supplier paid${label} — ${method}`, amount, direction: 'out', account: methodAccount(method), paymentMethod: method, date },
+          { id: newId('t'), type: 'payment', description: `Supplier paid${label}`, amount, direction: 'out', account: 'payables', date },
+        ],
+      }));
+      track('system', `Paid ${formatAuditAmount(amount)} to suppliers${label} via ${method}.`);
+      return { ok: true };
     },
 
     recordExpense({ category, amount, method }) {
@@ -1854,8 +1938,11 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
       return { ok: true, productId };
     },
 
-    recordStockInward({ lines, supplier }) {
+    recordStockInward({ lines, supplier, payment }) {
       const valid = lines.filter((line) => line.quantity > 0);
+      if (payment.mode === 'paid' && (payment.method === 'Credit' || payment.method === 'Other')) {
+        return { ok: false, error: 'Pay now with cash, UPI, card or bank transfer, or record it as owed to the supplier.' };
+      }
       if (valid.length === 0) return { ok: false, error: 'Scan at least one item to receive.' };
 
       for (const line of valid) {
@@ -1918,6 +2005,27 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
             account: 'inventory' as const,
             date,
           })),
+          // The purchase is either paid now (money leaves an account) or owed (payables).
+          ...(payment.mode === 'paid'
+            ? [{
+                id: newId('t'),
+                type: 'payment' as const,
+                description: `Paid ${supplier ?? 'supplier'} for goods received`,
+                amount: totalValue,
+                direction: 'out' as const,
+                account: methodAccount(payment.method),
+                paymentMethod: payment.method,
+                date,
+              }]
+            : [{
+                id: newId('t'),
+                type: 'payment' as const,
+                description: `Owed to ${supplier ?? 'supplier'} for goods received`,
+                amount: totalValue,
+                direction: 'in' as const,
+                account: 'payables' as const,
+                date,
+              }]),
         ],
       }));
 
@@ -2287,6 +2395,14 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     startFreshBusiness() {
       setState(buildEmptyState());
       track('system', 'Started a fresh business — every balance reset to ₹0.');
+      if (syncingEnabled) {
+        // Without this the next restore would bring the old records back.
+        setSyncStatus('syncing');
+        import('@/lib/sync/supabase-sync')
+          .then((sync) => sync.resetCloudBusiness())
+          .then((result) => setSyncStatus(result.ok ? 'synced' : 'error'))
+          .catch(() => setSyncStatus('error'));
+      }
     },
 
     resetDemo() {
@@ -2365,5 +2481,5 @@ export function useDukaanSelector<T>(select: (state: StoreState) => T): T {
 /** Convenience selector: the financial snapshot recomputed from live transactions. */
 export function useFinancialSnapshot() {
   const { state } = useDukaanStore();
-  return useMemo(() => summarizeFinancials(state.transactions), [state.transactions]);
+  return useMemo(() => summarizeFinancials(state.transactions, state.products, state.customers), [state.transactions, state.products, state.customers]);
 }

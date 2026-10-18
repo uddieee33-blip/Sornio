@@ -31,7 +31,7 @@ export default function AlertsPage() {
   const carriesSuppliers = allows('/suppliers');
 
   const { alerts, healthy, lowStockCount } = useMemo(() => {
-    const financials = summarizeFinancials(state.transactions);
+    const financials = summarizeFinancials(state.transactions, state.products, state.customers);
     const rows: AlertRow[] = [];
     const ok: string[] = [];
 

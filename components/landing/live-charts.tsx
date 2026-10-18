@@ -21,7 +21,7 @@ function SampleTag() {
 export function LiveCharts() {
   useLocaleRefresh();
   const seed = buildSeedState();
-  const financials = summarizeFinancials(seed.transactions);
+  const financials = summarizeFinancials(seed.transactions, seed.products, seed.customers);
   const revenue = revenueSeries(seed.transactions);
   const expenses = expenseSeries(seed.transactions);
   const byCategory = expensesByCategory(seed.transactions);

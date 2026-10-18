@@ -32,6 +32,11 @@ import { useI18n } from '@/lib/i18n';
 const DESK_METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 
 const METHOD_META: Record<PaymentMethod, { icon: typeof Banknote; hint: string; active: string }> = {
+  Credit: {
+    icon: Banknote,
+    hint: 'Owed by the customer — collect later',
+    active: 'border-amber-500/50 bg-amber-500/[0.10] shadow-glow-sm',
+  },
   Cash: {
     icon: Banknote,
     hint: 'Count it, confirm it',

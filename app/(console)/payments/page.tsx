@@ -11,6 +11,7 @@ import { Badge } from '@/components/ui/Badge';
 import { StatCard } from '@/components/ui/stat-card';
 import { DonutChart } from '@/components/charts/DonutChart';
 import { CollectPaymentPanel } from '@/components/payments/collect-payment';
+import { CollectDuesPanel } from '@/components/payments/dues-panels';
 import { formatCurrency } from '@/lib/business-data';
 import { paymentsByMethod } from '@/lib/chart-data';
 import { useDukaanStore } from '@/lib/store';
@@ -40,6 +41,8 @@ export default function PaymentsPage() {
   return (
     <div className="p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Billing" title="Payment methods" subtitle="How money actually moves in and out — recorded per transaction." />
+
+      <CollectDuesPanel />
 
       {/* Front-desk collection: pick who pays, pick how, follow the panel. */}
       <Card className="animate-fade-up mb-6">

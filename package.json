@@ -15,6 +15,7 @@
     "theme:build": "node scripts/build-themes.mjs",
     "verify:scanning": "node scripts/verify-scanning.mjs",
     "verify:billing": "node scripts/verify-billing.mjs",
+    "verify:accounting": "node scripts/verify-accounting.mjs",
     "verify:inventory": "node scripts/verify-inventory.mjs",
     "verify:import": "node scripts/verify-import.mjs",
     "i18n:extract": "node scripts/extract-i18n.mjs",
@@ -24,7 +25,7 @@
     "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",
     "verify:i18n": "node scripts/verify-i18n.mjs",
     "verify:lock": "node scripts/verify-lock.mjs",
-    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:inventory && npm run verify:import && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:profile && npm run verify:pwa && npm run verify:i18n && npm run verify:render",
+    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:accounting && npm run verify:inventory && npm run verify:import && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:profile && npm run verify:pwa && npm run verify:i18n && npm run verify:render && npm run verify:recovery && npm run verify:database",
     "mint:activation": "node scripts/mint-activation.mjs",
     "verify:theme": "node scripts/verify-theme.mjs",
     "verify:security": "node scripts/verify-security.mjs",
@@ -32,7 +33,9 @@
     "verify:profile": "node scripts/verify-profile.mjs",
     "verify:pwa": "node scripts/verify-pwa.mjs",
     "verify:motion": "node scripts/verify-motion.mjs",
-    "verify:render": "node scripts/verify-render.mjs"
+    "verify:render": "node scripts/verify-render.mjs",
+    "verify:recovery": "node scripts/verify-recovery.mjs",
+    "verify:database": "node scripts/verify-database.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -57,6 +60,7 @@
     "postcss": "8.5.28",
     "tailwindcss": "4.3.3",
     "typescript": "6.0.3",
-    "typescript-native": "npm:typescript@7.0.2"
+    "typescript-native": "npm:typescript@7.0.2",
+    "@electric-sql/pglite": "^0.2.17"
   }
 }

@@ -73,7 +73,7 @@ import {
   type ScanTicketLine,
 } from '@/lib/scanning';
 
-const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
+const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Credit', 'Other'];
 const inputClass =
   'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 
@@ -94,6 +94,8 @@ export default function ScanStationPage() {
   // Goods inward: what has been scanned off the carton so far.
   const [inward, setInward] = useState<{ productId: string; quantity: number; cost: number }[]>([]);
   const [supplier, setSupplier] = useState('');
+  // How the delivery is paid: now from an account, or owed to the supplier.
+  const [inwardPayment, setInwardPayment] = useState<'credit' | 'Cash' | 'UPI' | 'Card' | 'Bank Transfer'>('credit');
 
   // Labels.
   const [selectedLabels, setSelectedLabels] = useState<string[]>([]);
@@ -226,9 +228,10 @@ export default function ScanStationPage() {
 
   const commitInward = () => {
     if (inward.length === 0) return;
-    const result = actions.recordStockInward({ lines: inward, supplier: supplier.trim() || undefined });
+    const payment = inwardPayment === 'credit' ? ({ mode: 'credit' } as const) : ({ mode: 'paid', method: inwardPayment } as const);
+    const result = actions.recordStockInward({ lines: inward, supplier: supplier.trim() || undefined, payment });
     if (result.ok) {
-      note('ok', `${inward.length} item(s) added to stock — inventory value updated at purchase cost.`);
+      note('ok', `${inward.length} item(s) added to stock — inventory value updated at purchase cost${inwardPayment === 'credit' ? ' and the amount added to what you owe suppliers' : ''}.`);
       setInward([]);
       setSupplier('');
     } else {
@@ -527,6 +530,13 @@ export default function ScanStationPage() {
                 <label className="flex-1 text-[11px] font-semibold uppercase tracking-wide text-stone-600">
                   Supplier (optional)
                   <input value={supplier} onChange={(event) => setSupplier(event.target.value)} placeholder="Who delivered it" className={`mt-1.5 ${inputClass}`} />
+                  <select value={inwardPayment} onChange={(event) => setInwardPayment(event.target.value as typeof inwardPayment)} className={`mt-2 ${inputClass}`} aria-label="How this delivery is paid">
+                    <option value="credit">On credit — owed to the supplier</option>
+                    <option value="Cash">Paid now — cash</option>
+                    <option value="UPI">Paid now — UPI</option>
+                    <option value="Card">Paid now — card</option>
+                    <option value="Bank Transfer">Paid now — bank transfer</option>
+                  </select>
                 </label>
                 <Button onClick={commitInward} disabled={inward.length === 0}>
                   <PackagePlus size={16} /> Receive into stock
