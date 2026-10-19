@@ -29,6 +29,7 @@ import {
   sealOwnerSession,
   getSessionUser,
 } from '@/lib/auth';
+import { sessionSecretConfigError, sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import { auditLogsInsertNote, inviteLooksLive, type TeamInviteRow } from '@/lib/team/redeem-helpers';
 import { cleanLine } from '@/lib/security/validation';
@@ -56,6 +57,13 @@ export async function POST(request: Request) {
     payload = JSON.parse(raw || '{}');
   } catch {
     return json({ ok: false, error: 'Expected a JSON body.' }, 400);
+  }
+
+  // Refused before the invite is spent or a membership row is written: joining
+  // a team ends by re-minting this device's session, and a deployment that
+  // cannot sign it must not half-join the teammate and then explain nothing.
+  if (sessionVerificationSecret() === null) {
+    return json({ ok: false, code: 'sessions-disabled', error: sessionSecretConfigError() }, 503);
   }
 
   const codeText = cleanLine((payload as { code?: unknown } | null)?.code, 32);

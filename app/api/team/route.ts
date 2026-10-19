@@ -33,6 +33,7 @@ import {
   type ConsoleIdentity,
 } from '@/lib/auth';
 import { transportForRequest } from '@/lib/security/transport';
+import { sessionVerificationSecret } from '@/lib/security/session';
 import { cleanLine } from '@/lib/security/validation';
 import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { mintInviteCode } from '@/lib/team/codes';
@@ -71,6 +72,12 @@ async function healedIdentity(): Promise<{ identity: ConsoleIdentity; refreshed:
   if (!user) return { identity, refreshed: null };
   const membership = await resolveMembership(user.id);
   if (!membership) return { identity, refreshed: null };
+
+  // No usable signing key means the heal cannot complete — but the team screen
+  // still can. Return the identity as it stands rather than letting the mint
+  // throw: the configuration gap is reported at sign-in, at start-up, and on
+  // /api/health, not as a 500 on a page that was working.
+  if (sessionVerificationSecret() === null) return { identity, refreshed: null };
 
   const issued = await sealOwnerSession({
     userId: user.id,

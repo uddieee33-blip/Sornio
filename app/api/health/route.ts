@@ -34,10 +34,8 @@ import { NextResponse } from 'next/server';
 import { isActivationConfigured } from '@/lib/plans';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { resolvePosture } from '@/lib/security/headers';
+import { SESSION_SECRET_MIN_LENGTH as SECRET_MIN_LENGTH, sessionSecretState } from '@/lib/security/session';
 import { isValidUpiId } from '@/lib/upi';
-
-/** The minimum length both signing secrets are held to. */
-const SECRET_MIN_LENGTH = 32;
 
 export type EnvVarStatus = {
   key: string;
@@ -136,8 +134,8 @@ export async function GET() {
       'DUKAANOS_SESSION_SECRET',
       'Signs sessions and the plan cookie',
       sessionSecret,
-      'With it set, a session token or a plan record cannot be forged by editing browser storage. Without it, a per-host development fallback is used, which is fine on your own machine and wrong in production.',
-      'Session and plan cookies use a development fallback key.',
+      'With it set, a session token or a plan record cannot be forged by editing browser storage. Production refuses to mint or verify sessions without it; local development falls back to a per-host key so `next dev` still works.',
+      'Sign-in is refused with “This deployment cannot open sessions …” until this is set. A development build signs with a per-host fallback key instead.',
     ),
     secretStatus(
       'DUKAANOS_ACTIVATION_SECRET',
@@ -169,8 +167,14 @@ export async function GET() {
         : `NEXT_PUBLIC_PLANS_UPI_ID (“${plansUpi}”) is not a valid UPI id, so payment collection is refused. It should look like name@bank.`,
     );
   }
-  if (sessionSecret.length > 0 && sessionSecret.length < SECRET_MIN_LENGTH) {
+  const sessionState = sessionSecretState();
+  if (sessionState === 'short') {
     problems.push('DUKAANOS_SESSION_SECRET is shorter than 32 characters. Generate one with openssl rand -hex 32.');
+  }
+  if (sessionState === 'missing') {
+    problems.push(
+      'DUKAANOS_SESSION_SECRET is not set, so this deployment cannot open or verify sessions: sign-in, account creation and password recovery all stop at a configuration error until it is. Generate one with openssl rand -hex 32 and set it in the host’s environment — on Vercel, Settings → Environment Variables, checked for Production and Preview both — then redeploy.',
+    );
   }
   if (!isActivationConfigured()) {
     problems.push(

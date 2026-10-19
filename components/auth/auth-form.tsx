@@ -47,6 +47,7 @@ import { useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { AlertCircle, ArrowRight, Check, Clock, Eye, EyeOff, KeyRound, Loader2, Lock, LogOut, Mail } from 'lucide-react';
 import { LIMITS, cleanLine, isEmail, passwordStrength } from '@/lib/security/validation';
+import { sessionSecretConfigError } from '@/lib/security/session';
 import { consume } from '@/lib/security/rate-limit';
 import { doorNeedsConfirmation, signInNextParam, welcomeDestination } from '@/lib/auth/routes';
 import { confirmConsoleAccess, requestPasswordReset, signOutAndLeave, submitCredentials, type RenderedIdentity } from '@/lib/auth/client';
@@ -66,6 +67,7 @@ const NOTICES: Record<AuthFailureNotice, string> = {
   link: 'That link has already been used or has expired. Sign in below, then request a new one.',
   local: 'This build has no account to confirm, so there is nothing to open here. Sign in below.',
   unavailable: 'Could not reach the authentication service. Please try again.',
+  config: sessionSecretConfigError(),
 };
 
 /** `12 Mar, 09:40` — the same format the top bar uses for a session expiry. */

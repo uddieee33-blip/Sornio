@@ -38,6 +38,7 @@ import { cookies } from 'next/headers';
 
 import { getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { sessionSecretConfigError, sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import type { CookieTransport } from '@/lib/security/cookies';
 import { randomToken } from '@/lib/security/crypto';
@@ -115,6 +116,12 @@ async function issue(
   transport: CookieTransport,
   body: Record<string, unknown> = {},
 ): Promise<NextResponse> {
+  // The plan cookie is signed with the same key as the session. Without a
+  // usable one there is nothing to seal it with — say so rather than letting
+  // the throw surface as a bare 500.
+  if (sessionVerificationSecret() === null) {
+    return json({ ok: false, code: 'sessions-disabled', error: sessionSecretConfigError() }, 503);
+  }
   const token = await sealPlanRecord(record);
   const response = withRecord(record, body);
   response.cookies.set(PLAN_COOKIE, token, planCookieOptions(transport));

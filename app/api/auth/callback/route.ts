@@ -28,6 +28,7 @@
 import { NextResponse } from 'next/server';
 
 import { getGuardedServerClient } from '@/lib/security/guard';
+import { sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import {
   AUTH_COOKIE,
@@ -41,7 +42,7 @@ import {
 import { storedSetupComplete } from '@/lib/sync/profile-server';
 
 /** Codes `/auth` knows how to phrase. Adding one means adding the copy for it. */
-const FAILURE_NOTICES = new Set(['link', 'local', 'unavailable']);
+const FAILURE_NOTICES = new Set(['link', 'local', 'unavailable', 'config']);
 
 function toSignIn(code: string, from: URL): NextResponse {
   const safe = FAILURE_NOTICES.has(code) ? code : 'unavailable';
@@ -62,6 +63,12 @@ export async function GET(request: Request) {
 
   if (providerError) return fail('link');
   if (!code) return fail('link');
+
+  // Refused before the code is spent: `exchangeCodeForSession` is single-use,
+  // and a deployment that cannot sign the session that follows must not burn
+  // the owner's one recovery link on a reply that hides the reason why. The
+  // `config` notice carries the same sentence the sign-in door would.
+  if (sessionVerificationSecret() === null) return fail('config');
 
   const client = await getGuardedServerClient();
   if (!client) return fail('local');

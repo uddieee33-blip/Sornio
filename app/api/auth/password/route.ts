@@ -28,6 +28,7 @@
 import { NextResponse } from 'next/server';
 
 import { getGuardedServerClient } from '@/lib/security/guard';
+import { sessionSecretConfigError, sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import { LIMITS, passwordStrength } from '@/lib/security/validation';
 import {
@@ -58,6 +59,15 @@ export async function POST(request: Request) {
     payload = JSON.parse(raw || '{}');
   } catch {
     return json({ ok: false, error: 'Expected a JSON body.' }, 400);
+  }
+
+  // Checked before the provider is touched: `updateUser` would change the
+  // password and then the session rotation below would fail closed, leaving
+  // the owner with a changed password, an old cookie, and an error message
+  // that explains nothing. Refuse up front, with the shared configuration
+  // error, while nothing has happened yet.
+  if (sessionVerificationSecret() === null) {
+    return json({ ok: false, code: 'sessions-disabled', error: sessionSecretConfigError() }, 503);
   }
 
   const password = typeof (payload as { password?: unknown } | null)?.password === 'string'

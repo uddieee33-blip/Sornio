@@ -77,15 +77,48 @@ function localFallbackSecret(): string {
   return `dukaanos-local::${process.env.NEXT_PUBLIC_APP_URL ?? 'sandbox'}::v1`;
 }
 
+/** The floor `DUKAANOS_SESSION_SECRET` is held to. One number, everywhere. */
+export const SESSION_SECRET_MIN_LENGTH = 32;
+
+/**
+ * Why a deployment without a usable secret cannot open sessions — phrased once.
+ *
+ * Every door that mints a session says this exact sentence (the sign-in
+ * endpoint, the recovery callback, the password change, the team join) and so
+ * does the start-up log, so an owner who meets the problem anywhere meets the
+ * same words. It is also the one key the 22 locale catalogues carry for the
+ * sentence: returning it from here keeps the extractor's source of truth and
+ * the translations in the same place.
+ */
+export function sessionSecretConfigError(): string {
+  return 'This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.';
+}
+
+/**
+ * The state of the signing secret, for start-up diagnostics and `GET /api/health`.
+ *
+ * - `ok` — configured, 32+ characters, the only state production will mint in.
+ * - `short` — set but too short. A typo in every mode: production refuses it
+ *   outright, development silently falls back (and says so).
+ * - `missing` — unset in production. Sessions cannot be minted or verified.
+ * - `fallback` — unset in development, where the per-host key is by design.
+ */
+export function sessionSecretState(): 'ok' | 'short' | 'missing' | 'fallback' {
+  const configured = (process.env.DUKAANOS_SESSION_SECRET ?? '').trim();
+  if (configured.length >= SESSION_SECRET_MIN_LENGTH) return 'ok';
+  if (configured.length > 0) return 'short';
+  return process.env.NODE_ENV === 'production' ? 'missing' : 'fallback';
+}
+
 /** The signing secret is per-deployment; sessions from another key are rejected. */
 export function resolveSessionSecret(): string {
   const configured = (process.env.DUKAANOS_SESSION_SECRET ?? '').trim();
-  if (configured.length >= 32) return configured;
+  if (configured.length >= SESSION_SECRET_MIN_LENGTH) return configured;
   // Production fails closed. The old fallback was derived from a public URL, so
   // anyone could forge a session for any tenant on a deployment that forgot the
   // secret. Local development keeps a fixed fallback so `next dev` still works.
   if (process.env.NODE_ENV === 'production') {
-    throw new Error('DUKAANOS_SESSION_SECRET (32+ characters) is required in production. Refusing to sign sessions without it.');
+    throw new Error(sessionSecretConfigError());
   }
   return localFallbackSecret();
 }
@@ -103,7 +136,7 @@ export function resolveSessionSecret(): string {
  */
 export function sessionVerificationSecret(): string | null {
   const configured = (process.env.DUKAANOS_SESSION_SECRET ?? '').trim();
-  if (configured.length >= 32) return configured;
+  if (configured.length >= SESSION_SECRET_MIN_LENGTH) return configured;
   if (process.env.NODE_ENV === 'production') return null;
   return localFallbackSecret();
 }

@@ -11,8 +11,12 @@
 /** Where identity comes from on this deployment. */
 export type AuthMode = 'supabase' | 'local';
 
-/** The fixed codes `/auth` knows how to phrase. */
-export type AuthFailureNotice = 'link' | 'local' | 'unavailable';
+/**
+ * The fixed codes `/auth` knows how to phrase. `config` is the deployment's own
+ * configuration gap — the session secret is missing or too short — phrased by
+ * `sessionSecretConfigError()` so it matches every API door word for word.
+ */
+export type AuthFailureNotice = 'link' | 'local' | 'unavailable' | 'config';
 
 /**
  * The fixed codes the "confirm it's you" step can fail with.
