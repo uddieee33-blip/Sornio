@@ -671,6 +671,56 @@ npm run mint:activation -- --plan growth --months 3 --reference DKG-XXXXXX
 
 Never commit real credentials; `.env*` is gitignored.
 
+### Setting `DUKAANOS_SESSION_SECRET` on Vercel
+
+The exact variable name is `DUKAANOS_SESSION_SECRET` — no `NEXT_PUBLIC_` prefix,
+ever. It is read server-side only (`process.env` inside route handlers, the
+request proxy, and `instrumentation.ts`); nothing named `NEXT_PUBLIC_*` is a
+place for it, because that prefix is inlined into browser code by the build.
+
+Vercel scopes **every environment variable to the environments you tick**:
+Production, Preview and Development are three separate scopes. **Preview does
+not inherit Production.** A variable set only for Production leaves every
+preview deploy answering sign-in with *"This deployment cannot open sessions:
+DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters"* — the exact
+error this section exists to prevent. So:
+
+1. Generate a secret: `openssl rand -hex 32` (64 hex characters; the floor is
+   32 — run it once per scope if you want separate values, which is
+   recommended).
+2. Vercel → the project → **Settings → Environment Variables** → **Add…**
+3. Key: `DUKAANOS_SESSION_SECRET`. Value: the generated string. Never a
+   shared or hard-coded one.
+4. Tick **Production *and* Preview** (add **Development** if you use
+   `vercel dev`). Two variables with the same key and different values per
+   scope is fine and slightly better than one shared value.
+5. **Redeploy.** A running deployment keeps the environment it booted with;
+   variables added afterwards are not picked up until a new deployment is
+   created (Vercel: *"Environment variable changes require a redeploy"*).
+6. If this deployment sells plans, do the same for
+   `DUKAANOS_ACTIVATION_SECRET` (`openssl rand -hex 32` again).
+
+Confirm on the deployment URL before declaring victory:
+
+- `GET /api/health` — the `DUKAANOS_SESSION_SECRET` row must read
+  `Set — N characters` (the value itself is never returned — length only) and
+  no problem line may mention the secret. This endpoint deliberately works
+  even while the secret is missing; that is how the gap is found.
+- `GET /api/auth/session` — `signedIn: false` with `ok: true` means the
+  endpoint is answering; a `503` with the configuration error means step 4 or
+  5 was skipped.
+- Start-up logs carry the same state once per server instance, never the value.
+
+Rotating the secret (or changing it between scopes) invalidates every session
+and plan cookie signed with the old value — owners sign in again. That is the
+HMAC doing its job, not a fault.
+
+Node.js is pinned by `package.json` → `engines.node` (`24.x`), which is what
+Vercel runs and what `ci.yml` proves. Do not override the Node version in the
+project settings: `verify:security` fails the build if `vercel.json`,
+`package.json`, and CI ever disagree about build command, install command, or
+runtime.
+
 ### Finding these settings without a support call
 
 Because every one of the above is a **server-side** variable — deliberately, since
@@ -724,7 +774,7 @@ npm run theme:build          # regenerate app/themes.css from lib/theme/palettes
 DUKAANOS_ACTIVATION_SECRET=… npm run mint:activation -- --plan growth --months 3 --reference UPI-482910
 ```
 
-Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy to Vercel with the same environment variables.
+Apply `supabase/schema.sql` in the Supabase SQL editor, enable Auth, then deploy to Vercel with the same environment variables — set for **Production and Preview** both (see *Setting `DUKAANOS_SESSION_SECRET` on Vercel* above).
 
 ### Two type checks, not one
 

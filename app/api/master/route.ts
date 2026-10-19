@@ -35,6 +35,7 @@ import { cookies } from 'next/headers';
 
 import { getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
+import { sessionSecretConfigError, sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import {
   MASTER_COOKIE,
@@ -107,6 +108,13 @@ export async function POST(request: Request) {
     const response = json(describe(MASTER_OFF));
     response.cookies.set(MASTER_COOKIE, '', { ...masterCookieOptions(transportForRequest(request)), maxAge: 0 });
     return response;
+  }
+
+  // The reveal cookie is signed with the same key as the session — without a
+  // usable one there is nothing to seal, and the switch must say so rather
+  // than throw a bare 500.
+  if (sessionVerificationSecret() === null) {
+    return json({ ok: false, code: 'sessions-disabled', error: sessionSecretConfigError() }, 503);
   }
 
   const record = startMasterReveal(actor);

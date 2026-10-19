@@ -48,7 +48,7 @@ import type { AuthFailureNotice } from '@/lib/auth/types';
  */
 
 const INTERVALS: BillingInterval[] = ['forever', 'month', 'quarter', 'year'];
-const NOTICES: AuthFailureNotice[] = ['link', 'local', 'unavailable'];
+const NOTICES: AuthFailureNotice[] = ['link', 'local', 'unavailable', 'config'];
 
 function param(value: string | string[] | undefined): string {
   return Array.isArray(value) ? (value[0] ?? '') : (value ?? '');

@@ -211,6 +211,94 @@ check('development keeps a local fallback so `next dev` still works', () => {
   });
 });
 
+check('the verification side fails closed without ever throwing at a request', () => {
+  withEnv({ NODE_ENV: 'production', DUKAANOS_SESSION_SECRET: undefined }, () => {
+    assertEqual(session.sessionVerificationSecret(), null, 'production with no secret verifies nothing');
+  });
+  withEnv({ NODE_ENV: 'production', DUKAANOS_SESSION_SECRET: 'too-short' }, () => {
+    assertEqual(session.sessionVerificationSecret(), null, 'a short secret verifies nothing in production');
+  });
+  const secret = 'y'.repeat(32);
+  withEnv({ NODE_ENV: 'production', DUKAANOS_SESSION_SECRET: secret }, () => {
+    assertEqual(session.sessionVerificationSecret(), secret, 'a real secret is the verification key');
+  });
+});
+
+check('sessionSecretState classifies the deployment the way the runtime enforces it', () => {
+  withEnv({ NODE_ENV: 'production', DUKAANOS_SESSION_SECRET: undefined }, () => {
+    assertEqual(session.sessionSecretState(), 'missing', 'unset in production');
+  });
+  withEnv({ NODE_ENV: 'production', DUKAANOS_SESSION_SECRET: 'too-short' }, () => {
+    assertEqual(session.sessionSecretState(), 'short', 'set too short');
+  });
+  withEnv({ NODE_ENV: 'development', DUKAANOS_SESSION_SECRET: 'too-short' }, () => {
+    assertEqual(session.sessionSecretState(), 'short', 'a short value is a typo in development too');
+  });
+  withEnv({ NODE_ENV: 'production', DUKAANOS_SESSION_SECRET: 'z'.repeat(32) }, () => {
+    assertEqual(session.sessionSecretState(), 'ok', '32 characters clears the floor');
+  });
+  withEnv({ NODE_ENV: 'development', DUKAANOS_SESSION_SECRET: undefined }, () => {
+    assertEqual(session.sessionSecretState(), 'fallback', 'unset in development is the documented fallback');
+  });
+});
+
+check('the configuration error names the variable and the floor, and carries no key material', () => {
+  const message = session.sessionSecretConfigError();
+  assert(message.includes('DUKAANOS_SESSION_SECRET'), `names the variable: ${message}`);
+  assert(message.includes('32'), `names the floor: ${message}`);
+  assert(message.includes('/api/health'), `points at the diagnostic: ${message}`);
+  assert(!/\b[A-Za-z0-9_-]{32,}\b/.test(message.replace(/DUKAANOS_SESSION_SECRET/g, '')), 'never embeds a key-shaped blob');
+});
+
+check('the configuration error is the exact sentence the 22 locales carry', () => {
+  const en = JSON.parse(readFileSync(join(root, 'locales', 'en.json'), 'utf8'));
+  const message = session.sessionSecretConfigError();
+  assert(en[message] === message, 'locales/en.json no longer carries the sentence the doors say — run `npm run i18n:extract` and regenerate the catalogues');
+});
+
+check('start-up classifies the secret and reports the shared error, without logging it', () => {
+  const instrumentation = readFileSync(join(root, 'instrumentation.ts'), 'utf8');
+  assert(/export async function register/.test(instrumentation), 'instrumentation.ts must export register()');
+  assert(instrumentation.includes('sessionSecretState'), 'register() must classify the secret at the server-init boundary');
+  assert(instrumentation.includes('sessionSecretConfigError'), 'and report the one shared configuration error');
+  assert(
+    !/console\.(log|error|warn)\([^)]*\$\{?(process\.env\.DUKAANOS_SESSION_SECRET|configured|secret)\b/.test(instrumentation),
+    'the start-up log must never interpolate a secret value',
+  );
+});
+
+check('every session-minting door refuses the same way before it mints', () => {
+  const doors = [
+    'app/api/auth/session/route.ts',
+    'app/api/auth/password/route.ts',
+    'app/api/team/redeem/route.ts',
+    'app/api/team/route.ts',
+    'app/api/subscription/route.ts',
+    'app/api/master/route.ts',
+  ];
+  for (const door of doors) {
+    const source = readFileSync(join(root, door), 'utf8');
+    assert(source.includes('sessionVerificationSecret'), `${door} must check the signing key`);
+    if (door !== 'app/api/team/route.ts') {
+      assert(source.includes('sessionSecretConfigError'), `${door} must phrase the gap with the shared sentence`);
+    }
+  }
+  // The callback redeems a single-use link, so it refuses before spending the
+  // code and hands the wording to the sign-in screen's `config` notice — which
+  // must be the same sentence, or an owner meets two different fixes.
+  const callback = readFileSync(join(root, 'app', 'api', 'auth', 'callback', 'route.ts'), 'utf8');
+  assert(callback.includes('sessionVerificationSecret'), 'the callback must check the signing key before the code is spent');
+  assert(/fail\('config'\)/.test(callback), "the callback must land on the 'config' notice");
+  const authForm = readFileSync(join(root, 'components', 'auth', 'auth-form.tsx'), 'utf8');
+  assert(authForm.includes('sessionSecretConfigError'), "the 'config' notice must be the shared sentence");
+});
+
+check('/api/health reports the secret’s state without ever sending its value', () => {
+  const source = readFileSync(join(root, 'app', 'api', 'health', 'route.ts'), 'utf8');
+  assert(source.includes('sessionSecretState'), 'health must classify with the runtime’s own rule');
+  assert(!source.includes('${sessionSecret') && !source.includes('${activationSecret') && !source.includes('${trimmed}'), 'health must never interpolate a secret value');
+});
+
 // Restore the environment exactly as it was.
 for (const key of Object.keys(process.env)) if (!(key in SAVED)) delete process.env[key];
 Object.assign(process.env, SAVED);
