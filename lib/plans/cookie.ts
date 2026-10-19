@@ -19,7 +19,7 @@
  */
 
 import { base64UrlDecode, base64UrlEncode, constantTimeEqual, hmacSha256Base64Url } from '@/lib/security/crypto';
-import { resolveSessionSecret } from '@/lib/security/session';
+import { resolveSessionSecret, sessionVerificationSecret } from '@/lib/security/session';
 import { isPlanId } from './catalogue';
 import type { PlanRecord } from './types';
 import type { CookieTransport } from '@/lib/security/cookies';
@@ -99,9 +99,11 @@ export async function sealPlanRecord(record: PlanRecord, secret = resolveSession
  */
 export async function openPlanRecord(
   token: string | undefined | null,
-  secret = resolveSessionSecret(),
+  secret: string | null = sessionVerificationSecret(),
 ): Promise<PlanRecord | null> {
-  if (!token) return null;
+  // A deployment that can verify nothing treats every cookie as no record —
+  // never a throw. `resolveSessionSecret` (the mint side) is what fails closed.
+  if (!token || secret === null) return null;
   const parts = token.split('.');
   if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
   const [payload, signature] = parts;

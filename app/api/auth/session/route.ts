@@ -38,6 +38,7 @@
 import { NextResponse } from 'next/server';
 
 import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
+import { sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import type { CookieTransport } from '@/lib/security/cookies';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
@@ -261,6 +262,23 @@ export async function POST(request: Request) {
   const action = (payload as { action?: unknown } | null)?.action;
   if (action !== 'sign-in' && action !== 'sign-up' && action !== 'confirm') {
     return json({ ok: false, error: 'Unknown action.' }, 422);
+  }
+
+  // Minting is the fail-closed half of the session secret: a production
+  // deployment without a usable DUKAANOS_SESSION_SECRET must not open sessions.
+  // Say so in words — this is the one door an owner walks up to, and a bare 500
+  // here (or the "could not reach the authentication service" catch below)
+  // hides a configuration gap behind what looks like a network fault.
+  if (sessionVerificationSecret() === null) {
+    return json(
+      {
+        ok: false,
+        code: 'sessions-disabled',
+        error:
+          'This deployment cannot open sessions: DUKAANOS_SESSION_SECRET is missing or shorter than 32 characters. Set it in the host’s environment — GET /api/health reports its state.',
+      },
+      503,
+    );
   }
 
   const requested = (payload as { next?: unknown } | null)?.next;
