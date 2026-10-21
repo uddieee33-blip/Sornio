@@ -111,10 +111,7 @@ async function ensureBusiness(
   });
   if (businessError) return { error: businessError.message };
 
-  const { error: memberError } = await client
-    .from('business_members')
-    .insert({ business_id: businessId, user_id: userId, role: 'owner' });
-  if (memberError) return { error: memberError.message };
+  // The database trigger creates the owner seat atomically.
 
   return { id: businessId };
 }

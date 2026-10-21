@@ -435,6 +435,12 @@ check('a renewal stacks, an upgrade starts today, and the price lock is real', (
   assertEqual(activation.addMonths(Date.UTC(2026, 0, 31) / 1000, 1), Date.UTC(2026, 1, 28) / 1000, 'month arithmetic clamps short months');
 });
 
+await checkAsync('a hosted plan cookie retains its business scope', async () => {
+  const record = { planId: 'starter', since: 1, renewsAt: 0, trialEndsAt: 0, activatedBy: 'self', businessId: 'business-one' };
+  const token = await cookie.sealPlanRecord(record, 'test-secret-that-is-long-enough-to-sign');
+  assertEqual((await cookie.openPlanRecord(token, 'test-secret-that-is-long-enough-to-sign')).businessId, 'business-one', 'business scope survives signing');
+});
+
 check('the plan cookie is httpOnly and can never be rewritten by a script', () => {
   // The shape comes from the transport now — see lib/security/cookies.ts. The
   // three cases are the three places this app actually runs.

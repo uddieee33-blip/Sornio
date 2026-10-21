@@ -57,6 +57,7 @@ import {
   sealOwnerSession,
   signInFallback,
 } from '@/lib/auth';
+import { PLAN_COOKIE, planCookieOptions } from '@/lib/plans';
 import { storedSetupComplete } from '@/lib/sync/profile-server';
 
 /** An email is capped at 254 by RFC 5321; a password longer than this is a bug. */
@@ -229,6 +230,7 @@ async function confirmSession(payload: unknown, requested: unknown, transport: C
       }),
     });
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+    response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transport), maxAge: 0 });
     return response;
   } catch {
     return json({ ok: false, code: 'unreachable', error: 'Could not reach the authentication service. Please try again.' }, 503);
@@ -324,6 +326,7 @@ export async function POST(request: Request) {
       }),
     });
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+    response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transport), maxAge: 0 });
     return response;
   }
 
@@ -396,6 +399,7 @@ export async function POST(request: Request) {
       }),
     });
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+    response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transport), maxAge: 0 });
     return response;
   } catch {
     // No connection, a revoked project, an expired JWT signing key — the owner
@@ -408,6 +412,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const response = json({ ok: true, signedIn: false, identity: null });
   response.cookies.set(AUTH_COOKIE, '', clearedOwnerSession(transportForRequest(request)));
+  response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transportForRequest(request)), maxAge: 0 });
 
   // The app cookie is cleared unconditionally, before anything else: an owner
   // pressing Sign out must never stay signed in because a network call failed.

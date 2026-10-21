@@ -83,6 +83,8 @@ export type PlanDefinition = {
  * security layer would otherwise refuse.
  */
 export type PlanRecord = {
+  /** Hosted cookie scope; the database remains authoritative. */
+  businessId?: string;
   planId: PlanId;
   /** Epoch seconds the current record began. */
   since: number;
