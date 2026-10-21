@@ -16,6 +16,7 @@
  * of mojibake.
  */
 
+import { customerBalance } from '@/lib/accounting';
 import { toCsv } from '@/lib/security/sanitize';
 import { redact } from '@/lib/security/redact';
 import { CUSTOMER_CSV_HEADERS, PRODUCT_CSV_HEADERS } from './headers';
@@ -49,7 +50,11 @@ function filenameFor(kind: ExportKind, businessName: string, extension: string):
 /** Hand a generated string to the browser's download machinery. */
 export function downloadText(filename: string, content: string, mime: string): ExportResult {
   try {
-    if (typeof document === 'undefined') return { ok: false, error: 'Downloads are only available in the browser.' };
+    if (typeof document === 'undefined')
+      return {
+        ok: false,
+        error: 'Downloads are only available in the browser.',
+      };
     const blob = new Blob([content], { type: `${mime};charset=utf-8` });
     const url = URL.createObjectURL(blob);
     const anchor = document.createElement('a');
@@ -73,7 +78,19 @@ function csv(rows: (string | number | null | undefined)[][]): string {
 
 export function buildTransactionsCsv(state: StoreState): string {
   const rows: (string | number | null | undefined)[][] = [
-    ['Date', 'Type', 'Description', 'Direction', 'Account', 'Payment method', 'Amount', 'Reference'],
+    [
+      'Date',
+      'Type',
+      'Description',
+      'Direction',
+      'Account',
+      'Payment method',
+      'Amount',
+      'Reference',
+      'Customer ID',
+      'Invoice',
+      'Payment reference',
+    ],
   ];
   for (const entry of state.transactions) {
     rows.push([
@@ -85,6 +102,9 @@ export function buildTransactionsCsv(state: StoreState): string {
       entry.paymentMethod ?? '',
       entry.amount,
       entry.id,
+      entry.customerId ?? '',
+      entry.invoiceId ?? '',
+      entry.paymentReference ?? '',
     ]);
   }
   rows.push([]);
@@ -94,7 +114,7 @@ export function buildTransactionsCsv(state: StoreState): string {
 
 export function buildExpensesCsv(state: StoreState): string {
   const rows: (string | number | null | undefined)[][] = [
-    ['Date', 'Description', 'Payment method', 'Amount', 'Reference'],
+    ['Date', 'Description', 'Payment method', 'Amount', 'Reference', 'Customer ID', 'Invoice', 'Payment reference'],
   ];
   for (const entry of state.transactions.filter((item) => item.type === 'expense')) {
     rows.push([entry.date, entry.description, entry.paymentMethod ?? '', entry.amount, entry.id]);
@@ -120,7 +140,7 @@ export function buildProductsCsv(state: StoreState): string {
 }
 
 export function buildCustomersCsv(state: StoreState): string {
-  const rows: (string | number | null | undefined)[][] = [[...CUSTOMER_CSV_HEADERS]];
+  const rows: (string | number | null | undefined)[][] = [[...CUSTOMER_CSV_HEADERS, 'Outstanding balance']];
   for (const customer of state.customers) {
     rows.push([
       customer.name,
@@ -129,6 +149,7 @@ export function buildCustomersCsv(state: StoreState): string {
       customer.openingBalance,
       customer.details ?? '',
       customer.createdAt.slice(0, 10),
+      customerBalance(customer, state.transactions),
     ]);
   }
   return csv(rows);
@@ -156,7 +177,13 @@ export function runExport(state: StoreState, kind: ExportKind): ExportResult {
     switch (kind) {
       case 'transactions': {
         const result = downloadText(filenameFor(kind, businessName, 'csv'), buildTransactionsCsv(state), 'text/csv');
-        return result.ok ? { ok: true, rows: state.transactions.length, filename: result.filename } : result;
+        return result.ok
+          ? {
+              ok: true,
+              rows: state.transactions.length,
+              filename: result.filename,
+            }
+          : result;
       }
       case 'expenses': {
         const count = state.transactions.filter((entry) => entry.type === 'expense').length;
@@ -169,17 +196,36 @@ export function runExport(state: StoreState, kind: ExportKind): ExportResult {
       }
       case 'customers': {
         const result = downloadText(filenameFor(kind, businessName, 'csv'), buildCustomersCsv(state), 'text/csv');
-        return result.ok ? { ok: true, rows: state.customers.length, filename: result.filename } : result;
+        return result.ok
+          ? {
+              ok: true,
+              rows: state.customers.length,
+              filename: result.filename,
+            }
+          : result;
       }
       case 'everything': {
-        const result = downloadText(filenameFor(kind, businessName, 'json'), buildBackupJson(state), 'application/json');
-        return result.ok ? { ok: true, rows: state.transactions.length + state.customers.length, filename: result.filename } : result;
+        const result = downloadText(
+          filenameFor(kind, businessName, 'json'),
+          buildBackupJson(state),
+          'application/json',
+        );
+        return result.ok
+          ? {
+              ok: true,
+              rows: state.transactions.length + state.customers.length,
+              filename: result.filename,
+            }
+          : result;
       }
       default:
         return { ok: false, error: 'Unknown export type.' };
     }
   } catch {
     // Never surface an internal message to the owner — log a redacted version.
-    return { ok: false, error: `Export failed for ${redact(kind)}. Please try again.` };
+    return {
+      ok: false,
+      error: `Export failed for ${redact(kind)}. Please try again.`,
+    };
   }
 }

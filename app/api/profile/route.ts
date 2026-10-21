@@ -111,11 +111,6 @@ async function ensureBusiness(
   });
   if (businessError) return { error: businessError.message };
 
-  const { error: memberError } = await client
-    .from('business_members')
-    .insert({ business_id: businessId, user_id: userId, role: 'owner' });
-  if (memberError) return { error: memberError.message };
-
   return { id: businessId };
 }
 
@@ -136,7 +131,8 @@ export async function GET() {
     });
   }
 
-  return json({ ok: true, mode: 'supabase', businessId: stored.businessId, profile: stored.profile });
+  return json({ ok: true, mode: 'supabase', businessId: stored.businessId, profile: stored.profile,
+  });
 }
 
 export async function PUT(request: Request) {
@@ -146,7 +142,10 @@ export async function PUT(request: Request) {
     // The UPI id on this profile is where the shop's money lands. A cashier who
     // could rewrite it could redirect every collection, so the refusal is flat
     // and the reason is the truth.
-    return json({ ok: false, error: 'Only the owner or a manager can change these details.' }, 403);
+    return json({ ok: false, error: 'Only the owner or a manager can change these details.',
+      },
+      403,
+    );
   }
 
   const client = await getGuardedServerClient();
@@ -155,7 +154,8 @@ export async function PUT(request: Request) {
       ok: false,
       mode: 'local',
       error: 'This build has no account storage — the profile lives in this device’s encrypted vault.',
-    }, 501);
+    }, 501,
+    );
   }
 
   const user = await getSessionUser();
@@ -194,8 +194,12 @@ export async function PUT(request: Request) {
 
   const { error } = await client
     .from('owner_profiles')
-    .upsert({ business_id: business.id, user_id: user.id, ...rowFromSnapshot(snapshot) }, { onConflict: 'business_id' });
+    .upsert({ business_id: business.id, user_id: user.id, ...rowFromSnapshot(snapshot),
+    },
+    { onConflict: 'business_id' },
+  );
   if (error) return json({ ok: false, error: 'Could not save the profile.' }, 500);
 
-  return json({ ok: true, mode: 'supabase', businessId: business.id, profile: snapshot });
+  return json({ ok: true, mode: 'supabase', businessId: business.id, profile: snapshot,
+  });
 }

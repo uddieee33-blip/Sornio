@@ -43,7 +43,8 @@ export type Product = {
 };
 
 /** A sold line item recorded on the sale transaction for full traceability. */
-export type SaleItemRef = { productId: string; name: string; quantity: number; rate: number; cost: number };
+export type SaleItemRef = { productId: string; name: string; quantity: number; rate: number; cost: number;
+};
 
 export type Transaction = {
   id: string;
@@ -51,7 +52,12 @@ export type Transaction = {
   description: string;
   amount: number;
   direction: 'in' | 'out';
-  account: 'cash' | 'bank' | 'upi' | 'card' | 'receivables' | 'payables' | 'revenue' | 'expense' | 'inventory';
+  account: 'cash' | 'bank' | 'upi' | 'card' | 'receivables' | 'payables' | 'revenue' | 'expense' | 'inventory' | 'tax';
+  customerId?: string;
+  invoiceId?: string;
+  operationId?: string;
+  supplierId?: string;
+  paymentReference?: string;
   paymentMethod?: 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Credit' | 'Other';
   date: string;
   /** Present on sale transactions: the exact items sold (product profitability + history). */
@@ -62,27 +68,41 @@ export type Transaction = {
 export const emptyTransactions: Transaction[] = [];
 
 export const demoProducts: Product[] = [
-  { id: 'p1', name: 'Organic Soap', category: 'Personal Care', itemType: 'product', sellingPrice: 280, cost: 130, stock: 18, reorderLevel: 8, status: 'Active', supplier: 'Urban Goods Co.', sku: 'SOAP-001', unit: 'pcs', barcode: '8901234567890' },
-  { id: 'p2', name: 'Signature Tea', category: 'Food', itemType: 'product', sellingPrice: 120, cost: 56, stock: 32, reorderLevel: 10, status: 'Active', supplier: 'Fresh Harvest', sku: 'TEA-500', unit: 'pcs', barcode: '8902345678901' },
-  { id: 'p3', name: 'Web Design Package', category: 'Services', itemType: 'service', sellingPrice: 15000, cost: 6500, stock: 0, reorderLevel: 0, status: 'Active', supplier: 'Creative Studio' },
-  { id: 'p4', name: 'Bamboo Mug', category: 'Home', itemType: 'product', sellingPrice: 499, cost: 260, stock: 12, reorderLevel: 15, status: 'Inactive', supplier: 'Daily Needs Supply', sku: 'MUG-01', unit: 'pcs', barcode: '8903456789012' },
+  { id: 'p1', name: 'Organic Soap', category: 'Personal Care', itemType: 'product', sellingPrice: 280, cost: 130, stock: 18, reorderLevel: 8, status: 'Active', supplier: 'Urban Goods Co.', sku: 'SOAP-001', unit: 'pcs', barcode: '8901234567890',
+  },
+  { id: 'p2', name: 'Signature Tea', category: 'Food', itemType: 'product', sellingPrice: 120, cost: 56, stock: 32, reorderLevel: 10, status: 'Active', supplier: 'Fresh Harvest', sku: 'TEA-500', unit: 'pcs', barcode: '8902345678901',
+  },
+  { id: 'p3', name: 'Web Design Package', category: 'Services', itemType: 'service', sellingPrice: 15000, cost: 6500, stock: 0, reorderLevel: 0, status: 'Active', supplier: 'Creative Studio',
+  },
+  { id: 'p4', name: 'Bamboo Mug', category: 'Home', itemType: 'product', sellingPrice: 499, cost: 260, stock: 12, reorderLevel: 15, status: 'Inactive', supplier: 'Daily Needs Supply', sku: 'MUG-01', unit: 'pcs', barcode: '8903456789012',
+  },
   // A loose item, so the demo shows the other half of scanning: no barcode on
   // the sack, a DukaanOS internal code on the scale label, weight carried in
   // the code itself.
-  { id: 'p5', name: 'Loose Almonds', category: 'Dry Fruit', itemType: 'product', sellingPrice: 900, cost: 640, stock: 12, reorderLevel: 4, status: 'Active', supplier: 'Fresh Harvest', unit: 'kg', internalCode: 'DK000000042', looseMode: 'weight', scaleNumber: 1 },
+  { id: 'p5', name: 'Loose Almonds', category: 'Dry Fruit', itemType: 'product', sellingPrice: 900, cost: 640, stock: 12, reorderLevel: 4, status: 'Active', supplier: 'Fresh Harvest', unit: 'kg', internalCode: 'DK000000042', looseMode: 'weight', scaleNumber: 1,
+  },
 ];
 
 // Demo transactions for testing
 export const demoTransactions: Transaction[] = [
-  { id: 't1', type: 'sale', description: 'Retail sale - Organic Soap', amount: 125000, direction: 'in', account: 'revenue', paymentMethod: 'Cash', date: '2026-10-02' },
-  { id: 't2', type: 'sale', description: 'Retail sale - Signature Tea', amount: 35000, direction: 'in', account: 'revenue', paymentMethod: 'UPI', date: '2026-10-02' },
-  { id: 't3', type: 'expense', description: 'Rent payment', amount: 28000, direction: 'out', account: 'expense', paymentMethod: 'Bank Transfer', date: '2026-10-02' },
-  { id: 't4', type: 'expense', description: 'Electricity bill', amount: 4200, direction: 'out', account: 'expense', paymentMethod: 'Cash', date: '2026-10-02' },
-  { id: 't5', type: 'payment', description: 'Cash collection', amount: 30000, direction: 'in', account: 'cash', paymentMethod: 'Cash', date: '2026-10-02' },
-  { id: 't6', type: 'payment', description: 'UPI settlement', amount: 12000, direction: 'in', account: 'upi', paymentMethod: 'UPI', date: '2026-10-02' },
-  { id: 't7', type: 'stock_adjustment', description: 'Inventory reduction due to sale', amount: 6000, direction: 'out', account: 'inventory', date: '2026-10-02' },
-  { id: 't8', type: 'refund', description: 'Customer refund issued', amount: 4500, direction: 'out', account: 'revenue', date: '2026-10-02' },
-  { id: 't9', type: 'transfer', description: 'Cash to bank transfer', amount: 15000, direction: 'out', account: 'bank', date: '2026-10-02' },
+  { id: 't1', type: 'sale', description: 'Retail sale - Organic Soap', amount: 125000, direction: 'in', account: 'revenue', paymentMethod: 'Cash', date: '2026-10-02',
+  },
+  { id: 't2', type: 'sale', description: 'Retail sale - Signature Tea', amount: 35000, direction: 'in', account: 'revenue', paymentMethod: 'UPI', date: '2026-10-02',
+  },
+  { id: 't3', type: 'expense', description: 'Rent payment', amount: 28000, direction: 'out', account: 'expense', paymentMethod: 'Bank Transfer', date: '2026-10-02',
+  },
+  { id: 't4', type: 'expense', description: 'Electricity bill', amount: 4200, direction: 'out', account: 'expense', paymentMethod: 'Cash', date: '2026-10-02',
+  },
+  { id: 't5', type: 'payment', description: 'Cash collection', amount: 30000, direction: 'in', account: 'cash', paymentMethod: 'Cash', date: '2026-10-02',
+  },
+  { id: 't6', type: 'payment', description: 'UPI settlement', amount: 12000, direction: 'in', account: 'upi', paymentMethod: 'UPI', date: '2026-10-02',
+  },
+  { id: 't7', type: 'stock_adjustment', description: 'Inventory reduction due to sale', amount: 6000, direction: 'out', account: 'inventory', date: '2026-10-02',
+  },
+  { id: 't8', type: 'refund', description: 'Customer refund issued', amount: 4500, direction: 'out', account: 'revenue', date: '2026-10-02',
+  },
+  { id: 't9', type: 'transfer', description: 'Cash to bank transfer', amount: 15000, direction: 'out', account: 'bank', date: '2026-10-02',
+  },
 ];
 
 export const demoCustomers = [
@@ -228,7 +248,8 @@ export function summarizeFinancials(
 }
 
 export function getAlerts(snapshot: BusinessSnapshot, products: Product[]) {
-  const alerts: { type: string; message: string; tone: 'amber' | 'red' | 'sky' }[] = [];
+  const alerts: { type: string; message: string; tone: 'amber' | 'red' | 'sky';
+  }[] = [];
 
   // Stock below zero means a sale or a count ran ahead of the recorded deliveries.
   const oversold = products.filter((p) => p.itemType !== 'service' && p.stock < 0);
@@ -282,11 +303,17 @@ export function getInsights(snapshot: BusinessSnapshot) {
  * ledger holds real prior-period activity. It used to be the current figure
  * multiplied by invented factors (0.82, 0.76, 1.13, 0.91) and presented as history.
  */
-export function getComparisonData(snapshot: BusinessSnapshot): { label: string; current: number; previous: number | null }[] {
+export function getComparisonData(
+  snapshot: BusinessSnapshot,
+): { label: string; current: number; previous: number | null }[] {
   return [
     { label: 'Revenue', current: snapshot.revenue, previous: null },
     { label: 'Gross Profit', current: snapshot.grossProfit, previous: null },
-    { label: 'Operating Expenses', current: snapshot.operatingExpenses, previous: null },
+    {
+      label: 'Operating Expenses',
+      current: snapshot.operatingExpenses,
+      previous: null,
+    },
     { label: 'Net Cash Flow', current: snapshot.netCashFlow, previous: null },
   ];
 }
@@ -295,6 +322,6 @@ export function formatCurrency(value: number, locale = getActiveFormattingLocale
   return new Intl.NumberFormat(locale, {
     style: 'currency',
     currency: 'INR',
-    maximumFractionDigits: 0,
+    maximumFractionDigits: 2,
   }).format(value);
 }

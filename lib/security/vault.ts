@@ -21,6 +21,7 @@
  */
 
 import { isVaultEnvelope, randomBytes, Vault, type VaultEnvelope } from './crypto';
+import { readVaultSlot, writeVaultSlot, clearVaultSlot, serializeVaultWrite } from './vault-storage';
 import { safeStringify } from './redact';
 
 export const VAULT_PREFIX = 'dukaanos.vault';
@@ -28,7 +29,7 @@ export const KEY_SLOT = `${VAULT_PREFIX}.key`;
 export const SALT_SLOT = `${VAULT_PREFIX}.salt`;
 export const BACKUP_SLOT = `${VAULT_PREFIX}.backup`;
 
-const MAX_BYTES = 4 * 1024 * 1024; // Firefox/Chrome give ~5MB per origin.
+const MAX_BYTES = 32 * 1024 * 1024; // Firefox/Chrome give ~5MB per origin.
 
 export type VaultIntegrity = {
   version: number;
@@ -48,9 +49,7 @@ export type VaultWriteResult =
   | { ok: true; bytes: number; encrypted: false; warning: string }
   | { ok: false; error: string };
 
-export type VaultReadResult<T = unknown> =
-  | { ok: true; data: T; encrypted: boolean }
-  | { ok: false; error: string };
+export type VaultReadResult<T = unknown> = { ok: true; data: T; encrypted: boolean } | { ok: false; error: string };
 
 const SCHEMA_VERSION = 2;
 
@@ -78,7 +77,7 @@ function deviceSecret(store: Storage): string {
     try {
       store.setItem(KEY_SLOT, secret);
     } catch {
-      // Storage full — the derived key simply won't survive a reload.
+      throw new Error('The encryption key could not be saved.');
     }
   }
   return secret;
@@ -91,7 +90,7 @@ function deviceSalt(store: Storage): string {
     try {
       store.setItem(SALT_SLOT, salt);
     } catch {
-      // As above.
+      throw new Error('The encryption salt could not be saved.');
     }
   }
   return salt;
@@ -101,7 +100,10 @@ let vaultInstance: Vault | null = null;
 
 function getVault(store: Storage): Vault {
   if (!vaultInstance) {
-    vaultInstance = new Vault(() => deviceSecret(store), () => deviceSalt(store));
+    vaultInstance = new Vault(
+      () => deviceSecret(store),
+      () => deviceSalt(store),
+    );
   }
   return vaultInstance;
 }
@@ -116,15 +118,25 @@ function checksumOf(text: string): string {
   return hash.toString(16).padStart(8, '0');
 }
 
-export async function vaultWrite<T>(key: string, data: T): Promise<VaultWriteResult> {
+export function vaultWrite<T>(key: string, data: T): Promise<VaultWriteResult> {
+  return serializeVaultWrite(key, () => writeSnapshot(key, data));
+}
+async function writeSnapshot<T>(key: string, data: T): Promise<VaultWriteResult> {
   const store = storage();
-  if (!store) return { ok: false, error: 'Local storage is unavailable in this browser.' };
+  if (!store)
+    return {
+      ok: false,
+      error: 'Local storage is unavailable in this browser.',
+    };
 
   const serialised = safeStringify(data);
   const bytes = serialised.length;
 
   if (bytes > MAX_BYTES) {
-    return { ok: false, error: 'This business has grown past local storage limits — connect Supabase to keep syncing.' };
+    return {
+      ok: false,
+      error: 'This business has grown past local storage limits — connect Supabase to keep syncing.',
+    };
   }
 
   const integrity: VaultIntegrity = {
@@ -136,17 +148,14 @@ export async function vaultWrite<T>(key: string, data: T): Promise<VaultWriteRes
 
   const slot = `${VAULT_PREFIX}.${key}`;
 
-  // Keep one previous snapshot so a bad write can never lose the ledger.
-  try {
-    const previous = store.getItem(slot);
-    if (previous && previous.length < MAX_BYTES / 2) store.setItem(`${BACKUP_SLOT}.${key}`, previous);
-  } catch {
-    // Backup is best-effort.
-  }
-
   if (!cryptoAvailable()) {
     try {
-      store.setItem(slot, safeStringify({ integrity, plain: data, encrypted: false }));
+      await writeVaultSlot(
+        slot,
+        safeStringify({ integrity, plain: data, encrypted: false }),
+        `${BACKUP_SLOT}.${key}`,
+        store,
+      );
       return {
         ok: true,
         bytes,
@@ -162,7 +171,7 @@ export async function vaultWrite<T>(key: string, data: T): Promise<VaultWriteRes
     const vault = getVault(store);
     const envelope = await vault.seal(serialised);
     const record: VaultRecord = { integrity, envelope };
-    store.setItem(slot, safeStringify(record));
+    await writeVaultSlot(slot, safeStringify(record), `${BACKUP_SLOT}.${key}`, store);
     return { ok: true, bytes, encrypted: true };
   } catch {
     return { ok: false, error: 'Encryption failed — nothing was written.' };
@@ -171,10 +180,22 @@ export async function vaultWrite<T>(key: string, data: T): Promise<VaultWriteRes
 
 export async function vaultRead<T>(key: string): Promise<VaultReadResult<T>> {
   const store = storage();
-  if (!store) return { ok: false, error: 'Local storage is unavailable in this browser.' };
+  if (!store)
+    return {
+      ok: false,
+      error: 'Local storage is unavailable in this browser.',
+    };
 
   const slot = `${VAULT_PREFIX}.${key}`;
-  const raw = store.getItem(slot);
+  let raw: string | null;
+  try {
+    raw = await readVaultSlot(slot, store);
+  } catch {
+    return {
+      ok: false,
+      error: 'Saved data could not be read. The original files have been preserved.',
+    };
+  }
   if (!raw) return { ok: false, error: 'No saved data yet.' };
 
   let parsed: unknown;
@@ -184,7 +205,10 @@ export async function vaultRead<T>(key: string): Promise<VaultReadResult<T>> {
     return { ok: false, error: 'Saved data is corrupt and could not be read.' };
   }
 
-  const record = parsed as Partial<VaultRecord> & { plain?: T; encrypted?: boolean };
+  const record = parsed as Partial<VaultRecord> & {
+    plain?: T;
+    encrypted?: boolean;
+  };
 
   // Legacy / plaintext fallback shape.
   if (record.encrypted === false && 'plain' in record) {
@@ -200,22 +224,29 @@ export async function vaultRead<T>(key: string): Promise<VaultReadResult<T>> {
     const plaintext = await vault.open(record.envelope);
     const data = JSON.parse(plaintext) as T;
     if (record.integrity && checksumOf(plaintext) !== record.integrity.checksum) {
-      return { ok: false, error: 'Saved data failed its integrity check — restored from the last good snapshot.' };
+      return { ok: false, error: 'Saved data failed its integrity check.' };
     }
     return { ok: true, data, encrypted: true };
   } catch {
-    return { ok: false, error: 'Saved data could not be decrypted on this device.' };
+    return {
+      ok: false,
+      error: 'Saved data could not be decrypted on this device.',
+    };
   }
 }
 
 /** Restore the previous snapshot when the newest write is unrecoverable. */
 export async function vaultRestoreBackup<T>(key: string): Promise<VaultReadResult<T>> {
   const store = storage();
-  if (!store) return { ok: false, error: 'Local storage is unavailable in this browser.' };
-  const raw = store.getItem(`${BACKUP_SLOT}.${key}`);
+  if (!store)
+    return {
+      ok: false,
+      error: 'Local storage is unavailable in this browser.',
+    };
+  const raw = await readVaultSlot(`${BACKUP_SLOT}.${key}`, store);
   if (!raw) return { ok: false, error: 'No backup snapshot available.' };
   try {
-    store.setItem(`${VAULT_PREFIX}.${key}`, raw);
+    await writeVaultSlot(`${VAULT_PREFIX}.${key}`, raw, `${BACKUP_SLOT}.${key}.failed`, store);
   } catch {
     return { ok: false, error: 'Could not restore the backup snapshot.' };
   }
@@ -225,11 +256,14 @@ export async function vaultRestoreBackup<T>(key: string): Promise<VaultReadResul
 export function vaultClear(key: string): void {
   const store = storage();
   if (!store) return;
-  store.removeItem(`${VAULT_PREFIX}.${key}`);
-  store.removeItem(`${BACKUP_SLOT}.${key}`);
+  void clearVaultSlot(`${VAULT_PREFIX}.${key}`, `${BACKUP_SLOT}.${key}`, store);
 }
 
-export function vaultStatus(): { available: boolean; encrypted: boolean; usedBytes: number } {
+export function vaultStatus(): {
+  available: boolean;
+  encrypted: boolean;
+  usedBytes: number;
+} {
   const store = storage();
   if (!store) return { available: false, encrypted: false, usedBytes: 0 };
   let usedBytes = 0;

@@ -3,6 +3,7 @@ export type PaymentMethod = 'Cash' | 'UPI' | 'Card' | 'Bank Transfer' | 'Credit'
 export type PaymentStatus = 'paid' | 'pending' | 'partial' | 'failed';
 
 export type InvoiceItem = {
+  productId?: string;
   id: string;
   name: string;
   category: string;
@@ -12,6 +13,8 @@ export type InvoiceItem = {
 };
 
 export type Invoice = {
+  customerId?: string;
+  posted?: boolean;
   id: string;
   businessId: string;
   customerName: string;
@@ -29,6 +32,10 @@ export type Invoice = {
 };
 
 export type PaymentRecord = {
+  customerId?: string;
+  reference?: string;
+  verification?: 'manual';
+  recordedBy?: string;
   id: string;
   businessId: string;
   invoiceId?: string;
@@ -50,7 +57,9 @@ export const sampleInvoices: Invoice[] = [
     paymentMethod: 'UPI',
     paymentStatus: 'paid',
     receiptMode: 'both',
-    items: [{ id: 'it-1', name: 'Quarterly membership', category: 'Membership', quantity: 1, unitPrice: 4999, total: 4999 }],
+    items: [{ id: 'it-1', name: 'Quarterly membership', category: 'Membership', quantity: 1, unitPrice: 4999, total: 4999,
+      },
+    ],
     subtotal: 4999,
     tax: 0,
     totalAmount: 4999,
@@ -66,8 +75,10 @@ export const sampleInvoices: Invoice[] = [
     paymentStatus: 'pending',
     receiptMode: 'physical',
     items: [
-      { id: 'it-2', name: 'Cold Coffee', category: 'Beverages', quantity: 2, unitPrice: 260, total: 520 },
-      { id: 'it-3', name: 'Veg Sandwich', category: 'Food', quantity: 1, unitPrice: 390, total: 390 },
+      { id: 'it-2', name: 'Cold Coffee', category: 'Beverages', quantity: 2, unitPrice: 260, total: 520,
+      },
+      { id: 'it-3', name: 'Veg Sandwich', category: 'Food', quantity: 1, unitPrice: 390, total: 390,
+      },
     ],
     subtotal: 910,
     tax: 55,
@@ -135,7 +146,8 @@ export function summarizePaymentRecords(records: PaymentRecord[]) {
       acc[record.paymentMethod] = (acc[record.paymentMethod] ?? 0) + record.amount;
     }
     return acc;
-  }, { Cash: 0, UPI: 0, Card: 0, 'Bank Transfer': 0, Credit: 0, Other: 0 });
+  }, { Cash: 0, UPI: 0, Card: 0, 'Bank Transfer': 0, Credit: 0, Other: 0 },
+  );
 
   return { collected, failed, pending, byMethod };
 }

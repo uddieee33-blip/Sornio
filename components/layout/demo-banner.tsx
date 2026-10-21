@@ -30,13 +30,11 @@ export function DemoBanner() {
         </p>
         <button
           onClick={() => {
-            if (window.confirm('Leave the demo business and start a fresh real business at ₹0?')) {
-              actions.startFreshBusiness();
-            }
+            actions.leaveDemo();
           }}
           className="touch-manipulation min-h-10 self-start rounded-lg bg-amber-500/15 px-3 py-2 font-bold ring-1 ring-inset ring-amber-500/30 transition hover:bg-amber-500/25 sm:shrink-0"
         >
-          Start fresh business
+          Return to your business
         </button>
       </div>
     );

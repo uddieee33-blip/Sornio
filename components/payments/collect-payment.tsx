@@ -131,20 +131,20 @@ function SetupNudge({ what }: { what: string }) {
  * Cash counts tendered vs change. Confirming settles the invoice through the
  * same ledger path as every other payment.
  */
-export function CollectPaymentPanel({
-  invoice,
-  onDone,
-}: {
-  invoice: Invoice;
-  onDone?: () => void;
-}) {
+export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onDone?: () => void }) {
   const { locale } = useI18n();
   const { state, actions } = useDukaanStore();
   const [method, setMethod] = useState<PaymentMethod>(
     DESK_METHODS.includes(invoice.paymentMethod) ? invoice.paymentMethod : 'UPI',
   );
   const [tendered, setTendered] = useState(String(invoice.totalAmount));
-  const [card, setCard] = useState({ name: invoice.customerName, phone: invoice.customerPhone ?? '', network: 'RuPay', last4: '', reference: '' });
+  const [card, setCard] = useState({
+    name: invoice.customerName,
+    phone: invoice.customerPhone ?? '',
+    network: 'RuPay',
+    last4: '',
+    reference: '',
+  });
   const [upiRef, setUpiRef] = useState('');
   const [utr, setUtr] = useState('');
   const [showAccount, setShowAccount] = useState(false);
@@ -159,7 +159,13 @@ export function CollectPaymentPanel({
   const bank = profile.bank;
   const bankReady = Boolean(bank?.accountNumber && bank?.ifsc && bank?.bankName);
 
-  const due = invoice.totalAmount;
+  const due = Math.max(
+    0,
+    invoice.totalAmount -
+      state.paymentRecords
+        .filter((p) => p.invoiceId === invoice.id && ['paid', 'partial'].includes(p.status))
+        .reduce((sum, p) => sum + p.amount, 0),
+  );
 
   const upiLink = useMemo(() => {
     if (!upiReady || !shopUpi) return '';
@@ -194,7 +200,9 @@ export function CollectPaymentPanel({
     setErrorCode(null);
     if (method === 'Cash') {
       if (!Number.isFinite(tenderedValue) || tenderedValue < due) {
-        setError(`Cash in hand (₹${tenderedValue.toLocaleString(locale)}) is less than the ₹${due.toLocaleString(locale)} due.`);
+        setError(
+          `Cash in hand (₹${tenderedValue.toLocaleString(locale)}) is less than the ₹${due.toLocaleString(locale)} due.`,
+        );
         return;
       }
     }
@@ -210,11 +218,15 @@ export function CollectPaymentPanel({
     }
     if (method === 'Bank Transfer') {
       if (utr.trim().length < 6) {
-        setError('Enter the UTR / transaction reference the customer shows you — that is your proof the transfer left their bank.');
+        setError(
+          'Enter the UTR / transaction reference the customer shows you — that is your proof the transfer left their bank.',
+        );
         return;
       }
     }
-    const result = actions.markInvoicePaid(invoice.id, method);
+    const result = actions.markInvoicePaid(invoice.id, method, {
+      reference: method === 'Card' ? card.reference : method === 'Bank Transfer' ? utr : upiRef,
+    });
     if (result.ok) {
       setSettled(true);
     } else {
@@ -231,8 +243,8 @@ export function CollectPaymentPanel({
         </span>
         <h3 className="mt-4 font-display text-xl font-bold text-stone-900">Payment collected</h3>
         <p className="mt-1.5 text-sm text-stone-600">
-          {formatCurrency(due)} from <strong className="text-stone-800">{invoice.customerName}</strong> via {method} — invoice{' '}
-          {invoice.id} is settled and the ledger is updated.
+          {formatCurrency(due)} from <strong className="text-stone-800">{invoice.customerName}</strong> via {method} —
+          invoice {invoice.id} is settled and the ledger is updated.
         </p>
         <div className="mx-auto mt-5 grid max-w-xs gap-2 text-left">
           <div className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 text-sm ring-1 ring-inset ring-stone-200">
@@ -242,7 +254,9 @@ export function CollectPaymentPanel({
           {method === 'Card' && card.last4 ? (
             <div className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 text-sm ring-1 ring-inset ring-stone-200">
               <span className="text-stone-600">Card</span>
-              <span className="font-semibold text-stone-900 tabular-nums">{card.network} •••• {card.last4}</span>
+              <span className="font-semibold text-stone-900 tabular-nums">
+                {card.network} •••• {card.last4}
+              </span>
             </div>
           ) : null}
           {method === 'Bank Transfer' && utr ? (
@@ -273,7 +287,12 @@ export function CollectPaymentPanel({
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white shadow-glow-sm">
-            {invoice.customerName.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}
+            {invoice.customerName
+              .split(' ')
+              .map((part) => part[0])
+              .slice(0, 2)
+              .join('')
+              .toUpperCase()}
           </span>
           <div className="min-w-0">
             <p className="truncate font-semibold text-stone-900">{invoice.customerName}</p>
@@ -353,8 +372,8 @@ export function CollectPaymentPanel({
                     <QrCode size={16} className="text-brand-600" /> Show this QR to {invoice.customerName.split(' ')[0]}
                   </p>
                   <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
-                    The QR already carries the exact amount ({formatCurrency(due)}) and the bill reference ({invoice.id}).
-                    Money lands directly in your bank — DukaanOS never touches it.
+                    The QR already carries the exact amount ({formatCurrency(due)}) and the bill reference ({invoice.id}
+                    ). Money lands directly in your bank — DukaanOS never touches it.
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2">
                     <CopyButton value={shopUpi ?? ''} label="Copy UPI ID" />
@@ -394,17 +413,32 @@ export function CollectPaymentPanel({
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div>
                 <span className={labelClass}>Payer name</span>
-                <input value={card.name} onChange={(e) => setCard({ ...card, name: e.target.value })} className={inputClass} />
+                <input
+                  value={card.name}
+                  onChange={(e) => setCard({ ...card, name: e.target.value })}
+                  className={inputClass}
+                />
               </div>
               <div>
                 <span className={labelClass}>Payer phone</span>
-                <input value={card.phone} onChange={(e) => setCard({ ...card, phone: e.target.value })} placeholder="+91 …" className={inputClass} />
+                <input
+                  value={card.phone}
+                  onChange={(e) => setCard({ ...card, phone: e.target.value })}
+                  placeholder="+91 …"
+                  className={inputClass}
+                />
               </div>
               <div>
                 <span className={labelClass}>Card network</span>
-                <select value={card.network} onChange={(e) => setCard({ ...card, network: e.target.value })} className={inputClass}>
+                <select
+                  value={card.network}
+                  onChange={(e) => setCard({ ...card, network: e.target.value })}
+                  className={inputClass}
+                >
                   {['RuPay', 'Visa', 'Mastercard', 'Amex', 'Other'].map((network) => (
-                    <option key={network} value={network}>{network}</option>
+                    <option key={network} value={network}>
+                      {network}
+                    </option>
                   ))}
                 </select>
               </div>
@@ -412,7 +446,12 @@ export function CollectPaymentPanel({
                 <span className={labelClass}>Last 4 digits *</span>
                 <input
                   value={card.last4}
-                  onChange={(e) => setCard({ ...card, last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
+                  onChange={(e) =>
+                    setCard({
+                      ...card,
+                      last4: e.target.value.replace(/\D/g, '').slice(0, 4),
+                    })
+                  }
                   placeholder="••••  ••••  ••••  1234"
                   inputMode="numeric"
                   className={`${inputClass} font-mono tracking-[0.2em]`}
@@ -430,7 +469,10 @@ export function CollectPaymentPanel({
             </div>
             <p className="mt-3.5 flex items-start gap-2 rounded-xl border border-violet-500/20 bg-white/70 p-3 text-xs leading-relaxed text-violet-900">
               <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-              <span>Never type the full card number, expiry, or CVV here — cards settle through your PoS machine, and DukaanOS only keeps the traceable reference.</span>
+              <span>
+                Never type the full card number, expiry, or CVV here — cards settle through your PoS machine, and
+                DukaanOS only keeps the traceable reference.
+              </span>
             </p>
           </div>
         ) : null}
@@ -443,12 +485,15 @@ export function CollectPaymentPanel({
                   <Landmark size={16} className="text-sky-700" /> Share these account details
                 </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
-                  The customer transfers {formatCurrency(due)} with the note <strong>{invoice.id}</strong> — best for large bills. Confirm only after the UTR reference checks out.
+                  The customer transfers {formatCurrency(due)} with the note <strong>{invoice.id}</strong> — best for
+                  large bills. Confirm only after the UTR reference checks out.
                 </p>
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
                   <div className="rounded-xl bg-white p-3 ring-1 ring-inset ring-stone-200">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">Account holder</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-stone-900">{bank?.accountHolder || profile.name}</p>
+                    <p className="mt-1 truncate text-sm font-semibold text-stone-900">
+                      {bank?.accountHolder || profile.name}
+                    </p>
                   </div>
                   <div className="rounded-xl bg-white p-3 ring-1 ring-inset ring-stone-200">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">Bank</p>
@@ -504,7 +549,9 @@ export function CollectPaymentPanel({
               <div>
                 <span className={labelClass}>Cash received</span>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-600">₹</span>
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-600">
+                    ₹
+                  </span>
                   <input
                     type="number"
                     min={0}
@@ -536,11 +583,15 @@ export function CollectPaymentPanel({
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span className="text-stone-600">Received</span>
-                  <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(Math.max(tenderedValue, 0))}</span>
+                  <span className="font-semibold text-stone-900 tabular-nums">
+                    {formatCurrency(Math.max(tenderedValue, 0))}
+                  </span>
                 </div>
                 <div className="mt-2 flex items-center justify-between border-t border-dashed border-stone-200 pt-2">
                   <span className="text-sm font-semibold text-stone-800">Change to return</span>
-                  <span className={`font-display text-xl font-bold tabular-nums ${changeDue >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
+                  <span
+                    className={`font-display text-xl font-bold tabular-nums ${changeDue >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
+                  >
                     {formatCurrency(Math.max(changeDue, 0))}
                   </span>
                 </div>
@@ -628,7 +679,9 @@ export function CollectPaymentModal({ invoice, onClose }: { invoice: Invoice; on
         </button>
         <div className="mb-5">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">Desk collection</p>
-          <h2 className="mt-1.5 font-display text-xl font-bold text-stone-900">Collect {formatCurrency(invoice.totalAmount)}</h2>
+          <h2 className="mt-1.5 font-display text-xl font-bold text-stone-900">
+            Collect {formatCurrency(invoice.totalAmount)}
+          </h2>
         </div>
         <CollectPaymentPanel invoice={invoice} onDone={onClose} />
       </div>

@@ -559,6 +559,7 @@ function createFakeSupabase({ uid, tables, violations, missing = [] }) {
           if (reason) { violations.push(`${table}: ${reason}`); return { data: null, error: { message: reason } }; }
           const stored = { created_at: new Date().toISOString(), ...row, id: row.id ?? randomUUID() };
           rows().push(stored);
+          if (table === 'businesses') tables.business_members.push({ id: randomUUID(), business_id: stored.id, user_id: stored.owner_id, role: 'owner', created_at: new Date().toISOString() });
           // A RETURNING row is served through the SELECT policies, as PostgREST
           // does it: a row the caller cannot select yet comes back as nothing.
           if (canSelect(table, stored)) created.push(stored);
@@ -697,8 +698,9 @@ const PAYLOAD = {
 };
 
 async function signIn(role) {
+  for (const row of tables.business_members) if (row.user_id === OWNER_ID) row.role = role === 'cashier' ? 'staff' : role;
   const issued = await cookie.sealOwnerSession(
-    { tenantId: 'biz_verify', userId: OWNER_ID, role, displayName: 'ro•••', remember: true },
+    { tenantId: tables.business_members.find((row) => row.user_id === OWNER_ID)?.business_id ?? '', userId: OWNER_ID, role, displayName: 'ro•••', remember: true },
     { secret: SECRET },
   );
   headersStub.__setCookie('dukaan.session', issued.value);

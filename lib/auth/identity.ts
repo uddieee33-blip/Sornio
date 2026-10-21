@@ -20,6 +20,7 @@
  * account ends up owning the business.
  */
 
+import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { cookies } from 'next/headers';
 
 import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
@@ -120,12 +121,13 @@ export async function currentIdentity(): Promise<ConsoleIdentity | null> {
   const store = await cookies();
 
   const claims = await openOwnerSession(store.get(SESSION_COOKIE)?.value);
-  if (claims) return identityFromClaims(claims);
+  if (claims && !isSupabaseConfigured()) return identityFromClaims(claims);
 
   const user = await getSessionUser();
-  if (!user) return null;
+  if (!user || (claims && claims.userId !== user.id)) return null;
 
   const membership = await resolveMembership(user.id);
+  if (claims?.tenantId && !membership) return null;
   return {
     provider: 'supabase',
     userId: user.id,
@@ -152,12 +154,13 @@ export async function currentIdentity(): Promise<ConsoleIdentity | null> {
 export type RenderedIdentity = Pick<
   ConsoleIdentity,
   'userId' | 'displayName' | 'role' | 'provider' | 'expiresAt' | 'remember'
->;
+> & { businessId?: string };
 
 export function renderable(identity: ConsoleIdentity | null): RenderedIdentity | null {
   if (!identity) return null;
   return {
     userId: identity.userId,
+    businessId: identity.tenantId || undefined,
     displayName: identity.displayName,
     role: identity.role,
     provider: identity.provider,
