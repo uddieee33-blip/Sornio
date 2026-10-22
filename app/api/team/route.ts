@@ -371,7 +371,7 @@ export async function POST(request: Request) {
       if (!isInvitableRole(body.role)) return respond({ ok: false, error: 'Roles can be Manager, Cashier, or Auditor. Ownership transfer is a separate, deliberate step.' }, 422);
       const targetRole = await callerRoleIn(admin, identity.tenantId, userId);
       if (targetRole === null) return respond({ ok: false, error: 'That person is not on your team.' }, 404);
-      if (targetRole === 'owner') return respond({ ok: false, error: 'The owner cannot be removed from their own business here.' }, 422);
+      if (targetRole === 'owner') return respond({ ok: false, error: 'Roles can be Manager, Cashier, or Auditor. Ownership transfer is a separate, deliberate step.' }, 422);
 
       const { data: updated, error } = await admin
         .from('business_members')
