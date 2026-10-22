@@ -31,7 +31,7 @@ import { portalIcon } from '@/lib/portals/icons';
 import { disabledModules, portalForTemplate, PORTALS } from '@/lib/portals/registry';
 import { navSectionsFor } from '@/lib/portals/nav';
 import { publishPortal } from '@/lib/portals/sync';
-import { snapshotFromProfile } from '@/lib/sync/profile';
+import { isValidGstin, snapshotFromProfile } from '@/lib/sync/profile';
 import { saveStoredProfile } from '@/lib/sync/profile-sync';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
@@ -88,6 +88,7 @@ export default function OnboardingPage() {
   const [businessName, setBusinessName] = useState(profile.name === 'My Business' ? '' : profile.name);
   const [templateId, setTemplateId] = useState(profile.templateId);
   const [description, setDescription] = useState(profile.description);
+  const [gstin, setGstin] = useState(profile.gstin ?? '');
   const [upiId, setUpiId] = useState(profile.upiId ?? profile.bank?.upiId ?? '');
   const [accountHolder, setAccountHolder] = useState(profile.bank?.accountHolder ?? '');
   const [bankName, setBankName] = useState(profile.bank?.bankName ?? '');
@@ -132,6 +133,7 @@ export default function OnboardingPage() {
     setBusinessName(profile.name === 'My Business' ? '' : profile.name);
     setTemplateId(profile.templateId);
     setDescription(profile.description);
+    setGstin(profile.gstin ?? '');
     setUpiId(profile.upiId ?? profile.bank?.upiId ?? '');
     setAccountHolder(profile.bank?.accountHolder ?? '');
     setBankName(profile.bank?.bankName ?? '');
@@ -161,6 +163,7 @@ export default function OnboardingPage() {
       [
         { label: 'Business name', value: profile.name !== 'My Business' ? profile.name : '' },
         { label: 'Business type', value: businessTemplates.find((template) => template.id === profile.templateId)?.name ?? '' },
+        { label: 'GSTIN', value: profile.gstin ?? '' },
         { label: 'Your full name', value: profile.ownerName ?? '' },
         { label: 'Phone', value: profile.ownerPhone ?? '' },
         { label: 'Email', value: profile.ownerEmail ?? '' },
@@ -215,12 +218,14 @@ export default function OnboardingPage() {
     if (step === 2) {
       if (!businessName.trim()) return setError('Business name is required.');
       if (!templateId) return setError('Pick the template closest to your business — you can change it anytime.');
+      if (gstin.trim() && !isValidGstin(gstin)) return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
       setStep(3);
     }
   };
 
   const finish = async () => {
     setError(null);
+    if (gstin.trim() && !isValidGstin(gstin)) return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
     if (upiId.trim() && !upiValid) return setError('Enter a valid UPI ID, or leave it blank and activate payments later.');
     if (ifsc.trim() && !isValidIfsc(ifsc.trim().toUpperCase())) return setError('That IFSC code does not look right (e.g. HDFC0001234).');
     if (accountNumber.trim() && !/^\d{6,20}$/.test(accountNumber.replace(/\s/g, ''))) return setError('Account numbers have 6–20 digits.');
@@ -229,6 +234,7 @@ export default function OnboardingPage() {
     const patch = {
       name: businessName,
       description,
+      gstin: gstin.trim().toUpperCase(),
       ownerName: ownerName.trim(),
       ownerPhone: ownerPhone.trim(),
       ownerEmail: ownerEmail.trim() || undefined,
@@ -443,6 +449,7 @@ export default function OnboardingPage() {
             {step === 2 ? (
               <div className="space-y-4">
                 <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={businessName} onChange={(e) => { markTouched(); setBusinessName(e.target.value); }} /></div>
+                <div><span className={labelClass}>GSTIN (only if GST registered)</span><input className={inputClass} maxLength={15} autoCapitalize="characters" placeholder="15-character GSTIN" value={gstin} onChange={(e) => { markTouched(); setGstin(e.target.value.toUpperCase()); }} /><p className="mt-1 text-xs text-stone-600">Optional. Your GSTIN will appear on printed invoices after you save.</p></div>
                 <div>
                   <span className={labelClass}>What kind of business is it?</span>
                   <p className="mb-3 text-xs leading-relaxed text-stone-600">
