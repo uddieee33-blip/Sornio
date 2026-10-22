@@ -88,7 +88,7 @@ function signInMessage(message: string): string {
 /** Sign-up shares the same flat refusal, so a taken address is not an oracle. */
 function signUpMessage(message: string): string {
   if (/already been registered|already exists|user already/i.test(message)) {
-    return 'An account with this email already exists. Try signing in instead.';
+    return 'We could not complete registration with these details. If you already have an account, try signing in or resetting your password.';
   }
   return signInMessage(message);
 }
