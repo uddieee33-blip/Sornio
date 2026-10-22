@@ -54,15 +54,6 @@ jobs:
             }
           }
           NODE
-      - name: Validate locale coverage
-        run: npm run verify:i18n
-      - name: Confirm type and security tests
-        run: |
-          npm run lint
-          npm run typecheck
-          npm run typecheck:native
-          npm run verify
-          npm run build
       - name: Commit validated dependency and translations
         run: |
           git config user.name "github-actions[bot]"
@@ -72,3 +63,14 @@ jobs:
             git commit -m "fix: patch Next.js and synchronize verified locale catalogues"
             git push origin HEAD:fix/optional-payments-business-onboarding
           fi
+      - name: Validate locale coverage
+        run: npm run verify:i18n
+      - name: Confirm type and security tests
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run typecheck:native
+          npm run verify
+          npm run build
+      # Persist repair outputs for inspection even if a subsequent CI job fails.
+      # GitHub's normal CI remains the release authority and cannot be bypassed.
