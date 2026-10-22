@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS public.team_invites (
 CREATE INDEX IF NOT EXISTS idx_team_invites_business_id ON public.team_invites(business_id);
 ALTER TABLE public.team_invites ENABLE ROW LEVEL SECURITY;
 REVOKE ALL ON TABLE public.team_invites FROM PUBLIC, anon, authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.team_invites TO service_role;
 
 -- One RPC = one Postgres transaction. Two different users racing the same code
 -- lock the same invite row; only one can insert a membership and consume it.
