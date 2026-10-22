@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: dukaan-localization-refresh
+  group: dukaan-localization-refresh-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
