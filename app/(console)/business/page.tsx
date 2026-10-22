@@ -35,6 +35,7 @@ export default function BusinessPage() {
   const gated = role !== 'owner';
 
   const [name, setName] = useState(profile.name);
+  const [gstin, setGstin] = useState(profile.gstin ?? '');
   const [description, setDescription] = useState(profile.description);
   const [currency, setCurrency] = useState(profile.currency);
   const [timezone, setTimezone] = useState(profile.timezone);
@@ -58,6 +59,7 @@ export default function BusinessPage() {
       const result = actions.updateProfile({
         name,
         description,
+        gstin: gstin.trim().toUpperCase(),
         currency,
         timezone,
         upiId: upiId.trim() || undefined,
@@ -112,6 +114,7 @@ export default function BusinessPage() {
           </div>
           <div className="grid gap-4 md:grid-cols-2">
             <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><span className={labelClass}>GSTIN (registered businesses only)</span><input className={inputClass} placeholder="15-character GSTIN" maxLength={15} autoCapitalize="characters" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} /><p className="mt-1 text-xs text-stone-600">Leave blank if your shop is not GST registered. Entering a GSTIN does not verify registration.</p></div>
             <div>
               <span className={labelClass}>Business type</span>
               <select className={inputClass} value={profile.templateId} onChange={(e) => applyTemplate(e.target.value)}>
