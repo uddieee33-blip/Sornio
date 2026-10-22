@@ -44,6 +44,8 @@ export function MobileBottomNav({
       shortLabel: compactLabels[action.href] ?? action.label,
     }));
   const quickRoutes = new Set(actions.map((action) => action.href));
+  // Home + portal actions + More: do not leave empty tabs for portals with fewer actions.
+  const columnsClass = actions.length === 2 ? 'grid-cols-4' : actions.length === 1 ? 'grid-cols-3' : 'grid-cols-2';
   const moreActive = menuOpen || (pathname !== '/home' && !quickRoutes.has(pathname));
 
   return (
@@ -52,7 +54,7 @@ export function MobileBottomNav({
       className="mobile-bottom-nav fixed inset-x-0 bottom-0 z-50 border-t border-stone-200 bg-panel/97 shadow-[0_-8px_24px_-18px_rgba(58,54,38,0.4)] md:hidden"
       style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
     >
-      <div className="mx-auto grid h-14 w-full max-w-xl grid-cols-4 gap-1 px-2 pt-1">
+      <div className={`mx-auto grid h-14 w-full max-w-xl ${columnsClass} gap-1 px-2 pt-1`}>
         <NavItem
           href="/home"
           label="Home"
