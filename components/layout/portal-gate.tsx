@@ -37,13 +37,13 @@ const CHOICE_GATED: ModuleKey[] = ['checkins', 'appointments', 'memberships'];
 export function PortalGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { portal, nav, terms, needsChoice, allows } = usePortal();
+  const { portal, nav, terms, needsChoice, allows, revealAll } = usePortal();
   const { hydrated } = useDukaanStore();
 
   const moduleKey = moduleForPath(pathname ?? '');
   const entry = moduleKey ? nav.flatMap((section) => section.links).find((link) => link.module === moduleKey) : null;
   const blocked = Boolean(moduleKey) && hydrated && !allows(pathname ?? '');
-  const mustChooseType = Boolean(needsChoice && moduleKey && CHOICE_GATED.includes(moduleKey));
+  const mustChooseType = !revealAll && Boolean(needsChoice && moduleKey && CHOICE_GATED.includes(moduleKey));
 
   // Before hydration the server has already resolved the portal from the cookie,
   // so the first paint is trustworthy — only the "no choice yet" case waits.
