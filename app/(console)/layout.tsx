@@ -1,4 +1,6 @@
 import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
+import { storedSetupComplete } from '@/lib/sync/profile-server';
 import Link from 'next/link';
 import { ShieldQuestion } from 'lucide-react';
 import { ConsoleShell } from '@/components/layout/console-shell';
@@ -44,6 +46,12 @@ export default async function ConsoleLayout({ children }: { children: React.Reac
   const identity = renderable(await currentIdentity());
   if (!identity) return <SessionEnded />;
 
+  // A bookmark can reach this layout without passing through the sign-in form.
+  // Staff join an existing business; only owners complete business setup.
+  if (identity.provider === 'supabase' && identity.role === 'owner' && !(await storedSetupComplete(identity.userId))) {
+    redirect('/onboarding');
+  }
+
   const raw = cookieStore.get(PORTAL_COOKIE)?.value;
   const initialPortalId: PortalId | null = isPortalId(raw) ? raw : null;
 
@@ -88,3 +96,4 @@ function SessionEnded() {
     </div>
   );
 }
+

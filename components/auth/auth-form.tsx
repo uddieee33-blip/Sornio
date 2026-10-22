@@ -143,8 +143,8 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
    * the two answers cannot mean different things.
    */
   const deviceSetupComplete = useMemo(
-    () => hydrated && snapshotFromProfile(state.profile).setupComplete,
-    [hydrated, state.profile],
+    () => !supabaseReady && hydrated && snapshotFromProfile(state.profile).setupComplete,
+    [supabaseReady, hydrated, state.profile],
   );
 
   const doors = { requested, accountSetupComplete, deviceSetupComplete };
@@ -881,3 +881,4 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
     </form>
   );
 }
+

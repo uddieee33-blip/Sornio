@@ -221,10 +221,15 @@ export default function OnboardingPage() {
 
   const finish = async () => {
     setError(null);
+    if (!ownerName.trim()) { setStep(1); return setError('Your name is required.'); }
+    if (ownerPhone.replace(/\D/g, '').length < 10) { setStep(1); return setError('Enter a valid 10-digit phone number.'); }
+    if (!businessName.trim()) { setStep(2); return setError('Business name is required.'); }
+    if (!templateId) { setStep(2); return setError('Pick the template closest to your business — you can change it anytime.'); }
     if (upiId.trim() && !upiValid) return setError('Enter a valid UPI ID, or leave it blank and activate payments later.');
     if (ifsc.trim() && !isValidIfsc(ifsc.trim().toUpperCase())) return setError('That IFSC code does not look right (e.g. HDFC0001234).');
     if (accountNumber.trim() && !/^\d{6,20}$/.test(accountNumber.replace(/\s/g, ''))) return setError('Account numbers have 6–20 digits.');
 
+    pinned.current = true;
     setFinishing(true);
     const patch = {
       name: businessName,
@@ -263,8 +268,13 @@ export default function OnboardingPage() {
       const saved = await saveStoredProfile(
         snapshotFromProfile({ ...profile, ...patch, templateId, updatedAt: new Date().toISOString() }),
       );
-      setSavedTo({ account: saved.ok });
-      setTimeout(() => router.push('/home'), saved.ok ? 1000 : 600);
+      if (!saved.ok || saved.mode !== 'supabase') {
+        setError(saved.error ?? 'Could not save your profile.');
+        setFinishing(false);
+        return;
+      }
+      setSavedTo({ account: true });
+      setTimeout(() => router.push('/home'), 1000);
       return;
     }
     setSavedTo({ account: false });
@@ -385,6 +395,7 @@ export default function OnboardingPage() {
               return (
                 <button
                   key={s.id}
+                  disabled={finishing || s.id > step}
                   onClick={() => { setError(null); setStep(s.id); }}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
                     active ? 'bg-brand-500/15 text-brand-700 ring-1 ring-inset ring-brand-500/30 shadow-card'
@@ -618,3 +629,4 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
