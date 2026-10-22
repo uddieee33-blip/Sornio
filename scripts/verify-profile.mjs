@@ -757,7 +757,7 @@ await checkAsync('setup_complete is derived on the server, not copied from the c
   const response = await save({ ...PAYLOAD, upiId: 'not a vpa' });
   assertEqual(response.status, 200, 'the save still succeeds — the rest is worth keeping');
   assertEqual(tables.owner_profiles[0].upi_id, null, 'the unusable address is emptied');
-  assertEqual(tables.owner_profiles[0].setup_complete, true, 'so setup is not finished, whatever the body claimed');
+  assertEqual(tables.owner_profiles[0].setup_complete, true, 'setup remains complete without a valid payment address');
 });
 
 await checkAsync('a second save updates the one row instead of adding another', async () => {
