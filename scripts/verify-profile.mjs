@@ -342,7 +342,7 @@ check('unknown keys are dropped on the way to the row', () => {
   assertEqual(row.role, undefined, 'a role cannot ride in on a profile save');
   assertEqual(row.plan_id, undefined, 'nor a plan');
   assertEqual(row.is_admin, undefined, 'nor an admin flag');
-  assertEqual(Object.keys(row).length, 12, 'and the row carries exactly the twelve columns, no more');
+  assertEqual(Object.keys(row).length, 13, 'the row carries exactly thirteen approved columns, including GSTIN');
 });
 
 check('control characters and runaway whitespace are stripped', () => {
