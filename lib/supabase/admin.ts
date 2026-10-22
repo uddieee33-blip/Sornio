@@ -2,7 +2,7 @@
  * The service-role client — the only Supabase client that answers to no RLS
  * policy.
  *
- * It exists for exactly one job: the team API. Enrolling a teammate means
+ * It supports the team API and the allowlisted platform key API. Enrolling a teammate means
  * writing a `business_members` row *for somebody else*, and reading their auth
  * record to show the owner their email — two things a member's own session
  * must never be able to do, and therefore two things no policy may allow.

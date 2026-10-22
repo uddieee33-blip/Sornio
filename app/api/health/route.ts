@@ -137,13 +137,14 @@ export async function GET() {
       'With it set, a session token or a plan record cannot be forged by editing browser storage. Production refuses to mint or verify sessions without it; local development falls back to a per-host key so `next dev` still works.',
       'Sign-in is refused with “This deployment cannot open sessions …” until this is set. A development build signs with a per-host fallback key instead.',
     ),
-    secretStatus(
+    { ...secretStatus(
       'DUKAANOS_ACTIVATION_SECRET',
       'Signs activation codes — the bridge from “I paid” to “the plan is on”',
       activationSecret,
       'Server-only, so nobody can mint their own plan no matter what they change in devtools. With it unset, activation is disabled rather than guessable.',
-      'Your Plan answers “Activation is not enabled on this deployment”, and no paid code can be redeemed.',
-    ),
+      'Local installations need this for legacy signed activation codes.',
+    ), required: !supabaseConfigured, configured: supabaseConfigured || isActivationConfigured(),
+      detail: supabaseConfigured ? 'Hosted activation uses business-bound database keys; the legacy signing secret is not needed.' : null },
     {
       key: 'NEXT_PUBLIC_SUPABASE_URL + NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
       label: 'Where the books are duplicated, and who may read them',
@@ -176,7 +177,7 @@ export async function GET() {
       'DUKAANOS_SESSION_SECRET is not set, so this deployment cannot open or verify sessions: sign-in, account creation and password recovery all stop at a configuration error until it is. Generate one with openssl rand -hex 32 and set it in the host’s environment — on Vercel, Settings → Environment Variables, checked for Production and Preview both — then redeploy.',
     );
   }
-  if (!isActivationConfigured()) {
+  if (!supabaseConfigured && !isActivationConfigured()) {
     problems.push(
       activationSecret.length === 0
         ? 'DUKAANOS_ACTIVATION_SECRET is not set, so activation is disabled: an owner can pay but you cannot switch their plan on. Set it to start selling.'

@@ -1,4 +1,7 @@
 import { SubscriptionView } from '@/components/billing/subscription-view';
+import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
+import { isPlatformOperator } from '@/lib/plans/platform-policy';
+import { isValidUpiId } from '@/lib/upi';
 
 /**
  * Your Plan — server entry.
@@ -16,5 +19,10 @@ export default async function SubscriptionPage({
 }) {
   const params = await searchParams;
   const locked = typeof params.locked === 'string' ? params.locked : null;
-  return <SubscriptionView lockedModule={locked} />;
+  const user = await getSessionUser();
+  const client = user ? await getGuardedServerClient() : null;
+  const membership = client && user ? await client.from('business_members').select('business_id').eq('user_id', user.id).limit(1).maybeSingle() : null;
+  return <SubscriptionView lockedModule={locked} businessId={membership?.data?.business_id ?? null}
+    operator={isPlatformOperator(user?.id, process.env.DUKAANOS_PLATFORM_ADMIN_IDS ?? '')}
+    checkoutReady={isValidUpiId((process.env.NEXT_PUBLIC_PLANS_UPI_ID ?? '').trim())} />;
 }

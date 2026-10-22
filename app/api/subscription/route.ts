@@ -296,9 +296,12 @@ export async function POST(request: Request) {
         tn: `DukaanOS ${plan.name} ${price.months}mo ${reference}`,
       });
       const upiIntent = upiId ? `upi://pay?${params.toString()}` : null;
+      const ownerClient = await getGuardedServerClient();
+      const ownerScope = ownerClient ? await ownerClient.rpc('ensure_owner_business') : null;
+      const businessId = ownerScope?.data?.businessId ?? null;
       const whatsappHref = support
         ? `https://wa.me/${support}?text=${encodeURIComponent(
-            `I have paid for DukaanOS ${plan.name} (${price.months} month(s)). Reference: ${reference}. Amount: ₹${price.amount}. Please activate my plan.`,
+            `I have paid for DukaanOS ${plan.name} (${price.months} month(s)). Business: ${businessId ?? 'local device'}. Reference: ${reference}. Amount: ₹${price.amount}. Please activate my plan.`,
           )}`
         : null;
 
@@ -307,6 +310,8 @@ export async function POST(request: Request) {
         record,
         payment: {
           reference,
+          businessId,
+          months: price.months,
           amount: price.amount,
           interval: price.interval,
           planName: plan.name,
@@ -325,7 +330,7 @@ export async function POST(request: Request) {
         },
         message: upiId
           ? 'Pay with any UPI app — scan the QR or tap the button — then paste the activation code we send you.'
-          : 'Save your reference, pay the platform UPI, and we will send you an activation code.',
+          : 'Checkout preview only. Payments are not open yet; no plan has been activated.',
       });
     }
 
