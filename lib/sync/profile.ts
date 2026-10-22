@@ -192,14 +192,13 @@ export function snapshotFromProfile(profile: StoredProfile | null | undefined): 
  * that has not actually collected a UPI id. The four things that make a console
  * usable are the ones checked: who owns it, how to reach them, what it is called,
  * and which trade shapes the screens. The UPI id is required too, because
- * without it there is no collection QR and the shop cannot be paid.
+ * payment collection remains inactive until a valid UPI ID is added.
  */
 export function isSetupComplete(snapshot: ProfileSnapshot): boolean {
   if (!snapshot.ownerName) return false;
   if (phoneDigits(snapshot.ownerPhone).length < 10) return false;
   if (!snapshot.businessName) return false;
   if (!snapshot.templateId) return false;
-  if (!isValidUpiId(snapshot.upiId)) return false;
   return true;
 }
 

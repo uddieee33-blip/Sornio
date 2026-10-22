@@ -42,6 +42,17 @@ export default function PaymentsPage() {
     <div className="p-4 sm:p-6 md:p-8">
       <PageHeader eyebrow="Billing" title="Payment methods" subtitle="How money actually moves in and out — recorded per transaction." />
 
+      <div className="mb-6 rounded-2xl border border-stone-200 bg-white p-5 shadow-card" role="status">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-stone-900">Online collection setup</p>
+            <p className="mt-1 text-sm text-stone-600">{state.profile.upiId || state.profile.bank?.upiId ? 'UPI ID saved — review your details before accepting payments. Bank settlement is not verified by DukaanOS.' : 'Not connected — you can use billing and manual records without adding any bank details.'}</p>
+          </div>
+          <Badge tone={state.profile.upiId || state.profile.bank?.upiId ? 'amber' : 'brand'} dot>{state.profile.upiId || state.profile.bank?.upiId ? 'Verification not available' : 'Setup pending'}</Badge>
+        </div>
+        <Link href="/onboarding" className="mt-4 inline-flex items-center gap-2 rounded-xl border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-800 hover:bg-stone-50">Review business & payment details <ArrowRight size={14} /></Link>
+      </div>
+
       <CollectDuesPanel />
 
       {/* Front-desk collection: pick who pays, pick how, follow the panel. */}
