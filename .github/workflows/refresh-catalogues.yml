@@ -1,10 +1,12 @@
 name: Refresh localization catalogues
 on:
   push:
-    branches: [fix/localization-source-drift-20261023]
+    branches: ['fix/i18n-*']
     paths:
       - .github/workflows/refresh-catalogues.yml
   workflow_dispatch:
+
+  # Runs on review branches only. Never commit generated translations to main.
 
 permissions:
   contents: write
@@ -15,7 +17,7 @@ concurrency:
 
 jobs:
   translate:
-    if: github.repository == 'uddieee33-blip/DukaanOS' && github.ref == 'refs/heads/fix/localization-source-drift-20261023'
+    if: github.repository == 'uddieee33-blip/DukaanOS' && startsWith(github.ref, 'refs/heads/fix/i18n-')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -58,5 +60,5 @@ jobs:
           git add locales/en.json public/locales/
           if ! git diff --cached --quiet; then
             git commit -m "fix(i18n): regenerate and validate complete locale catalogues"
-            git push origin HEAD:fix/localization-source-drift-20261023
+            git push origin "HEAD:${GITHUB_REF#refs/heads/}"
           fi
