@@ -346,7 +346,13 @@ export default function LandingPage() {
       </header>
 
       {/* HERO */}
-      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-32 text-center md:pt-40">
+      <section className="landing-hero relative isolate mx-auto max-w-7xl px-6 pb-20 pt-32 text-center md:pt-40">
+        {/* Decorative CSS-only scroll depth with reduced-motion fallback. */}
+        <div aria-hidden="true" className="landing-hero-scene">
+          <span className="landing-hero-orb landing-hero-orb-a" />
+          <span className="landing-hero-orb landing-hero-orb-b" />
+          <span className="landing-hero-grid" />
+        </div>
         <div className="mx-auto mb-6 inline-flex max-w-2xl items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-600 animate-fade-up">
           <Sparkles size={14} /> {t('hero.badge')}
         </div>
