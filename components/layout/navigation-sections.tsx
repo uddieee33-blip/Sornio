@@ -177,7 +177,7 @@ export function NavigationSections({
               <span className="flex min-w-0 items-center gap-1.5 truncate">
                 <span className="truncate">{section.title}</span>
                 {revealAll && section.title === 'Everything else' ? (
-                  <Sparkles size={10} className="shrink-0 text-portal" aria-label="Included in full trial or Everything On" />
+                  <Sparkles size={10} className="shrink-0 text-portal" aria-label="Revealed by Everything On" />
                 ) : null}
                 {hasActivePage && !sectionOpen ? (
                   <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-portal" aria-hidden="true" />
