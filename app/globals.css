@@ -770,3 +770,42 @@ html[data-privacy='on'][data-away='true'] [data-sensitive] {
     color calc(200ms * var(--motion-scale)) var(--ease-swift),
     box-shadow calc(280ms * var(--motion-scale)) var(--ease-swift);
 }
+
+
+/*
+ * Landing-only spatial treatment: no WebGL, no external scripts, no camera
+ * access and no extra CSP permissions. The billing console remains fast.
+ */
+.landing-depth-grid {
+  perspective: 1050px;
+  perspective-origin: 50% 35%;
+}
+.landing-depth-card {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: auto;
+  box-shadow: 0 16px 36px rgb(10 21 19 / 0.07), 0 2px 5px rgb(10 21 19 / 0.04);
+  transition: transform calc(400ms * var(--motion-scale)) var(--ease-settle),
+    box-shadow calc(400ms * var(--motion-scale)) var(--ease-settle),
+    border-color calc(400ms * var(--motion-scale)) var(--ease-settle);
+}
+.landing-depth-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.18), transparent 60%);
+}
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-motion='off']) .landing-depth-card:hover {
+    transform: translateY(-8px) rotateX(3deg) rotateY(-3deg);
+    box-shadow: 0 24px 60px rgb(10 21 19 / 0.13), 0 8px 16px rgb(10 21 19 / 0.05);
+  }
+  html:not([data-motion='off']) .landing-depth-card:nth-child(even):hover {
+    transform: translateY(-8px) rotateX(3deg) rotateY(3deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-depth-card { transform: none !important; transition: none !important; }
+}
