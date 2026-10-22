@@ -44,7 +44,7 @@ const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide tex
 const STEPS = [
   { id: 1, title: 'About you', icon: User },
   { id: 2, title: 'Your business', icon: Building2 },
-  { id: 3, title: 'Bank & QR', icon: QrCode },
+  { id: 3, title: 'Payments (optional)', icon: QrCode },
 ];
 
 export default function OnboardingPage() {
@@ -221,7 +221,7 @@ export default function OnboardingPage() {
 
   const finish = async () => {
     setError(null);
-    if (!upiValid) return setError('A valid UPI ID is required to generate your collection QR (e.g. businessname@okhdfcbank).');
+    if (upiId.trim() && !upiValid) return setError('Enter a valid UPI ID, or leave it blank and activate payments later.');
     if (ifsc.trim() && !isValidIfsc(ifsc.trim().toUpperCase())) return setError('That IFSC code does not look right (e.g. HDFC0001234).');
     if (accountNumber.trim() && !/^\d{6,20}$/.test(accountNumber.replace(/\s/g, ''))) return setError('Account numbers have 6–20 digits.');
 
@@ -317,7 +317,7 @@ export default function OnboardingPage() {
           <p className="mt-1.5 max-w-md text-sm text-stone-600">
             {alreadySetup
               ? 'We remembered your details — change anything you need to, or go straight into the console.'
-              : 'Direct payments to your own bank, your customers’ data on your own device. No gateway, no middleman.'}
+              : 'Tell us about your shop first. You can set up payment collection later.'}
           </p>
           {showSummary ? null : alreadySetup ? (
             <button
@@ -514,7 +514,7 @@ export default function OnboardingPage() {
               <div className="grid gap-6 md:grid-cols-[1fr_auto]">
                 <div className="space-y-4">
                   <div>
-                    <span className={labelClass}>Your UPI ID — this powers your QR</span>
+                    <span className={labelClass}>UPI ID (optional — add later)</span>
                     <input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => { markTouched(); setUpiId(e.target.value); }} />
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2">
@@ -525,7 +525,7 @@ export default function OnboardingPage() {
                   </div>
                   <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-700/90 ring-1 ring-inset ring-emerald-500/20">
                     <ShieldCheck size={13} className="mr-1.5 inline" />
-                    Payments go <strong>directly into your bank account</strong> — DukaanOS never touches your money.
+                    Payment collection stays inactive until you add a valid UPI ID. When activated, money goes <strong>directly into your bank account</strong> — DukaanOS never touches your money.
                     We will <strong>never</strong> ask for your UPI PIN, OTP, card PIN, or passwords.
                   </div>
                 </div>
@@ -543,7 +543,7 @@ export default function OnboardingPage() {
                     </>
                   ) : (
                     <div className="flex h-[174px] w-[174px] items-center justify-center rounded-2xl border border-dashed border-stone-300 p-4 text-center text-xs leading-snug text-stone-600">
-                      Enter your UPI ID to see your QR code
+                      Payments not connected yet. Add a UPI ID anytime to enable your QR code.
                     </div>
                   )}
                 </div>
@@ -575,7 +575,7 @@ export default function OnboardingPage() {
                 </button>
               ) : (
                 <button onClick={() => { void finish(); }} disabled={finishing} className="inline-flex items-center gap-2 rounded-xl bg-brand-gradient px-5 py-2.5 text-sm font-bold text-white shadow-glow-sm transition hover:brightness-110 disabled:opacity-60">
-                  {finishing ? <><Lock size={15} /> Saving…</> : <>{alreadySetup ? 'Save & open console' : 'Finish setup'} <ArrowRight size={15} /></>}
+                  {finishing ? <><Lock size={15} /> Saving…</> : <>{alreadySetup ? 'Save & open console' : 'Finish business setup'} <ArrowRight size={15} /></>}
                 </button>
               )}
             </div>
