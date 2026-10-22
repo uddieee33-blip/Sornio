@@ -161,6 +161,7 @@ const COMPLETE = {
   ownerName: 'Rohit Kapoor',
   ownerPhone: '+91 98123 45678',
   ownerEmail: 'Rohit@CultFitness.com',
+  gstin: '03ABCDE1234F1Z5',
   upiId: 'cultfitness@okhdfcbank',
   bank: {
     upiId: 'cultfitness@okhdfcbank',
@@ -218,6 +219,25 @@ check('an empty profile is empty in every field, not partly undefined', () => {
   assertEqual(empty.bank.upiId, undefined, 'no bank UPI id');
   assertEqual(empty.setupComplete, false, 'and it is not finished setup');
   assertEqual(profile.isSetupComplete(empty), false, 'the predicate agrees');
+});
+
+
+check('GSTIN survives profile snapshot, database row and restoration', () => {
+  const snapshot = profile.snapshotFromProfile(COMPLETE);
+  assertEqual(snapshot.gstin, '03ABCDE1234F1Z5', 'normalized GSTIN in snapshot');
+  const row = profile.rowFromSnapshot(snapshot);
+  assertEqual(row.gstin, '03ABCDE1234F1Z5', 'GSTIN is stored on the owner row');
+  const restored = profile.snapshotFromRow(row);
+  assertEqual(restored.gstin, '03ABCDE1234F1Z5', 'GSTIN round-trips through the database');
+  assertEqual(profile.profileFromSnapshot(restored).gstin, '03ABCDE1234F1Z5', 'GSTIN survives another device');
+});
+
+check('GSTIN is optional, but a malformed value is rejected by the server', () => {
+  assertEqual(profile.parseProfilePayload({ ...WIRE, gstin: '' }).ok, true, 'unregistered shop');
+  const invalid = profile.parseProfilePayload({ ...WIRE, gstin: '03INVALID' });
+  assertEqual(invalid.ok, false, 'invalid GSTIN cannot be persisted');
+  const tooLong = profile.parseProfilePayload({ ...WIRE, gstin: '03ABCDE1234F1Z5EXTRA' });
+  assertEqual(tooLong.ok, false, 'overlong GSTIN cannot be truncated into an accepted identity');
 });
 
 /* ------------------------------------------- 2. setup is derived, not trusted */
@@ -322,7 +342,7 @@ check('unknown keys are dropped on the way to the row', () => {
   assertEqual(row.role, undefined, 'a role cannot ride in on a profile save');
   assertEqual(row.plan_id, undefined, 'nor a plan');
   assertEqual(row.is_admin, undefined, 'nor an admin flag');
-  assertEqual(Object.keys(row).length, 12, 'and the row carries exactly the twelve columns, no more');
+  assertEqual(Object.keys(row).length, 13, 'the row carries exactly thirteen approved columns, including GSTIN');
 });
 
 check('control characters and runaway whitespace are stripped', () => {
