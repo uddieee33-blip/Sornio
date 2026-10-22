@@ -297,6 +297,11 @@ export async function POST(request: Request) {
   const { email, password, remember } = credentials;
   const client = await getGuardedServerClient();
 
+  // Production must never silently fall back to a simulated local login.
+  if (!client && process.env.NODE_ENV === 'production') {
+    return json({ ok: false, code: 'auth-unavailable', error: 'Account sign-in is unavailable because hosted authentication is not configured. Contact the platform administrator.' }, 503);
+  }
+
   // ---- Local-first: no provider, so the session is the device's own. ----
   if (!client) {
     // A password is checked for *shape* here and nothing more, because there is
