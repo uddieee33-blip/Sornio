@@ -809,3 +809,63 @@ html[data-privacy='on'][data-away='true'] [data-sensitive] {
 @media (prefers-reduced-motion: reduce) {
   .landing-depth-card { transform: none !important; transition: none !important; }
 }
+
+
+/* Marketing-only depth effect: no JS, external assets or extra CSP permissions. */
+.landing-hero-scene { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; contain: paint; }
+.landing-hero-orb {
+  position: absolute; display: block; width: min(32vw, 340px); aspect-ratio: 1;
+  border-radius: 35%; border: 1px solid rgb(var(--c-stone-400) / 0.16);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 28px 88px rgb(var(--c-shadow) / 0.06);
+  opacity: 0.6;
+}
+.landing-hero-orb-a {
+  left: -10%; top: 5%;
+  background: radial-gradient(circle at 28% 24%, rgb(var(--portal-accent) / 0.12), transparent 65%);
+  transform: rotate(-22deg);
+}
+.landing-hero-orb-b {
+  right: -11%; top: 28%;
+  background: radial-gradient(circle at 68% 35%, rgb(var(--c-stone-400) / 0.13), transparent 68%);
+  transform: rotate(25deg); border-radius: 42%;
+}
+.landing-hero-grid {
+  position: absolute; left: 18%; right: 18%; top: 17%; height: min(60vw, 450px);
+  opacity: 0.14; transform: perspective(800px) rotateX(64deg) translateY(4%);
+  transform-origin: center bottom;
+  background-image: linear-gradient(rgb(var(--c-stone-500) / 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--c-stone-500) / 0.2) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse at center, black 6%, transparent 73%);
+}
+@media (max-width: 640px) {
+  .landing-hero-orb { width: 38vw; opacity: 0.32; }
+  .landing-hero-grid { left: 0; right: 0; }
+}
+@keyframes landing-orb-a-drift {
+  from { transform: translate3d(0, -18px, 0) rotate(-28deg); }
+  to { transform: translate3d(0, 48px, 0) rotate(-8deg); }
+}
+@keyframes landing-orb-b-drift {
+  from { transform: translate3d(0, 24px, 0) rotate(18deg); }
+  to { transform: translate3d(0, -55px, 0) rotate(39deg); }
+}
+@supports (animation-timeline: scroll(root block)) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 641px) {
+    html[data-motion='full'] .landing-hero-orb-a {
+      animation: landing-orb-a-drift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 1000px;
+    }
+    html[data-motion='full'] .landing-hero-orb-b {
+      animation: landing-orb-b-drift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 1000px;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-orb, .landing-hero-grid { animation: none !important; }
+}
+html[data-motion='calm'] .landing-hero-orb,
+html[data-motion='off'] .landing-hero-orb { animation: none !important; }
