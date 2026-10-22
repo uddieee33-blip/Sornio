@@ -147,7 +147,7 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
     [hydrated, state.profile],
   );
 
-  const doors = { requested, accountSetupComplete, deviceSetupComplete };
+  const doors = { requested, accountSetupComplete, deviceSetupComplete, accountBacked: supabaseReady };
   const destination = welcomeDestination(doors);
   /** `undefined` means "you decide" — the endpoint knows the account, this browser only knows the device. */
   const nextParam = signInNextParam(doors);
