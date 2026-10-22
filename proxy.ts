@@ -354,7 +354,9 @@ export async function proxy(request: NextRequest) {
   // own books and always reach the page that fixes it.
   if (isSafeMethod(method)) {
     const record = await openPlanRecord(request.cookies.get(PLAN_COOKIE)?.value);
-    const entitlement = resolveEntitlement(record, Date.now());
+    const account = await openOwnerSession(request.cookies.get(AUTH_COOKIE)?.value);
+    const scopedRecord = supabaseConfigured && (!record?.businessId || record.businessId !== account?.tenantId) ? null : record;
+    const entitlement = resolveEntitlement(scopedRecord, Date.now());
     const verdict = checkPlanAccess(entitlement, pathname);
     if (!verdict.allowed) {
       const target = new URL(verdict.redirectTo, request.url);

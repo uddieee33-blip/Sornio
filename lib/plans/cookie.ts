@@ -30,6 +30,7 @@ export const PLAN_COOKIE = 'dukaan.plan';
 export const PLAN_COOKIE_MAX_AGE = 60 * 60 * 24 * 365;
 
 type Wire = {
+  z?: unknown; // business scope
   p?: unknown; // planId
   s?: unknown; // since
   r?: unknown; // renewsAt
@@ -49,6 +50,7 @@ function numberOrZero(value: unknown): number {
 /** Compact wire form — short keys keep the cookie well under any header limit. */
 export function encodePlanRecord(record: PlanRecord): string {
   const wire: Wire = {
+    z: record.businessId,
     p: record.planId,
     s: numberOrZero(record.since),
     r: numberOrZero(record.renewsAt),
@@ -72,6 +74,7 @@ export function decodePlanRecord(payloadSegment: string): PlanRecord | null {
   const activatedBy = typeof wire.b === 'string' && ACTIVATORS.has(wire.b) ? (wire.b as PlanRecord['activatedBy']) : 'self';
   const reference = typeof wire.f === 'string' && wire.f.length <= 120 ? wire.f : undefined;
   return {
+    businessId: typeof wire.z === 'string' ? wire.z : undefined,
     planId: wire.p,
     since: numberOrZero(wire.s),
     renewsAt: numberOrZero(wire.r),

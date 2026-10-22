@@ -35,13 +35,16 @@
 
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
+import { AUTH_COOKIE, openOwnerSession, sealOwnerSession, ownerSessionCookie, actorNameFor } from '@/lib/auth';
+import { appRoleForMembership } from '@/lib/team/roles';
+import { SESSION_IDLE_SECONDS } from '@/lib/security/session';
 
-import { getSessionUser } from '@/lib/security/guard';
+import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { sessionSecretConfigError, sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
 import type { CookieTransport } from '@/lib/security/cookies';
-import { randomToken } from '@/lib/security/crypto';
+import { sha256Hex, randomToken } from '@/lib/security/crypto';
 import { isValidUpiId } from '@/lib/upi';
 import {
   PLAN_COOKIE,
@@ -71,6 +74,14 @@ function json(body: unknown, status = 200): NextResponse {
 }
 
 async function currentRecord(): Promise<PlanRecord | null> {
+  if (isSupabaseConfigured()) {
+    const user = await getSessionUser();
+    if (!user) return null;
+    const client = await getGuardedServerClient();
+    const result = await client!.rpc('read_business_plan');
+    if (result.error) throw new Error('Plan storage unavailable');
+    return result.data as PlanRecord | null;
+  }
   const store = await cookies();
   return openPlanRecord(store.get(PLAN_COOKIE)?.value);
 }
@@ -89,9 +100,13 @@ async function mayManagePlan(userId: string): Promise<boolean> {
     const { getGuardedServerClient } = await import('@/lib/security/guard');
     const client = await getGuardedServerClient();
     if (!client) return false;
-    const { data, error } = await client.from('business_members').select('role').eq('user_id', userId).limit(5);
+    // The RPC resolves auth.uid(), returns an existing seat unchanged and
+    // creates an owner seat only for an account starting its own business.
+    const user = await getSessionUser();
+    if (user?.id !== userId) return false;
+    const { data, error } = await client.rpc('ensure_owner_business');
     if (error || !data) return false;
-    return data.some((row: { role?: string }) => PLAN_ADMIN_ROLES.has(String(row.role)));
+    return PLAN_ADMIN_ROLES.has(String(data.role));
   } catch {
     return false;
   }
@@ -122,16 +137,39 @@ async function issue(
   if (sessionVerificationSecret() === null) {
     return json({ ok: false, code: 'sessions-disabled', error: sessionSecretConfigError() }, 503);
   }
+  let scope: { businessId: string; role: string } | null = null;
+  if (isSupabaseConfigured()) {
+    const client = await getGuardedServerClient();
+    const { data, error } = await client!.rpc('ensure_owner_business');
+    if (error) return json({ error: 'Could not reach the server. Check your connection and try again — nothing was lost.' }, 503);
+    scope = data;
+    record = { ...record, businessId: data.businessId };
+  }
   const token = await sealPlanRecord(record);
   const response = withRecord(record, body);
   response.cookies.set(PLAN_COOKIE, token, planCookieOptions(transport));
+  if (scope) {
+    const store = await cookies();
+    const prior = await openOwnerSession(store.get(AUTH_COOKIE)?.value);
+    const role = appRoleForMembership(scope.role);
+    if (prior?.tenantId !== scope.businessId || prior.role !== role) {
+      const user = await getSessionUser();
+      if (!user) return json({ error: 'Sign-in required to change your plan.' }, 401);
+      const renewed = await sealOwnerSession({ userId: user.id, tenantId: scope.businessId, role, displayName: actorNameFor(user.email), remember: prior ? prior.exp - prior.iat > SESSION_IDLE_SECONDS : true });
+      response.cookies.set(AUTH_COOKIE, renewed.value, ownerSessionCookie(transport, renewed.maxAge));
+    }
+  }
   return response;
 }
 
 /** GET — report, never mutate. */
-export async function GET() {
-  const record = await currentRecord();
-  return json({ ok: true, record });
+export async function GET(request: Request) {
+  try {
+    const record = await currentRecord();
+    return record ? issue(record, transportForRequest(request)) : json({ ok: true, record });
+  } catch {
+    return json({ error: 'Could not reach the server. Check your connection and try again — nothing was lost.' }, 503);
+  }
 }
 
 export async function POST(request: Request) {
@@ -146,7 +184,28 @@ export async function POST(request: Request) {
   const action = (payload as { action?: unknown } | null)?.action;
   if (typeof action !== 'string') return json({ error: 'Missing action.' }, 422);
 
-  const record = await currentRecord();
+  let record: PlanRecord | null;
+  try { record = await currentRecord(); }
+  catch { return json({ error: 'Could not reach the server. Check your connection and try again — nothing was lost.' }, 503); }
+  if (isSupabaseConfigured() && ['start-trial', 'choose-plan', 'activate'].includes(action)) {
+    const denial = await requiresOwner();
+    if (denial) return denial;
+    if (action === 'choose-plan' && (payload as { planId?: unknown }).planId !== 'starter')
+      return json({ error: 'Only the free plan can be chosen directly. Pick a paid plan to get payment details.' }, 422);
+    const code = (payload as { code?: unknown }).code;
+    if (action === 'activate' && (typeof code !== 'string' || !/^DKK1-[a-f0-9]{64}$/.test(code.trim())))
+      return json({ error: 'That activation code is not valid. Check the code, or ask us to re-send it.' }, 422);
+    const client = await getGuardedServerClient();
+    const result = await client!.rpc('change_business_plan', {
+      p_action: action,
+      p_code_hash: action === 'activate' ? await sha256Hex((code as string).trim()) : null,
+    });
+    if (result.error) {
+      const duplicate = result.error.code === '23505';
+      return json({ error: duplicate ? 'Your trial is already running.' : 'That activation code is not valid. Check the code, or ask us to re-send it.' }, duplicate ? 409 : result.error.code === '42501' ? 403 : 422);
+    }
+    return issue(result.data as PlanRecord, transport, { changed: true });
+  }
   const now = Date.now();
   const nowSeconds = Math.floor(now / 1000);
 
