@@ -24,6 +24,7 @@ export function PlatformKeyConsole() {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState('');
   const [code, setCode] = useState('');
+  const monthlyAvailable = planId === 'growth';
   const price = planById(planId === 'scale' ? 'scale' : 'growth').prices.find((period) => period.months === months);
 
   async function load() {
@@ -82,7 +83,7 @@ export function PlatformKeyConsole() {
       <fieldset disabled={busy || !business || Boolean(code)} className="space-y-4 disabled:opacity-60">
         <div className="grid grid-cols-2 gap-3">
           <label className="text-sm text-stone-700">Plan<select className={field} value={planId} onChange={(e) => { setPlanId(e.target.value); if (e.target.value === 'scale' && months === 1) setMonths(3); setVerified(false); }}><option value="growth">Growth</option><option value="scale">Scale</option></select></label>
-          <label className="text-sm text-stone-700">Period<select className={field} value={months} onChange={(e) => { setMonths(Number(e.target.value)); setVerified(false); }}>{planId === 'growth' && <option value={1}>1 month</option>}<option value={3}>3 months</option><option value={12}>12 months</option></select></label>
+          <label className="text-sm text-stone-700">Period<select className={field} value={months} onChange={(e) => { setMonths(Number(e.target.value)); setVerified(false); }}>{monthlyAvailable && <option value={1}>1 month</option>}<option value={3}>3 months</option><option value={12}>12 months</option></select></label>
         </div>
         <p className="rounded-xl bg-stone-50 p-3 text-sm text-stone-800">Catalogue total: <strong>₹{price?.amount.toLocaleString('en-IN')}</strong> for {months} month(s). Check that the bank payment matches this order.</p>
         <label className="block text-sm text-stone-700">Verified bank / UPI transaction reference<input className={field} maxLength={80} minLength={2} required value={reference} onChange={(e) => { setReference(e.target.value); setVerified(false); }} autoComplete="off" /></label>
