@@ -98,13 +98,15 @@ export function signInFallback(setupComplete: boolean): string {
  *   • `deviceSetupComplete` is this browser's, from the encrypted vault. It is
  *     the only answer a local-first build has, because there is no row to read.
  *
- * Either "finished" counts, and both are needed: the server cannot see a local
- * install's vault, and the vault cannot see an account this device forgot.
+ * Hosted accounts use only the server answer. Device completion is a fallback
+ * for local-first builds, never evidence about a newly authenticated account.
  */
 export type DestinationInput = {
   requested: string | null;
   accountSetupComplete: boolean;
   deviceSetupComplete: boolean;
+  /** Hosted accounts use the server profile; a cached device profile is not authoritative. */
+  accountBacked?: boolean;
 };
 
 /**
@@ -118,7 +120,7 @@ export type DestinationInput = {
  */
 export function welcomeDestination(input: DestinationInput): string {
   if (input.requested) return input.requested;
-  return input.accountSetupComplete || input.deviceSetupComplete ? CONSOLE_HOME : DEFAULT_NEXT;
+  return input.accountSetupComplete || (!input.accountBacked && input.deviceSetupComplete) ? CONSOLE_HOME : DEFAULT_NEXT;
 }
 
 /**
@@ -134,7 +136,7 @@ export function welcomeDestination(input: DestinationInput): string {
  */
 export function signInNextParam(input: DestinationInput): string | undefined {
   if (input.requested) return input.requested;
-  return input.deviceSetupComplete ? CONSOLE_HOME : undefined;
+  return !input.accountBacked && input.deviceSetupComplete ? CONSOLE_HOME : undefined;
 }
 
 /**
