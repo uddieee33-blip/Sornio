@@ -429,6 +429,29 @@ check('the form stays quiet when only the server can answer', () => {
   );
 });
 
+
+check('hosted sign-in ignores a completed profile cached on this device', () => {
+  const hosted = { requested: null, accountSetupComplete: false, deviceSetupComplete: true, accountBacked: true };
+  assertEqual(gate.welcomeDestination(hosted), gate.DEFAULT_NEXT, 'an incomplete account must see setup even on a previously used device');
+  assertEqual(gate.signInNextParam(hosted), undefined, 'cached completion must not manufacture a next=/home override');
+  assertEqual(gate.welcomeDestination({ ...hosted, accountSetupComplete: true }), gate.CONSOLE_HOME, 'a complete account still opens the console');
+  assertEqual(gate.signInNextParam({ ...hosted, accountSetupComplete: true }), undefined, 'the endpoint rechecks the newly authenticated account');
+});
+
+check('local-first completion and explicit destinations remain available', () => {
+  const local = { requested: null, accountSetupComplete: false, deviceSetupComplete: true, accountBacked: false };
+  assertEqual(gate.welcomeDestination(local), gate.CONSOLE_HOME, 'local builds can still use their device profile');
+  assertEqual(gate.signInNextParam(local), gate.CONSOLE_HOME, 'local sign-in keeps its device fallback');
+  const explicit = { ...local, accountBacked: true, requested: '/onboarding' };
+  assertEqual(gate.welcomeDestination(explicit), '/onboarding', 'an explicit setup request is preserved');
+  assertEqual(gate.signInNextParam(explicit), '/onboarding', 'the endpoint receives that explicit request');
+});
+
+check('the auth form identifies hosted accounts to the shared destination rule', () => {
+  const form = read('components', 'auth', 'auth-form.tsx');
+  assert(/accountBacked: supabaseReady/.test(form), 'the provider configuration must reach both destination helpers');
+});
+
 check('a door into the console is earned, a door into setup is not', () => {
   assertEqual(gate.doorNeedsConfirmation(gate.CONSOLE_HOME), true, 'behind it are the takings, the khata and the customer list');
   assertEqual(gate.doorNeedsConfirmation('/audit?locked=1'), true, 'a deep link is still a console route');
