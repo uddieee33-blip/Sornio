@@ -869,3 +869,23 @@ html[data-privacy='on'][data-away='true'] [data-sensitive] {
 }
 html[data-motion='calm'] .landing-hero-orb,
 html[data-motion='off'] .landing-hero-orb { animation: none !important; }
+
+
+/* Accountant print sheet is static CSS, never translated or injected into JSX. */
+@media print {
+  body * { visibility: hidden !important; }
+  .ca-report, .ca-report * { visibility: visible !important; }
+  .ca-report {
+    position: absolute !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    padding: 14mm !important;
+    background: white !important;
+    color: black !important;
+  }
+  .ca-report table { width: 100%; }
+  .ca-report tr { break-inside: avoid; }
+  @page { size: A4; margin: 0; }
+}
