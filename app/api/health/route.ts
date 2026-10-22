@@ -70,8 +70,8 @@ function secretStatus(
       trimmed.length === 0
         ? null
         : longEnough
-          ? `Set — ${trimmed.length} characters. The value itself is never sent to a browser, including this one.`
-          : `Set, but only ${trimmed.length} characters. It must be at least ${SECRET_MIN_LENGTH}.`,
+          ? 'Set. The value itself is never sent to a browser, including this one.'
+          : `Set, but too short. It must be at least ${SECRET_MIN_LENGTH} characters.`,
     surface,
     hint,
     format: `at least ${SECRET_MIN_LENGTH} characters — openssl rand -hex 32`,
