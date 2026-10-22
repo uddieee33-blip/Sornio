@@ -12,6 +12,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const source = readFileSync(join(process.cwd(), 'app/api/team/route.ts'), 'utf8');
+const redeem = readFileSync(join(process.cwd(), 'app/api/team/redeem/route.ts'), 'utf8');
 const section = (start, end) => {
   const from = source.indexOf(start);
   assert.notEqual(from, -1, `Missing Team section: ${start}`);
@@ -38,4 +39,7 @@ assert.match(role, /targetRole === 'owner'/, 'Owner demotion must be refused');
 assert.match(role, /\.neq\('role', 'owner'\)[\s\S]*?\.select\('user_id'\)/, 'Role update must enforce owner protection atomically');
 assert.match(role, /if \(!updated\) return respond\(\{ ok: false/, 'No-op role update must not claim success');
 
-console.log('Team API: 11 fail-closed roster, invitation and owner-seat checks passed.');
+assert.match(redeem, /if \(inviteError\) return json\(\{ ok: false/, 'Invite store failures must not be described as invalid codes');
+assert.match(redeem, /if \(existingError \|\| !Array\.isArray\(existing\)\)/, 'Membership lookup failure must not be mistaken for unassigned user');
+
+console.log('Team API: 13 fail-closed roster, invitation and owner-seat checks passed.');
