@@ -4,6 +4,7 @@ const args = Object.fromEntries(process.argv.slice(2).reduce((pairs, value, i, a
   if (value.startsWith('--')) pairs.push([value.slice(2), all[i+1]]);
   return pairs;
 }, []));
+args.reference = args.reference?.trim().toUpperCase();
 const url = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
 const secret = process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY;
 if (!url || !secret) throw new Error('Run in the platform server environment with SUPABASE_URL and a server-only Supabase secret/service-role key.');

@@ -28,6 +28,8 @@ export type PlanAction =
 
 export type PaymentInstructions = {
   reference: string;
+  businessId?: string | null;
+  months?: number;
   amount: number;
   interval: string;
   planName: string;

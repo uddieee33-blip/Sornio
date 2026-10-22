@@ -149,7 +149,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
     (planId: PaidPlanId, interval: string) =>
       run(
         () => postPlan({ action: 'request-activation', planId, interval }),
-        () => 'Payment details are below. Your plan switches on the moment the code is entered.',
+        () => 'Checkout details are ready. Your plan changes only after a valid key is redeemed.',
       ),
     [run],
   );

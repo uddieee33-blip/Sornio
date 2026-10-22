@@ -23,7 +23,7 @@ import { useLocaleRefresh } from '@/lib/i18n';
  * charges anybody automatically.
  */
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
@@ -91,7 +91,7 @@ function periodLabel(interval: BillingInterval) {
   }
 }
 
-export function SubscriptionView({ lockedModule }: { lockedModule?: string | null }) {
+export function SubscriptionView({ lockedModule, businessId = null, operator = false, checkoutReady = false }: { lockedModule?: string | null; businessId?: string | null; operator?: boolean; checkoutReady?: boolean }) {
   useLocaleRefresh();
   const { entitlement, statusLine, usage, busy, notice, dismissNotice, payment, loading, synced, startTrial, choosePlan, requestActivation, activate, refresh } = usePlan();
   const { state } = useDukaanStore();
@@ -99,6 +99,7 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
   const [intervals, setIntervals] = useState<Record<string, number>>({ growth: 0, scale: 0 });
   const [code, setCode] = useState('');
   const [copied, setCopied] = useState<string | null>(null);
+  useEffect(() => { if (payment) document.getElementById('checkout')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [payment]);
 
   const timezone = state.profile.timezone || 'Asia/Kolkata';
   const locked = useMemo(() => lockedModulesFor(entitlement, portal.id), [entitlement, portal.id]);
@@ -176,6 +177,21 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
           </>
         }
       />
+
+      {!checkoutReady && <div role="status" className="mb-5 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-sm text-amber-900">
+        <strong>Checkout preview · payments are not open yet</strong>
+        <p className="mt-1">Explore prices and select a plan to test checkout. No money is collected and selecting a plan does not activate it. A valid activation key still works below.</p>
+      </div>}
+      <Card className="mb-6 space-y-4">
+        <CardTitle icon={<BadgeCheck size={16} />}>Already have an activation key?</CardTitle>
+        <p className="text-sm text-stone-600">Paste the key provided for this business. Becoming the business owner is automatic and needs no paid key.</p>
+        <form className="flex flex-col gap-3 sm:flex-row" onSubmit={async (event) => { event.preventDefault(); if (await activate(code.trim())) setCode(''); }}>
+          <input value={code} onChange={(event) => setCode(event.target.value)} placeholder="DKK1-…" aria-label="Activation key" autoComplete="off" autoCapitalize="none" spellCheck={false} maxLength={1024} className="min-w-0 flex-1 rounded-xl border border-stone-300 px-3 py-3 font-mono text-sm text-stone-900" />
+          <Button type="submit" disabled={busy || loading || code.trim().length < 8}>Activate key</Button>
+        </form>
+        {businessId && <div className="rounded-xl bg-stone-50 p-3 text-xs text-stone-600"><span>Business ID · share this with support to receive the right key</span><p className="mt-1 break-all font-mono text-stone-900">{businessId}</p><button className="mt-2 min-h-9 font-semibold text-brand-700" onClick={() => void handleCopy('business', businessId)}>{copied === 'business' ? 'Copied' : 'Copy business ID'}</button></div>}
+        {operator && <Link href="/platform/keys" className="inline-block min-h-11 py-3 text-sm font-semibold text-brand-700">Open platform key console →</Link>}
+      </Card>
 
       {notice ? (
         <div
@@ -383,17 +399,15 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
 
       {/* ---- Payment in flight ---- */}
       {payment ? (
-        <Card className="mb-6 ring-2 ring-brand-400/40">
-          <CardTitle icon={<HandCoins size={16} />}>Pay {formatCurrency(payment.amount)} — then paste your code</CardTitle>
+        <div id="checkout" className="scroll-mt-24"><Card className="mb-6 ring-2 ring-brand-400/40">
+          <CardTitle icon={<HandCoins size={16} />}>{payment.configured ? `Pay ${formatCurrency(payment.amount)} — then activate` : `Checkout preview · ${formatCurrency(payment.amount)}`}</CardTitle>
           <ol className="mt-4 space-y-3 text-sm text-stone-700">
             <li className="flex gap-3">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-700">1</span>
               <span>
-                Pay <strong>{formatCurrency(payment.amount)}</strong> for <strong>{payment.planName}</strong> ({payment.interval}). Quote the reference{' '}
+                {payment.configured ? 'Pay' : 'Selected total:'} <strong>{formatCurrency(payment.amount)}</strong> for <strong>{payment.planName}</strong> ({payment.interval}). Quote the reference{' '}
                 <strong className="font-mono text-stone-900">{payment.reference}</strong> in the note — that is how your money is matched to your business.
-                {payment.amount >= 499 && (
-                  <span className="mt-1 block text-xs text-stone-600">Prefer quarterly? ₹999 covers three months, and the reference stays the same.</span>
-                )}
+
               </span>
             </li>
             {payment.upiId ? (
@@ -459,22 +473,11 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
             <li className="flex gap-3">
               <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-brand-500/15 text-xs font-bold text-brand-700">{payment.upiId ? 3 : 2}</span>
               <span>
-                We send you a one-time activation code as soon as the payment lands, usually within the hour. Paste it here:
-                <span className="mt-2 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    value={code}
-                    onChange={(event) => setCode(event.target.value)}
-                    placeholder="DKS1-…"
-                    aria-label="Activation code"
-                    className="w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 font-mono text-sm text-stone-900 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
-                  />
-                  <Button onClick={() => void activate(code.trim())} disabled={busy || code.trim().length < 8}>
-                    <CheckCircle2 size={15} /> Activate
-                  </Button>
-                </span>
+                After payment is independently verified, support provides a one-time key for this business. Use the activation box above. There is no automatic payment confirmation or promised processing time.
+
               </span>
             </li>
-            {payment.whatsappHref ? (
+            {payment.configured && payment.whatsappHref ? (
               <li className="flex gap-3">
                 <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-500/15 text-xs font-bold text-emerald-700">
                   <MessageCircle size={12} />
@@ -496,14 +499,14 @@ export function SubscriptionView({ lockedModule }: { lockedModule?: string | nul
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
               <span>
                 <strong>Online payment is not switched on for this deployment yet.</strong>{' '}
-                {payment.setupHint} Until then, use the reference above with whatever payment method you already have, and the plan is activated the same way — by a signed code.
+                You can test the plan selection and activation screens now. Do not send money until DukaanOS publishes its payment details. This checkout reference is for support matching; it is not proof of payment.
               </span>
             </div>
           ) : null}
           <p className="mt-4 rounded-xl bg-stone-50 px-3.5 py-3 text-xs leading-relaxed text-stone-600 ring-1 ring-inset ring-stone-200">
             Nothing is charged automatically — no mandate, no card saved, no recurring debit. When this period ends you either pay again or drop to the free plan, and the free plan keeps every record.
           </p>
-        </Card>
+        </Card></div>
       ) : null}
 
       {/* ---- The plans ---- */}
