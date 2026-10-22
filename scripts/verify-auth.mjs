@@ -435,6 +435,14 @@ check('a door into the console is earned, a door into setup is not', () => {
   assertEqual(gate.doorNeedsConfirmation(gate.DEFAULT_NEXT), false, 'setup holds nothing worth guarding yet');
 });
 
+check('hosted sign-in does not trust an earlier account\'s device profile', () => {
+  const form = read('components', 'auth', 'auth-form.tsx');
+  assert(
+    /deviceSetupComplete:\s*!supabaseReady\s*&&\s*deviceSetupComplete/.test(form),
+    'only the local-first build may use a device vault to skip onboarding; a hosted account is decided after authentication',
+  );
+});
+
 check('the sign-in screen asks before it opens the console', () => {
   const form = read('components', 'auth', 'auth-form.tsx');
   assert(/doorNeedsConfirmation\(/.test(form), 'the gate comes from the shared rule, not from a literal in the markup');
