@@ -39,10 +39,10 @@ assert.match(role, /targetRole === 'owner'/, 'Owner demotion must be refused');
 assert.match(role, /\.neq\('role', 'owner'\)[\s\S]*?\.select\('user_id'\)/, 'Role update must enforce owner protection atomically');
 assert.match(role, /if \(!updated\) return respond\(\{ ok: false/, 'No-op role update must not claim success');
 
-assert.match(redeem, /getSessionUser\\(\\)/, 'Teammate identity must come from provider-backed sign-in');
-assert.match(redeem, /admin\\.rpc\\('redeem_team_invite_atomic'/, 'Redemption must use the atomic RPC');
-assert.match(redeem, /if \\(redeemError\\) return json|if \\(redeemError\\) \\{/, 'An unavailable RPC must fail closed');
-assert.doesNotMatch(redeem, /\\.from\\('team_invites'\\)\\s*\\.update\\(/, 'Do not burn a code in a separate request');
-assert.doesNotMatch(redeem, /\\.from\\('business_members'\\)\\s*\\.insert\\(/, 'Do not create a member in a separate request');
+assert.match(redeem, /getSessionUser\(\)/, 'Teammate identity must come from provider-backed sign-in');
+assert.match(redeem, /admin\.rpc\('redeem_team_invite_atomic'/, 'Redemption must use the atomic RPC');
+assert.match(redeem, /if \(redeemError\) return json|if \(redeemError\) \{/, 'An unavailable RPC must fail closed');
+assert.doesNotMatch(redeem, /\.from\('team_invites'\)\s*\.update\(/, 'Do not burn a code in a separate request');
+assert.doesNotMatch(redeem, /\.from\('business_members'\)\s*\.insert\(/, 'Do not create a member in a separate request');
 
 console.log('Team API: 16 fail-closed roster, owner-seat and atomic-redemption guards passed.');
