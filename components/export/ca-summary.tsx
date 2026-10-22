@@ -66,14 +66,7 @@ export function CaSummary() {
         {invoices.length === 0 && <p className="mt-4 text-sm">No invoices in the selected period.</p>}
         <p className="mt-5 text-xs">Provide the transaction-level CSV export to your CA for reconciliation. This report only summarizes invoices currently stored in this business.</p>
       </div>
-      <style>{`@media print {
-        body * { visibility: hidden !important; }
-        .ca-report, .ca-report * { visibility: visible !important; }
-        .ca-report { position: absolute !important; inset: 0 auto auto 0 !important; width: 100% !important; margin: 0 !important; border: 0 !important; padding: 14mm !important; background: white !important; color: black !important; }
-        .ca-report table { width: 100%; }
-        .ca-report tr { break-inside: avoid; }
-        @page { size: A4; margin: 0; }
-      }`}</style>
+
     </section>
   );
 }
