@@ -23,6 +23,7 @@
 import { cookies } from 'next/headers';
 
 import { getGuardedServerClient, getSessionUser } from '@/lib/security/guard';
+import { isSupabaseConfigured } from '@/lib/supabase/config';
 import { dominantRole, type Role } from '@/lib/security/rbac';
 import { appRoleForMembership } from '@/lib/team/roles';
 import { SESSION_COOKIE, SESSION_IDLE_SECONDS, actorLabel, type SessionClaims } from '@/lib/security/session';
@@ -120,7 +121,10 @@ export async function currentIdentity(): Promise<ConsoleIdentity | null> {
   const store = await cookies();
 
   const claims = await openOwnerSession(store.get(SESSION_COOKIE)?.value);
-  if (claims) return identityFromClaims(claims);
+  // A local demo cookie must never bypass hosted authentication after Supabase is enabled.
+  if (claims && (!isSupabaseConfigured() || providerForClaims(claims) === 'supabase')) {
+    return identityFromClaims(claims);
+  }
 
   const user = await getSessionUser();
   if (!user) return null;
