@@ -39,7 +39,11 @@ export default function SalesPage() {
 
   const addLine = () => {
     const first = sellableProducts[0];
-    if (!first) return;
+    if (!first) {
+      setMessage({ tone: 'error', text: 'Add an item or service first. Then come back here to record a sale.' });
+      return;
+    }
+    setMessage(null);
     setLines((current) => [...current, { productId: first.id, quantity: 1, rate: first.sellingPrice }]);
   };
 
@@ -132,7 +136,10 @@ export default function SalesPage() {
             {lines.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-stone-200 p-8 text-center">
                 <ShoppingCart size={28} className="mx-auto text-stone-600" />
-                <p className="mt-2 text-sm text-stone-600">No lines yet — add one to start a sale.</p>
+                <p className="mt-2 text-sm text-stone-600">No items on this bill yet. Tap Add line to begin.</p>
+                {sellableProducts.length === 0 ? (
+                  <Link href="/products" className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-portal/10 px-4 text-sm font-semibold text-portal underline-offset-4 hover:underline">Add your first item or service <ArrowRight size={15} className="ml-2" /></Link>
+                ) : null}
               </div>
             ) : null}
             {lines.map((line, index) => {
@@ -140,18 +147,18 @@ export default function SalesPage() {
               return (
                 <div key={index} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
                   <div className="grid gap-3 md:grid-cols-[1.5fr_0.5fr_0.8fr_auto]">
-                    <select value={line.productId} onChange={(e) => handleProductChange(index, e.target.value)} className={inputClass}>
+                    <select aria-label={`Item ${index + 1}`} value={line.productId} onChange={(e) => handleProductChange(index, e.target.value)} className={inputClass}>
                       {sellableProducts.map((item) => (
                         <option key={item.id} value={item.id}>
                           {item.name}{item.itemType === 'product' ? ` (${item.stock} in stock)` : ''}
                         </option>
                       ))}
                     </select>
-                    <input type="number" min={1} value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
-                    <input type="number" min={0} value={line.rate} onChange={(e) => updateLine(index, { rate: Number(e.target.value || 0) })} className={inputClass} />
+                    <input aria-label={`Quantity for item ${index + 1}`} type="number" min={1} step="any" value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
+                    <input aria-label={`Selling price for item ${index + 1}`} type="number" min={0} step="0.01" value={line.rate} onChange={(e) => updateLine(index, { rate: Number(e.target.value || 0) })} className={inputClass} />
                     <div className="flex items-center justify-between gap-3 md:justify-end">
                       <span className="font-display text-sm font-bold text-stone-900 tabular-nums">{formatCurrency(line.quantity * line.rate)}</span>
-                      <button onClick={() => removeLine(index)} className="rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
+                      <button type="button" aria-label={`Remove item ${index + 1}`} onClick={() => removeLine(index)} className="rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
                     </div>
                   </div>
                   {product && product.itemType === 'product' && line.quantity > product.stock ? (
@@ -208,7 +215,7 @@ export default function SalesPage() {
           ) : null}
 
           <div className="mt-5 flex justify-end">
-            <Button onClick={() => handleRecord()}><Zap size={16} /> Record sale</Button>
+            <Button onClick={() => handleRecord()} disabled={lines.length === 0 || !Number.isFinite(total) || total <= 0}><Zap size={16} /> Record sale</Button>
           </div>
         </Card>
         </div>
