@@ -53,6 +53,7 @@ import { formatCurrency } from '@/lib/business-data';
 import {
   PLAN_CATALOGUE,
   TRIAL_DAYS,
+  entitlementHasModule,
   lockedModulesFor,
   lockedModuleFromParam,
   monthKey,
@@ -105,7 +106,12 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
   const locked = useMemo(() => lockedModulesFor(entitlement, portal.id), [entitlement, portal.id]);
   // Handed in by the route, which resolves `?locked=` on the server: the notice
   // is in the first paint instead of appearing after hydration.
-  const lockedFromUrl = lockedModuleFromParam(lockedModule);
+  const requestedLockedModule = lockedModuleFromParam(lockedModule);
+  // A bookmarked ?locked= link may outlive its original paywall. Once the
+  // owner starts a valid trial, never tell them that an open module is paused.
+  const lockedFromUrl = requestedLockedModule && !entitlementHasModule(entitlement, requestedLockedModule)
+    ? requestedLockedModule
+    : null;
 
   // ---- The value case, computed from this business's own records ------------
   // One clock read, through the shared ticking store: render stays pure and the
