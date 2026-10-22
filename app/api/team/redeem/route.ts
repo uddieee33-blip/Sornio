@@ -78,7 +78,9 @@ export async function POST(request: Request) {
   const user = await getSessionUser();
   if (!user) return json({ ok: false, error: 'Sign in first — your own email and password — then enter the code.' }, 401);
 
-  const { data: inviteRow } = await admin.from('team_invites').select('*').eq('code_hash', hash).maybeSingle();
+  const { data: inviteRow, error: inviteError } = await admin.from('team_invites').select('*').eq('code_hash', hash).maybeSingle();
+  // An unavailable invitation store is a service failure, not a wrong code.
+  if (inviteError) return json({ ok: false, error: 'Could not join the business. Please try again.' }, 503);
   const invite = (inviteRow ?? null) as TeamInviteRow | null;
   if (!inviteLooksLive(invite)) return json({ ok: false, error: BAD_CODE }, 404);
   const live = invite;
@@ -86,8 +88,12 @@ export async function POST(request: Request) {
   // One person, one business. A second membership would make "whose data am I
   // seeing" ambiguous everywhere downstream, so the answer is no — the owner
   // of the other business must remove them first.
-  const { data: existing } = await admin.from('business_members').select('business_id').eq('user_id', user.id).limit(1);
-  if (Array.isArray(existing) && existing.length > 0) {
+  const { data: existing, error: existingError } = await admin.from('business_members').select('business_id').eq('user_id', user.id).limit(1);
+  // Never treat a failed membership read as proof that a user is unassigned.
+  if (existingError || !Array.isArray(existing)) {
+    return json({ ok: false, error: 'Could not join the business. Please try again.' }, 503);
+  }
+  if (existing.length > 0) {
     const same = (existing[0] as { business_id?: unknown }).business_id === live.business_id;
     return json(
       { ok: false, error: same ? 'This account is already on that team — just sign in.' : 'This account already belongs to a business. Leave it (ask that owner to remove you) before joining another.' },
