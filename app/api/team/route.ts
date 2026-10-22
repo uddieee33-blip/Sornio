@@ -164,7 +164,7 @@ export async function GET(request: Request) {
     return respond({ ok: true, state: 'readonly', role: role ?? identity.role, roleLabel: ROLE_LABELS[role ?? identity.role] });
   }
 
-  const [{ data: business }, { data: members }, { data: invites }] = await Promise.all([
+  const [businessResult, memberResult, inviteResult] = await Promise.all([
     admin.from('businesses').select('name').eq('id', identity.tenantId).maybeSingle(),
     admin
       .from('business_members')
@@ -183,7 +183,17 @@ export async function GET(request: Request) {
       .limit(MAX_PENDING_INVITES),
   ]);
 
-  const memberRows = Array.isArray(members) ? members : [];
+  // An unavailable table is not an empty roster. In particular, a deployment
+  // missing team_invites must not claim that invitations are ready to use.
+  if (businessResult.error || memberResult.error || inviteResult.error || !businessResult.data ||
+      !Array.isArray(memberResult.data) || !Array.isArray(inviteResult.data)) {
+    return respond({ ok: false, code: 'team-data-unavailable', error: 'Could not read the team. Please try again.' }, 503);
+  }
+
+  const business = businessResult.data;
+  const members = memberResult.data;
+  const invites = inviteResult.data;
+  const memberRows = members;
   const renderedMembers = await Promise.all(
     memberRows.slice(0, MAX_MEMBERS_SHOWN).map(async (row) => {
       const record = row as { user_id?: unknown; role?: unknown; created_at?: unknown };
@@ -268,14 +278,15 @@ export async function POST(request: Request) {
       const label = cleanLine(body.label, MAX_LABEL);
 
       // A busy shop holds a handful of pending codes; a hundred means a loop.
-      const { count } = await admin
+      const { count, error: countError } = await admin
         .from('team_invites')
         .select('id', { count: 'exact', head: true })
         .eq('business_id', identity.tenantId)
         .is('used_at', null)
         .is('revoked_at', null)
         .gt('expires_at', new Date().toISOString());
-      if ((count ?? 0) >= MAX_PENDING_INVITES) {
+      if (countError || count === null) return respond({ ok: false, code: 'team-data-unavailable', error: 'Could not create the invite. Please try again.' }, 503);
+      if (count >= MAX_PENDING_INVITES) {
         return respond({ ok: false, error: 'Too many open invites. Revoke one you no longer need first.' }, 429);
       }
 
@@ -309,13 +320,17 @@ export async function POST(request: Request) {
     case 'revoke': {
       const inviteId = typeof body.inviteId === 'string' ? body.inviteId : '';
       if (!UUID_RE.test(inviteId)) return respond({ ok: false, error: 'Unknown invite.' }, 422);
-      const { error } = await admin
+      const { data: revoked, error } = await admin
         .from('team_invites')
         .update({ revoked_at: new Date().toISOString() })
         .eq('id', inviteId)
         .eq('business_id', identity.tenantId)
-        .is('used_at', null);
+        .is('used_at', null)
+        .is('revoked_at', null)
+        .select('id')
+        .maybeSingle();
       if (error) return respond({ ok: false, error: 'Could not revoke the invite.' }, 500);
+      if (!revoked) return respond({ ok: false, error: 'Unknown invite.' }, 404);
       await audit(admin, { tenantId: identity.tenantId, actorUserId: identity.userId, action: 'team.invite.revoked', entityId: inviteId });
       return respond({ ok: true, inviteId });
     }
@@ -329,8 +344,17 @@ export async function POST(request: Request) {
       if (targetRole === null) return respond({ ok: false, error: 'That person is not on your team.' }, 404);
       if (targetRole === 'owner') return respond({ ok: false, error: 'The owner cannot be removed from their own business here.' }, 422);
 
-      const { error } = await admin.from('business_members').delete().eq('business_id', identity.tenantId).eq('user_id', userId);
+      const { data: removed, error } = await admin.from('business_members')
+        .delete()
+        .eq('business_id', identity.tenantId)
+        .eq('user_id', userId)
+        // The preflight role check is not atomic with a deletion. The query
+        // itself must preserve an Owner if roles changed in the meantime.
+        .neq('role', 'owner')
+        .select('user_id')
+        .maybeSingle();
       if (error) return respond({ ok: false, error: 'Could not remove the teammate.' }, 500);
+      if (!removed) return respond({ ok: false, error: 'That person is not on your team.' }, 409);
       await audit(admin, {
         tenantId: identity.tenantId,
         actorUserId: identity.userId,
@@ -345,13 +369,20 @@ export async function POST(request: Request) {
       if (!UUID_RE.test(userId)) return respond({ ok: false, error: 'Unknown teammate.' }, 422);
       if (userId === identity.userId) return respond({ ok: false, error: 'You cannot change your own role.' }, 422);
       if (!isInvitableRole(body.role)) return respond({ ok: false, error: 'Roles can be Manager, Cashier, or Auditor. Ownership transfer is a separate, deliberate step.' }, 422);
+      const targetRole = await callerRoleIn(admin, identity.tenantId, userId);
+      if (targetRole === null) return respond({ ok: false, error: 'That person is not on your team.' }, 404);
+      if (targetRole === 'owner') return respond({ ok: false, error: 'The owner cannot be removed from their own business here.' }, 422);
 
-      const { error } = await admin
+      const { data: updated, error } = await admin
         .from('business_members')
         .update({ role: membershipRoleForApp(body.role), updated_at: new Date().toISOString() })
         .eq('business_id', identity.tenantId)
-        .eq('user_id', userId);
+        .eq('user_id', userId)
+        .neq('role', 'owner')
+        .select('user_id')
+        .maybeSingle();
       if (error) return respond({ ok: false, error: 'Could not change the role.' }, 500);
+      if (!updated) return respond({ ok: false, error: 'That person is not on your team.' }, 409);
       await audit(admin, {
         tenantId: identity.tenantId,
         actorUserId: identity.userId,
