@@ -154,6 +154,7 @@ export default function BillingPage() {
                 <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Invoice number, customer or phone" className={`${inputClass} pl-10`} />
               </span>
             </label>
+            {invoices.length > 0 ? (
             <div className="overflow-x-auto rounded-2xl border border-stone-200">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
@@ -185,10 +186,10 @@ export default function BillingPage() {
                       </td>
                     </tr>
                   ))}
-                  {invoices.length === 0 ? <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-stone-600">{search ? 'No matching bills. Try another name, phone number or invoice number.' : 'Create your first bill above. It stays unpaid until you confirm receipt.'}</td></tr> : null}
                 </tbody>
               </table>
             </div>
+            ) : <p className="rounded-2xl bg-stone-50 px-4 py-6 text-center text-sm leading-relaxed text-stone-600">{search ? 'No matching bills. Try another name, phone number or invoice number.' : 'Create your first bill above. It stays unpaid until you confirm receipt.'}</p>}
           </Card>
 
 
