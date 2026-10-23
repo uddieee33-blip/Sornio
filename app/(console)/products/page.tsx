@@ -2,7 +2,7 @@
 
 import { useLocaleRefresh } from '@/lib/i18n';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, Tag, Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -54,6 +54,9 @@ export default function ProductsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [selected, setSelected] = useState<Product | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const detailPanelRef = useRef<HTMLDivElement>(null);
+  const detailCloseRef = useRef<HTMLButtonElement>(null);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const categories = useMemo(() => Array.from(new Set(state.products.map((p) => p.category))).sort(), [state.products]);
 
@@ -164,6 +167,41 @@ export default function ProductsPage() {
     }
   };
 
+  useEffect(() => {
+    if (!selected) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    detailCloseRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(detailPanelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []);
+      if (controls.length === 0) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !detailPanelRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !detailPanelRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      detailTriggerRef.current?.focus();
+    };
+  }, [selected]);
+
   const selectedStats = selected ? productStats.get(selected.id) : undefined;
 
   return (
@@ -251,7 +289,7 @@ export default function ProductsPage() {
             </div>
           </div>
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p role={message.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
           <div className="mt-5 flex justify-end">
             <Button onClick={handleSubmit}><PackagePlus size={16} /> Save item</Button>
@@ -325,9 +363,9 @@ export default function ProductsPage() {
                   {visible.map((product) => {
                     const margin = marginPct(product);
                     return (
-                      <tr key={product.id} onClick={() => setSelected(product)} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
+                      <tr key={product.id} onClick={() => { detailTriggerRef.current = null; setSelected(product); }} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
                         <td className="px-4 py-3">
-                          <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(product); }} className="min-h-11 w-full rounded-lg text-left font-medium text-stone-800 underline-offset-2 hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">{product.name}</button>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); detailTriggerRef.current = event.currentTarget; setSelected(product); }} className="min-h-11 w-full rounded-lg text-left font-medium text-stone-800 underline-offset-2 hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">{product.name}</button>
                           <p className="text-xs text-stone-600">
                             {product.itemType === 'service' ? 'Service' : 'Product'}
                             {product.sku ? ` · ${product.sku}` : ''}
@@ -359,15 +397,15 @@ export default function ProductsPage() {
 
       {/* Product detail drawer */}
       {selected ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs" onClick={() => setSelected(null)} role="dialog" aria-modal="true">
-          <div className="h-full w-full max-w-lg overflow-y-auto border-l border-stone-200 bg-panel p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs" onClick={() => setSelected(null)} role="dialog" aria-modal="true" aria-label={selected.name}>
+          <div ref={detailPanelRef} className="h-full w-full max-w-lg overflow-y-auto border-l border-stone-200 bg-panel p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">Product detail</p>
                 <h2 className="mt-1.5 font-display text-2xl font-bold text-stone-900">{selected.name}</h2>
                 <p className="mt-1 text-sm text-stone-600">{selected.category} · {selected.itemType === 'service' ? 'Service' : 'Product'}{selected.sku ? ` · SKU ${selected.sku}` : ''}{selected.supplier ? ` · ${selected.supplier}` : ''}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900" aria-label="Close"><X size={16} /></button>
+              <button ref={detailCloseRef} onClick={() => setSelected(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900" aria-label="Close"><X size={16} /></button>
             </div>
 
             {selected.description ? <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">{selected.description}</p> : null}
