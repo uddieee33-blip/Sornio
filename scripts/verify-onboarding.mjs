@@ -35,7 +35,7 @@ for (const overrides of [{ownerName:''}, {ownerPhone:'12'}, {businessName:''}, {
 }
 r = await finishTest({ ok: true, mode: 'supabase' }, { ownerEmail: 'wrong@' });
 equal(r.routes, []); equal(r.updates, 0);
-equal(r.errors.at(-1), 'Enter a valid email address, or leave it blank.');
+equal(r.errors.at(-1), 'Enter a valid email address.');
 r = await finishTest({ ok: true, mode: 'supabase' }, { gstin: 'INVALID', isValidGstin: () => false });
 equal(r.routes, []); equal(r.updates, 0);
 equal(r.errors.at(-1), 'Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
