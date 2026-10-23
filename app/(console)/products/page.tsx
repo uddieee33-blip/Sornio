@@ -78,7 +78,7 @@ export default function ProductsPage() {
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = state.products.filter((p) => {
-      if (needle && !`${p.name} ${p.category} ${p.sku ?? ''} ${p.supplier ?? ''}`.toLowerCase().includes(needle)) return false;
+      if (needle && !`${p.name} ${p.category} ${p.sku ?? ''} ${p.supplier ?? ''} ${p.barcode ?? ''} ${p.internalCode ?? ''}`.toLowerCase().includes(needle)) return false;
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
       if (statusFilter !== 'all' && p.status !== statusFilter) return false;
       return true;
@@ -197,30 +197,31 @@ export default function ProductsPage() {
         <Card className="animate-fade-up h-fit">
           <div className="mb-5"><CardTitle icon={<PackagePlus size={17} />}>Add Item</CardTitle></div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2"><span className={labelClass}>Item Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Handmade Soap" /></div>
-            <div><span className={labelClass}>Item Type</span>
-              <select value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })} className={inputClass}>
+            <div className="md:col-span-2"><label className={labelClass} htmlFor="new-item-name">Item Name *</label><input id="new-item-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Handmade Soap" /></div>
+            <div><label className={labelClass} htmlFor="new-item-type">Item Type</label>
+              <select id="new-item-type" value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })} className={inputClass}>
                 <option value="product">Product</option><option value="service">Service</option>
               </select>
             </div>
-            <div><span className={labelClass}>Category</span><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass} placeholder="e.g. Personal Care" /></div>
-            <div className="md:col-span-2"><span className={labelClass}>Description</span><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputClass} placeholder="Optional description" /></div>
-            <div><span className={labelClass}>Selling Price (₹)</span><input type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className={inputClass} /></div>
-            <div><span className={labelClass}>Cost Price (₹)</span><input type="number" min={0} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className={inputClass} /></div>
-            <div><span className={labelClass}>Tax % (if applicable)</span><input type="number" min={0} max={100} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })} className={inputClass} /></div>
-            <div><span className={labelClass}>Unit</span><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={inputClass} placeholder="pcs / kg / hour" /></div>
+            <div><label className={labelClass} htmlFor="new-item-category">Category</label><input id="new-item-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass} placeholder="e.g. Personal Care" /></div>
+            <div className="md:col-span-2"><label className={labelClass} htmlFor="new-item-description">Description</label><input id="new-item-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputClass} placeholder="Optional description" /></div>
+            <div><label className={labelClass} htmlFor="new-item-price">Selling Price (₹)</label><input id="new-item-price" type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass} htmlFor="new-item-cost">Cost Price (₹)</label><input id="new-item-cost" type="number" min={0} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass} htmlFor="new-item-tax">Tax % (if applicable)</label><input id="new-item-tax" type="number" min={0} max={100} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass} htmlFor="new-item-unit">Unit</label><input id="new-item-unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={inputClass} placeholder="pcs / kg / hour" /></div>
             {form.itemType === 'product' ? (
               <>
-                <div><span className={labelClass}>Opening Stock</span><input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputClass} /></div>
-                <div><span className={labelClass}>Reorder Level</span><input type="number" min={0} value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} className={inputClass} /></div>
+                <div><label className={labelClass} htmlFor="new-item-stock">Opening Stock</label><input id="new-item-stock" type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputClass} /></div>
+                <div><label className={labelClass} htmlFor="new-item-reorder">Reorder Level</label><input id="new-item-reorder" type="number" min={0} value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} className={inputClass} /></div>
               </>
             ) : null}
-            <div><span className={labelClass}>SKU / Item Code (optional)</span><input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })} className={inputClass} placeholder="SOAP-001" /></div>
+            <div><label className={labelClass} htmlFor="new-item-sku">SKU / Item Code (optional)</label><input id="new-item-sku" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })} className={inputClass} placeholder="SOAP-001" /></div>
             <div className="md:col-span-2">
-              <span className={labelClass}>Barcode (scan the packet, or type it)</span>
+              <label className={labelClass} htmlFor="new-item-barcode">Barcode (scan the packet, or type it)</label>
               <div className="relative">
                 <Tag size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
                 <input
+                  id="new-item-barcode"
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
                   className={`${inputClass} pl-9 font-mono`}
@@ -234,17 +235,17 @@ export default function ProductsPage() {
             </div>
             {form.itemType === 'product' ? (
               <div>
-                <span className={labelClass}>Sold loose?</span>
-                <select value={form.looseMode} onChange={(e) => setForm({ ...form, looseMode: e.target.value })} className={inputClass}>
+                <label className={labelClass} htmlFor="new-item-loose">Sold loose?</label>
+                <select id="new-item-loose" value={form.looseMode} onChange={(e) => setForm({ ...form, looseMode: e.target.value })} className={inputClass}>
                   <option value="none">No — packets and pieces</option>
                   <option value="weight">Yes — the scale prints the weight</option>
                   <option value="price">Yes — the scale prints the price</option>
                 </select>
               </div>
             ) : null}
-            <div><span className={labelClass}>Supplier (optional)</span><input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Urban Goods Co." /></div>
-            <div><span className={labelClass}>Status</span>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
+            <div><label className={labelClass} htmlFor="new-item-supplier">Supplier (optional)</label><input id="new-item-supplier" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Urban Goods Co." /></div>
+            <div><label className={labelClass} htmlFor="new-item-status">Status</label>
+              <select id="new-item-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
                 <option value="Active">Active</option><option value="Inactive">Inactive (archived)</option>
               </select>
             </div>
@@ -272,20 +273,20 @@ export default function ProductsPage() {
               </button>
               <div className="relative">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
+                <input type="search" aria-label="Search name, SKU, supplier…" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
               </div>
             </div>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
+            <select aria-label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
               <option value="all">All categories</option>
               {categories.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
+            <select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
               <option value="all">Any status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>
             </select>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
+            <select aria-label={sortKey === 'name' ? 'Sort: Name' : sortKey === 'sellingPrice' ? 'Sort: Price' : sortKey === 'stock' ? 'Sort: Stock' : 'Sort: Margin'} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
               <option value="name">Sort: Name</option>
               <option value="sellingPrice">Sort: Price</option>
               <option value="stock">Sort: Stock</option>
@@ -326,7 +327,7 @@ export default function ProductsPage() {
                     return (
                       <tr key={product.id} onClick={() => setSelected(product)} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-stone-800">{product.name}</p>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); setSelected(product); }} className="min-h-11 w-full rounded-lg text-left font-medium text-stone-800 underline-offset-2 hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">{product.name}</button>
                           <p className="text-xs text-stone-600">
                             {product.itemType === 'service' ? 'Service' : 'Product'}
                             {product.sku ? ` · ${product.sku}` : ''}
