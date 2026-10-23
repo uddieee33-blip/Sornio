@@ -20,11 +20,10 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Cloud, HardDrive, Lock, QrCode, ShieldCheck, User } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Banknote, Building2, Check, Cloud, HardDrive, Lock, QrCode, User } from 'lucide-react';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
-import { QRCodeCanvas } from 'qrcode.react';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
 import { portalIcon } from '@/lib/portals/icons';
@@ -38,6 +37,8 @@ import { currentSyncMode } from '@/lib/supabase/config';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
 import { signOutAndLeave } from '@/lib/auth/client';
 import { JoinBusiness } from '@/components/team/join-business';
+import { OwnerDetailsStep } from '@/components/onboarding/owner-details-step';
+import { BankDetailsStep } from '@/components/onboarding/bank-details-step';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
@@ -237,6 +238,7 @@ export default function OnboardingPage() {
     if (upiId.trim() && !upiValid) return setError('Enter a valid UPI ID, or leave it blank and activate payments later.');
     if (ifsc.trim() && !isValidIfsc(ifsc.trim().toUpperCase())) return setError('That IFSC code does not look right (e.g. HDFC0001234).');
     if (accountNumber.trim() && !/^\d{6,20}$/.test(accountNumber.replace(/\s/g, ''))) return setError('Account numbers have 6–20 digits.');
+    if (accountNumber.trim() && !ifsc.trim()) return setError('Enter a valid IFSC code (e.g. HDFC0001234).');
 
     pinned.current = true;
     setFinishing(true);
@@ -422,40 +424,13 @@ export default function OnboardingPage() {
             ) : null}
 
             {step === 1 ? (
-              <div className="space-y-4">
-                <div><span className={labelClass}>Your full name</span><input className={inputClass} placeholder="Rohit Kapoor" value={ownerName} onChange={(e) => { markTouched(); setOwnerName(e.target.value); }} /></div>
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div><span className={labelClass}>Phone number</span><input className={inputClass} placeholder="+91 98xxx xxxxx" value={ownerPhone} onChange={(e) => { markTouched(); setOwnerPhone(e.target.value); }} /></div>
-                  <div><span className={labelClass}>Email (optional)</span><input className={inputClass} placeholder="you@business.com" value={ownerEmail} onChange={(e) => { markTouched(); setOwnerEmail(e.target.value); }} /></div>
-                </div>
-
-                {remembered.length > 0 ? (
-                  /*
-                   * The answer to "did it actually remember me?". Read from the
-                   * stored profile rather than the fields beside it, so this panel
-                   * can never be flattered by something the owner just typed.
-                   */
-                  <div className="rounded-2xl bg-emerald-500/[0.07] px-4 py-3.5 ring-1 ring-inset ring-emerald-500/20">
-                    <p className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-emerald-700">
-                      <Check size={12} /> Already on file — nothing to re-enter
-                    </p>
-                    <dl className="mt-2.5 grid gap-x-6 gap-y-1.5 sm:grid-cols-2">
-                      {remembered.map((item) => (
-                        <div key={item.label} className="flex items-baseline justify-between gap-3 border-b border-emerald-500/10 pb-1">
-                          <dt className="text-[11px] font-semibold text-stone-600">{item.label}</dt>
-                          <dd className="truncate text-xs font-bold text-stone-900">{item.value}</dd>
-                        </div>
-                      ))}
-                    </dl>
-                    <p className="mt-2.5 flex items-start gap-1.5 text-[11px] leading-relaxed text-stone-600">
-                      {accountBacked ? <Cloud size={12} className="mt-0.5 shrink-0" /> : <HardDrive size={12} className="mt-0.5 shrink-0" />}
-                      {accountBacked
-                        ? 'Held against your DukaanOS account, so signing in on another phone or tablet brings all of it back.'
-                        : 'Held in this device’s encrypted vault. Connect Supabase credentials and it follows you to any device.'}
-                    </p>
-                  </div>
-                ) : null}
-              </div>
+              <OwnerDetailsStep
+                ownerName={ownerName} ownerPhone={ownerPhone} ownerEmail={ownerEmail}
+                remembered={remembered} accountBacked={accountBacked}
+                onOwnerNameChange={(value) => { markTouched(); setOwnerName(value); }}
+                onOwnerPhoneChange={(value) => { markTouched(); setOwnerPhone(value); }}
+                onOwnerEmailChange={(value) => { markTouched(); setOwnerEmail(value); }}
+              />
             ) : null}
 
             {step === 2 ? (
@@ -530,43 +505,16 @@ export default function OnboardingPage() {
             ) : null}
 
             {step === 3 ? (
-              <div className="grid gap-6 md:grid-cols-[1fr_auto]">
-                <div className="space-y-4">
-                  <div>
-                    <span className={labelClass}>UPI ID (optional — add later)</span>
-                    <input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => { markTouched(); setUpiId(e.target.value); }} />
-                  </div>
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div><span className={labelClass}>Account holder</span><input className={inputClass} placeholder={ownerName || 'Account holder name'} value={accountHolder} onChange={(e) => { markTouched(); setAccountHolder(e.target.value); }} /></div>
-                    <div><span className={labelClass}>Bank name</span><input className={inputClass} placeholder="HDFC Bank" value={bankName} onChange={(e) => { markTouched(); setBankName(e.target.value); }} /></div>
-                    <div><span className={labelClass}>Account number</span><input className={inputClass} placeholder="XXXXXXXXXXXX" value={accountNumber} onChange={(e) => { markTouched(); setAccountNumber(e.target.value); }} /></div>
-                    <div><span className={labelClass}>IFSC code</span><input className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => { markTouched(); setIfsc(e.target.value); }} /></div>
-                  </div>
-                  <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-700/90 ring-1 ring-inset ring-emerald-500/20">
-                    <ShieldCheck size={13} className="mr-1.5 inline" />
-                    Payment collection stays inactive until you add a valid UPI ID. When activated, money goes <strong>directly into your bank account</strong> — DukaanOS never touches your money.
-                    We will <strong>never</strong> ask for your UPI PIN, OTP, card PIN, or passwords.
-                  </div>
-                </div>
-
-                <div className="flex flex-col items-center justify-center gap-2">
-                  {upiValid ? (
-                    <>
-                      <div className="rounded-2xl bg-white p-3 shadow-card">
-                        <QRCodeCanvas value={deepLink} size={360} level="M" fgColor="#0B0D12" bgColor="#ffffff" style={{ width: 150, height: 150 }} />
-                      </div>
-                      <p className="max-w-[160px] text-center text-[11px] leading-snug text-stone-600">
-                        Your collection QR — customers scan it in any UPI app and pay <span className="text-stone-700">{businessName.trim() || 'your business'}</span> directly.
-                      </p>
-                      {accountNumber.trim() ? <p className="text-[11px] text-stone-600">A/c {maskAccountNumber(accountNumber)}</p> : null}
-                    </>
-                  ) : (
-                    <div className="flex h-[174px] w-[174px] items-center justify-center rounded-2xl border border-dashed border-stone-300 p-4 text-center text-xs leading-snug text-stone-600">
-                      Payments not connected yet. Add a UPI ID anytime to enable your QR code.
-                    </div>
-                  )}
-                </div>
-              </div>
+              <BankDetailsStep
+                upiId={upiId} accountHolder={accountHolder} bankName={bankName}
+                accountNumber={accountNumber} ifsc={ifsc} ownerName={ownerName}
+                businessName={businessName} upiValid={upiValid} deepLink={deepLink}
+                onUpiIdChange={(value) => { markTouched(); setUpiId(value); }}
+                onAccountHolderChange={(value) => { markTouched(); setAccountHolder(value); }}
+                onBankNameChange={(value) => { markTouched(); setBankName(value); }}
+                onAccountNumberChange={(value) => { markTouched(); setAccountNumber(value); }}
+                onIfscChange={(value) => { markTouched(); setIfsc(value); }}
+              />
             ) : null}
 
             <div className="mt-7 flex items-center justify-between">

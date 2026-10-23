@@ -40,4 +40,18 @@ r = await finishTest({ ok: true, mode: 'supabase' }, { gstin: 'INVALID', isValid
 equal(r.routes, []); equal(r.updates, 0);
 equal(r.errors.at(-1), 'Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
 equal(/disabled=\{finishing \|\| s.id > step\}/.test(source), true);
+const ownerStep = fs.readFileSync(root + 'components/onboarding/owner-details-step.tsx', 'utf8');
+const bankStep = fs.readFileSync(root + 'components/onboarding/bank-details-step.tsx', 'utf8');
+equal(source.includes('<OwnerDetailsStep'), true);
+equal(source.includes('<BankDetailsStep'), true);
+equal(ownerStep.includes('autoComplete="name"'), true);
+equal(ownerStep.includes('type="tel"'), true);
+equal(ownerStep.includes('type="email"'), true);
+equal(bankStep.includes("showAccountNumber ? 'text' : 'password'"), true);
+equal(bankStep.includes('maskAccountNumber(accountNumber)'), true);
+equal(bankStep.includes('QRCodeCanvas value={deepLink}'), true);
+r = await finishTest({ ok: true, mode: 'supabase' }, { accountNumber: '123456789', ifsc: '' });
+equal(r.routes, []);
+equal(r.updates, 0);
+equal(r.errors.at(-1), 'Enter a valid IFSC code (e.g. HDFC0001234).');
 console.log(`${passed} focused onboarding assertions passed`);
