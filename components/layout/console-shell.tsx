@@ -52,7 +52,7 @@ function ConsoleFrame({ children, identity }: { children: ReactNode; identity: R
 
   return (
     <div
-      className="portal-transition relative flex min-h-screen flex-col md:flex-row"
+      className="portal-transition relative flex min-h-screen flex-col lg:flex-row"
       style={accentStyle}
       data-portal={portal.id}
     >
@@ -117,3 +117,4 @@ export function ConsoleShell({
     </MasterSwitchProvider>
   );
 }
+

@@ -61,9 +61,9 @@ export function Topbar({
     'Console';
 
   return (
-    <header className="mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
-      <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 md:px-8">
-        <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
+    <header className="console-topbar mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
+      <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:px-8">
+        <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
           <Link href="/home" aria-label="DukaanOS home" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
             <BrandIcon size={36} className="h-9 w-9 rounded-xl shadow-glow-sm" />
           </Link>
@@ -84,7 +84,7 @@ export function Topbar({
           </button>
         </div>
 
-        <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm md:flex">
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm lg:flex">
           <Link href="/home" className="inline-flex shrink-0 items-center gap-1.5 text-stone-600 transition hover:text-stone-900">
             <span className="font-semibold">DukaanOS</span>
             <span className="rounded-full bg-portal/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-portal ring-1 ring-inset ring-portal/20">
@@ -114,7 +114,7 @@ export function Topbar({
               onClick={lock.lockNow}
               title="Lock the console now — the PIN will be needed to open it again"
               aria-label="Lock the console now"
-              className="touch-manipulation flex h-11 w-11 items-center justify-center rounded-xl bg-stone-50 text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 md:h-9 md:w-9"
+              className="touch-manipulation flex h-11 w-11 items-center justify-center rounded-xl bg-stone-50 text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 lg:h-9 lg:w-9"
             >
               <Lock size={14} />
             </button>
@@ -125,12 +125,12 @@ export function Topbar({
           <button
             type="button"
             onClick={onOpenCommand}
-            className="touch-manipulation group flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-stone-50 text-xs font-medium text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 md:h-9 md:w-auto md:justify-start md:px-3"
+            className="touch-manipulation group flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-stone-50 text-xs font-medium text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 lg:h-9 lg:w-auto lg:justify-start lg:px-3"
             aria-label="Open the command palette"
           >
             <Search size={15} />
-            <span className="hidden md:inline">Search or jump to…</span>
-            <span className="hidden items-center gap-0.5 rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600 md:flex">
+            <span className="hidden lg:inline">Search or jump to…</span>
+            <span className="hidden items-center gap-0.5 rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600 lg:flex">
               <Command size={9} />K
             </span>
           </button>
@@ -139,3 +139,4 @@ export function Topbar({
     </header>
   );
 }
+

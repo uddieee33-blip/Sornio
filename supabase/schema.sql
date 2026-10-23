@@ -788,7 +788,8 @@ CREATE TABLE IF NOT EXISTS owner_profiles (
   owner_phone TEXT NOT NULL DEFAULT '',
   owner_email TEXT NOT NULL DEFAULT '',
   -- Supplier GSTIN, optional for unregistered businesses; format checked at DB boundary.
-  gstin TEXT NOT NULL DEFAULT '' CHECK (gstin = '' OR gstin ~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]
+  gstin TEXT NOT NULL DEFAULT '' CHECK (gstin = '' OR gstin ~ '^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][A-Z0-9]Z[A-Z0-9]$'),
+  business_name TEXT NOT NULL DEFAULT '',
   description TEXT NOT NULL DEFAULT '',
   template_id TEXT NOT NULL DEFAULT '',
   currency TEXT NOT NULL DEFAULT 'INR',

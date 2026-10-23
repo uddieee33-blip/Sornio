@@ -35,11 +35,10 @@ import {
   actorNameFor,
   ownerSessionCookie,
   resolveMembership,
-  safeNext,
   sealOwnerSession,
-  signInFallback,
 } from '@/lib/auth';
 import { storedSetupComplete } from '@/lib/sync/profile-server';
+import { hostedSignInDestination } from '@/lib/auth/routes';
 
 /** Codes `/auth` knows how to phrase. Adding one means adding the copy for it. */
 const FAILURE_NOTICES = new Set(['link', 'local', 'unavailable', 'config']);
@@ -104,7 +103,7 @@ export async function GET(request: Request) {
      * an account whose stored profile is finished goes to the console, and only
      * an unfinished one goes to setup.
      */
-    const target = safeNext(requested, signInFallback(await storedSetupComplete(data.user.id)));
+    const target = hostedSignInDestination(requested, await storedSetupComplete(data.user.id), membership?.role);
 
     const response = NextResponse.redirect(new URL(target, url), 307);
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transportForRequest(request), issued.maxAge));
@@ -117,3 +116,4 @@ export async function GET(request: Request) {
     return fail('unavailable');
   }
 }
+

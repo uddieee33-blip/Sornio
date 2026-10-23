@@ -143,8 +143,8 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
    * the two answers cannot mean different things.
    */
   const deviceSetupComplete = useMemo(
-    () => hydrated && snapshotFromProfile(state.profile).setupComplete,
-    [hydrated, state.profile],
+    () => !supabaseReady && hydrated && snapshotFromProfile(state.profile).setupComplete,
+    [supabaseReady, hydrated, state.profile],
   );
 
   // A device vault can belong to a different account that signed in earlier.
@@ -884,3 +884,4 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
     </form>
   );
 }
+

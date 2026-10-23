@@ -52,17 +52,19 @@ export type PostureReport = {
 
 export type PostureInput = {
   /** The vault reports itself encrypted. */
-  vaultEncrypted: boolean;
+  vaultEncrypted: boolean | null;
   /** The counter lock has a PIN set. */
   lockEnabled: boolean;
   /** Minutes of idleness before the console locks itself. 0 = never. */
   autoLockMinutes: number;
   /** The hash chain verified end to end. */
-  chainIntact: boolean;
+  chainIntact: boolean | null;
   /** Entries written before the chain shipped, which cannot be verified. */
   unchainedEntries: number;
   /** Records sync to a real backend rather than living only on this device. */
   syncConfigured: boolean;
+  /** Only a completed sync verifies an off-device copy. */
+  syncVerified?: boolean;
   /** Figures are blurred until hovered. */
   privacyScreen: boolean;
   /** Everything On is revealing modules this trade's portal hid. */
@@ -182,11 +184,13 @@ export function buildPostureReport(input: PostureInput, facts: BrowserFacts | nu
     {
       id: 'vault',
       title: 'Records encrypted on this device',
-      evidence: input.vaultEncrypted
+      evidence: input.vaultEncrypted === null
+        ? 'Checking this device…'
+        : input.vaultEncrypted
         ? 'The local vault reports AES-GCM-256 at rest, with the key derived by PBKDF2.'
         : 'Records are being held in plain browser storage on this device.',
-      state: input.vaultEncrypted ? 'pass' : 'warn',
-      action: input.vaultEncrypted ? undefined : 'Turn on device encryption in the Trust Centre.',
+      state: input.vaultEncrypted === null ? 'unknown' : input.vaultEncrypted ? 'pass' : 'warn',
+      action: input.vaultEncrypted !== false ? undefined : 'Turn on device encryption in the Trust Centre.',
       weight: 4,
       group: 'device',
     },
@@ -237,11 +241,13 @@ export function buildPostureReport(input: PostureInput, facts: BrowserFacts | nu
     {
       id: 'audit-chain',
       title: 'Audit history is unbroken',
-      evidence: input.chainIntact
+      evidence: input.chainIntact === null
+        ? 'Checking…'
+        : input.chainIntact
         ? `Every chained entry links to the hash of the one before it, and the whole chain re-verified${input.unchainedEntries > 0 ? ` — ${input.unchainedEntries} older entries predate the chain and are listed as unverifiable rather than assumed fine.` : '.'}`
         : 'The chain did not verify. An entry has been edited or removed in storage.',
-      state: input.chainIntact ? 'pass' : 'fail',
-      action: input.chainIntact ? undefined : 'Re-verify from the audit screen and compare against your paper records.',
+      state: input.chainIntact === null ? 'unknown' : input.chainIntact ? 'pass' : 'fail',
+      action: input.chainIntact !== false ? undefined : 'Re-verify from the audit screen and compare against your paper records.',
       weight: 5,
       group: 'records',
     },
@@ -249,12 +255,14 @@ export function buildPostureReport(input: PostureInput, facts: BrowserFacts | nu
       id: 'backup',
       title: 'Records exist somewhere other than this device',
       evidence: input.syncConfigured
-        ? 'Supabase is configured, so records sync off this device with row-level security scoping every table to this business.'
+        ? input.syncVerified
+          ? 'The last sync completed successfully.'
+          : 'Cloud sync is configured. An off-device copy has not been verified.'
         : 'Local-first: everything lives in this browser. Nothing leaves the device — and nothing survives it being lost, either.',
       // Local-first is a legitimate choice, not a failure. It is a warning
       // because the *consequence* of a lost device is total, and an owner
       // should have decided that deliberately rather than by default.
-      state: input.syncConfigured ? 'pass' : 'warn',
+      state: input.syncConfigured ? input.syncVerified ? 'pass' : 'unknown' : 'warn',
       action: input.syncConfigured ? undefined : 'Export regularly from Reports, or connect Supabase to sync.',
       weight: 3,
       group: 'records',
@@ -305,3 +313,4 @@ export const GROUP_LABELS: Record<PostureCheck['group'], string> = {
   records: 'Your records',
   console: 'This console',
 };
+

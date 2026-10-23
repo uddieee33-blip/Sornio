@@ -75,7 +75,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
   const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
 
   return (
-    <aside className="portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel/95 md:flex md:flex-col">
+    <aside className="console-sidebar portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel/95 lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-6 py-6">
         <BrandIcon size={44} className="h-11 w-11 shrink-0 rounded-2xl shadow-glow" />
         <div className="min-w-0">
@@ -136,7 +136,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
           title="Open the Trust Centre"
         >
           <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-stone-900">
-            <Lock size={11} className="shrink-0 text-emerald-700" />
+            <Lock size={11} className={`shrink-0 ${hydrated && persistence.mode === 'encrypted' && !state.demoMode ? 'text-emerald-700' : 'text-stone-500'}`} />
             {businessName}
           </p>
           <p className="mt-0.5 truncate text-[11px] text-stone-600">{statusLine}</p>
@@ -145,3 +145,4 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
     </aside>
   );
 }
+

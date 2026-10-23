@@ -1,9 +1,13 @@
 name: Refresh localization catalogues
 on:
   push:
-    branches: ['fix/i18n-*']
+    branches: ['fix/i18n-*', 'fix/enforce-owner-onboarding-20261023']
     paths:
       - .github/workflows/refresh-catalogues.yml
+      - supabase/schema.sql
+      - app/auth/page.tsx
+      - components/security/**
+      - lib/security/posture.ts
   workflow_dispatch:
 
   # Runs on review branches only. Never commit generated translations to main.
@@ -17,7 +21,7 @@ concurrency:
 
 jobs:
   translate:
-    if: github.repository == 'uddieee33-blip/DukaanOS' && startsWith(github.ref, 'refs/heads/fix/i18n-')
+    if: github.repository == 'uddieee33-blip/DukaanOS' && (startsWith(github.ref, 'refs/heads/fix/i18n-') || github.ref == 'refs/heads/fix/enforce-owner-onboarding-20261023')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -64,3 +68,4 @@ jobs:
             git commit -m "fix(i18n): regenerate and validate complete locale catalogues"
             git push origin "HEAD:${GITHUB_REF#refs/heads/}"
           fi
+

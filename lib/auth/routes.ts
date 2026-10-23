@@ -85,6 +85,12 @@ export function signInFallback(setupComplete: boolean): string {
   return setupComplete ? CONSOLE_HOME : DEFAULT_NEXT;
 }
 
+/** Hosted owners must finish account setup before following a console link. */
+export function hostedSignInDestination(requested: unknown, setupComplete: boolean, role: string = 'owner'): string {
+  if (role === 'owner' && !setupComplete) return DEFAULT_NEXT;
+  return safeNext(requested, CONSOLE_HOME);
+}
+
 /**
  * What the sign-in screen knows about where this owner is going.
  *
@@ -247,3 +253,4 @@ export function signInDestination(next: unknown): string {
   const target = typeof next === 'string' && next.trim() ? next : '';
   return target ? safeNext(target, DEFAULT_NEXT) : DEFAULT_NEXT;
 }
+

@@ -59,6 +59,7 @@ import {
 } from '@/lib/auth';
 import { PLAN_COOKIE, planCookieOptions, sealPlanRecord, type PlanRecord } from '@/lib/plans';
 import { storedSetupComplete } from '@/lib/sync/profile-server';
+import { hostedSignInDestination } from '@/lib/auth/routes';
 
 /** An email is capped at 254 by RFC 5321; a password longer than this is a bug. */
 const MAX_BODY_BYTES = 8 * 1024;
@@ -217,7 +218,7 @@ async function confirmSession(payload: unknown, requested: unknown, transport: C
       // the sign-in path answers it: the account row says whether this owner has
       // anything left to set up, and an owner who has finished goes to the
       // console rather than back through their own bank details.
-      next: safeNext(requested, signInFallback(await storedSetupComplete(user.id))),
+      next: hostedSignInDestination(requested, await storedSetupComplete(user.id), role),
       scoped: Boolean(tenantId),
       identity: renderable({
         provider: 'supabase',
@@ -377,7 +378,7 @@ export async function POST(request: Request) {
     // finished setup is sent to the setup screen. The answer comes from the
     // stored fields themselves, so a row that claims to be complete while
     // missing the UPI id every collection QR needs still gets setup.
-    const fallback = signInFallback(await storedSetupComplete(user.id));
+    const destination = hostedSignInDestination(requested, await storedSetupComplete(user.id), membership?.role);
     const issued = await sealOwnerSession({
       userId: user.id,
       tenantId: membership?.tenantId ?? '',
@@ -391,7 +392,7 @@ export async function POST(request: Request) {
       action,
       mode: 'supabase',
       provider: 'supabase',
-      next: safeNext(requested, fallback),
+      next: destination,
       scoped: Boolean(membership?.tenantId),
       identity: renderable({
         provider: 'supabase',
@@ -446,3 +447,4 @@ export async function DELETE(request: Request) {
   }
   return response;
 }
+
