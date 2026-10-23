@@ -214,7 +214,7 @@ export default function OnboardingPage() {
     if (step === 1) {
       if (!ownerName.trim()) return setError('Your name is required.');
       if (ownerPhone.replace(/\D/g, '').length < 10) return setError('Enter a valid 10-digit phone number.');
-      if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) return setError('Enter a valid email address, or leave it blank.');
+      if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) return setError('Enter a valid email address.');
       setStep(2);
       return;
     }
@@ -230,7 +230,7 @@ export default function OnboardingPage() {
     setError(null);
     if (!ownerName.trim()) { setStep(1); return setError('Your name is required.'); }
     if (ownerPhone.replace(/\D/g, '').length < 10) { setStep(1); return setError('Enter a valid 10-digit phone number.'); }
-    if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) { setStep(1); return setError('Enter a valid email address, or leave it blank.'); }
+    if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) { setStep(1); return setError('Enter a valid email address.'); }
     if (!businessName.trim()) { setStep(2); return setError('Business name is required.'); }
     if (!templateId) { setStep(2); return setError('Pick the template closest to your business — you can change it anytime.'); }
     if (gstin.trim() && !isValidGstin(gstin)) return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
