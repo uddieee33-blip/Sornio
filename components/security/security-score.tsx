@@ -325,7 +325,7 @@ export function SecurityScore() {
                       ? 'Protected, but there is real work to do'
                       : 'Important protections are off'}
               </h2>
-              <Badge tone={pending ? 'slate' : gaps.length === 0 && report.unknowns === 0 ? 'emerald' : gaps.some((g) => g.state === 'fail') ? 'red' : 'amber'}>
+              <Badge tone={pending || gaps.length === 0 && report.unknowns > 0 ? 'slate' : gaps.length === 0 ? 'emerald' : gaps.some((g) => g.state === 'fail') ? 'red' : 'amber'}>
                 {pending ? 'Checking…' : gaps.length === 0 ? report.unknowns > 0 ? 'unverified' : 'Nothing to fix' : `${gaps.length} to look at`}
               </Badge>
             </div>

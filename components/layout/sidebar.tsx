@@ -75,7 +75,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
   const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
 
   return (
-    <aside className="console-sidebar portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel/95 md:flex md:flex-col">
+    <aside className="console-sidebar portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel/95 lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-6 py-6">
         <BrandIcon size={44} className="h-11 w-11 shrink-0 rounded-2xl shadow-glow" />
         <div className="min-w-0">

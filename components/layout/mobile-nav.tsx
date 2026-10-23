@@ -90,7 +90,7 @@ export function MobileNav({
         : 'Stored on this device';
 
   return (
-    <div className="fixed inset-0 z-[60] md:hidden">
+    <div className="fixed inset-0 z-[60] lg:hidden">
       <button
         type="button"
         aria-label="Close navigation menu"
@@ -174,3 +174,4 @@ export function MobileNav({
     </div>
   );
 }
+
