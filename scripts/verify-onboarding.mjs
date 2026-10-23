@@ -33,5 +33,8 @@ r = await finishTest({ ok: true, mode: 'supabase' }); equal(r.routes, ['/home'])
 for (const overrides of [{ownerName:''}, {ownerPhone:'12'}, {businessName:''}, {templateId:''}]) {
  r = await finishTest({ok:true,mode:'supabase'}, overrides); equal(r.routes, []); equal(r.updates, 0);
 }
+r = await finishTest({ ok: true, mode: 'supabase' }, { gstin: 'INVALID', isValidGstin: () => false });
+equal(r.routes, []); equal(r.updates, 0);
+equal(r.errors.at(-1), 'Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
 equal(/disabled=\{finishing \|\| s.id > step\}/.test(source), true);
 console.log(`${passed} focused onboarding assertions passed`);
