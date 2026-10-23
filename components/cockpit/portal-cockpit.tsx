@@ -97,7 +97,7 @@ function PortalIdentity() {
 
   return (
     <div className="mt-6 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200 md:p-5">
-      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
         <div className="flex items-start gap-3">
           <span className="bg-portal-gradient flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-glow-sm">
             <Icon size={19} strokeWidth={2.2} />
@@ -352,7 +352,7 @@ export function PortalCockpit() {
       <div className="animate-fade-up portal-transition relative overflow-hidden rounded-3xl border border-stone-200 bg-panel shadow-card">
         <div className="portal-wash absolute inset-0" />
         <div className="relative p-4 sm:p-6 md:p-8">
-          <div className="flex flex-col gap-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex flex-col gap-8 xl:flex-row xl:items-start xl:justify-between">
             <div className="max-w-xl">
               <p className="inline-flex items-center gap-2 rounded-full bg-portal/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.2em] text-portal ring-1 ring-inset ring-portal/25">
                 <Sparkles size={13} />
@@ -381,7 +381,7 @@ export function PortalCockpit() {
               </div>
             </div>
 
-            <div className="grid shrink-0 grid-cols-2 gap-3 lg:w-[420px]">
+            <div className="grid shrink-0 grid-cols-2 gap-3 xl:w-[420px]">
               {tiles.map((tile, tileIndex) => (
                 <Reveal
                   key={tile.label}
@@ -468,3 +468,4 @@ export function PortalCockpit() {
     </div>
   );
 }
+
