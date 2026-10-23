@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency } from '@/lib/business-data';
+import { formatInvoiceAmount as formatCurrency, invoiceBalance } from '@/lib/invoices';
 import type { Invoice, PaymentMethod } from '@/lib/models/billing';
 import { buildUpiDeepLink, isValidUpiId, maskAccountNumber, paymentReference } from '@/lib/upi';
 import { useDukaanStore } from '@/lib/store';
@@ -140,17 +140,18 @@ export function CollectPaymentPanel({
 }) {
   const { locale } = useI18n();
   const { state, actions } = useDukaanStore();
+  const due = invoiceBalance(invoice, state.paymentRecords);
   const [method, setMethod] = useState<PaymentMethod>(
     DESK_METHODS.includes(invoice.paymentMethod) ? invoice.paymentMethod : 'UPI',
   );
-  const [tendered, setTendered] = useState(String(invoice.totalAmount));
+  const [tendered, setTendered] = useState(String(due));
   const [card, setCard] = useState({ name: invoice.customerName, phone: invoice.customerPhone ?? '', network: 'RuPay', last4: '', reference: '' });
   const [upiRef, setUpiRef] = useState('');
   const [utr, setUtr] = useState('');
   const [showAccount, setShowAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [settled, setSettled] = useState(false);
+  const [settlement, setSettlement] = useState<{ amount: number; change: number } | null>(null);
   const qrWrapRef = useRef<HTMLDivElement>(null);
 
   const profile = state.profile;
@@ -159,7 +160,6 @@ export function CollectPaymentPanel({
   const bank = profile.bank;
   const bankReady = Boolean(bank?.accountNumber && bank?.ifsc && bank?.bankName);
 
-  const due = invoice.totalAmount;
 
   const upiLink = useMemo(() => {
     if (!upiReady || !shopUpi) return '';
@@ -216,14 +216,14 @@ export function CollectPaymentPanel({
     }
     const result = actions.markInvoicePaid(invoice.id, method);
     if (result.ok) {
-      setSettled(true);
+      setSettlement({ amount: result.amount ?? due, change: Math.max(0, tenderedValue - due) });
     } else {
       setError(result.error ?? 'Could not settle this invoice.');
       setErrorCode(result.code ?? null);
     }
   };
 
-  if (settled) {
+  if (settlement) {
     return (
       <div className="animate-collect-pop rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-8 text-center">
         <span className="animate-collect-success mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-glow">
@@ -231,7 +231,7 @@ export function CollectPaymentPanel({
         </span>
         <h3 className="mt-4 font-display text-xl font-bold text-stone-900">Payment collected</h3>
         <p className="mt-1.5 text-sm text-stone-600">
-          {formatCurrency(due)} from <strong className="text-stone-800">{invoice.customerName}</strong> via {method} — invoice{' '}
+          {formatCurrency(settlement.amount)} from <strong className="text-stone-800">{invoice.customerName}</strong> via {method} — invoice{' '}
           {invoice.id} is settled and the ledger is updated.
         </p>
         <div className="mx-auto mt-5 grid max-w-xs gap-2 text-left">
@@ -251,10 +251,10 @@ export function CollectPaymentPanel({
               <span className="font-mono text-xs font-semibold text-stone-900">{utr.trim().toUpperCase()}</span>
             </div>
           ) : null}
-          {method === 'Cash' && changeDue > 0 ? (
+          {method === 'Cash' && settlement.change > 0 ? (
             <div className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 text-sm ring-1 ring-inset ring-stone-200">
               <span className="text-stone-600">Change given</span>
-              <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(changeDue)}</span>
+              <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(settlement.change)}</span>
             </div>
           ) : null}
         </div>
@@ -507,7 +507,10 @@ export function CollectPaymentPanel({
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-600">₹</span>
                   <input
                     type="number"
+                    aria-label="Cash received"
+                    inputMode="decimal"
                     min={0}
+                    step="0.01"
                     value={tendered}
                     onChange={(e) => setTendered(e.target.value)}
                     className={`${inputClass} pl-8 font-semibold tabular-nums`}
@@ -558,7 +561,7 @@ export function CollectPaymentPanel({
               <button
                 onClick={() => {
                   setMethod('Cash');
-                  setTendered(String(invoice.totalAmount));
+                  setTendered(String(due));
                   setError(null);
                   setErrorCode(null);
                 }}
@@ -584,7 +587,7 @@ export function CollectPaymentPanel({
           {method === 'Card' && 'Expect ~1–2% MDR · 1–2 day settlement'}
           {method === 'Bank Transfer' && 'NEFT / IMPS · keep the UTR'}
         </Badge>
-        <Button onClick={confirm} className="min-w-52">
+        <Button onClick={confirm} disabled={due <= 0 || !Number.isFinite(due)} className="min-w-52">
           <Check size={16} /> Confirm {formatCurrency(due)} received
         </Button>
       </div>
@@ -594,44 +597,80 @@ export function CollectPaymentPanel({
 
 /** The same desk flow inside a modal — used from the billing screen. */
 export function CollectPaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+  const { state } = useDukaanStore();
+  const due = invoiceBalance(invoice, state.paymentRecords);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeFromEffect = useEffectEvent(onClose);
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
+    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeFromEffect();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const panel = panelRef.current;
+      const focusable = Array.from(panel?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        panel?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-  }, [onClose]);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+      else document.getElementById('invoice-preview')?.querySelector<HTMLButtonElement>('button')?.focus();
+    };
+  }, []);
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
+      className="animate-fade-in fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`Collect payment for ${invoice.id}`}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="animate-collect-pop relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-stone-200 bg-panel p-5 shadow-2xl sm:rounded-3xl md:p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-brand-gradient" />
         <button
+          ref={closeButtonRef}
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
+          className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
         >
           <X size={17} />
         </button>
         <div className="mb-5">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">Desk collection</p>
-          <h2 className="mt-1.5 font-display text-xl font-bold text-stone-900">Collect {formatCurrency(invoice.totalAmount)}</h2>
+          <h2 className="mt-1.5 font-display text-xl font-bold text-stone-900">{invoice.paymentStatus === 'paid' ? 'Payment collected' : <>Collect {formatCurrency(due)}</>}</h2>
         </div>
         <CollectPaymentPanel invoice={invoice} onDone={onClose} />
       </div>
     </div>
   );
 }
+

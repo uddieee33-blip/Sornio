@@ -8,6 +8,11 @@ on:
       - app/auth/page.tsx
       - components/security/**
       - lib/security/posture.ts
+      - app/(console)/billing/page.tsx
+      - components/billing/invoice-composer.tsx
+      - components/payments/collect-payment.tsx
+      - lib/invoices.ts
+      - lib/store.tsx
   workflow_dispatch:
 
   # Runs on review branches only. Never commit generated translations to main.
