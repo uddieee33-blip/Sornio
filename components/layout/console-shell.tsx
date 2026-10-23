@@ -102,15 +102,18 @@ export function ConsoleShell({
     // cockpit; the switch only decides how much of the catalogue is on the
     // menu — and the plan layer below is deliberately not told about it.
     <MasterSwitchProvider initialOn={initialRevealAll} initialDaysLeft={initialRevealDaysLeft}>
-      <PortalProvider initialPortalId={initialPortalId ?? null}>
-        {/* The lock wraps the frame so the whole console — navigation included —
-            is behind it, and the PIN is checked before any of it renders. */}
-        <CounterLockProvider>
-          <PlanProvider>
+      {/* Resolve the verified subscription before selecting the portal's
+          visible modules. A full trial can then reveal the complete catalogue,
+          while the independent server-side plan gate still decides access. */}
+      <PlanProvider>
+        <PortalProvider initialPortalId={initialPortalId ?? null}>
+          {/* The lock wraps the frame so the whole console — navigation included —
+              is behind it, and the PIN is checked before any of it renders. */}
+          <CounterLockProvider>
             <ConsoleFrame identity={initialIdentity}>{children}</ConsoleFrame>
-          </PlanProvider>
-        </CounterLockProvider>
-      </PortalProvider>
+          </CounterLockProvider>
+        </PortalProvider>
+      </PlanProvider>
     </MasterSwitchProvider>
   );
 }

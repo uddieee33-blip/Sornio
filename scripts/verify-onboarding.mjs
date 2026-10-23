@@ -19,7 +19,7 @@ async function finishTest(result, overrides = {}) {
   const context = {
     setError: x => effects.errors.push(x), setStep: x => effects.steps.push(x), setFinishing: x => effects.finishing.push(x), setSavedTo: x => effects.saved.push(x),
     ownerName: 'Shop Owner', ownerPhone: '9876543210', ownerEmail: '', businessName: 'Test Shop', templateId: 'template-retail', description: '',
-    upiId: '', upiValid: false, ifsc: '', accountNumber: '', accountHolder: '', bankName: '', profile: {}, pinned: {current: false}, accountBacked: true,
+    gstin: '', isValidGstin: () => true, upiId: '', upiValid: false, ifsc: '', accountNumber: '', accountHolder: '', bankName: '', profile: {}, pinned: {current: false}, accountBacked: true,
     isValidIfsc: () => true, actions: { updateProfile: () => { effects.updates++; return { ok: true }; }, applyTemplate: () => {} }, publishPortal: () => {},
     saveStoredProfile: async () => result, snapshotFromProfile: x => x, router: { push: x => effects.routes.push(x) }, setTimeout: fn => fn(), ...overrides,
   };

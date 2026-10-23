@@ -17,6 +17,7 @@ import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import {
   adoptRemoteProfile,
+  isValidGstin,
   profileFromSnapshot,
   remoteWins,
   snapshotFromProfile,
@@ -168,6 +169,8 @@ export type BusinessProfile = {
   ownerName?: string;
   ownerPhone?: string;
   ownerEmail?: string;
+  /** Optional GST identity of a registered shop, not verification of registration. */
+  gstin?: string;
   /** The owner's own UPI ID for receiving payments (never bank credentials). */
   upiId?: string;
   /**
@@ -2355,6 +2358,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
     updateProfile(patch) {
       if (patch.name !== undefined && !patch.name.trim()) return { ok: false, error: 'Business name is required.' };
+      if (patch.gstin && !isValidGstin(patch.gstin)) return { ok: false, error: 'Enter a valid 15-character GSTIN or leave it blank.' };
       if (patch.upiId && !isValidUpiId(patch.upiId)) {
         return { ok: false, error: 'Enter a valid UPI ID (e.g. businessname@bank).' };
       }
@@ -2367,6 +2371,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...current.profile,
           ...patch,
           ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+          ...(patch.gstin !== undefined ? { gstin: patch.gstin.trim().toUpperCase() } : {}),
           // Stamped last so no patch can leave it stale: this is the value the
           // sync compares against the account's copy to decide which is newer.
           updatedAt: new Date().toISOString(),

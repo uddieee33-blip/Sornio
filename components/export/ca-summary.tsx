@@ -49,6 +49,7 @@ export function CaSummary() {
       {!periodValid && <p className="mt-3 text-sm text-red-700">The end date must be on or after the start date.</p>}
       <div className="ca-report mt-5 rounded-xl border border-stone-200 p-5 text-stone-900">
         <h2 className="text-xl font-bold">{state.profile.name || 'Business'} — Accountant summary</h2>
+        {state.profile.gstin ? <p className="mt-1 text-sm font-semibold">GSTIN: {state.profile.gstin}</p> : null}
         <p className="mt-1 text-sm">Period: {start} to {end}</p>
         <p className="mt-1 text-xs">Prepared: {day(new Date().toISOString())}</p>
         <p className="mt-3 text-xs font-semibold">Management summary only. Not a filed GST return or independently reconciled bank statement. Verify source records before statutory use.</p>

@@ -87,6 +87,7 @@ export default function BillingPage() {
               <div className="mb-5 flex items-center justify-between">
                 <div>
                   <p className="font-display text-lg font-bold text-stone-900 print:text-2xl">{state.profile.name}</p>
+                  {state.profile.gstin ? <p className="text-xs font-semibold text-stone-700">GSTIN: {state.profile.gstin}</p> : null}
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-600">Invoice · {selected.id}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">

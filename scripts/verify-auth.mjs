@@ -455,6 +455,37 @@ check('a door into the console is earned, a door into setup is not', () => {
   assertEqual(gate.doorNeedsConfirmation(gate.DEFAULT_NEXT), false, 'setup holds nothing worth guarding yet');
 });
 
+check('hosted sign-in does not trust an earlier account\'s device profile', () => {
+  const form = read('components', 'auth', 'auth-form.tsx');
+  assert(
+    /deviceSetupComplete:\s*!supabaseReady\s*&&\s*deviceSetupComplete/.test(form),
+    'only the local-first build may use a device vault to skip onboarding; a hosted account is decided after authentication',
+  );
+});
+
+
+check('hosted and local sign-in route correctly with a previously completed device profile', () => {
+  // Evaluate the actual input expression used by AuthForm, then the real route
+  // helpers. This catches account switching regressions without copying the
+  // filtering condition into the test.
+  const form = read('components', 'auth', 'auth-form.tsx');
+  const expression = form.match(/const doors = (\{[^;]+\});/);
+  assert(expression, 'AuthForm destination input must be present');
+  const buildDoors = new Function('supabaseReady', 'requested', 'accountSetupComplete', 'deviceSetupComplete', 'return (' + expression[1] + ');');
+  const incomplete = buildDoors(true, null, false, true);
+  assertEqual(gate.welcomeDestination(incomplete), gate.DEFAULT_NEXT, 'cached data must not skip incomplete hosted setup');
+  assertEqual(gate.signInNextParam(incomplete), undefined, 'the server must decide after authenticating the new account');
+  const complete = buildDoors(true, null, true, true);
+  assertEqual(gate.welcomeDestination(complete), gate.CONSOLE_HOME, 'completed hosted accounts retain console access');
+  assertEqual(gate.signInNextParam(complete), undefined, 'even completed accounts are rechecked after credentials');
+  const local = buildDoors(false, null, false, true);
+  assertEqual(gate.welcomeDestination(local), gate.CONSOLE_HOME, 'local builds retain device completion');
+  assertEqual(gate.signInNextParam(local), gate.CONSOLE_HOME, 'local completion is passed to the local endpoint');
+  const review = buildDoors(true, '/onboarding', true, true);
+  assertEqual(gate.welcomeDestination(review), '/onboarding', 'explicit setup review remains available');
+  assertEqual(gate.signInNextParam(review), '/onboarding', 'explicit setup reaches the endpoint');
+});
+
 check('the sign-in screen asks before it opens the console', () => {
   const form = read('components', 'auth', 'auth-form.tsx');
   assert(/doorNeedsConfirmation\(/.test(form), 'the gate comes from the shared rule, not from a literal in the markup');
