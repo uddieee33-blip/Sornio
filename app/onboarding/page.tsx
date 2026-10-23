@@ -302,7 +302,7 @@ export default function OnboardingPage() {
    */
   if (!hydrated) {
     return (
-      <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+      <div className="setup-page relative flex min-h-screen items-center justify-center overflow-hidden p-6">
         <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
         <div className="w-full max-w-3xl">
@@ -319,7 +319,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
+    <div className="setup-page relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
       <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
       <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
       <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6"><AppearanceMenu /><LanguagePicker /></div>
@@ -636,4 +636,5 @@ export default function OnboardingPage() {
     </div>
   );
 }
+
 

@@ -43,7 +43,6 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { useAppearance } from '@/lib/theme/appearance-provider';
 import { useCounterLock } from '@/components/security/counter-lock';
 import { toChainEvent, verifyChain } from '@/lib/security/audit';
-import { vaultStatus } from '@/lib/security/vault';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 import {
   GROUP_LABELS,
@@ -142,23 +141,27 @@ async function verifyAuditChain(audit: ReturnType<typeof useDukaanStore>['state'
 }
 
 export function SecurityScore() {
-  const { state, hydrated } = useDukaanStore();
+  const { state, hydrated, persistence, syncStatus } = useDukaanStore();
   const { revealAll } = usePortal();
   const { appearance } = useAppearance();
   const lock = useCounterLock();
   const toast = useToast();
 
-  // Verified for real, on mount. Starting at `false` rather than `true` means
-  // the panel never claims an intact chain it has not checked — if the
-  // verification cannot run, the score stays honest about it.
-  const [chainIntact, setChainIntact] = useState(false);
-  const [checking, setChecking] = useState(true);
+  const [chainResult, setChainResult] = useState<{
+    audit: typeof state.audit;
+    refresh: number;
+    valid: boolean;
+  } | null>(null);
   const [violations, setViolations] = useState<ViolationSummary>(null);
   const [showPasses, setShowPasses] = useState(false);
   const passkey = useSyncExternalStore(subscribePasskey, passkeySnapshot, passkeyServerSnapshot);
   const [sensorAvailable, setSensorAvailable] = useState(false);
   const [enrolling, setEnrolling] = useState(false);
   const [refreshedAt, setRefreshedAt] = useState(0);
+  const chainIntact = chainResult?.audit === state.audit && chainResult.refresh === refreshedAt ? chainResult.valid : null;
+  const checking = chainIntact === null;
+  const deviceKnown = hydrated && persistence.mode !== 'loading';
+
   // The browser's own answers — `isSecureContext`, `crossOriginIsolated`,
   // WebAuthn support, what `document.cookie` exposes. `null` is the state the
   // server rendered, and the first client render has to be that same state:
@@ -168,6 +171,7 @@ export function SecurityScore() {
   // effect instead, so the page hydrates as one document and the score only
   // moves once the browser has actually been asked.
   const [browserFacts, setBrowserFacts] = useState<BrowserFacts | null>(null);
+  const pending = checking || !deviceKnown || browserFacts === null;
 
   const support = useMemo(() => (hydrated ? passkeySupport() : { available: false as const, reason: '' }), [hydrated]);
 
@@ -204,8 +208,7 @@ export function SecurityScore() {
     let cancelled = false;
     void verifyAuditChain(state.audit).then((valid) => {
       if (cancelled) return;
-      setChainIntact(valid);
-      setChecking(false);
+      setChainResult({ audit: state.audit, refresh: refreshedAt, valid });
     });
     return () => {
       cancelled = true;
@@ -241,12 +244,13 @@ export function SecurityScore() {
     () =>
       buildPostureReport(
         {
-          vaultEncrypted: hydrated ? vaultStatus().encrypted : true,
+          vaultEncrypted: deviceKnown ? persistence.mode === 'encrypted' : null,
           lockEnabled: lock.enabled,
           autoLockMinutes: lock.autoLockMinutes,
           chainIntact,
           unchainedEntries: state.audit.filter((entry) => !entry.hash).length,
           syncConfigured: isSupabaseConfigured(),
+          syncVerified: syncStatus === 'synced',
           privacyScreen: appearance.privacy,
           revealAll,
           passkeyEnrolled: passkey !== null,
@@ -257,7 +261,9 @@ export function SecurityScore() {
       appearance.privacy,
       browserFacts,
       chainIntact,
-      hydrated,
+      deviceKnown,
+      persistence.mode,
+      syncStatus,
       lock.autoLockMinutes,
       lock.enabled,
       passkey,
@@ -270,7 +276,7 @@ export function SecurityScore() {
   const passes = report.checks.filter((check) => check.state === 'pass' || check.state === 'unknown');
 
   const ringColour =
-    report.grade === 'excellent' || report.grade === 'good'
+    pending ? 'rgb(var(--c-stone-400) / 1)' : report.grade === 'excellent' || report.grade === 'good'
       ? 'rgb(var(--c-emerald-600) / 1)'
       : report.grade === 'fair'
         ? 'rgb(var(--c-amber-500) / 1)'
@@ -298,20 +304,20 @@ export function SecurityScore() {
         <div className="flex flex-col gap-6 sm:flex-row sm:items-center">
           <div className="shrink-0 self-center">
             <Ring
-              value={report.score}
+              value={pending ? 0 : report.score}
               size={128}
               strokeWidth={11}
               color={ringColour}
               track="rgb(var(--c-stone-200) / 1)"
-              label={`${report.score}`}
-              sublabel="out of 100"
+              label={pending ? '—' : `${report.score}`}
+              sublabel={pending ? 'Checking…' : 'out of 100'}
             />
           </div>
 
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="font-display text-xl font-bold text-stone-900">
-                {report.grade === 'excellent'
+                {pending ? 'Checking…' : report.unknowns > 0 ? 'Live posture' : report.grade === 'excellent'
                   ? 'Your shop is well protected'
                   : report.grade === 'good'
                     ? 'Good, with a couple of gaps'
@@ -319,8 +325,8 @@ export function SecurityScore() {
                       ? 'Protected, but there is real work to do'
                       : 'Important protections are off'}
               </h2>
-              <Badge tone={gaps.length === 0 ? 'emerald' : gaps.some((g) => g.state === 'fail') ? 'red' : 'amber'}>
-                {gaps.length === 0 ? 'Nothing to fix' : `${gaps.length} to look at`}
+              <Badge tone={pending ? 'slate' : gaps.length === 0 && report.unknowns === 0 ? 'emerald' : gaps.some((g) => g.state === 'fail') ? 'red' : 'amber'}>
+                {pending ? 'Checking…' : gaps.length === 0 ? report.unknowns > 0 ? 'unverified' : 'Nothing to fix' : `${gaps.length} to look at`}
               </Badge>
             </div>
 
@@ -336,8 +342,7 @@ export function SecurityScore() {
               <Button
                 variant="secondary"
                 onClick={() => {
-                  setChecking(true);
-                  setRefreshedAt(Date.now());
+                  setRefreshedAt((value) => value + 1);
                 }}
                 disabled={checking}
               >
@@ -515,3 +520,4 @@ export function SecurityScore() {
     </div>
   );
 }
+

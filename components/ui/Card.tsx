@@ -13,7 +13,7 @@ type CardProps = {
 };
 
 export function Card({ children, className = '', hover = false, padded = true, sensitive = false }: CardProps) {
-  const base = 'min-w-0 rounded-2xl bg-white ring-1 ring-stone-200 shadow-card';
+  const base = 'surface-card min-w-0 rounded-2xl bg-white ring-1 ring-stone-200 shadow-card';
   // The lift is `transform`, not `margin` or `top`: it stays on the compositor,
   // so hovering a grid of twenty cards costs no layout. The shadow grows with
   // it, because a surface that rises without its shadow following reads as a
@@ -41,3 +41,4 @@ export function CardTitle({ children, icon }: { children: ReactNode; icon?: Reac
     </div>
   );
 }
+

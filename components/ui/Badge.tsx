@@ -24,9 +24,10 @@ const dots: Record<BadgeTone, string> = {
 
 export function Badge({ children, tone = 'slate', dot = false }: { children: ReactNode; tone?: BadgeTone; dot?: boolean }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${tones[tone]}`}>
+    <span className={`status-badge inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ring-inset ${tones[tone]}`}>
       {dot ? <span className={`h-1.5 w-1.5 rounded-full ${dots[tone]}`} /> : null}
       {children}
     </span>
   );
 }
+

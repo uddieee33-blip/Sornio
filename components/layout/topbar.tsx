@@ -61,7 +61,7 @@ export function Topbar({
     'Console';
 
   return (
-    <header className="mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
+    <header className="console-topbar mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
       <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 md:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 md:hidden">
           <Link href="/home" aria-label="DukaanOS home" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
@@ -139,3 +139,4 @@ export function Topbar({
     </header>
   );
 }
+
