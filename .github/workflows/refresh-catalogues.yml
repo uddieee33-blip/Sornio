@@ -4,6 +4,7 @@ on:
     branches: ['fix/i18n-*', 'fix/enforce-owner-onboarding-20261023']
     paths:
       - .github/workflows/refresh-catalogues.yml
+      - supabase/schema.sql
   workflow_dispatch:
 
   # Runs on review branches only. Never commit generated translations to main.
