@@ -164,7 +164,7 @@ export function MobileNav({
             title="Open the Trust Centre"
           >
             <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-stone-900">
-              <Lock size={12} className="shrink-0 text-emerald-700" />
+              <Lock size={12} className={`shrink-0 ${hydrated && persistence.mode === 'encrypted' && !state.demoMode ? 'text-emerald-700' : 'text-stone-500'}`} />
               {businessName}
             </p>
             <p className="mt-1 truncate text-[11px] text-stone-600">{statusLine}</p>
