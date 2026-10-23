@@ -275,6 +275,10 @@ export function TrustCenter() {
               Download my data
             </Button>
           </div>
+          <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-500/20">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+            This file contains your business records. It is not encrypted — store it somewhere private.
+          </p>
 
           {verification ? (
             <div
