@@ -197,6 +197,23 @@ check('every field comes back the same after row → snapshot → row', () => {
   assertEqual(back.setupComplete, true, 'and it still counts as finished setup');
 });
 
+check('API profile JSON restores owner, business and UPI details on a second device', () => {
+  const json = JSON.parse(JSON.stringify(profile.snapshotFromRow(profile.rowFromSnapshot(WIRE))));
+  const received = profile.snapshotFromRow(json);
+  assert(received, 'server camelCase profile JSON must decode');
+  assertEqual(received.ownerName, 'Rohit Kapoor', 'owner');
+  assertEqual(received.ownerPhone, '+91 98123 45678', 'phone');
+  assertEqual(received.ownerEmail, 'rohit@cultfitness.com', 'email');
+  assertEqual(received.businessName, 'Cult Fitness', 'business');
+  assertEqual(received.templateId, 'template-gym', 'business type');
+  assertEqual(received.gstin, '03ABCDE1234F1Z5', 'GSTIN');
+  assertEqual(received.upiId, 'cultfitness@okhdfcbank', 'UPI QR destination');
+  assertEqual(received.bank.accountNumber, '50100123456789', 'account');
+  assertEqual(received.bank.ifsc, 'HDFC0001234', 'IFSC');
+  assertEqual(received.updatedAt, COMPLETE.updatedAt, 'merge timestamp');
+  assertEqual(received.setupComplete, true, 'dashboard redirect status');
+});
+
 check('the email is normalised, so a lookup cannot miss on capitalisation', () => {
   const snapshot = profile.snapshotFromProfile(COMPLETE);
   assertEqual(snapshot.ownerEmail, 'rohit@cultfitness.com', 'the address is folded to lower case');
