@@ -1,7 +1,7 @@
 name: Refresh localization catalogues
 on:
   push:
-    branches: ['fix/i18n-*']
+    branches: ['fix/i18n-*', 'fix/enforce-owner-onboarding-20261023']
     paths:
       - .github/workflows/refresh-catalogues.yml
   workflow_dispatch:
@@ -17,7 +17,7 @@ concurrency:
 
 jobs:
   translate:
-    if: github.repository == 'uddieee33-blip/DukaanOS' && startsWith(github.ref, 'refs/heads/fix/i18n-')
+    if: github.repository == 'uddieee33-blip/DukaanOS' && (startsWith(github.ref, 'refs/heads/fix/i18n-') || github.ref == 'refs/heads/fix/enforce-owner-onboarding-20261023')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
