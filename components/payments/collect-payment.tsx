@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
@@ -507,7 +507,10 @@ export function CollectPaymentPanel({
                   <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-600">₹</span>
                   <input
                     type="number"
+                    aria-label="Cash received"
+                    inputMode="decimal"
                     min={0}
+                    step="0.01"
                     value={tendered}
                     onChange={(e) => setTendered(e.target.value)}
                     className={`${inputClass} pl-8 font-semibold tabular-nums`}
@@ -596,35 +599,68 @@ export function CollectPaymentPanel({
 export function CollectPaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
   const { state } = useDukaanStore();
   const due = invoiceBalance(invoice, state.paymentRecords);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeFromEffect = useEffectEvent(onClose);
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
+    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeFromEffect();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const panel = panelRef.current;
+      const focusable = Array.from(panel?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        panel?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-  }, [onClose]);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+      else document.getElementById('invoice-preview')?.querySelector<HTMLButtonElement>('button')?.focus();
+    };
+  }, []);
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
+      className="animate-fade-in fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`Collect payment for ${invoice.id}`}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="animate-collect-pop relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-stone-200 bg-panel p-5 shadow-2xl sm:rounded-3xl md:p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-brand-gradient" />
         <button
+          ref={closeButtonRef}
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
+          className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
         >
           <X size={17} />
         </button>
