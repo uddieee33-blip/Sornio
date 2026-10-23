@@ -25,7 +25,7 @@ import { useLocaleRefresh } from '@/lib/i18n';
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDownRight, ArrowUpRight, Boxes, ClipboardList, History, Package, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { ArrowDownRight, ArrowUpRight, Boxes, ClipboardList, History, Package, Search, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Badge } from '@/components/ui/Badge';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -90,10 +90,22 @@ function MovementRow({ movement, showItem = false }: { movement: StockMovement; 
 export default function InventoryPage() {
   useLocaleRefresh();
   const { state } = useDukaanStore();
-  const products = state.products.filter((product) => product.itemType === 'product');
+  const products = useMemo(() => state.products.filter((product) => product.itemType === 'product'), [state.products]);
   const movements = state.stockMovements;
   const [openItem, setOpenItem] = useState<string | null>(null);
   const [showAll, setShowAll] = useState(false);
+  const [query, setQuery] = useState('');
+  const [reorderOnly, setReorderOnly] = useState(false);
+
+  const visibleProducts = useMemo(() => {
+    const needle = query.trim().toLocaleLowerCase();
+    return products.filter((product) => {
+      if (reorderOnly && (product.status !== 'Active' || product.stock > product.reorderLevel)) return false;
+      if (!needle) return true;
+      return [product.name, product.category, product.sku, product.supplier, product.barcode, product.internalCode]
+        .some((value) => value?.toLocaleLowerCase().includes(needle));
+    });
+  }, [products, query, reorderOnly]);
 
   const stockValue = stockValueAtCost(state.products);
   const low = lowStockItems(state.products);
@@ -103,7 +115,8 @@ export default function InventoryPage() {
     [movements],
   );
   const visibleRecent = showAll ? recent : recent.slice(0, 12);
-  const todayCount = recent.filter((movement) => movement.at.slice(0, 10) === new Date().toISOString().slice(0, 10)).length;
+  const today = new Date().toDateString();
+  const todayCount = recent.filter((movement) => new Date(movement.at).toDateString() === today).length;
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
@@ -158,15 +171,54 @@ export default function InventoryPage() {
         </div>
       </Card>
 
+      {products.length > 0 ? (
+        <div className="mb-4 flex flex-wrap items-center gap-3">
+          <div className="relative min-w-0 flex-1 sm:max-w-sm">
+            <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+            <input
+              type="search"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              placeholder="Search name, SKU, supplier…"
+              aria-label="Search name, SKU, supplier…"
+              aria-controls="inventory-items"
+              className="w-full rounded-xl border border-stone-200 bg-stone-50 py-2.5 pl-10 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden focus:border-portal/50 focus:ring-2 focus:ring-focus"
+            />
+          </div>
+          <label className="inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-xl border border-stone-200 bg-stone-50 px-3 text-sm font-medium text-stone-800">
+            <input
+              type="checkbox"
+              checked={reorderOnly}
+              onChange={(event) => setReorderOnly(event.target.checked)}
+              className="accent-amber-600"
+            />
+            Items to reorder
+          </label>
+          {query || reorderOnly ? (
+            <button
+              type="button"
+              onClick={() => { setQuery(''); setReorderOnly(false); }}
+              className="min-h-11 rounded-xl px-3 text-sm font-semibold text-brand-700 hover:bg-brand-500/10 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500"
+            >
+              Clear
+            </button>
+          ) : null}
+        </div>
+      ) : null}
+
       {products.length === 0 ? (
         <EmptyState
           icon={Package}
           title="No stocked items yet"
           description="Add items from the catalog with the count you have on the shelf. From then on, every sale and delivery moves the number and records why."
         />
+      ) : visibleProducts.length === 0 ? (
+        <p id="inventory-items" role="status" className="rounded-xl border border-stone-200 bg-stone-50 p-5 text-sm text-stone-700">
+          No items match the current search/filter.
+        </p>
       ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          {products.map((product) => {
+        <div id="inventory-items" className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {visibleProducts.map((product) => {
             const isLow = product.status === 'Active' && product.stock <= product.reorderLevel;
             const pct = Math.min(100, (product.stock / Math.max(product.reorderLevel * 3, 1)) * 100);
             const history = movementsForProduct(movements, product.id);
