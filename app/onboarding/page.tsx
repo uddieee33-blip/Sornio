@@ -32,6 +32,7 @@ import { disabledModules, portalForTemplate, PORTALS } from '@/lib/portals/regis
 import { navSectionsFor } from '@/lib/portals/nav';
 import { publishPortal } from '@/lib/portals/sync';
 import { isValidGstin, snapshotFromProfile } from '@/lib/sync/profile';
+import { isEmail } from '@/lib/security/validation';
 import { saveStoredProfile } from '@/lib/sync/profile-sync';
 import { currentSyncMode } from '@/lib/supabase/config';
 import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '@/lib/upi';
@@ -114,6 +115,7 @@ export default function OnboardingPage() {
   const touched = useRef(false);
   const markTouched = () => {
     touched.current = true;
+    setSavedTo(null);
   };
 
   /**
@@ -212,6 +214,7 @@ export default function OnboardingPage() {
     if (step === 1) {
       if (!ownerName.trim()) return setError('Your name is required.');
       if (ownerPhone.replace(/\D/g, '').length < 10) return setError('Enter a valid 10-digit phone number.');
+      if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) return setError('Enter a valid email address, or leave it blank.');
       setStep(2);
       return;
     }
@@ -227,6 +230,7 @@ export default function OnboardingPage() {
     setError(null);
     if (!ownerName.trim()) { setStep(1); return setError('Your name is required.'); }
     if (ownerPhone.replace(/\D/g, '').length < 10) { setStep(1); return setError('Enter a valid 10-digit phone number.'); }
+    if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) { setStep(1); return setError('Enter a valid email address, or leave it blank.'); }
     if (!businessName.trim()) { setStep(2); return setError('Business name is required.'); }
     if (!templateId) { setStep(2); return setError('Pick the template closest to your business — you can change it anytime.'); }
     if (gstin.trim() && !isValidGstin(gstin)) return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
@@ -252,39 +256,36 @@ export default function OnboardingPage() {
         ifsc: ifsc.trim().toUpperCase() || undefined,
       },
     };
-    const profileResult = actions.updateProfile(patch);
-    if (!profileResult.ok) {
-      setError(profileResult.error ?? 'Could not save your profile.');
-      setFinishing(false);
-      return;
-    }
-    actions.applyTemplate(templateId);
-    // Publish the choice before navigating: the console's first server render
-    // then already paints the right navigation, with no flicker. If the call
-    // fails the in-app gate still holds, and the provider retries on mount.
-    void publishPortal(templateId);
-
     /*
-     * The account copy is written here rather than left to the store's
-     * debounce. The owner is about to leave this screen, possibly closing the
-     * tab on the way out, and "saved" has to mean it reached the place that will
-     * answer when they sign in on their phone next week.
+     * A failed cloud write must NOT mark this owner as set up locally.
+     * Otherwise the banner says "Welcome back", while the authoritative server
+     * still routes /home back to /onboarding. Save remotely before updating the
+     * local vault or switching the business template.
      */
     if (accountBacked) {
       const saved = await saveStoredProfile(
         snapshotFromProfile({ ...profile, ...patch, templateId, updatedAt: new Date().toISOString() }),
       );
       if (!saved.ok || saved.mode !== 'supabase') {
-        setError(saved.error ?? 'Could not save your profile.');
+        setError(saved.error ?? 'Could not save your profile. Please retry.');
         setFinishing(false);
         return;
       }
-      setSavedTo({ account: true });
-      setTimeout(() => router.push('/home'), 1000);
+    }
+
+    const profileResult = actions.updateProfile(patch);
+    if (!profileResult.ok) {
+      setError(profileResult.error ?? 'Could not update this device. Your account details may already be saved.');
+      setFinishing(false);
       return;
     }
-    setSavedTo({ account: false });
-    setTimeout(() => router.push('/home'), 600);
+    actions.applyTemplate(templateId);
+    // Publish only after a successful account save; do not change console
+    // navigation when the business setup has not reached the server.
+    void publishPortal(templateId);
+
+    setSavedTo({ account: accountBacked });
+    setTimeout(() => router.push('/home'), accountBacked ? 1000 : 600);
   };
 
   /**

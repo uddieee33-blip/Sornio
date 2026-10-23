@@ -273,18 +273,21 @@ export function rowFromSnapshot(snapshot: ProfileSnapshot): Record<string, unkno
 export function snapshotFromRow(row: unknown): ProfileSnapshot | null {
   if (!row || typeof row !== 'object') return null;
   const source = row as Record<string, unknown>;
-  const updatedAt = isTimestamp(source.updated_at) ? source.updated_at : '';
+  // PostgREST rows use snake_case; GET /api/profile sends ProfileSnapshot
+  // camelCase JSON. Decode either so returning owners keep their details.
+  const updated = source.updated_at ?? source.updatedAt;
+  const updatedAt = isTimestamp(updated) ? updated : '';
   const snapshot: ProfileSnapshot = {
-    ownerName: line(source.owner_name),
-    ownerPhone: line(source.owner_phone, 32),
-    ownerEmail: line(source.owner_email, MAX_EMAIL).toLowerCase(),
+    ownerName: line(source.owner_name ?? source.ownerName),
+    ownerPhone: line(source.owner_phone ?? source.ownerPhone, 32),
+    ownerEmail: line(source.owner_email ?? source.ownerEmail, MAX_EMAIL).toLowerCase(),
     gstin: isValidGstin(source.gstin) ? String(source.gstin).trim().toUpperCase() : '',
-    businessName: line(source.business_name),
+    businessName: line(source.business_name ?? source.businessName),
     description: paragraph(source.description),
-    templateId: line(source.template_id, 60),
+    templateId: line(source.template_id ?? source.templateId, 60),
     currency: line(source.currency, 8) || 'INR',
     timezone: line(source.timezone, 40) || 'Asia/Kolkata',
-    upiId: normalizeUpiId(String(source.upi_id ?? '')),
+    upiId: normalizeUpiId(String(source.upi_id ?? source.upiId ?? '')),
     bank: bankFrom(source.bank ?? {}),
     updatedAt,
     setupComplete: false,
