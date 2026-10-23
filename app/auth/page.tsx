@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { ShieldCheck } from 'lucide-react';
+import { BarChart3, Boxes, Receipt } from 'lucide-react';
 import AuthForm from '@/components/auth/auth-form';
 import { BrandWordmark } from '@/components/ui/BrandLogo';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
@@ -102,42 +102,39 @@ export default async function AuthPage({
     : null;
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-      <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
-      {/* Appearance and language are offered before sign-in, not only inside
-          the console: the first thing a new owner sees should already be
-          readable on their own screen and in their own script. */}
-      <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6">
+    <div className="auth-page relative min-h-screen">
+      {/* These controls stay available before sign-in. */}
+      <div className="auth-tools flex flex-wrap items-center justify-end gap-2">
         <AppearanceMenu />
         <LanguagePicker />
       </div>
 
-      <div className="animate-fade-up relative w-full max-w-md">
-        <div className="mb-6 flex flex-col items-center text-center">
-          <BrandWordmark width={190} priority className="h-auto w-[190px]" />
-          <h1 className="mt-2 font-display text-2xl font-bold text-stone-900">Business access</h1>
-          <p className="mt-1.5 text-sm text-stone-600">Sign in to manage your store, sales, and insights.</p>
+      <div className="auth-layout animate-fade-up">
+        <div className="auth-intro">
+          <BrandWordmark width={220} priority className="auth-wordmark h-auto w-[220px]" />
+          <h1 className="font-display font-bold tracking-tight text-stone-900">Business access</h1>
+          <p className="mt-4 max-w-sm text-base leading-relaxed text-stone-600">Sign in to manage your store, sales, and insights.</p>
+          <div className="auth-features" aria-hidden="true">
+            <span><Receipt size={18} />Billing</span>
+            <span><Boxes size={18} />Inventory</span>
+            <span><BarChart3 size={18} />Reports</span>
+          </div>
         </div>
 
-        <AuthForm
-          supabaseReady={isSupabaseConfigured()}
-          requested={requested}
-          accountSetupComplete={accountSetupComplete}
-          notice={notice}
-          identity={identity}
-        />
-
-        <div className="mt-6 flex items-center justify-center gap-2 text-xs text-stone-600">
-          <ShieldCheck size={13} className="text-emerald-500" />
-          <span>Locked-down CSP, nosniff &amp; strict referrer policy · records encrypted on your device</span>
+        <div className="auth-panel min-w-0">
+          <AuthForm
+            supabaseReady={isSupabaseConfigured()}
+            requested={requested}
+            accountSetupComplete={accountSetupComplete}
+            notice={notice}
+            identity={identity}
+          />
+          <p className="mt-6 text-center text-xs">
+            <Link href="/" className="inline-flex min-h-11 items-center rounded-lg px-3 text-stone-600 transition hover:text-stone-900">
+              ← Back to home
+            </Link>
+          </p>
         </div>
-
-        <p className="mt-4 text-center text-xs">
-          <Link href="/" className="text-stone-600 transition hover:text-stone-700">
-            ← Back to home
-          </Link>
-        </p>
       </div>
     </div>
   );

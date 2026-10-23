@@ -5,6 +5,9 @@ on:
     paths:
       - .github/workflows/refresh-catalogues.yml
       - supabase/schema.sql
+      - app/auth/page.tsx
+      - components/security/**
+      - lib/security/posture.ts
   workflow_dispatch:
 
   # Runs on review branches only. Never commit generated translations to main.
@@ -65,3 +68,4 @@ jobs:
             git commit -m "fix(i18n): regenerate and validate complete locale catalogues"
             git push origin "HEAD:${GITHUB_REF#refs/heads/}"
           fi
+
