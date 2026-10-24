@@ -13,6 +13,7 @@ import { useSyncExternalStore } from 'react';
 import { ChevronRight, Command, Lock, Menu, Search, WifiOff, X } from 'lucide-react';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
+import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { useCounterLock } from '@/components/security/counter-lock';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
 
@@ -64,8 +65,8 @@ export function Topbar({
     <header className="console-topbar mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
       <div className="flex items-center gap-2 px-3 py-2.5 sm:gap-3 sm:px-4 lg:px-8">
         <div className="flex min-w-0 flex-1 items-center gap-2 lg:hidden">
-          <Link href="/home" aria-label="DukaanOS home" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
-            <BrandIcon size={36} className="h-9 w-9 rounded-xl shadow-glow-sm" />
+          <Link href="/home" aria-label="Sornio home" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl">
+            <BrandIcon size={36} className="h-9 w-9 rounded-xl shadow-card" />
           </Link>
           <div className="min-w-0 flex-1 leading-tight">
             <p className="truncate text-[10px] font-semibold uppercase tracking-[0.12em] text-portal">{portal.name}</p>
@@ -86,7 +87,7 @@ export function Topbar({
 
         <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm lg:flex">
           <Link href="/home" className="inline-flex shrink-0 items-center gap-1.5 text-stone-600 transition hover:text-stone-900">
-            <span className="font-semibold">DukaanOS</span>
+            <span className="font-semibold">Sornio</span>
             <span className="rounded-full bg-portal/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-portal ring-1 ring-inset ring-portal/20">
               {portal.name}
             </span>
@@ -96,6 +97,7 @@ export function Topbar({
         </nav>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
+          <AppearanceMenu className="hidden sm:block" />
           {!online ? (
             <span
               className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/25 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5 sm:text-[11px] sm:font-bold"
