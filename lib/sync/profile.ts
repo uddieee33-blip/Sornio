@@ -20,9 +20,9 @@
  *   • nothing here can decide to write anything. Reading a row and building a
  *     snapshot are the only things it does.
  *
- * What is stored, and what is never stored: the UPI id and the bank *display*
- * details (holder name, bank, account number, IFSC) — the four things the
- * collection QR and a printed receipt are made from. Never a UPI PIN, an OTP, a
+ * What is stored, and what is never stored: the collection UPI id and sensitive
+ * bank details (holder name, bank, account number, IFSC). A collection QR needs
+ * only the UPI id and payee name. Never a UPI PIN, an OTP, a
  * card number or a password, because the app does not hold those anywhere and
  * this table is not where it would start.
  */
@@ -303,9 +303,9 @@ export function snapshotFromRow(row: unknown): ProfileSnapshot | null {
  * Postgres. It is an allow-list, not a sanitizer: a key that is not one of the
  * eleven below is dropped, so a client cannot add a column's worth of junk, and
  * every value is length-capped and control-character-stripped on the way
- * through. An invalid UPI id or IFSC is emptied rather than refused — a
- * half-filled profile is worth remembering, and refusing the whole save because
- * one optional field was mistyped is how an owner loses the other ten.
+ * through. Payment details are optional, but supplied values must validate.
+ * Validate the raw destination before the tolerant legacy row decoder runs:
+ * silently dropping or truncating it could save a different payment address.
  */
 export function parseProfilePayload(
   input: unknown,
@@ -316,6 +316,23 @@ export function parseProfilePayload(
   }
   const body = input as Record<string, unknown>;
   const upiId = normalizeUpiId(String(body.upiId ?? ''));
+  if (body.bank != null && (typeof body.bank !== 'object' || Array.isArray(body.bank))) {
+    return { ok: false, error: 'Expected bank details to be an object.' };
+  }
+  const rawBank = (body.bank ?? {}) as Record<string, unknown>;
+  const bankUpi = normalizeUpiId(String(rawBank.upiId ?? ''));
+  if ((upiId && (!isValidUpiId(upiId) || upiId.length > 60)) || (bankUpi && (!isValidUpiId(bankUpi) || bankUpi.length > 60))) {
+    return { ok: false, error: 'Enter a valid UPI ID, or leave it blank and activate payments later.' };
+  }
+  if (upiId && bankUpi && upiId !== bankUpi) {
+    return { ok: false, error: 'The collection UPI IDs must match.' };
+  }
+  const accountNumber = String(rawBank.accountNumber ?? '').replace(/\s/g, '');
+  const ifsc = String(rawBank.ifsc ?? '').trim().toUpperCase();
+  if (accountNumber && !/^\d{6,20}$/.test(accountNumber)) return { ok: false, error: 'Account numbers have 6–20 digits.' };
+  if ((ifsc || accountNumber) && !isValidIfsc(ifsc)) return { ok: false, error: 'Enter a valid IFSC code (e.g. HDFC0001234).' };
+  if (accountNumber && !line(rawBank.accountHolder)) return { ok: false, error: 'Enter the account holder name as shown by your bank.' };
+  const collectionUpi = upiId || bankUpi;
   const snapshot: ProfileSnapshot = {
     ownerName: line(body.ownerName),
     ownerPhone: line(body.ownerPhone, 32),
@@ -326,8 +343,8 @@ export function parseProfilePayload(
     templateId: line(body.templateId, 60),
     currency: line(body.currency, 8) || 'INR',
     timezone: line(body.timezone, 40) || 'Asia/Kolkata',
-    upiId: isValidUpiId(upiId) ? upiId : '',
-    bank: bankFrom(body.bank ?? {}),
+    upiId: collectionUpi,
+    bank: { ...bankFrom(rawBank), ...(collectionUpi ? { upiId: collectionUpi } : {}) },
     // A timestamp the client did not send, or one it invented, falls back to
     // now: the merge needs a real one and `'9999'` is not.
     updatedAt: isTimestamp(body.updatedAt) ? body.updatedAt : new Date().toISOString(),
