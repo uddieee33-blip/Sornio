@@ -23,7 +23,7 @@ const inputClass = 'rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 t
 export default function SalesPage() {
   useLocaleRefresh();
   const { state, actions } = useDukaanStore();
-  const { portal } = usePortal();
+  const { portal, allows } = usePortal();
   const sellableProducts = state.products.filter((product) => product.status === 'Active');
   // The counter scanner is part of this trade's desk — a gym's enrolment desk
   // never grows one (see the portal blueprint's `capture`).
@@ -119,7 +119,7 @@ export default function SalesPage() {
 
   return (
     <div className="p-4 sm:p-6 md:p-8">
-      <PageHeader eyebrow="Operations" title="Sales" subtitle="Record multi-line sales. Revenue, cash, and inventory update everywhere automatically." />
+      <PageHeader eyebrow="Sales & bills" title="Counter sales" subtitle="Record a paid sale and update stock together. For a bill before payment, choose New bill." actions={allows('/billing') ? <Link href="/billing/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-stone-200 px-4 text-sm font-semibold text-stone-700"><Plus size={16} />New bill</Link> : null} />
 
       <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
         <div className="space-y-6">

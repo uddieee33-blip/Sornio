@@ -1,114 +1,44 @@
 'use client';
 
-import { useCallback, useLayoutEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Lock } from 'lucide-react';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { usePortal } from '@/lib/portals/portal-provider';
-import { PORTAL_ICONS } from '@/lib/portals/icons';
+import { ArrowDownToLine, Store } from 'lucide-react';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { AccountRow } from '@/components/layout/account-menu';
 import { NavigationSections } from '@/components/layout/navigation-sections';
 import type { RenderedIdentity } from '@/lib/auth/identity';
 import { useDukaanStore } from '@/lib/store';
 
-/**
- * Primary navigation.
- *
- * There is no static menu list any more: the sections come from the portal
- * blueprint for the loaded business type, in that trade's own words. A gym sees
- * "Plans & Members" and "Renewals" where a kirana sees "Items" and "Udhaar
- * Khata", and neither is shown a module the other needs.
- *
- * The footer reports the *real* business currently loaded and how its data is
- * held on this device — no placeholder text.
- */
-/**
- * The active-item indicator.
- *
- * One element that *moves* between items rather than a background that
- * disappears here and appears there. The difference matters on a sidebar with
- * twenty-seven entries: a bar that slides tells the eye where it went, so the
- * owner keeps their place in the list. A bar that blinks makes them re-read it.
- *
- * It is measured from the DOM in a layout effect — before paint, so there is
- * never a frame of the indicator at the wrong height — and driven entirely by
- * `transform`, which keeps it on the compositor. When nothing is active (a
- * route outside the menu) it fades out in place instead of jumping to zero.
- */
-function useActiveIndicator(pathname: string | null, nav: unknown, layoutRevision: number) {
-  const navRef = useRef<HTMLElement>(null);
-  const [box, setBox] = useState<{ top: number; height: number } | null>(null);
-
-  useLayoutEffect(() => {
-    const container = navRef.current;
-    if (!container) return;
-    const active = container.querySelector('[data-nav-active="true"]') as HTMLElement | null;
-    if (!active) {
-      setBox(null);
-      return;
-    }
-    setBox({ top: active.offsetTop, height: active.offsetHeight });
-  }, [pathname, nav, layoutRevision]);
-
-  return { navRef, box };
-}
-
+/** A stable admin frame over the business portal's already-granted tools. */
 export function Sidebar({ identity = null }: { identity?: RenderedIdentity | null }) {
   const pathname = usePathname();
-  const [layoutRevision, setLayoutRevision] = useState(0);
-  const { state, hydrated, persistence } = useDukaanStore();
+  const { state } = useDukaanStore();
   const { portal, nav, revealAll } = usePortal();
-  const onNavigationLayoutChange = useCallback(() => setLayoutRevision((revision) => revision + 1), []);
-  const { navRef, box } = useActiveIndicator(pathname, nav, layoutRevision);
 
   const businessName = state.profile.name?.trim() || 'My Business';
-  const statusLine = !hydrated
-    ? 'Loading…'
-    : state.demoMode
-      ? 'Sample business · separate from your records'
-      : persistence.mode === 'encrypted'
-        ? 'Encrypted on this device'
-        : 'Stored on this device';
-
-  const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
-
   return (
-    <aside className="console-sidebar portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel lg:flex lg:flex-col">
-      <div className="flex items-center gap-3 px-6 py-6">
-        <BrandIcon size={44} className="h-11 w-11 shrink-0 rounded-2xl shadow-card" />
+    <aside className="console-sidebar portal-transition sticky top-0 hidden h-dvh w-60 shrink-0 flex-col border-r border-stone-200 lg:flex">
+      <Link href="/home" aria-label="Sornio home" className="flex h-16 shrink-0 items-center gap-2.5 px-5">
+        <BrandIcon size={34} className="h-[34px] w-[34px] shrink-0 rounded-lg" />
         <div className="min-w-0">
-          <p className="font-display text-base font-bold tracking-tight text-stone-900">Sornio</p>
-          <p className="truncate text-[11px] font-medium uppercase tracking-[0.18em] text-portal">{portal.name}</p>
+          <p className="text-lg font-semibold tracking-tight text-stone-900">Sornio</p>
         </div>
-      </div>
+      </Link>
 
       {/* Which console am I in, and why does it look like this? */}
-      <div className="mx-4 mb-4 flex items-start gap-3 rounded-xl bg-stone-50 p-3.5 ring-1 ring-inset ring-stone-200">
-        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-700">
-          <PortalIcon size={17} strokeWidth={2.2} />
+      <div className="mx-3 mb-5 flex items-center gap-2.5 rounded-lg border border-stone-200 bg-panel p-3">
+        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-stone-100 text-stone-700">
+          <Store size={16} strokeWidth={1.8} />
         </span>
         <div className="min-w-0">
-          <p className="truncate text-sm font-bold text-stone-900">{businessName}</p>
-          <p className="truncate text-[11px] leading-snug text-stone-600">{portal.tagline}</p>
+          <p className="truncate text-xs font-semibold text-stone-900">{businessName}</p>
+          <p className="mt-1 truncate text-[11px] text-stone-500">{portal.name}</p>
         </div>
       </div>
 
-      <nav ref={navRef} aria-label="Main navigation" className="relative flex-1 overflow-y-auto px-4 pb-6">
-        {/* The travelling indicator. `aria-hidden` because the current page is
-            already announced by `aria-current` on the link itself — this is
-            the visual half of the same fact, not a second one. */}
-        <span
-          aria-hidden
-          className="nav-indicator pointer-events-none absolute left-4 w-[3px] rounded-r-full bg-portal"
-          style={{
-            opacity: box ? 1 : 0,
-            height: box ? `${box.height - 20}px` : 0,
-            transform: `translateY(${(box?.top ?? 0) + 10}px)`,
-            top: 0,
-          }}
-        />
+      <nav aria-label="Main navigation" className="relative min-h-0 flex-1 overflow-y-auto px-3 pb-4">
         <NavigationSections
           key={portal.id}
           sections={nav}
@@ -116,12 +46,11 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
           variant="sidebar"
           idPrefix="sidebar-navigation"
           revealAll={revealAll}
-          onLayoutChange={onNavigationLayoutChange}
         />
       </nav>
 
-      <div className="space-y-2 border-t border-stone-200 p-4">
-        <Link href="/install" className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-stone-700 hover:bg-stone-100">Install app</Link>
+      <div className="shrink-0 space-y-1 border-t border-stone-200 p-3">
+        <Link href="/install" className="flex min-h-11 items-center gap-3 rounded-lg px-3 text-xs font-medium text-stone-700 hover:bg-panel"><ArrowDownToLine size={16} aria-hidden="true" />Install app</Link>
         {/* Appearance lives in the menu, not in Settings: repainting the
             console is a thing an owner does in the middle of a shift, from
             wherever they happen to be standing. */}
@@ -131,17 +60,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
             anything in this tab's storage. */}
         <AccountRow identity={identity} />
 
-        <Link
-          href="/security"
-          className="block rounded-xl bg-stone-50 p-3 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100"
-          title="Open the Trust Centre"
-        >
-          <p className="flex items-center gap-1.5 truncate text-xs font-semibold text-stone-900">
-            <Lock size={11} className={`shrink-0 ${hydrated && persistence.mode === 'encrypted' && !state.demoMode ? 'text-emerald-700' : 'text-stone-500'}`} />
-            {businessName}
-          </p>
-          <p className="mt-0.5 truncate text-[11px] text-stone-600">{statusLine}</p>
-        </Link>
+
       </div>
     </aside>
   );

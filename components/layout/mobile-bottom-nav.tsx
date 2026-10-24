@@ -2,26 +2,15 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Home, MoreHorizontal, Package, type LucideIcon } from 'lucide-react';
+import { Home, MoreHorizontal, type LucideIcon } from 'lucide-react';
+import { usePlan } from '@/components/billing/plan-provider';
+import { checkPlanAccess } from '@/lib/plans/routes';
+import { workspaceAreas, workspaceLinkMatches } from '@/lib/workspace';
 import { usePortal } from '@/lib/portals/portal-provider';
 
-const compactLabels: Record<string, string> = {
-  '/appointments': 'Bookings',
-  '/billing': 'Bills',
-  '/check-ins': 'Check in',
-  '/customers': 'People',
-  '/expenses': 'Expenses',
-  '/memberships': 'Plans',
-  '/payments': 'Pay',
-  '/products': 'Items',
-  '/sales': 'Sales',
-  '/scan': 'Scan',
-};
-
 /**
- * Thumb-first navigation for the console. The two quick actions come from the
- * active business portal, so a gym gets check-ins and renewals while a shop gets
- * scanning and sales. Everything else stays one tap away under More.
+ * Thumb-first navigation for the console. The quick destinations follow the same work
+ * areas as desktop and include only tools granted to this business.
  */
 export function MobileBottomNav({
   menuOpen,
@@ -31,22 +20,21 @@ export function MobileBottomNav({
   onOpenMenu: () => void;
 }) {
   const pathname = usePathname();
-  const { portal, nav } = usePortal();
+  const { nav } = usePortal();
+  const { entitlement } = usePlan();
   const links = nav.flatMap((section) => section.links);
   const homeIcon = links.find((link) => link.href === '/home')?.icon ?? Home;
-  const actions = portal.cockpit.actions
-    .filter((action) => action.href !== '/home')
-    .filter((action, index, all) => all.findIndex((item) => item.href === action.href) === index)
-    .slice(0, 2)
-    .map((action) => ({
-      ...action,
-      icon: links.find((link) => link.href === action.href)?.icon ?? Package,
-      shortLabel: compactLabels[action.href] ?? action.label,
-    }));
-  const quickRoutes = new Set(actions.map((action) => action.href));
+  const areas = workspaceAreas(nav);
+  const homeActive = areas.find(area => area.id === 'home')?.links.some(link => workspaceLinkMatches(link.href, pathname)) ?? pathname === '/home';
+  const actions = areas
+    .filter(area => !['home', 'reports', 'settings'].includes(area.id))
+    .flatMap(area => {
+      const link = area.links.find(item => checkPlanAccess(entitlement, item.href).allowed);
+      return link ? [{ ...link, routes: area.links.map(item => item.href), shortLabel: area.label }] : [];
+    }).slice(0, 2);
   // Home + portal actions + More: do not leave empty tabs for portals with fewer actions.
   const columnsClass = actions.length === 2 ? 'grid-cols-4' : actions.length === 1 ? 'grid-cols-3' : 'grid-cols-2';
-  const moreActive = menuOpen || (pathname !== '/home' && !quickRoutes.has(pathname));
+  const moreActive = menuOpen || (!homeActive && !actions.some(action => action.routes.some(href => workspaceLinkMatches(href, pathname))));
 
   return (
     <nav
@@ -59,8 +47,8 @@ export function MobileBottomNav({
           href="/home"
           label="Home"
           icon={homeIcon}
-          active={pathname === '/home'}
-          ariaCurrent={pathname === '/home' ? 'page' : undefined}
+          active={homeActive}
+          ariaCurrent={homeActive ? 'page' : undefined}
         />
         {actions.map((action) => (
           <NavItem
@@ -69,8 +57,8 @@ export function MobileBottomNav({
             label={action.shortLabel}
             title={action.label}
             icon={action.icon}
-            active={pathname === action.href}
-            ariaCurrent={pathname === action.href ? 'page' : undefined}
+            active={action.routes.some(href => workspaceLinkMatches(href, pathname))}
+            ariaCurrent={action.routes.some(href => workspaceLinkMatches(href, pathname)) ? 'page' : undefined}
           />
         ))}
         <button

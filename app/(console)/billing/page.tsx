@@ -4,13 +4,13 @@ import { getActiveFormattingLocale } from '@/lib/locale';
 
 import { useLocaleRefresh } from '@/lib/i18n';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowRight, BadgeIndianRupee, CreditCard, HandCoins, Plus, Printer, Receipt, Search } from 'lucide-react';
+import { HandCoins, Plus, Printer, Receipt, Search } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { Card, CardTitle } from '@/components/ui/Card';
+import { Card } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
-import { InvoiceComposer } from '@/components/billing/invoice-composer';
 import { CollectPaymentModal } from '@/components/payments/collect-payment';
 import { formatInvoiceAmount as formatCurrency, invoiceBalance } from '@/lib/invoices';
 import { useDukaanStore } from '@/lib/store';
@@ -22,31 +22,41 @@ function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-export default function BillingPage() {
+function BillingWorkspace() {
+  const params = useSearchParams();
   useLocaleRefresh();
   const { state } = useDukaanStore();
-  const [selectedId, setSelectedId] = useState(state.invoices.at(-1)?.id);
+  const [selectedId, setSelectedId] = useState<string | undefined>(undefined);
   const [query, setQuery] = useState('');
+  const [status, setStatus] = useState<'all' | 'unpaid' | 'paid'>('all');
+  const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [collectingId, setCollectingId] = useState<string | null>(null);
 
-  const selected = state.invoices.find((invoice) => invoice.id === selectedId) ?? state.invoices.at(-1);
+  const selected = state.invoices.find((invoice) => invoice.id === (selectedId ?? params.get('invoice')));
 
   const selectedDue = selected ? invoiceBalance(selected, state.paymentRecords) : 0;
   const search = query.trim().toLocaleLowerCase();
   const searchPhone = query.replace(/\D/g, '');
-  const invoices = [...state.invoices].reverse().filter((invoice) => !search ||
+  const matchingInvoices = [...state.invoices].filter((invoice) => !search ||
     `${invoice.id} ${invoice.customerName} ${invoice.customerPhone ?? ''}`.toLocaleLowerCase().includes(search) ||
     (searchPhone.length > 0 && /^[+\d\s()-]+$/.test(query) && invoice.customerPhone?.replace(/\D/g, '').includes(searchPhone)));
+  const invoices = matchingInvoices.filter(invoice => status === 'all' || (status === 'unpaid' ? invoiceBalance(invoice, state.paymentRecords) > 0 : invoiceBalance(invoice, state.paymentRecords) <= 0))
+    .sort((a, b) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) * (sort === 'newest' ? 1 : -1));
+  const tabs = [
+    { id: 'all', label: 'All bills', count: matchingInvoices.length },
+    { id: 'unpaid', label: 'Unpaid', count: matchingInvoices.filter(invoice => invoiceBalance(invoice, state.paymentRecords) > 0).length },
+    { id: 'paid', label: 'Paid', count: matchingInvoices.filter(invoice => invoiceBalance(invoice, state.paymentRecords) <= 0).length },
+  ] as const;
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <PageHeader
-        eyebrow="Billing"
-        title="Customer bills"
-        subtitle="Create a bill, collect the balance, and print the receipt."
+        eyebrow="Sales"
+        title="Bills & receipts"
+        subtitle="Find a saved bill, check its balance, collect payment or print a receipt."
         actions={
-          <a href="#new-invoice" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow-sm"><Plus size={15} /> New invoice</a>
+          <Link href="/billing/new" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow-sm"><Plus size={15} /> New bill</Link>
         }
       />
 
@@ -54,13 +64,8 @@ export default function BillingPage() {
         <p role={message.tone === 'error' ? 'alert' : 'status'} className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
       ) : null}
 
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+      <div className="space-y-6">
         <div className="min-w-0 space-y-6">
-          <InvoiceComposer onCreated={(invoiceId, customerName) => {
-            setSelectedId(invoiceId);
-            setMessage({ tone: 'ok', text: `Invoice created for ${customerName} — mark it paid when the money lands.` });
-            requestAnimationFrame(() => document.getElementById('invoice-preview')?.scrollIntoView({ block: 'start' }));
-          }} />
           {selected ? (
             <Card className="print-area invoice-print-area animate-fade-up relative overflow-hidden">
               <div className="no-print pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
@@ -143,23 +148,26 @@ export default function BillingPage() {
             </Card>
           ) : null}
 
-          <Card className="animate-fade-up">
-            <div className="mb-5 flex items-center justify-between">
-              <CardTitle icon={<Receipt size={17} />}>All invoices</CardTitle>
-              <Badge tone="brand" dot>{state.invoices.length}</Badge>
+          <Card className="animate-fade-up overflow-hidden" padded={false}>
+            <div className="flex flex-wrap items-center gap-1 border-b border-stone-200 px-4 py-2" role="group" aria-label="Filter bills by payment status">
+              {tabs.map(tab => <button key={tab.id} type="button" aria-pressed={status === tab.id} onClick={() => setStatus(tab.id)} className={`inline-flex min-h-11 items-center gap-2 rounded-lg px-3 text-xs ${status === tab.id ? 'bg-stone-100 font-semibold text-stone-900' : 'font-medium text-stone-600 hover:bg-stone-50'}`}>{tab.label}<span className="rounded bg-stone-100 px-1.5 py-0.5 text-[10px] tabular-nums">{tab.count}</span></button>)}
             </div>
-            <label className="mb-4 block">
-              <span className="mb-2 block text-xs font-semibold text-stone-700">Find a bill</span>
+            <div className="flex flex-col gap-3 border-b border-stone-200 p-4 sm:flex-row sm:items-end">
+            <label className="block flex-1">
+              <span className="sr-only">Find a bill</span>
               <span className="relative block"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
                 <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Invoice number, customer or phone" className={`${inputClass} pl-10`} />
               </span>
             </label>
+            <label className="block sm:w-40"><span className="sr-only">Sort bills</span><select value={sort} onChange={event => setSort(event.target.value as 'newest' | 'oldest')} className={inputClass}><option value="newest">Newest first</option><option value="oldest">Oldest first</option></select></label>
+            </div>
             {invoices.length > 0 ? (
-            <div className="overflow-x-auto rounded-2xl border border-stone-200">
+            <div className="overflow-x-auto">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
                   <tr>
                     <th className="px-4 py-3 font-semibold">Invoice</th>
+                    <th className="px-4 py-3 font-semibold">Date</th>
                     <th className="px-4 py-3 font-semibold">Customer</th>
                     <th className="px-4 py-3 font-semibold">Amount</th>
                     <th className="px-4 py-3 font-semibold">Status</th>
@@ -170,8 +178,9 @@ export default function BillingPage() {
                   {invoices.map((invoice) => (
                     <tr key={invoice.id} className={`border-t border-stone-200 transition ${invoice.id === selected?.id ? 'bg-brand-500/[0.07]' : 'hover:bg-stone-50'}`}>
                       <td className="px-4 py-3">
-                        <button onClick={() => setSelectedId(invoice.id)} className="font-semibold text-brand-600 underline-offset-2 hover:underline">{invoice.id}</button>
+                        <button onClick={() => { setSelectedId(invoice.id); requestAnimationFrame(() => document.getElementById('invoice-preview')?.scrollIntoView({ block: 'start' })); }} className="font-semibold text-brand-600 underline-offset-2 hover:underline">{invoice.id}</button>
                       </td>
+                      <td className="whitespace-nowrap px-4 py-3 text-xs text-stone-600">{formatDate(invoice.createdAt)}</td>
                       <td className="px-4 py-3 text-stone-700">{invoice.customerName}</td>
                       <td className="px-4 py-3 font-semibold text-stone-900 tabular-nums">{formatCurrency(invoice.totalAmount)}
                         {invoice.paymentStatus !== 'paid' ? <p className="mt-1 text-xs font-normal text-stone-600">Due: {formatCurrency(invoiceBalance(invoice, state.paymentRecords))}</p> : null}
@@ -189,51 +198,13 @@ export default function BillingPage() {
                 </tbody>
               </table>
             </div>
-            ) : <p className="rounded-2xl bg-stone-50 px-4 py-6 text-center text-sm leading-relaxed text-stone-600">{search ? 'No matching bills. Try another name, phone number or invoice number.' : 'Create your first bill above. It stays unpaid until you confirm receipt.'}</p>}
+            ) : <div className="px-6 py-12 text-center"><Receipt size={28} strokeWidth={1.5} className="mx-auto text-stone-400" aria-hidden="true" /><h2 className="mt-4 text-sm font-semibold text-stone-900">{search || status !== 'all' ? 'No matching bills' : 'Your bills will appear here'}</h2><p className="mx-auto mt-2 max-w-sm text-sm leading-relaxed text-stone-600">{search || status !== 'all' ? 'Try another search or payment status.' : 'Create a bill, then track its balance and collect payment when the money arrives.'}</p>{!search && status === 'all' ? <Link href="/billing/new" className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg border border-stone-200 px-4 text-xs font-semibold text-stone-800"><Plus size={14} aria-hidden="true" />Create a bill</Link> : <button type="button" onClick={() => { setQuery(''); setStatus('all'); }} className="mt-4 min-h-11 px-3 text-xs font-semibold text-brand-600">Clear filters</button>}</div>}
           </Card>
 
 
         </div>
 
-        <div className="min-w-0 space-y-6">
-          <Card className="animate-fade-up h-fit">
-            <div className="mb-5 flex items-center justify-between">
-              <CardTitle icon={<CreditCard size={17} />}>Payment activity</CardTitle>
-            </div>
-            <div className="space-y-3">
-              {[...state.paymentRecords].reverse().slice(0, 8).map((record) => (
-                <div key={record.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 transition hover:border-brand-400/30 hover:bg-stone-100">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="min-w-0 break-words font-semibold text-stone-800">{record.customerName}</p>
-                    <Badge tone={statusTone[record.status] ?? 'slate'} dot>{record.status}</Badge>
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between text-xs text-stone-600">
-                    <span>{record.paymentMethod} · {record.gateway}</span>
-                    <span className="font-bold text-stone-900 tabular-nums">{formatCurrency(record.amount)}</span>
-                  </div>
-                </div>
-              ))}
-              {state.paymentRecords.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No payments recorded yet.</p> : null}
-            </div>
-          </Card>
 
-          <Card className="animate-fade-up h-fit">
-            <div className="mb-5"><CardTitle icon={<Receipt size={17} />}>How billing works</CardTitle></div>
-            <div className="space-y-3">
-              {[
-                { name: 'Create the bill', details: 'A new bill starts unpaid. Check the total before you save it.' },
-                { name: 'Collect payment', details: 'Confirm only after cash is counted or the transfer reaches your account.' },
-                { name: 'Print the receipt', details: 'Open a bill and choose Print bill.' },
-              ].map((mode) => (
-                <div key={mode.name} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
-                  <p className="text-sm font-semibold text-stone-800">{mode.name}</p>
-                  <p className="mt-1 text-xs text-stone-600">{mode.details}</p>
-                </div>
-              ))}
-            </div>
-            <Link href="/subscription" className="mt-4 inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-brand-600"><BadgeIndianRupee size={15} /> Your Sornio plan <ArrowRight size={14} /></Link>
-          </Card>
-        </div>
       </div>
 
       {collectingId ? (
@@ -249,3 +220,7 @@ export default function BillingPage() {
   );
 }
 
+
+export default function BillingPage() {
+  return <Suspense fallback={<p className="p-6 text-sm text-stone-600">Loading bills…</p>}><BillingWorkspace /></Suspense>;
+}

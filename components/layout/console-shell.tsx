@@ -52,7 +52,7 @@ function ConsoleFrame({ children, identity }: { children: ReactNode; identity: R
 
   return (
     <div
-      className="portal-transition relative flex min-h-screen flex-col lg:flex-row"
+      className="console-workspace portal-transition relative flex min-h-screen flex-col lg:flex-row"
       style={accentStyle}
       data-portal={portal.id}
     >
