@@ -96,7 +96,7 @@ export default function BusinessPage() {
       <PageHeader
         eyebrow="Business Setup"
         title="Build your business profile"
-        subtitle="DukaanOS adapts to your business type with the right modules, billing logic, customer flow, and receipt system."
+        subtitle="Sornio adapts to your business type with the right modules, billing logic, customer flow, and receipt system."
         actions={profile.templateId ? <Badge tone="violet" dot>{businessTemplates.find((t) => t.id === profile.templateId)?.name ?? 'Custom'}</Badge> : undefined}
       />
 

@@ -4,16 +4,16 @@
  * A counter that scans needs three things from the software, in this order:
  *
  *   1. **Refuse a bad read.** A scanner aimed at a torn label emits garbage.
- *      Every retail code carries a check digit, so DukaanOS validates it before
+ *      Every retail code carries a check digit, so Sornio validates it before
  *      the code is allowed to touch the catalogue — a misread packet never
  *      silently becomes a wrong bill.
  *   2. **Name what it read.** `EAN-13`, `UPC-A`, `ITF-14` (the case code on a
- *      carton), a Code 128 supplier label, or one of DukaanOS's own in-store
+ *      carton), a Code 128 supplier label, or one of Sornio's own in-store
  *      labels. Owners recognise the difference and it changes what the code is
  *      allowed to do.
  *   3. **Handle the shop's reality.** Big shops scan manufacturer GTINs; small
  *      shops sell loose atta, dal and sugar that will never have one. So
- *      DukaanOS prints its own: an **internal label** for anything (Code 128)
+ *      Sornio prints its own: an **internal label** for anything (Code 128)
  *      and an **in-store EAN-13** (the `2…` range that GS1 reserves for exactly
  *      this) which can carry the weight or the price of a loose item, the way a
  *      counter scale does.
@@ -26,7 +26,7 @@ import type { BarcodeSymbology } from './types';
 /** Nothing longer than this is a label; it is a haystack, or a stuck key. */
 export const CODE_MAX_LENGTH = 48;
 
-/** Prefix for codes DukaanOS minted itself (never issued by GS1). */
+/** Prefix for codes Sornio minted itself (never issued by GS1). */
 export const INTERNAL_PREFIX = 'DK';
 
 /** GS1 restricted-circulation range: `2…` codes exist only inside one shop. */
@@ -88,7 +88,7 @@ export function isValidGtin(code: string): boolean {
   return gtinCheckDigit(code.slice(0, -1)) === Number(code.slice(-1));
 }
 
-/** Luhn check digit, used for the codes DukaanOS mints (see `buildInternalCode`). */
+/** Luhn check digit, used for the codes Sornio mints (see `buildInternalCode`). */
 export function luhnCheckDigit(digits: string): number {
   let sum = 0;
   let double = true;
@@ -214,7 +214,7 @@ export type CodeProfile = {
 const KIND_NOTES: Record<CodeKind, string> = {
   retail: 'A standard retail GTIN — any scanner reads it, and it is the same code in every shop.',
   'in-store': 'An in-store label minted by this shop, carrying the weight or price of a loose item.',
-  internal: 'A DukaanOS label for an item you stock yourself — unlabelled goods, house brands, loose items.',
+  internal: 'A Sornio label for an item you stock yourself — unlabelled goods, house brands, loose items.',
   manufacturer: 'A supplier or manufacturer code, not a retail GTIN. Matched against the catalogue as-is.',
   unknown: 'This does not look like a standard barcode. Check the label, or add it as an internal code.',
 };

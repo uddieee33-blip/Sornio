@@ -48,7 +48,7 @@ export async function GET() {
     return json(
       {
         ok: false,
-        error: 'Cloud storage is not ready. Apply the DukaanOS reliability migration before syncing.',
+        error: 'Cloud storage is not ready. Apply the Sornio reliability migration before syncing.',
       },
       503,
     );

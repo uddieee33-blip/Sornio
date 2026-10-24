@@ -14,6 +14,7 @@ import {
   themeColorFor,
 } from '@/lib/theme/palettes';
 import './globals.css';
+import './sornio-landing.css';
 import { InstallProvider } from '@/components/pwa/install-provider';
 
 export const metadata: Metadata = {
@@ -25,7 +26,7 @@ export const metadata: Metadata = {
   description:
     'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.',
   applicationName: 'Sornio',
-  icons: { icon: '/brand/sornio-app-icon.svg', apple: '/brand/apple-touch-icon.png',
+  icons: { icon: '/brand/sornio-app-icon.svg?v=ribbon-1', apple: '/brand/apple-touch-icon.png',
   },
   formatDetection: { telephone: false, address: false, email: false },
   robots: { index: true, follow: true },

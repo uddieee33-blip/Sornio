@@ -16,7 +16,7 @@
  *      wedge and the keypad as the honest fallback);
  *   6. the device has no fingerprint sensor (named, with the USB-reader route).
  *
- * The test box is the heart of it: scan into it and DukaanOS tells you whether
+ * The test box is the heart of it: scan into it and Sornio tells you whether
  * the input came from a machine or a person, by measuring the gaps between
  * keystrokes. That is a real measurement of the real hardware in front of you,
  * not a compatibility list.
@@ -65,7 +65,7 @@ const BUYING_GUIDE: { tier: string; tone: 'emerald' | 'sky' | 'amber'; title: st
     tier: 'Buy this first',
     tone: 'emerald',
     title: 'A handheld USB or Bluetooth barcode scanner — roughly ₹700 to ₹3,000',
-    body: 'This is the one that matters. It plugs into any phone, tablet or Windows PC and types the code like a keyboard, so DukaanOS reads it with no app, no pairing and no camera permission. A wired USB scanner is the most reliable thing in a shop, and it is the only hardware this console needs to bill properly.',
+    body: 'This is the one that matters. It plugs into any phone, tablet or Windows PC and types the code like a keyboard, so Sornio reads it with no app, no pairing and no camera permission. A wired USB scanner is the most reliable thing in a shop, and it is the only hardware this console needs to bill properly.',
   },
   {
     tier: 'Already yours',
@@ -77,7 +77,7 @@ const BUYING_GUIDE: { tier: string; tone: 'emerald' | 'sky' | 'amber'; title: st
     tier: 'Only if you need it',
     tone: 'amber',
     title: 'A fingerprint reader — check the exact model before paying',
-    body: 'Built-in sensors (any modern phone, tablet, or a Windows Hello laptop) enrol immediately and are the recommended path for a gym desk. USB readers do exist and DukaanOS will attempt the plugged-in route — but whether a browser can reach a particular reader depends on the model and on the OS exposing it as an authenticator, and many cheap ones do not. Ask us about the model first rather than discovering it at the door.',
+    body: 'Built-in sensors (any modern phone, tablet, or a Windows Hello laptop) enrol immediately and are the recommended path for a gym desk. USB readers do exist and Sornio will attempt the plugged-in route — but whether a browser can reach a particular reader depends on the model and on the OS exposing it as an authenticator, and many cheap ones do not. Ask us about the model first rather than discovering it at the door.',
   },
 ];
 
@@ -192,7 +192,7 @@ export function DeviceCheck() {
         <Card className="animate-fade-up ring-2 ring-amber-400/40">
           <CardTitle icon={<ArrowUpRight size={16} />}>This page is inside another app’s frame</CardTitle>
           <p className="mt-3 text-sm leading-relaxed text-stone-700">
-            DukaanOS is being shown inside a preview panel or another app’s built-in browser. Those frames are not
+            Sornio is being shown inside a preview panel or another app’s built-in browser. Those frames are not
             allowed to use the camera or the fingerprint sensor unless the app that embedded them hands the permission
             over — and most do not. <strong>Nothing is wrong with your scanner.</strong> The handheld scanner and typed
             entry work here right now; the camera and the fingerprint pad will work as soon as this page has its own tab.
@@ -228,7 +228,7 @@ export function DeviceCheck() {
         </div>
 
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
-          Scan any packet — or type a code and press Enter. DukaanOS times every keystroke, so it can tell you whether
+          Scan any packet — or type a code and press Enter. Sornio times every keystroke, so it can tell you whether
           what arrived came from your scanner or from a person, and it reads the same code the counter would.
         </p>
 
@@ -369,7 +369,7 @@ export function DeviceCheck() {
         <p className="mt-4 flex items-start gap-2 text-[11px] leading-relaxed text-stone-500">
           <CheckCircle2 size={13} className="mt-0.5 shrink-0 text-emerald-600" />
           Nothing on this page uploads anything: the camera frame is decoded on the device, and the fingerprint is
-          matched inside the sensor — DukaanOS receives a credential id and nothing else.
+          matched inside the sensor — Sornio receives a credential id and nothing else.
         </p>
       </Card>
     </div>

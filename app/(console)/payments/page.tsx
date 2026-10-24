@@ -46,7 +46,7 @@ export default function PaymentsPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <p className="text-sm font-bold text-stone-900">Online collection setup</p>
-            <p className="mt-1 text-sm text-stone-600">{state.profile.upiId || state.profile.bank?.upiId ? 'UPI ID saved — review your details before accepting payments. Bank settlement is not verified by DukaanOS.' : 'Not connected — you can use billing and manual records without adding any bank details.'}</p>
+            <p className="mt-1 text-sm text-stone-600">{state.profile.upiId || state.profile.bank?.upiId ? 'UPI ID saved — review your details before accepting payments. Bank settlement is not verified by Sornio.' : 'Not connected — you can use billing and manual records without adding any bank details.'}</p>
           </div>
           <Badge tone={state.profile.upiId || state.profile.bank?.upiId ? 'amber' : 'brand'} dot>{state.profile.upiId || state.profile.bank?.upiId ? 'Verification not available' : 'Setup pending'}</Badge>
         </div>

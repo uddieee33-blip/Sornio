@@ -128,7 +128,7 @@ export function TrustCenter() {
   const exportBackup = useCallback(() => {
     try {
       const payload = {
-        product: 'DukaanOS',
+        product: 'Sornio',
         kind: 'business-backup',
         version: 1,
         exportedAt: new Date().toISOString(),
@@ -369,7 +369,7 @@ export function TrustCenter() {
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           No PINs, OTPs, card numbers, or bank passwords — the app has no field for them and no code path that could store
           them. Your UPI ID is used solely to draw your collection QR and is never sent to a payment gateway, because
-          DukaanOS is not one: customers pay you directly.
+          Sornio is not one: customers pay you directly.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           <strong className="font-semibold text-stone-700">No fingerprints either.</strong> The fingerprint pad at a
@@ -381,7 +381,7 @@ export function TrustCenter() {
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           Camera scanning is the same idea in the other direction: barcodes are decoded on the device by the browser
           itself, frames are never uploaded, and there is no server-side image pipeline to upload them to. On a browser
-          with no built-in decoder, DukaanOS says so and the counter keeps working on a hardware scanner or the keypad.
+          with no built-in decoder, Sornio says so and the counter keeps working on a hardware scanner or the keypad.
         </p>
         <p className="mt-3 text-sm leading-relaxed text-stone-600">
           Diagnostics are scrubbed before they leave a module — phone numbers, emails, UPI ids, tokens, and any 13–19 digit
@@ -391,4 +391,3 @@ export function TrustCenter() {
     </div>
   );
 }
-

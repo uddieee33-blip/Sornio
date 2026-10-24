@@ -169,6 +169,10 @@ function buildTheme(theme) {
   const { mode, neutral, brand, accent, surface } = theme;
   const contrast = theme.contrast === 1;
   const dark = mode === 'dark';
+  // Optional exact surfaces keep the approved brand palette reproducible.
+  const pageRgb = surface.rgb?.page ?? oklch(surface.page, dark ? neutral.chroma * 0.7 : neutral.chroma * 0.5, neutral.hue);
+  const cardRgb = surface.rgb?.card ?? oklch(surface.card, dark ? neutral.chroma * 0.6 : 0, neutral.hue);
+  const liftRgb = surface.rgb?.lift ?? oklch(surface.lift, dark ? neutral.chroma * 0.55 : 0, neutral.hue);
 
   const lines = [];
   const push = (k, v) => lines.push(`  ${k}: ${v};`);
@@ -183,14 +187,15 @@ function buildTheme(theme) {
   // `white` is the *card* colour. Anything that needs to stay white on a filled
   // accent (button labels, portal headers) reads `--c-onaccent` instead, which
   // globals.css wires to the handful of `text-white` utilities in the app.
-  push('--c-white', oklch(surface.card, dark ? neutral.chroma * 0.6 : 0, neutral.hue));
-  push('--c-page', oklch(surface.page, dark ? neutral.chroma * 0.7 : neutral.chroma * 0.5, neutral.hue));
-  push('--c-lift', oklch(surface.lift, dark ? neutral.chroma * 0.55 : 0, neutral.hue));
+  push('--c-white', cardRgb);
+  push('--c-page', pageRgb);
+  push('--c-lift', liftRgb);
   push('--c-onaccent', oklch(0.985, 0.004, neutral.hue));
   push('--c-black', oklch(dark ? 0.06 : 0.1, 0, neutral.hue));
 
   // --- brand ---------------------------------------------------------------
   const brandRamp = ramp(brand, mode, ACCENT_L, ACCENT_C, contrast);
+  if (brand.fill) brandRamp[500] = brand.fill;
   for (const step of STEPS) push(`--c-brand-${step}`, brandRamp[step]);
 
   // --- semantics -----------------------------------------------------------
@@ -217,15 +222,15 @@ function buildTheme(theme) {
   push('--c-selection-bg', `rgb(${brandRamp[dark ? 600 : 400]} / ${dark ? 0.32 : 0.3})`);
   push('--c-selection-fg', `rgb(${stone[dark ? 950 : 900]})`);
   push('--c-focus', `rgb(${brandRamp[dark ? 600 : 500]} / 0.85)`);
-  push('--c-ring-offset', `rgb(${oklch(surface.card, 0, neutral.hue)})`);
+  push('--c-ring-offset', `rgb(${cardRgb})`);
   push(
     '--c-glow-a',
-    `rgb(${oklch(dark ? 0.6 : 0.72, accent.chroma * 0.9, (accent.hue + 60) % 360)} / ${dark ? 0.1 : 0.12})`,
+    theme.quiet ? 'transparent' : `rgb(${oklch(dark ? 0.6 : 0.72, accent.chroma * 0.9, (accent.hue + 60) % 360)} / ${dark ? 0.1 : 0.12})`,
   );
-  push('--c-glow-b', `rgb(${oklch(dark ? 0.55 : 0.6, accent.chroma, accent.hue)} / ${dark ? 0.12 : 0.1})`);
+  push('--c-glow-b', theme.quiet ? 'transparent' : `rgb(${oklch(dark ? 0.55 : 0.6, accent.chroma, accent.hue)} / ${dark ? 0.12 : 0.1})`);
   push(
     '--c-brand-gradient',
-    `linear-gradient(135deg, rgb(${brandRamp[500]}) 0%, rgb(${oklch(
+    theme.quiet ? `linear-gradient(rgb(${brandRamp[500]}), rgb(${brandRamp[500]}))` : `linear-gradient(135deg, rgb(${brandRamp[500]}) 0%, rgb(${oklch(
       dark ? 0.555 : 0.56,
       brand.chroma * 0.95,
       brand.hue + 10,
@@ -246,9 +251,9 @@ function buildTheme(theme) {
     name: theme.name,
     tagline: theme.tagline,
     mode: theme.mode,
-    page: hex(oklch(surface.page, dark ? neutral.chroma * 0.7 : neutral.chroma * 0.5, neutral.hue)),
-    surface: hex(oklch(surface.card, dark ? neutral.chroma * 0.6 : 0, neutral.hue)),
-    accent: hex(oklch(dark ? 0.68 : 0.52, accent.chroma, accent.hue)),
+    page: hex(pageRgb),
+    surface: hex(cardRgb),
+    accent: hex(brand.fill ?? oklch(dark ? 0.68 : 0.52, accent.chroma, accent.hue)),
     ink: hex(stone[dark ? 900 : 900]),
     muted: hex(stone[dark ? 600 : 600]),
     line: hex(stone[200]),
@@ -293,8 +298,8 @@ const header = `/*
  * layout effect immediately afterwards.
  */
 const byId = (id) => built.find((entry) => entry.manifest.id === id);
-const systemLight = byId('daylight');
-const systemDark = byId('midnight');
+const systemLight = byId('monsoon');
+const systemDark = byId('graphite');
 
 const fallback = `/* "Match my device" — painted before any script runs. */
 html:not([data-theme]) {

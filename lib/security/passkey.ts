@@ -14,7 +14,7 @@
  * signed assertion. There is nothing to watch, nothing to type, nothing to
  * shoulder-surf.
  *
- * What DukaanOS stores, in full: **a credential id**. Not a fingerprint, not a
+ * What Sornio stores, in full: **a credential id**. Not a fingerprint, not a
  * template, not a hash of one, not a public key we could ever be compelled to
  * turn into a biometric. The same discipline the gym check-in kiosk already
  * follows (`lib/scanning/fingerprint.ts`) — because a shop that is breached
@@ -75,7 +75,7 @@ export function passkeySupport(): PasskeySupport {
   if (window.top !== window.self) {
     return {
       available: false,
-      reason: 'This page is inside a frame, and a passkey is bound to the page it was created on. Open DukaanOS in its own tab to enrol one.',
+      reason: 'This page is inside a frame, and a passkey is bound to the page it was created on. Open Sornio in its own tab to enrol one.',
     };
   }
   return { available: true };
@@ -210,7 +210,7 @@ export async function enrollPasskey(label: string): Promise<PasskeyResult<Passke
     const credential = (await navigator.credentials.create({
       publicKey: {
         challenge: randomChallenge(),
-        rp: { name: 'DukaanOS', id: window.location.hostname },
+        rp: { name: 'Sornio', id: window.location.hostname },
         user: {
           // Not a person. A per-install handle, so the credential is scoped to
           // this console rather than to an identity we do not have.
@@ -293,8 +293,8 @@ export function forgetPasskey(): void {
 function describe(error: unknown): string {
   const name = (error as { name?: string })?.name ?? '';
   if (name === 'NotAllowedError') return 'Cancelled, or the sensor did not match. Use the PIN instead.';
-  if (name === 'InvalidStateError') return 'This device already has a passkey for DukaanOS.';
-  if (name === 'NotSupportedError') return 'This device has no sensor DukaanOS can use. The PIN still works.';
+  if (name === 'InvalidStateError') return 'This device already has a passkey for Sornio.';
+  if (name === 'NotSupportedError') return 'This device has no sensor Sornio can use. The PIN still works.';
   if (name === 'SecurityError') return 'The browser refused — passkeys need HTTPS and an unframed page.';
   if (name === 'AbortError') return 'Timed out waiting for the sensor.';
   return 'The device could not complete that. The PIN still works.';

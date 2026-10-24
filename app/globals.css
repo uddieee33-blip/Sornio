@@ -40,31 +40,13 @@
  * palette tokens are therefore scoped to `:root:not([data-theme])`, which can
  * only match when no paint is on the element, so a chosen paint always wins.
  */
-:root:not([data-theme]) {
-  color-scheme: light;
-  --c-page: 247 246 243;
-  --c-white: 253 253 253;
-  --c-lift: 255 255 255;
-  --c-onaccent: 251 250 247;
-  --c-black: 3 3 3;
-  --c-shadow: 39 36 25;
-  --shadow-strength: 0.22;
-  --c-highlight: rgb(255 255 255 / 0.92);
-  --c-focus: rgb(57 113 73 / 0.85);
-  --c-selection-bg: rgb(198 145 48 / 0.28);
-  --c-selection-fg: rgb(51 38 15);
-  --c-scrollbar: rgb(85 84 79 / 0.24);
-  --c-glow-a: rgb(99 179 193 / 0.12);
-  --c-glow-b: rgb(86 144 100 / 0.1);
-  --c-brand-gradient: linear-gradient(135deg, rgb(57 113 73) 0%, rgb(67 132 100) 55%, rgb(9 126 154) 100%);
-}
+/* Palette fallbacks come from themes.css, including system dark mode. */
 
 :root {
   /* Structural defaults that no paint overrides. */
   /* Portal accent — overridden per business type by the PortalProvider.
      Space-separated RGB so Tailwind's alpha modifiers work against it. */
-  --portal-accent: 40 98 59;
-  --portal-accent-deep: 17 50 31;
+  /* Portal defaults also come from the selected generated paint. */
 
   /* Motion. One multiplier the whole console divides by. */
   --motion-scale: 1;
@@ -987,4 +969,16 @@ html[data-motion='off'] .landing-hero-orb { animation: none !important; }
     }
     .auth-features svg { color: rgb(var(--c-brand-600)); }
   }
+}
+
+
+/* The approved pair uses quiet depth and role-correct portal colours. */
+html:is([data-theme='monsoon'], [data-theme='graphite']) :is(.shadow-glow, .shadow-glow-sm) {
+  box-shadow: 0 1px 3px rgb(var(--c-shadow) / .12);
+}
+html:is([data-theme='monsoon'], [data-theme='graphite']) .text-portal {
+  color: rgb(var(--c-brand-600));
+}
+html:is([data-theme='monsoon'], [data-theme='graphite']) .bg-portal-gradient {
+  background-image: var(--c-brand-gradient);
 }

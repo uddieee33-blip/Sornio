@@ -15,7 +15,7 @@ export function BrandIcon({ className, priority = false, size = 40 }: BrandIconP
       aria-hidden="true"
       width={size}
       height={size}
-      priority={priority}
+      preload={priority}
       unoptimized
       className={className}
     />
@@ -30,7 +30,7 @@ type BrandWordmarkProps = {
 
 /**
  * Inline lettering inherits the selected light/dark theme; the restrained
- * silver-slate S retains its shape and subtle depth in every paint.
+ * ribbon is selected from the user's approved artwork rather than redrawn.
  */
 export function BrandWordmark({ className, width = 220 }: BrandWordmarkProps) {
   const height = Math.round((width * 430) / 680);
@@ -44,25 +44,11 @@ export function BrandWordmark({ className, width = 220 }: BrandWordmarkProps) {
       aria-label="Sornio — Business Management"
       className={className}
     >
-      <defs>
-        <linearGradient id="sornio-wordmark-silver" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#DDE5EA" />
-          <stop offset=".5" stopColor="#9BABBB" />
-          <stop offset="1" stopColor="#586F83" />
-        </linearGradient>
-      </defs>
-      <g transform="translate(122 -60) scale(.83)">
-        <path
-          d="M337 145 C291 123 248 128 219 150 C188 172 188 205 225 229 L301 277 C349 307 343 355 298 381 C263 400 219 396 175 375 L191 331 C222 348 250 353 275 340 C292 331 295 316 274 303 L194 253 C139 219 147 161 195 127 C241 95 298 96 353 123 Z"
-          transform="translate(2 4)"
-          fill="#142231"
-          opacity=".32"
-        />
-        <path
-          d="M337 145 C291 123 248 128 219 150 C188 172 188 205 225 229 L301 277 C349 307 343 355 298 381 C263 400 219 396 175 375 L191 331 C222 348 250 353 275 340 C292 331 295 316 274 303 L194 253 C139 219 147 161 195 127 C241 95 298 96 353 123 Z"
-          fill="url(#sornio-wordmark-silver)"
-        />
-      </g>
+      <image
+        href="/brand/sornio-ribbon.svg"
+        x="264" y="0" width="152" height="245"
+        aria-hidden="true"
+      />
       <text
         x="340" y="326" textAnchor="middle"
         style={{ fill: 'rgb(var(--c-stone-900))' }}

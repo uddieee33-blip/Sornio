@@ -1,4 +1,4 @@
-# DukaanOS — security contact
+# Sornio — security contact
 #
 # If you have found a way into a shop's books, we want to hear about it before
 # anyone else does. There is no bounty programme and we will not pretend there

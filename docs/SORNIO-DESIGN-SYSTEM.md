@@ -5,7 +5,7 @@ Sornio is the customer-facing name of the former DukaanOS project. Keep legacy p
 ## Design principles
 
 - Calm, businesslike and approachable: neutral charcoal, silver/slate, restrained dimensionality only in the icon.
-- The approved mark is a soft curved S, not an angular growth-chart ribbon.
+- The approved mark is the folded silver-and-blue-gray ribbon in `docs/brand/sornio-approved-reference.jpeg`. Preserve the supplied artwork; do not substitute a conventional curved letter S.
 - Use semantic colour tokens, not hardcoded dark/light colours in individual pages.
 - Prioritize clear balances, bills, readable navigation, 44px touch targets and visible keyboard focus over decorative effects.
 - No branded glows, animated gradients or large ambient background effects in daily-work screens.
@@ -24,7 +24,7 @@ Sornio is the customer-facing name of the former DukaanOS project. Keep legacy p
 | Global navigation | `components/layout/topbar.tsx`, `sidebar.tsx`, `mobile-nav.tsx` |
 | Installation metadata | `lib/pwa/manifest.json`, `app/layout.tsx` |
 
-The new default is **Monsoon**, a neutral blue-grey light theme. Midnight remains the system-dark default. Existing ten paints and the density, typography, motion and privacy settings stay available. Owner selections survive reload; do not replace them merely to force the default.
+The default retains the **Monsoon** ID and is named **Sornio Light**, using the approved off-white and blue-gray palette. **Graphite / Sornio Dark** supplies the matching charcoal mode. System matching and the quick light/dark toggle use this same pair. Existing ten paints and the density, typography, motion and privacy settings stay available. Owner selections survive reload; do not replace them merely to force the default.
 
 ## Rules for extending the app
 
@@ -34,7 +34,7 @@ The new default is **Monsoon**, a neutral blue-grey light theme. Midnight remain
 4. Prefer a subtle active-item background and hairline. Avoid unnecessary shadows and transformations.
 5. Preserve existing role/plan/module navigation guards when redesigning menus.
 6. Update `locales/en.json` and all 22 `public/locales/*.json` catalogue files whenever changing extracted UI copy; a localized brand name is still Sornio.
-7. Never rename a security secret, persisted key or executable identity merely to change text on the screen.
+7. Preserve security secrets, persisted keys, WebView2 profile paths and namespaces. Windows output filenames use Sornio; its existing local profile path is retained.
 
 ## Release checks
 

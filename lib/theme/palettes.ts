@@ -55,8 +55,8 @@ export const PAINT_IDS: string[] = PAINTS.map((paint) => paint.id);
 export const DEFAULT_PAINT = manifest.default;
 
 /** The paint `system` resolves to, per OS preference. */
-export const SYSTEM_LIGHT = 'daylight';
-export const SYSTEM_DARK = 'midnight';
+export const SYSTEM_LIGHT = 'monsoon';
+export const SYSTEM_DARK = 'graphite';
 
 /**
  * `system` is a selectable value but not a paint: it means "ask the device".

@@ -1,17 +1,30 @@
 {
   "version": "2026.10.0",
   "default": "monsoon",
-  "note": "Source of truth for every paint DukaanOS ships. `scripts/build-themes.mjs` turns this into app/themes.css; lib/theme/palettes.ts types it for the picker. Hues are OKLCH degrees, chroma is OKLCH chroma — perceptual, so a ramp stays even across hues instead of going muddy in the greens and neon in the blues.",
+  "note": "Source of truth for every paint Sornio ships. `scripts/build-themes.mjs` turns this into app/themes.css; lib/theme/palettes.ts types it for the picker. Hues are OKLCH degrees, chroma is OKLCH chroma \u2014 perceptual, so a ramp stays even across hues instead of going muddy in the greens and neon in the blues.",
   "themes": [
     {
       "id": "daylight",
       "name": "Warm Daylight",
       "tagline": "Paper-warm. Readable on a counter in afternoon sun.",
       "mode": "light",
-      "neutral": { "hue": 96, "chroma": 0.008 },
-      "brand": { "hue": 151, "chroma": 0.088 },
-      "accent": { "hue": 151, "chroma": 0.09 },
-      "surface": { "page": 0.974, "card": 0.995, "lift": 1.0 },
+      "neutral": {
+        "hue": 96,
+        "chroma": 0.008
+      },
+      "brand": {
+        "hue": 151,
+        "chroma": 0.088
+      },
+      "accent": {
+        "hue": 151,
+        "chroma": 0.09
+      },
+      "surface": {
+        "page": 0.974,
+        "card": 0.995,
+        "lift": 1.0
+      },
       "contrast": 0
     },
     {
@@ -19,32 +32,78 @@
       "name": "Paper",
       "tagline": "Pure neutral white. Nothing between you and the numbers.",
       "mode": "light",
-      "neutral": { "hue": 250, "chroma": 0.003 },
-      "brand": { "hue": 151, "chroma": 0.086 },
-      "accent": { "hue": 151, "chroma": 0.088 },
-      "surface": { "page": 0.985, "card": 1.0, "lift": 1.0 },
+      "neutral": {
+        "hue": 250,
+        "chroma": 0.003
+      },
+      "brand": {
+        "hue": 151,
+        "chroma": 0.086
+      },
+      "accent": {
+        "hue": 151,
+        "chroma": 0.088
+      },
+      "surface": {
+        "page": 0.985,
+        "card": 1.0,
+        "lift": 1.0
+      },
       "contrast": 0
     },
     {
       "id": "monsoon",
-      "name": "Monsoon",
-      "tagline": "Cool blue-grey daylight, for long hours at the desk.",
+      "name": "Sornio Light",
+      "tagline": "Off-white and blue-gray. A clear workspace.",
       "mode": "light",
-      "neutral": { "hue": 244, "chroma": 0.012 },
-      "brand": { "hue": 232, "chroma": 0.1 },
-      "accent": { "hue": 232, "chroma": 0.105 },
-      "surface": { "page": 0.968, "card": 0.995, "lift": 1.0 },
-      "contrast": 0
+      "neutral": {
+        "hue": 255,
+        "chroma": 0.007
+      },
+      "brand": {
+        "hue": 255,
+        "chroma": 0.045,
+        "fill": "71 90 114"
+      },
+      "accent": {
+        "hue": 255,
+        "chroma": 0.045
+      },
+      "surface": {
+        "page": 0.968,
+        "card": 0.995,
+        "lift": 1.0,
+        "rgb": {
+          "page": "250 250 251",
+          "card": "255 255 255",
+          "lift": "255 255 255"
+        }
+      },
+      "contrast": 0,
+      "quiet": true
     },
     {
       "id": "saffron",
       "name": "Saffron",
-      "tagline": "Festive warmth — marigold and turmeric, kept legible.",
+      "tagline": "Festive warmth \u2014 marigold and turmeric, kept legible.",
       "mode": "light",
-      "neutral": { "hue": 72, "chroma": 0.014 },
-      "brand": { "hue": 58, "chroma": 0.115 },
-      "accent": { "hue": 48, "chroma": 0.125 },
-      "surface": { "page": 0.971, "card": 0.996, "lift": 1.0 },
+      "neutral": {
+        "hue": 72,
+        "chroma": 0.014
+      },
+      "brand": {
+        "hue": 58,
+        "chroma": 0.115
+      },
+      "accent": {
+        "hue": 48,
+        "chroma": 0.125
+      },
+      "surface": {
+        "page": 0.971,
+        "card": 0.996,
+        "lift": 1.0
+      },
       "contrast": 0
     },
     {
@@ -52,10 +111,23 @@
       "name": "Clarity",
       "tagline": "Maximum contrast on white. Built for tired eyes and cheap screens.",
       "mode": "light",
-      "neutral": { "hue": 250, "chroma": 0.0 },
-      "brand": { "hue": 151, "chroma": 0.12 },
-      "accent": { "hue": 151, "chroma": 0.13 },
-      "surface": { "page": 1.0, "card": 1.0, "lift": 1.0 },
+      "neutral": {
+        "hue": 250,
+        "chroma": 0.0
+      },
+      "brand": {
+        "hue": 151,
+        "chroma": 0.12
+      },
+      "accent": {
+        "hue": 151,
+        "chroma": 0.13
+      },
+      "surface": {
+        "page": 1.0,
+        "card": 1.0,
+        "lift": 1.0
+      },
       "contrast": 1
     },
     {
@@ -63,32 +135,78 @@
       "name": "Midnight",
       "tagline": "Deep blue-black. The default after the shutter comes down.",
       "mode": "dark",
-      "neutral": { "hue": 252, "chroma": 0.014 },
-      "brand": { "hue": 155, "chroma": 0.095 },
-      "accent": { "hue": 155, "chroma": 0.1 },
-      "surface": { "page": 0.158, "card": 0.206, "lift": 0.236 },
+      "neutral": {
+        "hue": 252,
+        "chroma": 0.014
+      },
+      "brand": {
+        "hue": 155,
+        "chroma": 0.095
+      },
+      "accent": {
+        "hue": 155,
+        "chroma": 0.1
+      },
+      "surface": {
+        "page": 0.158,
+        "card": 0.206,
+        "lift": 0.236
+      },
       "contrast": 0
     },
     {
       "id": "graphite",
-      "name": "Graphite",
-      "tagline": "Neutral dark grey. No colour cast, no opinion.",
+      "name": "Sornio Dark",
+      "tagline": "Charcoal and silver. A quieter workspace.",
       "mode": "dark",
-      "neutral": { "hue": 250, "chroma": 0.003 },
-      "brand": { "hue": 151, "chroma": 0.09 },
-      "accent": { "hue": 151, "chroma": 0.095 },
-      "surface": { "page": 0.17, "card": 0.218, "lift": 0.25 },
-      "contrast": 0
+      "neutral": {
+        "hue": 255,
+        "chroma": 0.007
+      },
+      "brand": {
+        "hue": 255,
+        "chroma": 0.045,
+        "fill": "71 90 114"
+      },
+      "accent": {
+        "hue": 255,
+        "chroma": 0.045
+      },
+      "surface": {
+        "page": 0.17,
+        "card": 0.218,
+        "lift": 0.25,
+        "rgb": {
+          "page": "13 17 23",
+          "card": "22 27 34",
+          "lift": "30 36 44"
+        }
+      },
+      "contrast": 0,
+      "quiet": true
     },
     {
       "id": "nightmarket",
       "name": "Night Market",
       "tagline": "Warm dark, lamp-lit. Low blue light for the late shift.",
       "mode": "dark",
-      "neutral": { "hue": 62, "chroma": 0.016 },
-      "brand": { "hue": 68, "chroma": 0.105 },
-      "accent": { "hue": 54, "chroma": 0.11 },
-      "surface": { "page": 0.166, "card": 0.214, "lift": 0.246 },
+      "neutral": {
+        "hue": 62,
+        "chroma": 0.016
+      },
+      "brand": {
+        "hue": 68,
+        "chroma": 0.105
+      },
+      "accent": {
+        "hue": 54,
+        "chroma": 0.11
+      },
+      "surface": {
+        "page": 0.166,
+        "card": 0.214,
+        "lift": 0.246
+      },
       "contrast": 0
     },
     {
@@ -96,10 +214,23 @@
       "name": "Indigo Dusk",
       "tagline": "Violet-leaning dark, softer than black on an OLED counter.",
       "mode": "dark",
-      "neutral": { "hue": 292, "chroma": 0.018 },
-      "brand": { "hue": 288, "chroma": 0.1 },
-      "accent": { "hue": 288, "chroma": 0.105 },
-      "surface": { "page": 0.162, "card": 0.212, "lift": 0.244 },
+      "neutral": {
+        "hue": 292,
+        "chroma": 0.018
+      },
+      "brand": {
+        "hue": 288,
+        "chroma": 0.1
+      },
+      "accent": {
+        "hue": 288,
+        "chroma": 0.105
+      },
+      "surface": {
+        "page": 0.162,
+        "card": 0.212,
+        "lift": 0.244
+      },
       "contrast": 0
     },
     {
@@ -107,10 +238,23 @@
       "name": "Nocturne",
       "tagline": "True black, maximum contrast. Saves an OLED and finds the figure fast.",
       "mode": "dark",
-      "neutral": { "hue": 250, "chroma": 0.0 },
-      "brand": { "hue": 151, "chroma": 0.115 },
-      "accent": { "hue": 151, "chroma": 0.12 },
-      "surface": { "page": 0.0, "card": 0.115, "lift": 0.16 },
+      "neutral": {
+        "hue": 250,
+        "chroma": 0.0
+      },
+      "brand": {
+        "hue": 151,
+        "chroma": 0.115
+      },
+      "accent": {
+        "hue": 151,
+        "chroma": 0.12
+      },
+      "surface": {
+        "page": 0.0,
+        "card": 0.115,
+        "lift": 0.16
+      },
       "contrast": 1
     }
   ]

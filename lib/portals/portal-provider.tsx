@@ -27,6 +27,7 @@ import { publishPortal } from './sync';
 import { revealedNavSection, useMasterSwitchOptional } from './master-client';
 import { useDukaanStore } from '@/lib/store';
 import { usePlan } from '@/components/billing/plan-provider';
+import { useAppearance } from '@/lib/theme/appearance-provider';
 import type { ModuleKey, PortalBlueprint, PortalId, PortalVocabulary } from './types';
 
 export type PortalContextValue = {
@@ -66,6 +67,8 @@ export function PortalProvider({
 }) {
   const { state, hydrated } = useDukaanStore();
   const { entitlement } = usePlan();
+  const { resolved } = useAppearance();
+  const useSornioAccent = resolved.id === 'monsoon' || resolved.id === 'graphite';
 
   // Which portal are we on? Before hydration, trust the cookie the server read.
   // After hydration, the store is authoritative and the cookie is reconciled.
@@ -127,10 +130,10 @@ export function PortalProvider({
   const accentStyle = useMemo(
     () =>
       ({
-        '--portal-accent': portal.accent.rgb,
-        '--portal-accent-deep': portal.accent.deepRgb,
+        '--portal-accent': useSornioAccent ? 'var(--c-brand-500)' : portal.accent.rgb,
+        '--portal-accent-deep': useSornioAccent ? 'var(--c-brand-700)' : portal.accent.deepRgb,
       }) as CSSProperties,
-    [portal.accent.rgb, portal.accent.deepRgb],
+    [useSornioAccent, portal.accent.rgb, portal.accent.deepRgb],
   );
 
   const value = useMemo<PortalContextValue>(
