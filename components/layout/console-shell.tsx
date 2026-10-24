@@ -17,6 +17,7 @@
 
 import { useCallback, useState, type ReactNode } from 'react';
 import { Sidebar } from './sidebar';
+import { RouteTransition } from './route-transition';
 import { MobileNav } from './mobile-nav';
 import { MobileBottomNav } from './mobile-bottom-nav';
 import { Topbar } from './topbar';
@@ -68,7 +69,7 @@ function ConsoleFrame({ children, identity }: { children: ReactNode; identity: R
         <PlanBanner />
         <MobileNav open={mobileMenuOpen} onClose={closeMobileMenu} identity={identity} />
         <main id="main" className="mobile-content-space min-w-0 flex-1">
-          <PortalGate>{children}</PortalGate>
+          <PortalGate><RouteTransition>{children}</RouteTransition></PortalGate>
         </main>
         <MobileBottomNav menuOpen={mobileMenuOpen} onOpenMenu={openMobileMenu} />
       </div>

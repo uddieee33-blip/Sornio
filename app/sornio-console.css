@@ -1,0 +1,96 @@
+/* Sornio's shared product finish. All financial data and access remain in their existing components. */
+@media screen {
+  .console-workspace { background: radial-gradient(ellipse at 96% 0%, rgb(var(--c-brand-500) / .055), transparent 34%), rgb(var(--c-page)); }
+  .console-sidebar {
+    --c-stone-50: 22 31 44; --c-stone-100: 30 42 58; --c-stone-200: 46 59 76;
+    --c-stone-300: 79 97 121; --c-stone-400: 131 150 174; --c-stone-500: 157 174 195;
+    --c-stone-600: 172 187 207; --c-stone-700: 203 214 229; --c-stone-800: 226 233 243; --c-stone-900: 245 247 251;
+    --c-white: 20 29 42; --c-focus: rgb(161 190 230); --c-brand-600: 180 201 229;
+    background: linear-gradient(165deg, #182332 0%, #101722 65%);
+    border-right-color: #263245;
+    box-shadow: 6px 0 30px -18px rgb(13 17 23 / .4);
+  }
+  .console-sidebar > a:first-child { height: 82px; gap: 12px; padding-left: 23px; }
+  .console-sidebar > a:first-child p { font-size: 22px; font-weight: 600; letter-spacing: -.8px; }
+  .console-sidebar > a:first-child img { box-shadow: 0 3px 8px #0005, 0 0 0 1px #ffffff14; border-radius: 10px; }
+  .console-sidebar > div:nth-child(2) { margin: 0 14px 24px; padding: 12px; background: #ffffff05; border-color: #ffffff12; box-shadow: 0 1px 0 #ffffff06 inset; }
+  .console-sidebar nav { padding-inline: 14px; }
+  .console-sidebar [data-nav-active='true'] { background: linear-gradient(110deg, #a2b7d027, #a2b7d00a); box-shadow: 0 1px 0 #ffffff0a inset, 0 2px 4px #0001; color: #fff; }
+  .workspace-nav-link { position: relative; isolation: isolate; }
+  .workspace-nav-link > svg:last-child { transition: transform calc(300ms * var(--motion-scale)) var(--ease-settle); }
+  .console-sidebar .workspace-nav-link::before { content: ''; position: absolute; left: -14px; top: 13px; bottom: 13px; width: 3px; border-radius: 0 3px 3px 0; background: #b8cbe4; transform: scaleY(0); opacity: 0; transition: transform calc(280ms * var(--motion-scale)) var(--ease-settle), opacity calc(180ms * var(--motion-scale)); }
+  .console-sidebar .workspace-nav-link[data-nav-active='true']::before { opacity: 1; transform: scaleY(1); }
+  .workspace-submenu { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows calc(320ms * var(--motion-scale)) var(--ease-settle), opacity calc(220ms * var(--motion-scale)) var(--ease-swift); }
+  .workspace-submenu[data-expanded='true'] { grid-template-rows: 1fr; opacity: 1; }
+  .workspace-submenu-clip { min-height: 0; overflow: hidden; }
+  .console-sidebar .workspace-submenu a[aria-current='page'] { color: #fff; }
+  .console-sidebar .workspace-submenu a { padding-left: 14px; position: relative; }
+  .console-sidebar .workspace-submenu a[aria-current='page']::before { content: ''; position: absolute; left: 2px; width: 4px; height: 4px; background: #b8cbe4; border-radius: 50%; }
+  .console-topbar { background: rgb(var(--c-white) / .86); backdrop-filter: blur(18px); border-bottom-color: rgb(var(--c-stone-200) / .75); box-shadow: 0 1px 8px rgb(var(--c-shadow) / .025); }
+  .console-topbar > div { min-height: 70px; }
+  .console-topbar button[aria-label='Search Sornio']:first-of-type { box-shadow: 0 1px 2px rgb(var(--c-shadow) / .025), 0 1px 0 rgb(var(--c-white)) inset; }
+  .console-route-enter { animation: workspace-page-in calc(420ms * var(--motion-scale)) var(--ease-settle) backwards; }
+  .console-route-enter > div > .animate-fade-up { animation: none; }
+  .console-workspace .surface-card, .workspace-panel { border-radius: 16px; box-shadow: 0 2px 3px -2px rgb(var(--c-shadow) / .08), 0 12px 35px -24px rgb(var(--c-shadow) / .18), 0 1px 0 rgb(var(--c-white) / .6) inset; }
+  .console-workspace .page-heading { padding-top: 4px; margin-bottom: 28px; }
+  .console-workspace .page-heading h1 { font-size: clamp(1.65rem, 2.4vw, 2rem); letter-spacing: -.045em; font-weight: 600; }
+  .console-workspace .page-heading > div:first-child > p:first-child:not(:last-child) { letter-spacing: .17em; font-size: 10px; }
+  .console-workspace .ui-button { border-radius: 10px; font-weight: 550; }
+  .console-workspace .ui-button.bg-brand-gradient, .console-workspace a.bg-brand-gradient { box-shadow: 0 1px 0 #ffffff26 inset, 0 -2px 0 #00000016 inset, 0 3px 6px rgb(var(--c-brand-500) / .15); border: 1px solid rgb(var(--c-brand-600) / .45); }
+  .console-workspace :is(input:not([type='checkbox']):not([type='radio']), select, textarea) { border-radius: 9px; background-color: rgb(var(--c-page) / .7); box-shadow: 0 1px 2px rgb(var(--c-shadow) / .025) inset; transition: border-color calc(160ms * var(--motion-scale)), box-shadow calc(160ms * var(--motion-scale)), background-color calc(160ms * var(--motion-scale)); }
+  .console-workspace :is(input, select, textarea):focus { background-color: rgb(var(--c-white)); }
+  .console-workspace table thead { background: rgb(var(--c-stone-50) / .75); }
+  .console-workspace table thead th { font-size: 10px; letter-spacing: .07em; padding-block: 14px; }
+  .console-workspace table tbody tr { transition: background-color calc(180ms * var(--motion-scale)); }
+  .console-workspace .status-badge { border-radius: 6px; font-size: 10px; padding: 4px 8px; letter-spacing: .01em; }
+  .workspace-welcome-banner { background: rgb(var(--c-white) / .6); border-color: rgb(var(--c-stone-200)); color: rgb(var(--c-stone-600)); padding-block: 8px; }
+  .workspace-welcome-banner > p { font-weight: 450; }
+  .workspace-welcome-banner > span > :is(a,button) { min-height: 34px; font-size: 11px; }
+  .workspace-hero { position: relative; isolation: isolate; overflow: hidden; min-height: 194px; padding: 34px 38px; border-radius: 20px; background: linear-gradient(115deg, #182535, #263b51 68%, #465e77); border: 1px solid #526a8140; color: #f4f7fc; box-shadow: 0 1px 0 #ffffff1f inset, 0 20px 45px -30px #18253599; }
+  .workspace-hero::before { content: ''; position: absolute; inset: 0; z-index: -1; background: radial-gradient(ellipse at 78% 0%, #c3d8f333, transparent 50%); }
+  .workspace-hero-art { position: absolute; pointer-events: none; z-index: -1; width: 180px; height: 280px; right: 20%; top: -55px; transform: rotate(-18deg); opacity: .13; background: url('/brand/sornio-ribbon.svg') center / contain no-repeat; filter: drop-shadow(12px 16px 12px #07101c); }
+  .workspace-eyebrow { color: #b9cadf; font-size: 9px; font-weight: 550; letter-spacing: .2em; margin-bottom: 14px; }
+  .workspace-hero-title { font-family: 'Inter Variable', sans-serif; font-size: clamp(1.7rem, 2.8vw, 2.35rem); line-height: 1.15; letter-spacing: -.05em; font-weight: 550; }
+  .workspace-hero-description { margin-top: 13px; font-size: 12px; line-height: 1.7; color: #c3d0df; }
+  .workspace-primary-action { position: relative; background: #f4f7fc; color: #26394e; border: 1px solid #fff; border-bottom-color: #c5d0dd; box-shadow: 0 1px 0 #fff inset, 0 5px 15px #0b142428; }
+  .workspace-primary-action:hover { background: #fff; box-shadow: 0 6px 20px #0b142440; transform: translateY(-2px); }
+  .workspace-summary-heading { margin-bottom: 13px; }
+  .workspace-summary-heading h2 { font-size: 12px; }
+  .workspace-summary-heading > span { padding: 0; background: transparent; font-size: 10px; color: rgb(var(--c-stone-500)); }
+  .workspace-metric { position: relative; min-width: 0; padding: 20px; border-radius: 15px; border: 1px solid rgb(var(--c-stone-200)); background: linear-gradient(150deg, rgb(var(--c-white)), rgb(var(--c-white) / .75)); box-shadow: 0 2px 2px -2px rgb(var(--c-shadow) / .08), 0 10px 25px -22px rgb(var(--c-shadow) / .2); animation: workspace-metric-in calc(520ms * var(--motion-scale)) var(--ease-settle) both; }
+  .workspace-metric-1 { animation-delay: calc(55ms * var(--motion-scale)); }
+  .workspace-metric-2 { animation-delay: calc(110ms * var(--motion-scale)); }
+  .workspace-metric-3 { animation-delay: calc(165ms * var(--motion-scale)); }
+  .workspace-metric dt { display: flex; align-items: center; justify-content: space-between; gap: 8px; color: rgb(var(--c-stone-600)); font-size: 11px; font-weight: 500; }
+  .workspace-metric dt svg { color: rgb(var(--c-brand-600)); opacity: .75; flex-shrink: 0; }
+  .workspace-metric-number { display: block; margin-top: 18px; font-size: clamp(1.35rem, 2.3vw, 1.9rem); letter-spacing: -.055em; font-weight: 550; line-height: 1.2; font-variant-numeric: tabular-nums; color: rgb(var(--c-stone-900)); }
+  .workspace-metric-detail { display: block; margin-top: 10px; font-size: 10px; line-height: 1.6; color: rgb(var(--c-stone-500)); }
+  .workspace-panel > div:first-child, .workspace-panel > h2 { border-bottom-color: rgb(var(--c-stone-200) / .65); }
+  .workspace-panel h2 { font-size: 13px; font-weight: 600; letter-spacing: -.02em; }
+  .workspace-empty-state { background: radial-gradient(ellipse at 50% 55%, rgb(var(--c-brand-500) / .04), transparent 65%); }
+  .workspace-empty-state > span { border: 1px solid rgb(var(--c-stone-200)); box-shadow: 0 4px 12px rgb(var(--c-shadow) / .05), 0 1px 0 rgb(var(--c-white)) inset; transform: rotate(-5deg); }
+  .workspace-action-row > span:first-child { box-shadow: 0 2px 3px rgb(var(--c-shadow) / .035), 0 1px 0 rgb(var(--c-white)) inset; }
+  .workspace-action-row > svg:last-child { transition: transform calc(250ms * var(--motion-scale)) var(--ease-settle); }
+  .workspace-action-row:hover > svg:last-child { transform: translateX(3px); }
+  .workspace-action-row:hover > span:first-child { border-color: rgb(var(--c-brand-500) / .4); background: rgb(var(--c-brand-50)); }
+  .workspace-setup-progress > div { transition: width calc(450ms * var(--motion-scale)) var(--ease-settle); }
+}
+@keyframes workspace-page-in { from { opacity: 0; transform: translateY(9px); } to { opacity: 1; transform: none; } }
+@keyframes workspace-metric-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media screen and (max-width: 639px) {
+  .workspace-hero { min-height: 212px; padding: 26px 23px; border-radius: 16px; }
+  .workspace-hero-art { right: -18px; top: -30px; opacity: .16; }
+  .workspace-hero-title { max-width: 260px; font-size: 1.9rem; }
+  .workspace-primary-action { margin-top: 2px; }
+  .workspace-metric { padding: 16px; border-radius: 12px; }
+  .workspace-metric dt { font-size: 10px; }
+  .workspace-metric-number { font-size: 1.55rem; margin-top: 15px; }
+  .workspace-metric-detail { font-size: 9px; }
+  .console-topbar > div { min-height: 66px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .console-route-enter, .workspace-metric { animation: none !important; }
+  .workspace-submenu, .workspace-setup-progress > div { transition: none !important; }
+}
+html[data-motion='off'] .console-route-enter, html[data-motion='off'] .workspace-metric { animation: none; }
+html[data-motion='off'] .workspace-submenu { transition: none; }

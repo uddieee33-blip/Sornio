@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { ArrowDownToLine, ArrowRight, BarChart3, Boxes, Check, CreditCard, LayoutDashboard, Menu, Monitor, Receipt, Users, X } from 'lucide-react';
+import { ArrowDownToLine, ArrowRight, BarChart3, Boxes, Check, Menu, Monitor, Receipt, Users, X } from 'lucide-react';
+import { CommerceScene } from '@/components/brand/commerce-scene';
+import { Reveal } from '@/components/motion/reveal';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
@@ -70,31 +72,19 @@ export default function LandingPage() {
       </header>
       <main id="main">
         <section id="overview" className="sornio-container sornio-hero">
-          <div className="sornio-hero-copy">
-            <p className="sornio-eyebrow">BUSINESS MANAGEMENT, SIMPLIFIED</p>
-            <h1>Your business.<br /><span>A clearer view.</span></h1>
-            <p className="sornio-hero-description">Bring your billing, stock and customer dues into one calm, organised workspace. Less to keep track of. More clarity for the day ahead.</p>
+          <Reveal className="sornio-hero-copy">
+            <p className="sornio-eyebrow">BUILT FOR EVERYDAY COMMERCE</p>
+            <h1>Your business.<br /><span>In full flow.</span></h1>
+            <p className="sornio-hero-description">From your first bill to a growing business. Bring products, stock, customers and payments together in a workspace that feels as considered as the business you’re building.</p>
             <div className="sornio-hero-actions"><Link href="/auth" className="sornio-button">Start with Sornio <ArrowRight size={17} aria-hidden="true" /></Link><a href="#features" className="sornio-button sornio-button-secondary">Explore the workspace</a></div>
             <p className="sornio-hero-note">Start free · Add your business · Make it yours</p>
-          </div>
-          <div className="sornio-product-preview" aria-label="Illustrative empty Sornio workspace">
-            <div className="sornio-preview-top"><span className="sornio-preview-brand"><BrandIcon size={24} /> Sornio</span><span className="sornio-preview-label">WORKSPACE PREVIEW</span></div>
-            <div className="sornio-preview-body">
-              <div className="sornio-preview-rail" aria-hidden="true"><LayoutDashboard size={19} /><Receipt size={19} /><Boxes size={19} /><Users size={19} /><BarChart3 size={19} /></div>
-              <div className="sornio-preview-content">
-                <div className="sornio-preview-heading"><div><span>Your business</span><h2>A fresh start.</h2></div><span className="sornio-preview-day">Today</span></div>
-                <div className="sornio-preview-totals"><div><span>Sales today</span><strong>₹0</strong></div><div><span>Customer dues</span><strong>₹0</strong></div><div><span>Items in stock</span><strong>0</strong></div></div>
-                <div className="sornio-preview-empty"><span className="sornio-receipt-symbol"><Receipt size={25} strokeWidth={1.5} aria-hidden="true" /></span><h3>Your first sale starts here.</h3><p>Your records appear as you add your own business activity.</p><Link href="/auth?next=/billing">Create your first bill <ArrowRight size={14} aria-hidden="true" /></Link></div>
-                <div className="sornio-preview-bottom"><span><CreditCard size={14} aria-hidden="true" /> Your payments. Your account.</span><span>Ready when you are</span></div>
-              </div>
-            </div>
-            <p className="sornio-preview-caption">Illustrative empty workspace. Your figures come from your own entries.</p>
-          </div>
+          </Reveal>
+          <CommerceScene />
         </section>
         <div className="sornio-container sornio-business-strip"><span>MADE FOR EVERYDAY BUSINESS</span><p>Retail shops <i /> Cafés <i /> Salons <i /> Gyms <i /> Growing teams</p></div>
         <section id="features" className="sornio-container sornio-section">
           <div className="sornio-section-heading"><div><p className="sornio-eyebrow">A PLACE FOR THE ESSENTIALS</p><h2>One workspace.<br />A more organised day.</h2></div><p>Start with the tasks you do every day. Keep the details connected as your business grows.</p></div>
-          <div className="sornio-feature-grid">{features.map(feature => <article key={feature.title} className="sornio-feature-card"><feature.icon size={24} strokeWidth={1.5} aria-hidden="true" /><h3>{feature.title}</h3><p>{feature.description}</p></article>)}</div>
+          <div className="sornio-feature-grid">{features.map((feature, index) => <Reveal as="article" key={feature.title} index={index} className="sornio-feature-card"><span className="sornio-feature-index">0{index + 1}</span><feature.icon size={24} strokeWidth={1.5} aria-hidden="true" /><h3>{feature.title}</h3><p>{feature.description}</p></Reveal>)}</div>
         </section>
         <section id="windows" className="sornio-container sornio-windows-section">
           <div className="sornio-windows-symbol" aria-hidden="true"><Monitor size={46} strokeWidth={1.1} /><BrandIcon size={42} /></div>
@@ -123,7 +113,7 @@ export default function LandingPage() {
         <section className="sornio-container sornio-section sornio-faq"><div><p className="sornio-eyebrow">A FEW USEFUL DETAILS</p><h2>Before you begin.</h2></div><div>{questions.map(item => <details key={item.question}><summary>{item.question}<span aria-hidden="true">+</span></summary><p>{item.answer}</p></details>)}</div></section>
         <section className="sornio-container sornio-final-cta"><BrandIcon size={52} /><h2>Make room for a clearer day.</h2><p>Your business, brought together with Sornio.</p><Link href="/auth" className="sornio-button">Get started <ArrowRight size={17} aria-hidden="true" /></Link></section>
       </main>
-      <footer className="sornio-site-footer"><div className="sornio-container"><Link href="/" className="sornio-brand"><BrandIcon size={30} /><span>Sornio</span></Link><p>Business management, simplified.</p><nav aria-label="Footer"><Link href="/install">Installation</Link><a href="#pricing">Plans</a><Link href="/auth">Sign in</Link></nav></div></footer>
+      <footer className="sornio-site-footer"><div className="sornio-container"><Link href="/" className="sornio-brand"><BrandIcon size={30} /><span>Sornio</span></Link><p>Everyday commerce, beautifully connected.</p><nav aria-label="Footer"><Link href="/install">Installation</Link><a href="#pricing">Plans</a><Link href="/auth">Sign in</Link></nav></div></footer>
     </div>
   );
 }

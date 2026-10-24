@@ -15,6 +15,7 @@ import {
 } from '@/lib/theme/palettes';
 import './globals.css';
 import './sornio-landing.css';
+import './sornio-console.css';
 import { InstallProvider } from '@/components/pwa/install-provider';
 
 export const metadata: Metadata = {

@@ -44,7 +44,7 @@ export function DemoBanner() {
   if (!isFresh || dismissed) return null;
 
   return (
-    <div className="flex flex-col gap-2.5 border-b border-brand-500/20 bg-brand-500/[0.07] px-4 py-3 text-xs text-brand-700 sm:flex-row sm:items-center sm:justify-between md:px-8">
+    <div className="workspace-welcome-banner flex flex-col gap-2.5 border-b border-brand-500/20 bg-brand-500/[0.07] px-4 py-3 text-xs text-brand-700 sm:flex-row sm:items-center sm:justify-between md:px-8">
       <p className="flex min-w-0 items-start gap-2 font-semibold leading-relaxed">
         <Sprout size={14} className="mt-0.5 shrink-0" />
         <span>Your business starts at ₹0 — record real activity, or load the sample business to explore.</span>
