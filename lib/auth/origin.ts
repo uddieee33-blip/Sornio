@@ -18,10 +18,16 @@
 const PLACEHOLDER_ORIGINS = ['your-project', 'your_project'];
 
 function usable(value: string): string | null {
-  const trimmed = value.trim().replace(/\/+$/, '');
-  if (!/^https?:\/\//i.test(trimmed)) return null;
-  if (PLACEHOLDER_ORIGINS.some((placeholder) => trimmed.includes(placeholder))) return null;
-  return trimmed;
+  const trimmed = value.trim();
+  if (!/^https?:\/\//i.test(trimmed) || /[\s\\]/.test(trimmed)) return null;
+  try {
+    const url = new URL(trimmed);
+    if (url.username || url.password || url.pathname !== '/' || url.search || url.hash) return null;
+    if (PLACEHOLDER_ORIGINS.some((placeholder) => url.hostname.includes(placeholder))) return null;
+    return url.origin;
+  } catch {
+    return null;
+  }
 }
 
 export function appOrigin(request?: { url: string | URL } | null): string {

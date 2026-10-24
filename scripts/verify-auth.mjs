@@ -512,7 +512,7 @@ check('no landing walks a finished owner back through setup', () => {
   assert(!/safeNext\(params\.next, '\/onboarding'\)/.test(page), "the door's default is decided from the account, not hardcoded");
   assert(/storedSetupComplete\(\)/.test(page), 'the page asks the stored profile before the first paint');
   const callback = read('app', 'api', 'auth', 'callback', 'route.ts');
-  assert(/hostedSignInDestination\(requested, await storedSetupComplete\(/.test(callback), 'a recovery or confirmation link lands where the account says the owner belongs');
+  assert(/hostedCallbackDestination\(requested, await storedSetupComplete\(/.test(callback), 'a recovery or confirmation link lands where the account says the owner belongs');
   assert(!/get\('next'\), '\/onboarding'\)/.test(callback), 'and the hardcoded setup default is gone from the callback too');
   const setup = read('app', 'onboarding', 'page.tsx');
   assert(/snapshotFromProfile\(profile\)\.setupComplete/.test(setup), 'one definition of "finished", the same one the endpoint derives');
@@ -532,6 +532,53 @@ check('the callback url is built on the canonical origin, never a placeholder', 
   assertEqual(origin.appOrigin({ url: 'https://preview.example/http://x:3000/' }), 'https://preview.example', 'a placeholder config falls back to the request origin');
   if (saved === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
   else process.env.NEXT_PUBLIC_APP_URL = saved;
+});
+
+check('recovery reaches a password form before or after business setup', () => {
+  for (const complete of [false, true]) {
+    for (const role of ['owner', 'manager', 'cashier', 'auditor']) {
+      for (const target of ['/auth/reset', '/security?reset=1']) {
+        assertEqual(gate.hostedCallbackDestination(target, complete, role), '/auth/reset', 'old and new email links reach recovery');
+      }
+    }
+  }
+  for (const target of ['/auth/reset?next=//evil.example', '/auth/reset/extra', '//evil.example', 'https://evil.example', '/api/auth/session', '/home']) {
+    assertEqual(gate.hostedCallbackDestination(target, false), '/onboarding', 'only the exact recovery path bypasses setup');
+  }
+  assertEqual(gate.hostedCallbackDestination('/audit?locked=1', true), '/audit?locked=1', 'confirmation keeps its normal destination');
+  assertEqual(gate.hostedSignInDestination('/auth/reset', false), '/onboarding', 'ordinary sign-in cannot bypass setup');
+});
+
+check('recovery page validates the provider without entering the console layout', () => {
+  const page = read('app', 'auth', 'reset', 'page.tsx');
+  assert(/await getSessionUser\(\)/.test(page), 'the provider is revalidated on the server');
+  assert(/redirect\('\/auth\?error=link'\)/.test(page), 'expired or absent provider sessions return to sign-in');
+  assert(/<SessionCard recovery/.test(page), 'the shared password form is reachable outside the setup-gated console');
+  const reset = read('app', 'api', 'auth', 'reset', 'route.ts');
+  assert(/callbackUrl\(PASSWORD_RESET_PATH, request\)/.test(reset), 'new reset emails target the standalone recovery page');
+  const card = read('components', 'security', 'session-card.tsx');
+  assert(/recovery && message\?\.tone === 'ok'/.test(card), 'continue appears after a successful password change');
+  assert(!card.includes('every other one must sign in again'), 'the form does not claim unimplemented session revocation');
+});
+
+check('malformed or credential-bearing origins cannot break or hijack an email callback', () => {
+  const saved = process.env.NEXT_PUBLIC_APP_URL;
+  try {
+    for (const value of ['https://', 'https://user:pass@evil.example', 'https://shop.example/path', 'https://shop.example?next=evil', 'https://shop.example#fragment', 'https://shop.example\\@evil.example', 'javascript:alert(1)', 'https://shop. example']) {
+      process.env.NEXT_PUBLIC_APP_URL = value;
+      const callback = new URL(origin.callbackUrl('/auth/reset', { url: 'https://preview.example/api/auth/reset' }));
+      assertEqual(callback.origin, 'https://preview.example', 'invalid config uses the request origin');
+      assertEqual(callback.pathname, '/api/auth/callback', 'the callback path stays fixed');
+      assertEqual(callback.searchParams.get('next'), '/auth/reset', 'the recovery destination survives encoding');
+    }
+    process.env.NEXT_PUBLIC_APP_URL = ' HTTPS://SHOP.EXAMPLE:443/ ';
+    assertEqual(origin.appOrigin(), 'https://shop.example', 'valid origins are normalized');
+    process.env.NEXT_PUBLIC_APP_URL = '';
+    assertEqual(origin.appOrigin({ url: 'not a URL' }), 'http://localhost:3000', 'invalid requests keep the local default');
+  } finally {
+    if (saved === undefined) delete process.env.NEXT_PUBLIC_APP_URL;
+    else process.env.NEXT_PUBLIC_APP_URL = saved;
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -580,7 +627,7 @@ check('the recovery endpoint cannot tell anybody whether an account exists', () 
 check('the callback redeems the code and never trusts `next` blindly', () => {
   const source = read('app', 'api', 'auth', 'callback', 'route.ts');
   assert(/exchangeCodeForSession\(/.test(source), 'the single-use code is spent on the server');
-  assert(/hostedSignInDestination\(/.test(source), 'the destination goes through the setup and safe redirect policy');
+  assert(/hostedCallbackDestination\(/.test(source), 'the destination goes through the setup and safe redirect policy');
   assert(!/console\./.test(source), 'nothing is logged from a URL query');
 });
 

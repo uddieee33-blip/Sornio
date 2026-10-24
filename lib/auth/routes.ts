@@ -66,6 +66,16 @@ export const DEFAULT_NEXT = '/onboarding';
 /** Where an owner who has already finished setup lands. */
 export const CONSOLE_HOME = '/home';
 
+/** Recovery stays outside the console's owner-setup gate. */
+export const PASSWORD_RESET_PATH = '/auth/reset';
+
+export function hostedCallbackDestination(requested: unknown, setupComplete: boolean, role: string = 'owner'): string {
+  // Keep previously issued recovery emails working too. No other auth route
+  // may bypass the normal setup/redirect policy.
+  if (requested === PASSWORD_RESET_PATH || requested === '/security?reset=1') return PASSWORD_RESET_PATH;
+  return hostedSignInDestination(requested, setupComplete, role);
+}
+
 /**
  * The fallback a sign-in ends at, given what the account already knows.
  *

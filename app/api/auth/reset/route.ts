@@ -28,6 +28,7 @@ import { getGuardedServerClient } from '@/lib/security/guard';
 import { cleanLine, isEmail } from '@/lib/security/validation';
 import { clientFingerprint, consume } from '@/lib/security/rate-limit';
 import { callbackUrl } from '@/lib/auth';
+import { PASSWORD_RESET_PATH } from '@/lib/auth/routes';
 
 const MAX_BODY_BYTES = 4 * 1024;
 
@@ -100,7 +101,7 @@ export async function POST(request: Request) {
     // a browser. `redirectTo` is validated by the project's allow-list; the link
     // comes back to our callback, which mints the session and honours `next`.
     await client.auth.resetPasswordForEmail(email, {
-      redirectTo: callbackUrl('/security?reset=1', request),
+      redirectTo: callbackUrl(PASSWORD_RESET_PATH, request),
     });
   } catch {
     // A provider we cannot reach has to look identical from the outside, or the
