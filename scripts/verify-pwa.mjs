@@ -50,6 +50,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import vm from 'node:vm';
 
 const ROOT = process.cwd();
 
@@ -179,6 +180,54 @@ check('the gate leaves the manifest public', () => {
     read('lib', 'auth', 'routes.ts').includes("'/manifest.webmanifest'"),
     'routes.ts no longer lists the manifest — the pre-sign-in fetch bounces to /auth and the prompt never appears',
   );
+});
+
+// Execute the actual worker against a private-page cache trap and network loss.
+const listeners = new Map();
+const cached = new Map([['/home', new Response('PRIVATE RECORDS')]]);
+const added = [];
+let online = true;
+let requested = [];
+const offline = new Response('<h1>You are offline</h1>', { headers: { 'Content-Type': 'text/html' } });
+const cache = {
+  add: async (url) => { added.push(url); cached.set(url, offline); },
+  match: async (url) => cached.get(url)?.clone(),
+};
+const worker = {
+  self: { location: { origin: 'https://shop.example' }, clients: { claim: async () => {} }, addEventListener: (name, fn) => listeners.set(name, fn) },
+  caches: { open: async () => cache, keys: async () => ['another-app-cache', 'dukaanos-offline-v0'], delete: async (key) => { requested.push(key); return true; } },
+  fetch: async () => { if (!online) throw new TypeError('offline'); return new Response('fresh authorized response'); },
+  URL, Response,
+};
+vm.runInNewContext(read('public', 'sw.js'), worker);
+let install;
+listeners.get('install')({ waitUntil: (promise) => { install = promise; } });
+await install;
+check('the worker precaches only the generic offline screen', () => assertEqual(JSON.stringify(added), JSON.stringify(['/offline.html']), 'private pages must not enter the cache'));
+let activation;
+listeners.get('activate')({ waitUntil: (promise) => { activation = promise; } });
+await activation;
+check('activation cleans only this app offline-cache versions', () => assertEqual(JSON.stringify(requested), JSON.stringify(['dukaanos-offline-v0']), 'other apps caches must survive'));
+async function navigation(url, mode = 'navigate', method = 'GET') {
+  let response;
+  listeners.get('fetch')({ request: { url, mode, method }, respondWith: (promise) => { response = promise; } });
+  return response ? await (await response).text() : null;
+}
+const onlinePage = await navigation('https://shop.example/home');
+online = false;
+const offlinePage = await navigation('https://shop.example/home');
+check('offline navigation never replays cached private records', () => {
+  assertEqual(onlinePage, 'fresh authorized response', 'online navigation must hit the server');
+  assert(offlinePage.includes('You are offline') && !offlinePage.includes('PRIVATE RECORDS'), 'offline must show only reconnect content');
+});
+for (const [url, mode, method] of [['https://shop.example/api/profile', 'cors', 'GET'], ['https://shop.example/api/sync', 'cors', 'POST'], ['https://elsewhere.example/home', 'navigate', 'GET']]) {
+  const response = await navigation(url, mode, method);
+  check(`the worker ignores ${method} ${url}`, () => assertEqual(response, null, 'APIs, writes and foreign origins must not be intercepted'));
+}
+check('install resources remain public and shortcuts stay inside scope', () => {
+  const routes = read('lib', 'auth', 'routes.ts');
+  for (const url of ['/install', '/sw.js', '/offline.html']) assert(routes.includes(`'${url}'`), `${url} must be available before login`);
+  for (const shortcut of manifest.shortcuts ?? []) assert(shortcut.url.startsWith('/') && !shortcut.url.startsWith('//'), 'shortcut must be same origin');
 });
 
 console.log(`\n${passed} passed, ${failed} failed.\n`);

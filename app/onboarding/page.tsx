@@ -440,13 +440,12 @@ export default function OnboardingPage() {
 
             {step === 2 ? (
               <div className="space-y-4">
-                <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={businessName} onChange={(e) => { markTouched(); setBusinessName(e.target.value); }} /></div>
-                <div><span className={labelClass}>GSTIN (only if GST registered)</span><input className={inputClass} maxLength={15} autoCapitalize="characters" placeholder="15-character GSTIN" value={gstin} onChange={(e) => { markTouched(); setGstin(e.target.value.toUpperCase()); }} /><p className="mt-1 text-xs text-stone-600">Optional. Your GSTIN will appear on printed invoices after you save.</p></div>
+                <div><label htmlFor="setup-business-name" className={labelClass}>Business name</label><input id="setup-business-name" autoComplete="organization" className={inputClass} placeholder="Your shop or business name" value={businessName} onChange={(e) => { markTouched(); setBusinessName(e.target.value); }} /></div>
+                <div><label htmlFor="setup-gstin" className={labelClass}>GSTIN (only if GST registered)</label><input id="setup-gstin" className={inputClass} maxLength={15} autoCapitalize="characters" placeholder="15-character GSTIN" value={gstin} onChange={(e) => { markTouched(); setGstin(e.target.value.toUpperCase()); }} /><p className="mt-1 text-xs text-stone-600">Optional. Your GSTIN will appear on printed invoices after you save.</p></div>
                 <div>
                   <span className={labelClass}>What kind of business is it?</span>
                   <p className="mb-3 text-xs leading-relaxed text-stone-600">
-                    Pick honestly — this is not a label on a report. It decides which modules exist, what they are called, and what your first
-                    screen asks you. You can change it later without losing a single record.
+                    Choose the type closest to your business. We will show the tools you need. You can change this later.
                   </p>
                   <div className="grid gap-2 sm:grid-cols-2">
                     {businessTemplates.map((template) => {
@@ -505,7 +504,7 @@ export default function OnboardingPage() {
                     </div>
                   ) : null}
                 </div>
-                <div><span className={labelClass}>Describe your business (optional)</span><textarea className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => { markTouched(); setDescription(e.target.value); }} /></div>
+                <div><label htmlFor="setup-description" className={labelClass}>Describe your business (optional)</label><textarea id="setup-description" className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => { markTouched(); setDescription(e.target.value); }} /></div>
               </div>
             ) : null}
 

@@ -59,6 +59,7 @@
     "trusted-types": [
       "default",
       "nextjs#bundler",
+      "dukaanos#service-worker",
       "'allow-duplicates'"
     ]
   },
@@ -324,6 +325,6 @@
     "penaltyMs": 120000,
     "maxPenaltyMs": 1800000,
     "strikeWindowMs": 300000,
-    "note": "A client that keeps hitting 429 is not a shop that got busy; it is a script. After four throttles inside five minutes the fingerprint is put in a penalty box that doubles each time, capped at thirty minutes. Only a write or a credential attempt can earn a strike: reads are the console talking to itself, and budgeting them like attacks meant an owner who clicked around quickly collected throttles and then a lockout. Writes, credential attempts and the money endpoints keep the tight buckets; reads get a ceiling a person cannot reach but a script still can. Speculative route prefetches get their own budget for the same reason, from the other direction: the console warms its own sidebar on idle, so charging prefetch traffic to the navigation budget meant the app throttled the owner for loading its own screens. The ceilings themselves are set from what the app spends on the owner's behalf: one console page view costs about thirteen page-bucket requests and forty prefetches, so the navigation ceiling sits at roughly forty page views a minute \u2014 past any person clicking, and still a bound on a script."
+    "note": "A client that keeps hitting 429 is not a shop that got busy; it is a script. After four throttles inside five minutes the fingerprint is put in a penalty box that doubles each time, capped at thirty minutes. Only a write or a credential attempt can earn a strike: reads are the console talking to itself, and budgeting them like attacks meant an owner who clicked around quickly collected throttles and then a lockout. Writes, credential attempts and the money endpoints keep the tight buckets; reads get a ceiling a person cannot reach but a script still can. Speculative route prefetches get their own budget for the same reason, from the other direction: the console warms its own sidebar on idle, so charging prefetch traffic to the navigation budget meant the app throttled the owner for loading its own screens. The ceilings themselves are set from what the app spends on the owner's behalf: one console page view costs about thirteen page-bucket requests and forty prefetches, so the navigation ceiling sits at roughly forty page views a minute — past any person clicking, and still a bound on a script."
   }
 }

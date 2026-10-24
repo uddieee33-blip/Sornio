@@ -16,6 +16,7 @@ import { isValidUpiId, upiAccentColor } from '@/lib/upi';
 import { ExportButton } from '@/components/export/export-button';
 import { ImportButton } from '@/components/import/import-dialog';
 import { useDukaanStore, type Customer } from '@/lib/store';
+import { DueReminders } from '@/components/customers/due-reminders';
 
 const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
@@ -84,6 +85,7 @@ export default function CustomersPage() {
         <StatCard index={2} label="Outstanding" value={formatCurrency(receivables)} numeric={receivables} format={formatCurrency} sensitive icon={IndianRupee} tone="amber" />
       </div>
 
+      <DueReminders />
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.85fr_1.15fr]">
         {/* Add customer */}
         <Card className="animate-fade-up h-fit">

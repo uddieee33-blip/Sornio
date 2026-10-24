@@ -14,6 +14,7 @@ import {
   themeColorFor,
 } from '@/lib/theme/palettes';
 import './globals.css';
+import { InstallProvider } from '@/components/pwa/install-provider';
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
@@ -101,7 +102,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <div className="relative min-h-screen">
                   {/* Ambient page glow behind everything */}
                   <div className="pointer-events-none fixed inset-0 bg-page-glow" aria-hidden />
-                  <div className="relative">{children}</div>
+                  <InstallProvider><div className="relative">{children}</div></InstallProvider>
                 </div>
               </ToastProvider>
             </I18nProvider>

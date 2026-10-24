@@ -121,6 +121,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
       </nav>
 
       <div className="space-y-2 border-t border-stone-200 p-4">
+        <Link href="/install" className="flex min-h-11 items-center rounded-xl px-3 text-sm font-semibold text-stone-700 hover:bg-stone-100">Install app</Link>
         {/* Appearance lives in the menu, not in Settings: repainting the
             console is a thing an owner does in the middle of a shift, from
             wherever they happen to be standing. */}
