@@ -92,11 +92,7 @@ export function clientFingerprint(input: {
   return `${ip}|${ua}|${session}`;
 }
 
-export function consume(
-  key: string,
-  rule: RateLimitRule,
-  now: number = Date.now(),
-): RateLimitDecision {
+export function consume(key: string, rule: RateLimitRule, now: number = Date.now()): RateLimitDecision {
   const stamps = store.hit(key, rule.windowMs, now);
   const used = stamps.length;
   const oldest = stamps[0] ?? now;
@@ -151,6 +147,9 @@ export function ruleForPath(
   // Twenty a minute is generous for an owner saving a setup screen and useless
   // to a script rewriting a payee address in a loop. Reads are unaffected: the
   // edge routes GETs on any /api path to the apiRead bucket before this.
+  if (pathname.startsWith('/api/sync')) {
+    return { scope: 'sync', rule: table.sync };
+  }
   if (pathname.startsWith('/api/profile')) {
     return { scope: 'profile', rule: table.profile };
   }
@@ -209,7 +208,12 @@ export type AbuseRule = {
   strikeWindowMs: number;
 };
 
-type Strike = { count: number; firstAt: number; until: number; penaltyMs: number };
+type Strike = {
+  count: number;
+  firstAt: number;
+  until: number;
+  penaltyMs: number;
+};
 
 const strikes = new Map<string, Strike>();
 const MAX_TRACKED = 5000;
@@ -233,18 +237,19 @@ export function penaltyRemainingMs(fingerprint: string, now: number = Date.now()
  * Record a throttle. Returns the penalty now in force, in milliseconds (0 when
  * the client is still below the strike threshold and is only being slowed).
  */
-export function recordThrottle(
-  fingerprint: string,
-  rule: AbuseRule,
-  now: number = Date.now(),
-): number {
+export function recordThrottle(fingerprint: string, rule: AbuseRule, now: number = Date.now()): number {
   const existing = strikes.get(fingerprint);
 
   // A strike window that has fully elapsed means the client behaved for long
   // enough to deserve a clean slate. Forgiveness is not generosity here — it
   // is what keeps a shared shop IP from accumulating strikes over a month.
   if (!existing || now - existing.firstAt > rule.strikeWindowMs) {
-    strikes.set(fingerprint, { count: 1, firstAt: now, until: 0, penaltyMs: rule.penaltyMs });
+    strikes.set(fingerprint, {
+      count: 1,
+      firstAt: now,
+      until: 0,
+      penaltyMs: rule.penaltyMs,
+    });
     sweepStrikes(now);
     return 0;
   }

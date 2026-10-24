@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { cookies } from 'next/headers';
+import { currentIdentity, renderable } from '@/lib/auth/identity';
 import { DukaanStoreProvider } from '@/lib/store';
 import { I18nProvider } from '@/lib/i18n';
 import { ToastProvider } from '@/lib/ui/toast';
@@ -23,7 +24,8 @@ export const metadata: Metadata = {
   description:
     'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.',
   applicationName: 'DukaanOS',
-  icons: { icon: '/brand/dukaanos-app-icon.svg', apple: '/brand/apple-touch-icon.png' },
+  icons: { icon: '/brand/dukaanos-app-icon.svg', apple: '/brand/apple-touch-icon.png',
+  },
   formatDetection: { telephone: false, address: false, email: false },
   robots: { index: true, follow: true },
   openGraph: {
@@ -93,7 +95,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         </a>
 
         <AppearanceProvider initial={appearance}>
-          <DukaanStoreProvider>
+          <DukaanStoreProvider initialIdentity={renderable(await currentIdentity())}>
             <I18nProvider>
               <ToastProvider>
                 <div className="relative min-h-screen">

@@ -114,9 +114,12 @@ export async function ensureBusiness(businessName = 'My Business'): Promise<{ id
    */
   const businessId = crypto.randomUUID();
 
-  const { error: businessError } = await supabase
-    .from('businesses')
-    .insert({ id: businessId, name: businessName, owner_id: user.id, currency: 'INR' });
+  const { error: businessError } = await supabase.from('businesses').insert({
+    id: businessId,
+    name: businessName,
+    owner_id: user.id,
+    currency: 'INR',
+  });
   if (businessError) return { error: businessError.message };
 
   // The owner membership is written by the database trigger `on_business_created`
@@ -135,7 +138,10 @@ async function buildSnapshot(state: StoreState, businessId: string) {
   const categoryNames = Array.from(new Set(state.products.map((p) => p.category))).filter(Boolean);
   const categoryIdByName = new Map<string, string>();
   for (const name of categoryNames) categoryIdByName.set(name, await stableId(businessId, 'category', name));
-  const categories = categoryNames.map((name) => ({ id: categoryIdByName.get(name), name }));
+  const categories = categoryNames.map((name) => ({
+    id: categoryIdByName.get(name),
+    name,
+  }));
 
   const productIdByLocal = new Map<string, string>();
   for (const product of state.products) {
@@ -175,7 +181,10 @@ async function buildSnapshot(state: StoreState, businessId: string) {
       // The line items of a sale, so product profitability and history survive a
       // reinstall. Product ids are rewritten to the same stable ids as the catalogue.
       items: tx.items
-        ? tx.items.map((item) => ({ ...item, productId: productIdByLocal.get(item.productId) ?? item.productId }))
+        ? tx.items.map((item) => ({
+            ...item,
+            productId: productIdByLocal.get(item.productId) ?? item.productId,
+          }))
         : null,
       created_at: `${tx.date}T12:00:00.000Z`,
     })),
@@ -286,7 +295,8 @@ async function buildSnapshot(state: StoreState, businessId: string) {
 
 /** What a counter device may not do is a message the owner can act on, not a code. */
 function explainSyncError(error: { code?: string; message: string }): string {
-  if (error.code === '42501') return 'Your role on this business cannot change its records. Ask the owner or a manager.';
+  if (error.code === '42501')
+    return 'Your role on this business cannot change its records. Ask the owner or a manager.';
   return `sync: ${error.message}`;
 }
 
@@ -297,6 +307,11 @@ function explainSyncError(error: { code?: string; message: string }): string {
  * refused, and ledger lines are only ever added.
  */
 export async function pushStateToSupabase(state: StoreState): Promise<SyncResult> {
+  if (state.demoMode)
+    return {
+      ok: false,
+      error: 'Demo records cannot be uploaded to a real business.',
+    };
   const supabase = getBrowserSupabaseClient();
   const business = await ensureBusiness(state.profile.name || 'My Business');
   if ('error' in business) return { ok: false, error: business.error };
@@ -311,7 +326,12 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
       id: await stableId(businessId, 'audit', `${entry.createdAt}|${entry.type}|${entry.summary}`),
       entity_type: entry.type,
       action: entry.type,
-      details: { summary: entry.summary, actor: entry.actor, reference: entry.reference ?? null, at: entry.createdAt },
+      details: {
+        summary: entry.summary,
+        actor: entry.actor,
+        reference: entry.reference ?? null,
+        at: entry.createdAt,
+      },
       created_at: entry.createdAt,
     })),
   );
@@ -334,7 +354,10 @@ export async function pushStateToSupabase(state: StoreState): Promise<SyncResult
     audit,
   };
 
-  const { error } = await supabase.rpc('sync_tenant_snapshot', { p_business_id: businessId, p_snapshot: snapshot });
+  const { error } = await supabase.rpc('sync_tenant_snapshot', {
+    p_business_id: businessId,
+    p_snapshot: snapshot,
+  });
   if (error) return { ok: false, error: explainSyncError(error) };
   return { ok: true };
 }
@@ -348,9 +371,15 @@ export async function resetCloudBusiness(): Promise<SyncResult> {
   const businessId = getCachedBusinessId();
   if (!businessId) return { ok: true };
   const supabase = getBrowserSupabaseClient();
-  const { error } = await supabase.rpc('reset_tenant_data', { p_business_id: businessId });
+  const { error } = await supabase.rpc('reset_tenant_data', {
+    p_business_id: businessId,
+  });
   if (error) {
-    if (error.code === '42501') return { ok: false, error: 'Only the owner can reset the business in the cloud.' };
+    if (error.code === '42501')
+      return {
+        ok: false,
+        error: 'Only the owner can reset the business in the cloud.',
+      };
     return { ok: false, error: `reset: ${error.message}` };
   }
   return { ok: true };
@@ -395,7 +424,11 @@ export async function fetchCloudSnapshot(): Promise<
     supabase.from('products').select('*, categories(name)').eq('business_id', businessId),
     supabase.from('transactions').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
     supabase.from('customers').select('*').eq('business_id', businessId),
-    supabase.from('inventory_movements').select('*').eq('business_id', businessId).order('created_at', { ascending: true }),
+    supabase
+      .from('inventory_movements')
+      .select('*')
+      .eq('business_id', businessId)
+      .order('created_at', { ascending: true }),
   ]);
   const failed = [productRes, txRes, customerRes, movementRes].find((res) => res.error);
   if (failed?.error) return { ok: false, error: failed.error.message };

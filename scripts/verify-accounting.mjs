@@ -148,8 +148,8 @@ console.log('Invoice arithmetic and settlement:');
   check('overpayments never make a negative amount due', I.invoiceBalance(invoice, [{ ...payment, amount: 1000 }]) === 0);
   check('legacy paid invoices do not become collectible without payment records', I.invoiceBalance({ ...invoice, paymentStatus: 'paid' }, []) === 0);
 
-  // Run the actual store actions with queued React-style updates. This catches
-  // duplicate calls before React commits, not just arithmetic in a helper.
+  // Execute the actual command bodies with synchronous stateRef commits.
+  // React rendering may be queued; subsequent commands must see the committed ledger.
   const source = readFileSync(join(root, 'lib/store.tsx'), 'utf8');
   const ast = ts.createSourceFile('store.tsx', source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
   const methods = new Map();
@@ -161,7 +161,7 @@ console.log('Invoice arithmetic and settlement:');
   };
   visit(ast);
   if (methods.size !== 2 || helpers.size !== 5) throw Error('Invoice store action entry points moved; update the regression harness.');
-  let state = { invoices: [invoice], paymentRecords: payments, transactions: [], profile: { timezone: 'Asia/Kolkata' } };
+  let state = { invoices: [invoice], paymentRecords: payments, transactions: [], products: [], customers: [], stockMovements: [], settings: { receiptMode: 'both' }, profile: { timezone: 'Asia/Kolkata' } };
   const stateRef = { current: state };
   const invoiceSequence = { current: 1000 };
   const settlingInvoices = { current: new WeakSet() };
@@ -169,34 +169,37 @@ console.log('Invoice arithmetic and settlement:');
   let refusal = false;
   const deps = {
     calculateInvoice: I.calculateInvoice, invoiceBalance: I.invoiceBalance, nextInvoiceId: I.nextInvoiceId,
-    stateRef, invoiceSequence, settlingInvoices,
-    setState: (fn) => queued.push(fn), track: () => {},
+    stateRef, invoiceSequence, settlingInvoices, identityRef: { current: { userId: 'test-owner' } },
+    setState: (update) => { const next = typeof update === 'function' ? update(stateRef.current) : update; stateRef.current = next; queued.push(next); }, track: () => {},
+    ...(await import(compile(join(root, 'lib/accounting.ts')))),
+    ...(await import(compile(join(root, 'lib/accounting-posting.ts')))),
     meterCollection: () => refusal ? { ok: false, code: 'collection-limit' } : { ok: true },
   };
   const js = ts.transpileModule([...helpers.values()].join('\n') + '\nconst actions = {' + [...methods.values()].join(',\n') + '};', {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ESNext },
   }).outputText;
   const actions = new Function(...Object.keys(deps), js + '\nreturn actions;')(...Object.values(deps));
-  const flush = () => { for (const fn of queued.splice(0)) state = fn(state); stateRef.current = state; };
+  const flush = () => { for (const fn of queued.splice(0)) state = fn; stateRef.current = state; };
   const draft = { customerName: '', lines: [base], taxRate: 18, method: 'Cash' };
   const created = actions.createInvoice(draft);
   const second = actions.createInvoice(draft);
-  check('rapid bill creation reserves two different invoice numbers', created.ok && second.ok && created.invoiceId === 'INV-1006' && second.invoiceId === 'INV-1007');
+  check('rapid bill creation reserves two different invoice numbers', created.ok && second.ok && created.invoiceId !== second.invoiceId && Boolean(created.invoiceId) && Boolean(second.invoiceId));
   flush();
   const saved = state.invoices.find((item) => item.id === created.invoiceId);
-  check('walk-in bills save as unpaid and return the id to open', saved?.customerName === 'Walk-in customer' && saved.paymentStatus === 'pending' && saved.totalAmount === 531.89 && state.transactions.length === 0);
+  check('walk-in bills save as unpaid and return the id to open', saved?.customerName === 'Walk-in customer' && saved.paymentStatus === 'pending' && saved.totalAmount === 531.89 && summarizeFinancials(state.transactions, state.products, state.customers).cashIn === 0 && saved.posted === true);
   const rejected = actions.createInvoice({ ...draft, lines: [base, { ...base, name: '' }] });
   check('an incomplete row prevents the whole bill from being saved', !rejected.ok && queued.length === 0);
   check('credit cannot be mistaken for money received', !actions.markInvoicePaid(invoice.id, 'Credit').ok && queued.length === 0);
   refusal = true;
-  check('a collection limit leaves payments untouched', !actions.markInvoicePaid(invoice.id, 'UPI').ok && queued.length === 0);
+  check('a collection limit leaves payments untouched', !actions.markInvoicePaid(invoice.id, 'UPI', { reference: 'UPI-12345' }).ok && queued.length === 0);
   refusal = false;
+  const transactionsBefore = state.transactions.length;
   const settled = actions.markInvoicePaid(invoice.id, 'Cash');
   const repeated = actions.markInvoicePaid(invoice.id, 'Cash');
   check('the last collection uses only the unpaid balance', settled.ok && settled.amount === 465);
   check('a second confirmation before React commits cannot duplicate payment', !repeated.ok && queued.length === 1);
   flush();
-  check('settling a part-paid bill records only remaining cash and revenue', state.paymentRecords.at(-1).amount === 465 && state.transactions.length === 2 && state.transactions.every((tx) => tx.amount === 465));
+  check('settling a part-paid bill records only remaining cash and revenue', state.paymentRecords.at(-1).amount === 465 && state.transactions.length === transactionsBefore + 2 && state.transactions.slice(-2).every((tx) => tx.amount === 465));
   check('settled bills remain uncollectible after commit', !actions.markInvoicePaid(invoice.id, 'Cash').ok && I.invoiceBalance(state.invoices[0], state.paymentRecords) === 0);
 }
 

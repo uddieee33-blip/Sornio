@@ -31,3 +31,4 @@ export function validateSaleStock(
   }
   return { ok: true, quantities };
 }
+

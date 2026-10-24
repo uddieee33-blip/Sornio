@@ -1,4 +1,5 @@
 'use client';
+import { customerBalance } from '@/lib/accounting';
 
 import { useLocaleRefresh } from '@/lib/i18n';
 
@@ -30,11 +31,12 @@ export default function CustomersPage() {
   useLocaleRefresh();
   const { state, actions } = useDukaanStore();
   const [form, setForm] = useState(emptyForm);
-  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string;
+  } | null>(null);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Customer | null>(null);
 
-  const receivables = state.customers.reduce((sum, customer) => sum + customer.openingBalance, 0);
+  const receivables = state.customers.reduce((sum, customer) => sum + customerBalance(customer, state.transactions), 0);
   const upiReadyCount = state.customers.filter((customer) => isValidUpiId(customer.bank?.upiId)).length;
 
   const visibleCustomers = useMemo(() => {
@@ -48,12 +50,14 @@ export default function CustomersPage() {
   }, [state.customers, query]);
 
   const handleSubmit = () => {
-    const result = actions.addCustomer({ name: form.name, phone: form.phone, email: form.email, details: form.details });
+    const result = actions.addCustomer({ name: form.name, phone: form.phone, email: form.email, details: form.details,
+    });
     if (result.ok) {
       setMessage({ tone: 'ok', text: `Customer "${form.name.trim()}" added.` });
       setForm(emptyForm);
     } else {
-      setMessage({ tone: 'error', text: result.error ?? 'Could not add customer.' });
+      setMessage({ tone: 'error', text: result.error ?? 'Could not add customer.',
+      });
     }
   };
 
@@ -110,11 +114,16 @@ export default function CustomersPage() {
           </div>
 
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}
+            >
+              {message.text}
+            </p>
           ) : null}
 
           <div className="mt-5 flex justify-end">
-            <Button onClick={handleSubmit}><UserPlus size={16} /> Save customer</Button>
+            <Button onClick={handleSubmit}>
+              <UserPlus size={16} /> Save customer
+            </Button>
           </div>
         </Card>
 
@@ -123,8 +132,16 @@ export default function CustomersPage() {
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <CardTitle icon={<Users size={17} />}>Directory</CardTitle>
             <div className="relative">
-              <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
-              <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, phone, UPI…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
+              <Search
+                size={15}
+                className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600"
+              />
+              <input
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                placeholder="Search name, phone, UPI…"
+                className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus"
+              />
             </div>
           </div>
 
@@ -140,26 +157,50 @@ export default function CustomersPage() {
                 >
                   <div className="flex items-center gap-3">
                     <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white shadow-glow-sm">
-                      {customer.name.split(' ').map((part) => part[0]).slice(0, 2).join('')}
+                      {customer.name
+                        .split(' ')
+                        .map((part) => part[0])
+                        .slice(0, 2)
+                        .join('')}
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-semibold text-stone-900">{customer.name}</p>
-                      <p className="truncate text-xs text-stone-600">{customer.phone ?? 'No phone'} {customer.email ? `· ${customer.email}` : ''}</p>
+                      <p className="truncate text-xs text-stone-600">
+                        {customer.phone ?? 'No phone'} {customer.email ? `· ${customer.email}` : ''}
+                      </p>
                     </div>
-                    <span className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${hasUpi ? 'text-black' : 'bg-stone-100 text-stone-600'}`} style={hasUpi ? { background: accent } : undefined} title={hasUpi ? 'UPI QR ready' : 'No UPI ID yet'}>
+                    <span
+                      className={`flex h-9 w-9 items-center justify-center rounded-xl transition ${hasUpi ? 'text-black' : 'bg-stone-100 text-stone-600'}`}
+                      style={hasUpi ? { background: accent } : undefined}
+                      title={hasUpi ? 'UPI QR ready' : 'No UPI ID yet'}
+                    >
                       <QrCode size={17} />
                     </span>
                   </div>
                   <div className="mt-3.5 flex items-center justify-between gap-2 text-xs">
                     {hasUpi ? (
-                      <span className="rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset" style={{ color: accent, background: `${accent}14`, borderColor: `${accent}40`, boxShadow: `inset 0 0 0 1px ${accent}40` }}>
+                      <span
+                        className="rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset"
+                        style={{
+                          color: accent,
+                          background: `${accent}14`,
+                          borderColor: `${accent}40`,
+                          boxShadow: `inset 0 0 0 1px ${accent}40`,
+                        }}
+                      >
                         {customer.bank?.upiId}
                       </span>
                     ) : (
-                      <span className="rounded-full bg-stone-50 px-2.5 py-1 font-medium text-stone-600 ring-1 ring-inset ring-stone-200">UPI not set</span>
+                      <span className="rounded-full bg-stone-50 px-2.5 py-1 font-medium text-stone-600 ring-1 ring-inset ring-stone-200">
+                        UPI not set
+                      </span>
                     )}
-                    <span className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset ${customer.openingBalance > 0 ? 'bg-amber-500/10 text-amber-700 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25'}`}>
-                      {customer.openingBalance > 0 ? `${formatCurrency(customer.openingBalance)} due` : 'Settled'}
+                    <span
+                      className={`rounded-full px-2.5 py-1 font-semibold ring-1 ring-inset ${customerBalance(customer, state.transactions) > 0 ? 'bg-amber-500/10 text-amber-700 ring-amber-500/25' : 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/25'}`}
+                    >
+                      {customerBalance(customer, state.transactions) > 0
+                        ? `${formatCurrency(customerBalance(customer, state.transactions))} due`
+                        : 'Settled'}
                     </span>
                   </div>
                   <p className="mt-3 hidden items-center gap-1 text-xs font-semibold text-brand-600 transition group-hover:flex">
@@ -169,13 +210,17 @@ export default function CustomersPage() {
               );
             })}
             {visibleCustomers.length === 0 ? (
-              <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600 xl:col-span-2">No customers match “{query}”.</p>
+              <p className="rounded-2xl bg-stone-50 p-6 text-sm text-stone-600 xl:col-span-2">
+                No customers match “{query}”.
+              </p>
             ) : null}
           </div>
         </Card>
       </div>
 
-      {selected ? <CustomerDetailModal key={selected.id} customer={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? (
+        <CustomerDetailModal key={selected.id} customer={selected} onClose={() => setSelected(null)} />
+      ) : null}
     </div>
   );
 }

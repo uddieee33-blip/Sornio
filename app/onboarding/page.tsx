@@ -287,7 +287,12 @@ export default function OnboardingPage() {
     void publishPortal(templateId);
 
     setSavedTo({ account: accountBacked });
-    setTimeout(() => router.push('/home'), accountBacked ? 1000 : 600);
+    // Rebind the account vault after provisioning the new business.
+    setTimeout(() => {
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      if (accountBacked) window.location.assign('/home');
+      else router.push('/home');
+    }, accountBacked ? 1000 : 600);
   };
 
   /**

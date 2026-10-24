@@ -214,7 +214,9 @@ export function CollectPaymentPanel({
         return;
       }
     }
-    const result = actions.markInvoicePaid(invoice.id, method);
+    const result = actions.markInvoicePaid(invoice.id, method, {
+      reference: method === 'Card' ? card.reference : method === 'Bank Transfer' ? utr : upiRef,
+    });
     if (result.ok) {
       setSettlement({ amount: result.amount ?? due, change: Math.max(0, tenderedValue - due) });
     } else {

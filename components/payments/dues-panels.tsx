@@ -20,17 +20,26 @@ export function CollectDuesPanel() {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<Exclude<PaymentMethod, 'Credit' | 'Other'>>('Cash');
   const [customer, setCustomer] = useState('');
-  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [reference, setReference] = useState('');
+  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string;
+  } | null>(null);
 
   const submit = () => {
     const value = Number(amount);
-    const result = actions.collectDue({ amount: value, method, customerName: customer });
+    const result = actions.collectDue({ amount: value, method,
+      customerId: customer || undefined,
+      reference,
+    });
     if (result.ok) {
-      setMessage({ tone: 'ok', text: `${formatCurrency(value)} collected via ${method}. Dues are now ${formatCurrency(outstanding - value)}.` });
+      setMessage({ tone: 'ok', text: `${formatCurrency(value)} collected via ${method}. Dues are now ${formatCurrency(outstanding - value)}.`,
+      });
       setAmount('');
       setCustomer('');
     } else {
-      setMessage({ tone: 'error', text: result.error ?? 'Could not record the payment.' });
+      setMessage({
+        tone: 'error',
+        text: result.error ?? 'Could not record the payment.',
+      });
     }
   };
 
@@ -46,11 +55,22 @@ export function CollectDuesPanel() {
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
           <label className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">
             Amount received
-            <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={`mt-1.5 ${inputClass}`} />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className={`mt-1.5 ${inputClass}`}
+            />
           </label>
           <label className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">
             Received via
-            <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} className={`mt-1.5 ${inputClass}`}>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as typeof method)}
+              className={`mt-1.5 ${inputClass}`}
+            >
               <option>Cash</option>
               <option>UPI</option>
               <option>Card</option>
@@ -58,10 +78,28 @@ export function CollectDuesPanel() {
             </select>
           </label>
           <label className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">
-            Customer (optional)
-            <input value={customer} onChange={(e) => setCustomer(e.target.value)} placeholder="Walk-in" className={`mt-1.5 ${inputClass}`} />
+            Customer account
+            <select value={customer} onChange={(e) => setCustomer(e.target.value)} className={`mt-1.5 ${inputClass}`}>
+              <option value="">Unallocated older dues</option>
+              {state.customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+            <input
+              aria-label="Payment reference"
+              value={reference}
+              onChange={(e) => setReference(e.target.value)}
+              placeholder="Payment reference"
+              className={`mt-1.5 ${inputClass}`}
+            />
           </label>
-          <button type="button" onClick={submit} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800">
+          <button
+            type="button"
+            onClick={submit}
+            className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800"
+          >
             Record payment
           </button>
         </div>
@@ -69,7 +107,9 @@ export function CollectDuesPanel() {
         <p className="text-sm text-stone-600">Credit sales and opening balances appear here until they are paid.</p>
       )}
       {message && (
-        <p className={`mt-3 text-sm ${message.tone === 'ok' ? 'text-emerald-700' : 'text-rose-700'}`} role="status">{message.text}</p>
+        <p className={`mt-3 text-sm ${message.tone === 'ok' ? 'text-emerald-700' : 'text-rose-700'}`} role="status">
+          {message.text}
+        </p>
       )}
     </Card>
   );
@@ -85,17 +125,26 @@ export function PaySupplierPanel() {
   const [amount, setAmount] = useState('');
   const [method, setMethod] = useState<Exclude<PaymentMethod, 'Credit' | 'Other'>>('Bank Transfer');
   const [supplier, setSupplier] = useState('');
-  const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
+  const [message, setMessage] = useState<{
+    tone: 'ok' | 'error';
+    text: string;
+  } | null>(null);
 
   const submit = () => {
     const value = Number(amount);
     const result = actions.paySupplier({ amount: value, method, supplier });
     if (result.ok) {
-      setMessage({ tone: 'ok', text: `${formatCurrency(value)} paid via ${method}. Still owed: ${formatCurrency(payable - value)}.` });
+      setMessage({
+        tone: 'ok',
+        text: `${formatCurrency(value)} paid via ${method}. Still owed: ${formatCurrency(payable - value)}.`,
+      });
       setAmount('');
       setSupplier('');
     } else {
-      setMessage({ tone: 'error', text: result.error ?? 'Could not record the payment.' });
+      setMessage({
+        tone: 'error',
+        text: result.error ?? 'Could not record the payment.',
+      });
     }
   };
 
@@ -111,11 +160,22 @@ export function PaySupplierPanel() {
         <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1fr_auto] sm:items-end">
           <label className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">
             Amount paid
-            <input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className={`mt-1.5 ${inputClass}`} />
+            <input
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className={`mt-1.5 ${inputClass}`}
+            />
           </label>
           <label className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">
             Paid via
-            <select value={method} onChange={(e) => setMethod(e.target.value as typeof method)} className={`mt-1.5 ${inputClass}`}>
+            <select
+              value={method}
+              onChange={(e) => setMethod(e.target.value as typeof method)}
+              className={`mt-1.5 ${inputClass}`}
+            >
               <option>Bank Transfer</option>
               <option>Cash</option>
               <option>UPI</option>
@@ -124,9 +184,18 @@ export function PaySupplierPanel() {
           </label>
           <label className="text-[11px] font-semibold uppercase tracking-wide text-stone-600">
             Supplier (optional)
-            <input value={supplier} onChange={(e) => setSupplier(e.target.value)} placeholder="Supplier name" className={`mt-1.5 ${inputClass}`} />
+            <input
+              value={supplier}
+              onChange={(e) => setSupplier(e.target.value)}
+              placeholder="Supplier name"
+              className={`mt-1.5 ${inputClass}`}
+            />
           </label>
-          <button type="button" onClick={submit} className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800">
+          <button
+            type="button"
+            onClick={submit}
+            className="rounded-xl bg-stone-900 px-4 py-2 text-sm font-semibold text-white hover:bg-stone-800"
+          >
             Record payment
           </button>
         </div>
@@ -134,7 +203,9 @@ export function PaySupplierPanel() {
         <p className="text-sm text-stone-600">Deliveries received on credit appear here until they are paid.</p>
       )}
       {message && (
-        <p className={`mt-3 text-sm ${message.tone === 'ok' ? 'text-emerald-700' : 'text-rose-700'}`} role="status">{message.text}</p>
+        <p className={`mt-3 text-sm ${message.tone === 'ok' ? 'text-emerald-700' : 'text-rose-700'}`} role="status">
+          {message.text}
+        </p>
       )}
     </Card>
   );

@@ -325,8 +325,9 @@ check('clients never write membership rows', () => {
 });
 
 check('the restore path is wired into the store', () => {
-  assert(syncSource.includes('export async function fetchCloudSnapshot'), 'fetchCloudSnapshot missing');
-  assert(storeSource.includes("fetchCloudSnapshot()"), 'store does not call fetchCloudSnapshot');
+  assert(storeSource.includes('readOperatingRecords()'), 'store does not restore the complete operating snapshot');
+  assert(/mergeSnapshot\(current,\s*remote.snapshot\)/.test(storeSource), 'cloud records never reach local state');
+  assert(!storeSource.includes('deviceIsEmpty'), 'restore still ignores populated devices');
 });
 
 check('the stock ledger is no longer cut at 2,000 rows', () => {

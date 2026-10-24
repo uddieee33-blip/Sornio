@@ -21,7 +21,7 @@ async function finishTest(result, overrides = {}) {
     ownerName: 'Shop Owner', ownerPhone: '9876543210', ownerEmail: '', businessName: 'Test Shop', templateId: 'template-retail', description: '',
     gstin: '', isValidGstin: () => true, isEmail: value => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value), upiId: '', upiValid: false, ifsc: '', accountNumber: '', accountHolder: '', bankName: '', profile: {}, pinned: {current: false}, accountBacked: true,
     isValidIfsc: () => true, actions: { updateProfile: () => { effects.updates++; return { ok: true }; }, applyTemplate: () => {} }, publishPortal: () => {},
-    saveStoredProfile: async () => result, snapshotFromProfile: x => x, router: { push: x => effects.routes.push(x) }, setTimeout: fn => fn(), ...overrides,
+    saveStoredProfile: async () => result, snapshotFromProfile: x => x, router: { push: x => effects.routes.push(x) }, window: { location: { assign: x => effects.routes.push(x) } }, setTimeout: fn => fn(), ...overrides,
   };
   await new Function(...Object.keys(context), 'return (async () => {' + body + '})();')(...Object.values(context));
   return effects;

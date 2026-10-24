@@ -1,7 +1,7 @@
 import { getActiveFormattingLocale } from './locale';
 import type { Invoice, PaymentRecord } from './models/billing';
 
-export type InvoiceLine = { name: string; category: string; quantity: number; unitPrice: number };
+export type InvoiceLine = { productId?: string; name: string; category: string; quantity: number; unitPrice: number };
 export type InvoiceCalculation =
   | { ok: true; lines: (InvoiceLine & { total: number })[]; subtotal: number; tax: number; total: number }
   | { ok: false; error: string };
@@ -30,7 +30,7 @@ export function calculateInvoice(lines: readonly InvoiceLine[], taxRate: number)
       return { ok: false, error: 'This invoice amount is too large. Check the quantity and price.' };
     }
     subtotalPaise += linePaise;
-    prepared.push({ name: line.name.trim(), category: line.category.trim() || 'General', quantity: line.quantity, unitPrice: line.unitPrice, total: linePaise / 100 });
+    prepared.push({ ...(line.productId ? { productId: line.productId } : {}), name: line.name.trim(), category: line.category.trim() || 'General', quantity: line.quantity, unitPrice: line.unitPrice, total: linePaise / 100 });
   }
   if (subtotalPaise <= 0) return { ok: false, error: 'Invoice total must be greater than zero.' };
   const taxPaise = Math.round(subtotalPaise * taxRate / 100);
