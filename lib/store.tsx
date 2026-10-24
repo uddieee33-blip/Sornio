@@ -13,6 +13,7 @@ import { readOperatingRecords, saveOperatingRecords, resetOperatingRecords } fro
 import { normalizeLegacyState } from '@/lib/sync/normalize';
 import { mergeSnapshot, changesFor, stateRecords, validRecord, type SyncMetadata } from '@/lib/sync/records';
 import { money, businessDate, customerBalance, paymentReferenceRequired } from '@/lib/accounting';
+import { offlineCollectionError } from '@/lib/offline-payments';
 import { can, type Permission } from '@/lib/security/rbac';
 import { postSale, operationId } from '@/lib/accounting-posting';
 import { adoptRemoteProfile, isValidGstin, profileFromSnapshot, remoteWins, snapshotFromProfile, type ProfileSnapshot, } from '@/lib/sync/profile';
@@ -1540,6 +1541,9 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
                 }));
             },
             recordSale({ lines, method, customerName, customerId }) {
+                const offlineError = offlineCollectionError(method, typeof navigator === 'undefined' || navigator.onLine !== false);
+                if (offlineError)
+                    return { ok: false, error: offlineError };
                 const current = stateRef.current;
                 let customer = customerId ? current.customers.find((c) => c.id === customerId) : undefined;
                 const matches = current.customers.filter((c) => customerName?.trim() && c.name.toLowerCase() === customerName.trim().toLowerCase());
@@ -1597,6 +1601,9 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
                 track('settings', summary.slice(0, 240));
             },
             collectDue({ amount, method, customerName, customerId, reference }) {
+                const offlineError = offlineCollectionError(method, typeof navigator === 'undefined' || navigator.onLine !== false);
+                if (offlineError)
+                    return { ok: false, error: offlineError };
                 if (['Credit', 'Other'].includes(method))
                     return {
                         ok: false,
@@ -2530,6 +2537,9 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
                 if (!invoice)
                     return { ok: false, error: 'Invoice not found.' };
                 const settledMethod = method ?? invoice.paymentMethod;
+                const offlineError = offlineCollectionError(settledMethod, typeof navigator === 'undefined' || navigator.onLine !== false);
+                if (offlineError)
+                    return { ok: false, error: offlineError };
                 if (['Credit', 'Other'].includes(settledMethod))
                     return {
                         ok: false,

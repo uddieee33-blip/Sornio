@@ -1410,7 +1410,6 @@
   "off": "ᱵᱚᱸᱫ",
   "Off": "ᱵᱚᱱᱫᱚ",
   "Off ·": "ᱵᱚᱸᱫ ·",
-  "Offline — still working": "ᱚᱯᱷᱞᱟᱭᱤᱱ — ᱱᱤᱛ ᱦᱚᱸ ᱠᱟᱹᱢᱤ ᱠᱟᱱᱟ",
   "ok": "ᱟᱪᱷᱟᱹ",
   "on": "ᱪᱟᱹᱞᱩ",
   "On · locks after": "ᱪᱟᱹᱞᱩ · ᱛᱟᱭᱚᱢ ᱠᱩᱞᱩᱯ",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "ᱦᱮᱸ, ᱡᱷᱚᱛᱚ ᱨᱤᱥᱮᱴ",
   "you": "you",
   "You add the item": "ᱟᱢ ᱡᱤᱱᱤᱥ ᱥᱮᱞᱮᱫ ᱢᱮ",
-  "You are offline. Everything still works — your data stays on this device.": "ᱟᱢ ᱫᱚ ᱚᱯᱷᱞᱟᱭᱤᱱ ᱢᱮᱱᱟᱢᱟ ᱾ ᱡᱷᱚᱛᱚ ᱜᱮ ᱱᱤᱛ ᱦᱚᱸ ᱠᱟᱹᱢᱤ ᱠᱟᱱᱟ — ᱟᱢᱟᱜ ᱰᱟᱴᱟ ᱱᱚᱣᱟ ᱰᱤᱵᱷᱟᱭᱤᱥ ᱨᱮ ᱛᱟᱦᱮᱱᱟ ᱾",
   "You are on": "ᱟᱢ ᱪᱟᱹᱞᱩ ᱢᱮᱱᱟᱢᱟ",
   "You are on the": "ᱟᱢ ᱫᱚ ᱚᱱᱟ ᱨᱮ ᱢᱮᱱᱟᱢᱟ",
   "You are on the free plan. Everything you recorded is untouched.": "ᱟᱢ ᱯᱷᱨᱤ ᱯᱞᱟᱱ ᱨᱮ ᱢᱮᱱᱟᱢᱟ ᱾ ᱟᱢ ᱡᱟᱦᱟᱸ ᱜᱮᱢ ᱨᱮᱠᱚᱨᱰ ᱟᱠᱟᱫᱟ ᱚᱱᱟ ᱫᱚ ᱵᱟᱝ ᱡᱚᱴᱮᱫ ᱟᱠᱟᱱᱟ ᱾",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }

@@ -127,6 +127,28 @@ function check(name, fn) {
   passed++;
   console.log('ok', name);
 }
+check('offline digital collections do not change stock, dues or invoices', () => {
+  const originalNavigator = Object.getOwnPropertyDescriptor(global, 'navigator');
+  Object.defineProperty(global, 'navigator', { configurable: true, value: { onLine: false } });
+  try {
+    const a = mount({ ...store.buildEmptyState(), products: [product], customers: [{ id: 'c1', name: 'A', openingBalance: 50, createdAt: '2026-10-24' }] });
+    const beforeStock = state.products[0].stock;
+    assert.equal(a.recordSale({ lines: [{ productId: product.id, quantity: 1, rate: 100 }], method: 'UPI' }).ok, false);
+    assert.equal(state.products[0].stock, beforeStock);
+    assert.equal(state.transactions.length, 0);
+    assert.equal(a.collectDue({ amount: 50, method: 'Bank Transfer', customerId: 'c1', reference: 'UTR-123456' }).ok, false);
+    assert.equal(state.transactions.length, 0);
+    assert.equal(a.createInvoice({ customerName: 'A', lines: [{ name: 'Service', category: 'Services', quantity: 1, unitPrice: 10 }], method: 'Cash', taxRate: 0 }).ok, true);
+    const invoiceId = state.invoices[0].id;
+    assert.equal(a.markInvoicePaid(invoiceId, 'Card', { reference: 'RRN-123456' }).ok, false);
+    assert.equal(state.invoices[0].paymentStatus, 'pending');
+    assert.equal(state.paymentRecords.length, 0);
+    assert.equal(a.markInvoicePaid(invoiceId, 'Cash').ok, true);
+  } finally {
+    if (originalNavigator) Object.defineProperty(global, 'navigator', originalNavigator);
+    else delete global.navigator;
+  }
+});
 check('duplicate sale lines validate their combined stock', () => {
   const a = mount({ ...store.buildEmptyState(), products: [product] });
   const result = a.recordSale({

@@ -24,8 +24,17 @@ function load(relative) {
 }
 const { shopkeeperSummary, DAILY_TASKS } = load('lib/shopkeeper.ts');
 const { getCustomerDueReminders, normalizePhoneForLink } = load('lib/reminders.ts');
+const { offlineCollectionError } = load('lib/offline-payments.ts');
 let passed = 0;
 function check(label, fn) { fn(); passed++; console.log(`ok ${label}`); }
+check('offline cash and unpaid credit can proceed without claiming digital settlement', () => {
+  assert.equal(offlineCollectionError('Cash', false), null);
+  assert.equal(offlineCollectionError('Credit', false), null);
+  for (const method of ['UPI', 'Card', 'Bank Transfer']) {
+    assert.match(offlineCollectionError(method, false), /Keep the bill unpaid/);
+    assert.equal(offlineCollectionError(method, true), null);
+  }
+});
 
 const state = {
   profile: { name: 'Counter & Co', timezone: 'Asia/Kolkata' },
