@@ -65,8 +65,8 @@ export default function BillingPage() {
             <Card className="print-area invoice-print-area animate-fade-up relative overflow-hidden">
               <div className="no-print pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
               <div className="invoice-watermark" aria-hidden="true">
-                <span className="invoice-watermark-mark">D</span>
-                <span className="invoice-watermark-name">DukaanOS</span>
+                <span className="invoice-watermark-mark">S</span>
+                <span className="invoice-watermark-name">Sornio</span>
               </div>
               <div id="invoice-preview" className="mb-5 flex scroll-mt-24 flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0">
@@ -231,7 +231,7 @@ export default function BillingPage() {
                 </div>
               ))}
             </div>
-            <Link href="/subscription" className="mt-4 inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-brand-600"><BadgeIndianRupee size={15} /> Your DukaanOS plan <ArrowRight size={14} /></Link>
+            <Link href="/subscription" className="mt-4 inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-brand-600"><BadgeIndianRupee size={15} /> Your Sornio plan <ArrowRight size={14} /></Link>
           </Card>
         </div>
       </div>
