@@ -1,0 +1,41 @@
+name: Windows desktop package
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'desktop/windows/**'
+      - '.github/workflows/windows-desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Build Windows x64 app
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compile Windows target
+        run: dotnet publish desktop/windows/DukaanOS.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist/windows
+      - name: Check package contents
+        run: |
+          test -s dist/windows/DukaanOS.exe
+          find dist/windows -type f -name WebView2Loader.dll -size +0c | grep -q .
+          find dist/windows -type f -name Microsoft.Web.WebView2.Core.dll -size +0c | grep -q .
+      - name: Bundle all runtime files
+        run: |
+          cd dist/windows
+          zip -q -r ../DukaanOS-Windows-x64.zip .
+      - name: Upload review package
+        uses: actions/upload-artifact@v4
+        with:
+          name: DukaanOS-Windows-x64
+          path: dist/DukaanOS-Windows-x64.zip
+          if-no-files-found: error
+          retention-days: 3

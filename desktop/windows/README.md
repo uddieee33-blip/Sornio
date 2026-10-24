@@ -1,0 +1,43 @@
+# DukaanOS for Windows
+
+This is a Windows desktop window for the production DukaanOS service at
+`https://dukaan-os-six.vercel.app`. It uses Microsoft's WebView2, and keeps a
+separate app profile under `%LOCALAPPDATA%\DukaanOS\WebView2`. Sign in with the
+same account as the web app. The server remains responsible for authentication,
+business access and synced data. No account details or messaging credentials
+are compiled into the EXE.
+
+## Build
+
+From the repository root with the .NET 8 SDK:
+
+```powershell
+dotnet publish desktop/windows/DukaanOS.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist/windows
+```
+
+Keep **all** files in `dist/windows` together and run `DukaanOS.exe`. The EXE
+does not work if copied out of that folder on its own. The repository's
+"Windows desktop package" GitHub Action builds a ZIP on review branches and
+can also be started manually. Download the ZIP from the workflow run's
+Artifacts section, extract it, and run the EXE. This is an unsigned test
+package, not a signed installer or Store distribution.
+
+Microsoft Edge WebView2 Evergreen Runtime must be present. Windows 11 normally
+includes it; if missing, the app displays a clear message. Install it from
+[Microsoft's WebView2 page](https://developer.microsoft.com/microsoft-edge/webview2/)
+or open the business in a browser. The app itself requires internet access for
+sign-in and sync. The hosted site can update its UI without rebuilding this
+window; changes to the native window require a new package.
+
+## Acceptance on a Windows machine
+
+1. Extract the full ZIP on Windows 10/11 x64 and run `DukaanOS.exe`.
+2. Check an account with completed setup and a new account through sign-up,
+   confirmation, owner details, business details and optional payment setup.
+3. Make a bill, collect a payment, print a receipt, scan with actual hardware
+   and open a customer reminder in WhatsApp. Check downloaded files and links.
+4. Disconnect and reconnect the network; the retry control must recover.
+5. Sign out and sign in on a second machine; confirm that account-backed records
+   follow the owner. Browser mode and local-device-only mode do not prove sync.
+
+Keep production distribution gated on real device acceptance and code signing.
