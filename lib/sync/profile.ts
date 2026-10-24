@@ -202,8 +202,8 @@ export function snapshotFromProfile(profile: StoredProfile | null | undefined): 
  * boolean can be set by anything that can write the row — including a client
  * that has not actually collected a UPI id. The four things that make a console
  * usable are the ones checked: who owns it, how to reach them, what it is called,
- * and which trade shapes the screens. The UPI id is required too, because
- * payment collection remains inactive until a valid UPI ID is added.
+ * and which trade shapes the screens. Payment details are optional; adding a
+ * valid UPI ID enables the QR preview without changing setup completion.
  */
 export function isSetupComplete(snapshot: ProfileSnapshot): boolean {
   if (!snapshot.ownerName) return false;

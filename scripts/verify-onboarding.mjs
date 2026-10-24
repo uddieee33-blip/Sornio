@@ -54,4 +54,13 @@ r = await finishTest({ ok: true, mode: 'supabase' }, { accountNumber: '123456789
 equal(r.routes, []);
 equal(r.updates, 0);
 equal(r.errors.at(-1), 'Enter a valid IFSC code (e.g. HDFC0001234).');
+r = await finishTest({ ok: true, mode: 'supabase' }, { accountNumber: '123456789', ifsc: 'HDFC0001234', accountHolder: '' });
+equal(r.routes, []); equal(r.updates, 0);
+equal(r.errors.at(-1), 'Enter the account holder name as shown by your bank.');
+r = await finishTest({ ok: true, mode: 'supabase' }, { accountNumber: '123456789', ifsc: 'HDFC0001234', accountHolder: 'Actual Account Holder' });
+equal(r.routes, ['/home']);
+equal(source.includes('<BusinessDetailsStep'), true);
+const businessStep = fs.readFileSync(root + 'components/onboarding/business-details-step.tsx', 'utf8');
+equal(businessStep.includes('dailyWorkspace(portalForTemplate(templateId).id)'), true);
+equal(bankStep.includes('id="setup-gstin"'), true);
 console.log(`${passed} focused onboarding assertions passed`);

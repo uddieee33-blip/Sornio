@@ -57,7 +57,7 @@ export function Topbar({
 
   // The breadcrumb speaks this trade's language: "Plans & Members" in a gym,
   // "Udhaar Khata" in a kirana — the same route, the owner's own words.
-  const areas = workspaceAreas(nav);
+  const areas = workspaceAreas(nav, portal.id);
   const area = activeWorkArea(areas, pathname);
   const title = workspacePageTitle(areas, pathname);
 

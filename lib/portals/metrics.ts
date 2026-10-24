@@ -13,6 +13,7 @@
  * an honest zero with the reason next to it.
  */
 
+import { customerBalance } from '@/lib/accounting';
 import { daysUntil } from '@/lib/models/membership';
 import type { Invoice } from '@/lib/models/billing';
 import type { MembershipSubscription } from '@/lib/models/membership';
@@ -140,8 +141,8 @@ export function resolveMetric(key: MetricKey, ctx: CockpitContext): MetricReadin
     }
 
     case 'udhaarOutstanding': {
-      const open = customers.filter((customer) => customer.openingBalance > 0);
-      const value = open.reduce((total, customer) => total + customer.openingBalance, 0);
+      const open = customers.map(customer => customerBalance(customer, transactions)).filter(balance => balance > 0);
+      const value = open.reduce((total, balance) => total + balance, 0);
       return { value: formatCurrency(value), numeric: value, kind: 'currency', sub: open.length > 0 ? `${open.length} khata${open.length === 1 ? '' : 's'} open` : 'all settled' };
     }
 

@@ -23,7 +23,7 @@ export function OwnerDetailsStep({
 }: OwnerDetailsStepProps) {
   return (
     <section aria-labelledby="owner-details-title" className="space-y-5">
-      <h2 id="owner-details-title" className="font-display text-lg font-bold text-stone-900">About you</h2>
+      <h2 id="owner-details-title" tabIndex={-1} className="font-display text-lg font-bold text-stone-900">About you</h2>
       <div>
         <label htmlFor="setup-owner-name" className={labelClass}>Your full name</label>
         <input id="setup-owner-name" name="ownerName" className={inputClass} type="text" autoComplete="name" maxLength={120} required
@@ -58,7 +58,7 @@ export function OwnerDetailsStep({
             {accountBacked ? <Cloud size={12} className="mt-0.5 shrink-0" /> : <HardDrive size={12} className="mt-0.5 shrink-0" />}
             {accountBacked
               ? 'Held against your Sornio account, so signing in on another phone or tablet brings all of it back.'
-              : 'Held in this device’s encrypted vault. Connect Supabase credentials and it follows you to any device.'}
+              : 'Saved on this device. Account sync is not available in this build.'}
           </p>
         </div>
       ) : null}

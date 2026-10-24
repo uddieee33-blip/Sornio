@@ -13,7 +13,7 @@ import { useRouter } from 'next/navigation';
 import { ArrowRight, CornerDownLeft, Search, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { usePortal } from '@/lib/portals/portal-provider';
-import { DAILY_TASKS } from '@/lib/shopkeeper';
+import { dailyWorkspace } from '@/lib/portals/daily-workspace';
 import { workspaceAreas, workspaceLinkMatches } from '@/lib/workspace';
 import { usePlan } from '@/components/billing/plan-provider';
 import { checkPlanAccess } from '@/lib/plans/routes';
@@ -59,8 +59,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const listRef = useRef<HTMLDivElement>(null);
 
   const commands = useMemo<Command[]>(() => {
-    const areas = workspaceAreas(nav);
-    const daily = DAILY_TASKS.filter(task => allows(task.href) && checkPlanAccess(entitlement, task.href).allowed);
+    const areas = workspaceAreas(nav, portal.id);
+    const daily = dailyWorkspace(portal.id).tasks.filter(task => allows(task.href) && checkPlanAccess(entitlement, task.href).allowed);
     const dailyRoutes = new Set<string>(daily.map(task => task.href));
     const actions: Command[] = daily.map(task => ({
       id: `task:${task.href}`, label: task.label, hint: task.description, group: 'Everyday jobs',
@@ -73,7 +73,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       run: () => router.push(link.href),
     })));
     return [...actions, ...pages];
-  }, [router, nav, portal.name, allows, entitlement]);
+  }, [router, nav, portal.id, portal.name, allows, entitlement]);
 
   const results = useMemo(() => {
     return commands

@@ -239,9 +239,10 @@ check('full-trial portal access follows the signed subscription, with an indepen
   assert(/record\.businessId !== account\?\.tenantId/.test(proxy), 'the signed plan must stay bound to the authenticated tenant');
   assert(/masterRevealActive\(master\) \|\| planEntitlement\.state === 'trialing'/.test(proxy), 'a running trial must reveal modules on the server');
   assert(/checkPlanAccess\(planEntitlement, pathname\)/.test(proxy), 'independent plan enforcement must remain on the server');
-  assert(/entitlement\.state === 'trialing'/.test(portal), 'a running trial must reveal modules in the client navigation');
+  assert(/entitlement\.state === 'trialing'/.test(portal), 'a running trial retains feature access in the client');
+  assert(!/const revealAll[^;]+trialing/.test(portal), 'a trial must not automatically expand business navigation');
   assert(shell.indexOf('<PlanProvider>') < shell.indexOf('<PortalProvider'), 'the portal must receive the verified plan from its provider');
-  assert(/!revealAll && Boolean\(needsChoice/.test(gate), 'a trial must not be blocked by the old business type gate');
+  assert(/!revealAll && Boolean\(needsChoice/.test(gate), 'choosing a business remains required until an explicit reveal');
   assert(/!entitlementHasModule\(entitlement, requestedLockedModule\)/.test(planNotice), 'a stale locked link must not show a paywall for an unlocked module');
 });
 

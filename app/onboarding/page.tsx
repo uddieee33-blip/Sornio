@@ -26,9 +26,6 @@ import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { useDukaanStore } from '@/lib/store';
 import { businessTemplates } from '@/lib/models/business';
-import { portalIcon } from '@/lib/portals/icons';
-import { disabledModules, portalForTemplate, PORTALS } from '@/lib/portals/registry';
-import { navSectionsFor } from '@/lib/portals/nav';
 import { publishPortal } from '@/lib/portals/sync';
 import { isValidGstin, snapshotFromProfile } from '@/lib/sync/profile';
 import { isEmail } from '@/lib/security/validation';
@@ -38,15 +35,13 @@ import { buildUpiDeepLink, isValidIfsc, isValidUpiId, maskAccountNumber } from '
 import { signOutAndLeave } from '@/lib/auth/client';
 import { JoinBusiness } from '@/components/team/join-business';
 import { OwnerDetailsStep } from '@/components/onboarding/owner-details-step';
+import { BusinessDetailsStep } from '@/components/onboarding/business-details-step';
 import { BankDetailsStep } from '@/components/onboarding/bank-details-step';
-
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
-const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 const STEPS = [
   { id: 1, title: 'About you', icon: User },
   { id: 2, title: 'Your business', icon: Building2 },
-  { id: 3, title: 'Payments (optional)', icon: QrCode },
+  { id: 3, title: 'Bank & tax', icon: QrCode },
 ];
 
 export default function OnboardingPage() {
@@ -57,8 +52,8 @@ export default function OnboardingPage() {
    * One definition of "finished", and it is the server's.
    *
    * The loose check this replaced — a template and a business name — called an
-   * owner set up while the collection QR was still missing, which is the one gap
-   * that costs a shop money. `snapshotFromProfile` derives the answer from the
+   * owner set up without validating the owner contact fields. Payment setup
+   * remains optional. `snapshotFromProfile` derives the answer from the
    * stored fields the same way `readStoredProfile` does for the account, so the
    * door on `/auth`, the redirect from the sign-in endpoint and this screen cannot
    * disagree about whether the steps are worth showing.
@@ -148,6 +143,12 @@ export default function OnboardingPage() {
     if (!pinned.current) setView(snapshotFromProfile(profile).setupComplete ? 'summary' : 'form');
   }, [hydrated, profile]);
 
+  useEffect(() => {
+    if (!hydrated || view !== 'form') return;
+    const heading = ['owner-details-title', 'business-details-title', 'bank-details-title'][step - 1];
+    document.getElementById(heading)?.focus({ preventScroll: true });
+  }, [step, hydrated, view]);
+
   const leave = () => void signOutAndLeave();
 
   const upiValid = upiId.trim() !== '' && isValidUpiId(upiId.trim());
@@ -197,6 +198,7 @@ export default function OnboardingPage() {
       { label: 'Collection UPI ID', value: profile.upiId ?? bank.upiId ?? '' },
       { label: 'Account holder', value: bank.accountHolder ?? '' },
       { label: 'Bank name', value: bank.bankName ?? '' },
+      { label: 'GSTIN', value: profile.gstin ?? '' },
       { label: 'Account number', value: /^\d{6,20}$/.test(account) ? maskAccountNumber(account) : '' },
       { label: 'IFSC code', value: bank.ifsc ?? '' },
     ].filter((item) => item.value !== '');
@@ -222,7 +224,6 @@ export default function OnboardingPage() {
     if (step === 2) {
       if (!businessName.trim()) return setError('Business name is required.');
       if (!templateId) return setError('Pick the template closest to your business — you can change it anytime.');
-      if (gstin.trim() && !isValidGstin(gstin)) return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
       setStep(3);
     }
   };
@@ -234,11 +235,12 @@ export default function OnboardingPage() {
     if (ownerEmail.trim() && !isEmail(ownerEmail.trim())) { setStep(1); return setError('Enter a valid email address.'); }
     if (!businessName.trim()) { setStep(2); return setError('Business name is required.'); }
     if (!templateId) { setStep(2); return setError('Pick the template closest to your business — you can change it anytime.'); }
-    if (gstin.trim() && !isValidGstin(gstin)) return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.');
+    if (gstin.trim() && !isValidGstin(gstin)) { setStep(3); return setError('Enter a valid 15-character GSTIN, or leave it blank if unregistered.'); }
     if (upiId.trim() && !upiValid) return setError('Enter a valid UPI ID, or leave it blank and activate payments later.');
     if (ifsc.trim() && !isValidIfsc(ifsc.trim().toUpperCase())) return setError('That IFSC code does not look right (e.g. HDFC0001234).');
     if (accountNumber.trim() && !/^\d{6,20}$/.test(accountNumber.replace(/\s/g, ''))) return setError('Account numbers have 6–20 digits.');
     if (accountNumber.trim() && !ifsc.trim()) return setError('Enter a valid IFSC code (e.g. HDFC0001234).');
+    if (accountNumber.trim() && !accountHolder.trim()) return setError('Enter the account holder name as shown by your bank.');
 
     pinned.current = true;
     setFinishing(true);
@@ -252,7 +254,7 @@ export default function OnboardingPage() {
       upiId: upiId.trim(),
       bank: {
         upiId: upiId.trim(),
-        accountHolder: accountHolder.trim() || ownerName.trim(),
+        accountHolder: accountHolder.trim() || undefined,
         bankName: bankName.trim() || undefined,
         accountNumber: accountNumber.replace(/\s/g, '') || undefined,
         ifsc: ifsc.trim().toUpperCase() || undefined,
@@ -284,7 +286,7 @@ export default function OnboardingPage() {
     actions.applyTemplate(templateId);
     // Publish only after a successful account save; do not change console
     // navigation when the business setup has not reached the server.
-    void publishPortal(templateId);
+    await publishPortal(templateId);
 
     setSavedTo({ account: accountBacked });
     // Rebind the account vault after provisioning the new business.
@@ -310,10 +312,8 @@ export default function OnboardingPage() {
    */
   if (!hydrated) {
     return (
-      <div className="setup-page relative flex min-h-screen items-center justify-center overflow-hidden p-6">
-        <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
-        <div className="w-full max-w-3xl">
+      <div className="setup-page sornio-setup relative flex min-h-screen items-center justify-center overflow-hidden p-6">
+            <div className="w-full max-w-3xl">
           <div className="mb-6 flex flex-col items-center">
             <BrandWordmark width={190} priority className="h-auto w-[190px]" />
             <div className="mt-4 h-6 w-64 animate-pulse rounded-full bg-stone-200" />
@@ -327,9 +327,7 @@ export default function OnboardingPage() {
   }
 
   return (
-    <div className="setup-page relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
-      <div className="pointer-events-none absolute -left-24 -top-24 h-96 w-96 rounded-full bg-brand-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 -right-24 h-96 w-96 rounded-full bg-violet-600/10 blur-3xl" />
+    <div className="setup-page sornio-setup relative flex min-h-screen items-start justify-center overflow-hidden p-6 md:items-center">
       <div className="absolute right-4 top-4 z-20 flex items-center gap-2 sm:right-6 sm:top-6"><AppearanceMenu /><LanguagePicker /></div>
 
       <div className="animate-fade-up relative w-full max-w-3xl">
@@ -341,7 +339,7 @@ export default function OnboardingPage() {
           <p className="mt-1.5 max-w-md text-sm text-stone-600">
             {alreadySetup
               ? 'We remembered your details — change anything you need to, or go straight into the console.'
-              : 'Tell us about your shop first. You can set up payment collection later.'}
+              : 'Your details. Your business. Your collection settings. Then your own workspace.'}
           </p>
           {showSummary ? null : alreadySetup ? (
             <button
@@ -380,7 +378,7 @@ export default function OnboardingPage() {
               {accountBacked ? <Cloud size={12} className="mt-0.5 shrink-0" /> : <HardDrive size={12} className="mt-0.5 shrink-0" />}
               {accountBacked
                 ? 'Held against your Sornio account, so signing in on another phone or tablet brings all of it back.'
-                : 'Held in this device’s encrypted vault. Connect Supabase credentials and it follows you to any device.'}
+                : 'Saved on this device. Account sync is not available in this build.'}
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">
               <button
@@ -402,13 +400,15 @@ export default function OnboardingPage() {
         ) : (
           <>
           {/* Stepper */}
-          <div className="mb-6 grid grid-cols-3 gap-2">
+          <nav aria-label="Business setup steps" className="setup-stepper mb-6 grid grid-cols-3 gap-2">
             {STEPS.map((s) => {
               const active = step === s.id;
               const done = step > s.id;
               return (
                 <button
                   key={s.id}
+                  type="button"
+                  aria-current={active ? 'step' : undefined}
                   disabled={finishing || s.id > step}
                   onClick={() => { setError(null); setStep(s.id); }}
                   className={`flex items-center justify-center gap-2 rounded-xl px-3 py-2.5 text-xs font-bold transition ${
@@ -421,11 +421,11 @@ export default function OnboardingPage() {
                 </button>
               );
             })}
-          </div>
+          </nav>
 
-          <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card">
+          <div className="setup-step-content rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card">
             {error ? (
-              <div className="mb-5 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20 animate-fade-in">{error}</div>
+              <div role="alert" className="mb-5 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20 animate-fade-in">{error}</div>
             ) : null}
 
             {step === 1 ? (
@@ -439,73 +439,12 @@ export default function OnboardingPage() {
             ) : null}
 
             {step === 2 ? (
-              <div className="space-y-4">
-                <div><label htmlFor="setup-business-name" className={labelClass}>Business name</label><input id="setup-business-name" autoComplete="organization" className={inputClass} placeholder="Your shop or business name" value={businessName} onChange={(e) => { markTouched(); setBusinessName(e.target.value); }} /></div>
-                <div><label htmlFor="setup-gstin" className={labelClass}>GSTIN (only if GST registered)</label><input id="setup-gstin" className={inputClass} maxLength={15} autoCapitalize="characters" placeholder="15-character GSTIN" value={gstin} onChange={(e) => { markTouched(); setGstin(e.target.value.toUpperCase()); }} /><p className="mt-1 text-xs text-stone-600">Optional. Your GSTIN will appear on printed invoices after you save.</p></div>
-                <div>
-                  <span className={labelClass}>What kind of business is it?</span>
-                  <p className="mb-3 text-xs leading-relaxed text-stone-600">
-                    Choose the type closest to your business. We will show the tools you need. You can change this later.
-                  </p>
-                  <div className="grid gap-2 sm:grid-cols-2">
-                    {businessTemplates.map((template) => {
-                      const active = templateId === template.id;
-                      const blueprint = portalForTemplate(template.id);
-                      const TemplateIcon = portalIcon(blueprint.icon);
-                      const leftOut = disabledModules(blueprint.id);
-                      return (
-                        <button
-                          key={template.id}
-                          onClick={() => { markTouched(); setTemplateId(template.id); }}
-                          aria-pressed={active}
-                          className={`rounded-2xl p-3.5 text-left ring-1 ring-inset transition ${
-                            active ? 'bg-portal/[0.10] ring-portal/40' : 'bg-stone-50 ring-stone-200 hover:bg-stone-100'
-                          }`}
-                        >
-                          <span className="flex items-center justify-between gap-2">
-                            <span className="flex items-center gap-2 text-sm font-bold text-stone-900">
-                              <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${active ? 'bg-portal-gradient text-white' : 'bg-stone-100 text-stone-600'}`}>
-                                <TemplateIcon size={15} strokeWidth={2.2} />
-                              </span>
-                              {template.name}
-                            </span>
-                            {active ? <Check size={14} className="text-portal" /> : null}
-                          </span>
-                          <span className="mt-2 block text-xs leading-relaxed text-stone-600">{template.promise}</span>
-                          <span className="mt-2 block text-[11px] leading-relaxed text-stone-500">{template.excluded}</span>
-                          {leftOut.length > 0 ? (
-                            <span className="mt-2 flex flex-wrap gap-1">
-                              {leftOut.slice(0, 4).map((item) => (
-                                <span key={item.module} className="rounded-full bg-white/70 px-2 py-0.5 text-[10px] font-medium text-stone-500 ring-1 ring-inset ring-stone-200">
-                                  no {item.label.toLowerCase()}
-                                </span>
-                              ))}
-                            </span>
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {templateId ? (
-                    <div className="mt-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
-                      <p className="text-[11px] font-bold uppercase tracking-wide text-stone-500">Your console will open with these sections</p>
-                      <div className="mt-2.5 flex flex-wrap gap-2">
-                        {navSectionsFor(templateId).map((section) => (
-                          <span key={section.title} className="inline-flex items-center gap-1.5 rounded-xl bg-white px-2.5 py-1.5 text-[11px] font-semibold text-stone-700 ring-1 ring-inset ring-stone-200">
-                            {section.title}
-                            <span className="text-stone-400">· {section.links.length}</span>
-                          </span>
-                        ))}
-                      </div>
-                      <p className="mt-2.5 text-[11px] leading-relaxed text-stone-500">
-                        {PORTALS.find((portal) => portal.templateId === templateId)?.tagline} — every screen inside uses your trade&apos;s words.
-                      </p>
-                    </div>
-                  ) : null}
-                </div>
-                <div><label htmlFor="setup-description" className={labelClass}>Describe your business (optional)</label><textarea id="setup-description" className="min-h-[80px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5 py-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="What you sell, who your customers are…" value={description} onChange={(e) => { markTouched(); setDescription(e.target.value); }} /></div>
-              </div>
+              <BusinessDetailsStep
+                businessName={businessName} templateId={templateId} description={description}
+                onBusinessNameChange={value => { markTouched(); setBusinessName(value); }}
+                onTemplateChange={value => { markTouched(); setTemplateId(value); }}
+                onDescriptionChange={value => { markTouched(); setDescription(value); }}
+              />
             ) : null}
 
             {step === 3 ? (
@@ -513,6 +452,7 @@ export default function OnboardingPage() {
                 upiId={upiId} accountHolder={accountHolder} bankName={bankName}
                 accountNumber={accountNumber} ifsc={ifsc} ownerName={ownerName}
                 businessName={businessName} upiValid={upiValid} deepLink={deepLink}
+                gstin={gstin} onGstinChange={value => { markTouched(); setGstin(value); }}
                 onUpiIdChange={(value) => { markTouched(); setUpiId(value); }}
                 onAccountHolderChange={(value) => { markTouched(); setAccountHolder(value); }}
                 onBankNameChange={(value) => { markTouched(); setBankName(value); }}
@@ -583,7 +523,7 @@ export default function OnboardingPage() {
         ) : null}
 
         <p className="mt-5 flex items-center justify-center gap-2 text-center text-xs text-stone-600">
-          <Banknote size={13} className="text-emerald-500" /> No payment gateway · money lands straight in your bank · customer data stays on your device
+          <Banknote size={13} className="text-emerald-500" /> Add payment details now or later. Your business records stay connected to this workspace.
         </p>
       </div>
     </div>

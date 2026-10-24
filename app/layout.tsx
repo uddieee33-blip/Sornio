@@ -16,6 +16,7 @@ import {
 import './globals.css';
 import './sornio-landing.css';
 import './sornio-auth.css';
+import './sornio-setup.css';
 import './sornio-console.css';
 import './sornio-home.css';
 import { InstallProvider } from '@/components/pwa/install-provider';

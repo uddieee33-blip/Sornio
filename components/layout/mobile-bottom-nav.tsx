@@ -20,11 +20,11 @@ export function MobileBottomNav({
   onOpenMenu: () => void;
 }) {
   const pathname = usePathname();
-  const { nav } = usePortal();
+  const { nav, portal } = usePortal();
   const { entitlement } = usePlan();
   const links = nav.flatMap((section) => section.links);
   const homeIcon = links.find((link) => link.href === '/home')?.icon ?? Home;
-  const areas = workspaceAreas(nav);
+  const areas = workspaceAreas(nav, portal.id);
   const homeActive = areas.find(area => area.id === 'home')?.links.some(link => workspaceLinkMatches(link.href, pathname)) ?? pathname === '/home';
   const actions = areas
     .filter(area => !['home', 'reports', 'settings'].includes(area.id))

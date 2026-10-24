@@ -2,6 +2,7 @@
 
 import Link from 'next/link';
 import { BarChart3, ChevronDown, CreditCard, Home, LockKeyhole, Package, Receipt, Settings, Users } from 'lucide-react';
+import { usePortal } from '@/lib/portals/portal-provider';
 import { usePlan } from '@/components/billing/plan-provider';
 import { checkPlanAccess } from '@/lib/plans/routes';
 import type { ResolvedNavSection } from '@/lib/portals/nav';
@@ -15,7 +16,8 @@ export function NavigationSections({ sections, activePath, variant, idPrefix, on
   revealAll?: boolean; onNavigate?: () => void; onLayoutChange?: () => void;
 }) {
   const { entitlement } = usePlan();
-  const areas = workspaceAreas(sections);
+  const { portal } = usePortal();
+  const areas = workspaceAreas(sections, portal.id);
   const active = activeWorkArea(areas, activePath);
   return <div className="space-y-1" data-workspace-navigation={variant}>
     {areas.map(area => {
