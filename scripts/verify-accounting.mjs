@@ -200,6 +200,24 @@ console.log('Invoice arithmetic and settlement:');
   check('settled bills remain uncollectible after commit', !actions.markInvoicePaid(invoice.id, 'Cash').ok && I.invoiceBalance(state.invoices[0], state.paymentRecords) === 0);
 }
 
+// Integration groundwork for PR #52: repeated lines must be validated as one basket.
+{
+  const { validateSaleStock } = await import(compile(join(root, 'lib/sale-stock.ts')));
+  const soap = { id: 'soap', name: 'Soap', itemType: 'product', stock: 5 };
+  const a = (quantity, rate = 100) => ({ productId: 'soap', quantity, rate });
+  const oversold = validateSaleStock([a(3), a(3)], [soap]);
+  check('repeated sale lines cannot jointly oversell stock', !oversold.ok);
+
+  const valid = validateSaleStock([a(2), a(3)], [soap]);
+  check('sale validation groups repeated items before stock posting', valid.ok && valid.quantities.get('soap') === 5);
+
+  check('sale validation refuses non-finite quantities', !validateSaleStock([a(Number.POSITIVE_INFINITY)], [soap]).ok);
+  check('sale validation refuses non-finite rates', !validateSaleStock([a(1, Number.NaN)], [soap]).ok);
+  check('sale validation refuses unknown products', !validateSaleStock([a(1)], []).ok);
+  const service = { id: 'svc', name: 'Service', itemType: 'service', stock: 0 };
+  check('services remain sellable without physical stock', validateSaleStock([{ productId: 'svc', quantity: 2, rate: 100 }], [service]).ok);
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
 

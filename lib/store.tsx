@@ -2,6 +2,7 @@
 
 import { getActiveFormattingLocale } from './locale';
 import { calculateInvoice, invoiceBalance, nextInvoiceId, type InvoiceLine } from './invoices';
+import { validateSaleStock } from './sale-stock';
 export type { InvoiceLine } from './invoices';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
@@ -1370,19 +1371,15 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     },
 
     recordSale({ lines, method, customerName, source }) {
-      const validLines = lines.filter((line) => line.quantity > 0 && line.rate >= 0);
-      if (validLines.length === 0) return { ok: false, error: 'Add at least one line with a quantity.' };
-
-      for (const line of validLines) {
-        const product = stateRef.current.products.find((item) => item.id === line.productId);
-        if (!product) return { ok: false, error: 'Select a valid item on every line.' };
-        if (product.itemType === 'product' && line.quantity > product.stock) {
-          return { ok: false, error: `Not enough stock for ${product.name} (${product.stock} left).` };
-        }
-      }
+      // Validate the whole basket, including repeated product IDs, before posting.
+      // Per-line checks alone can oversell a single product in one transaction.
+      const validation = validateSaleStock(lines, stateRef.current.products);
+      if (!validation.ok) return validation;
+      const validLines = lines;
+      const quantities = validation.quantities;
 
       const total = validLines.reduce((sum, line) => sum + line.quantity * line.rate, 0);
-      if (total <= 0) return { ok: false, error: 'Sale total must be greater than zero.' };
+      if (!Number.isFinite(total) || total <= 0) return { ok: false, error: 'Sale total must be greater than zero.' };
 
       // The plan gate sits before anything is written: a refused collection
       // leaves the ledger exactly as it was, so a limit can never corrupt books.
@@ -1429,8 +1426,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         // The stock ledger: one line per item that left the shelf, carrying the
         // balance the owner can go and count. This is what makes "108 became
         // 105" checkable instead of merely asserted.
-        const movements = validLines.map((line) => {
-          const product = current.products.find((item) => item.id === line.productId);
+        const movements = [...quantities].map(([productId, quantity]) => {
+          const product = current.products.find((item) => item.id === productId);
           if (!product || product.itemType !== 'product') return null;
           return buildMovement({
             id: newId('mv'),
@@ -1438,9 +1435,9 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
             productName: product.name,
             at,
             reason: 'sale',
-            delta: -line.quantity,
+            delta: -quantity,
             balanceBefore: product.stock,
-            note: `${source === 'scan' ? 'Scanned sale' : 'Sold'} — ${line.quantity} × ${product.name}${label ? ` to ${label}` : ''}`,
+            note: `${source === 'scan' ? 'Scanned sale' : 'Sold'} — ${quantity} × ${product.name}${label ? ` to ${label}` : ''}`,
             reference: saleReference,
             unit: unitFor(product.itemType, product.unit),
           });
@@ -1452,9 +1449,9 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           transactions: [...current.transactions, ...newTransactions],
           stockMovements: pushMovements(current.stockMovements, movements),
           products: current.products.map((product) => {
-            const line = validLines.find((entry) => entry.productId === product.id);
-            if (!line || product.itemType !== 'product') return product;
-            return { ...product, stock: product.stock - line.quantity };
+            const quantity = quantities.get(product.id);
+            if (quantity === undefined || product.itemType !== 'product') return product;
+            return { ...product, stock: Math.round((product.stock - quantity) * 1000) / 1000 };
           }),
         };
       });
