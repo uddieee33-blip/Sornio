@@ -186,7 +186,7 @@ export default function SettingsPage() {
     },
     {
       label: 'Zero fund custody',
-      detail: 'UPI QR payments settle directly into bank accounts. DukaanOS never touches money.',
+      detail: 'UPI QR payments settle directly into bank accounts. Sornio never touches money.',
       icon: Check,
     },
     {
@@ -594,7 +594,7 @@ export default function SettingsPage() {
                       Advanced — server setup
                     </span>
                     <span className="block text-xs text-stone-600">
-                      For the person who installed DukaanOS. The shop runs fine without touching this.
+                      For the person who installed Sornio. The shop runs fine without touching this.
                     </span>
                   </span>
                 </span>
