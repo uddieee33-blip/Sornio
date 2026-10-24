@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { Compass, Home } from 'lucide-react';
 
-export const metadata = { title: 'Page not found — DukaanOS' };
+export const metadata = { title: 'Page not found — Sornio' };
 
 /** A wrong turn should never feel like a broken product. */
 export default function NotFound() {
