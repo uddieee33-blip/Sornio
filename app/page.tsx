@@ -183,7 +183,7 @@ function useComparisonRows() {
 const faqs = [
   {
     q: 'Do you take a cut of my payments?',
-    a: 'No. Your customers pay into your own bank account on your own UPI id, and we never route, hold or see that money. DukaanOS is not a payment gateway — the only rupee figure we ever charge is the plan price on this page.',
+    a: 'No. Your customers pay into your own bank account on your own UPI id, and we never route, hold or see that money. Sornio is not a payment gateway — the only rupee figure we ever charge is the plan price on this page.',
   },
   {
     q: 'What happens if I stop paying?',
@@ -287,7 +287,7 @@ export default function LandingPage() {
         <div className="relative mx-auto max-w-6xl">
           <div className="flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-panel/97 px-3.5 py-2.5 shadow-2xl shadow-black/40 sm:px-5">
             <div className="flex min-w-0 items-center gap-2">
-              <Link href="/" aria-label="DukaanOS home" className="flex shrink-0 items-center gap-2.5">
+              <Link href="/" aria-label="Sornio home" className="flex shrink-0 items-center gap-2.5">
                 <BrandIcon size={36} priority className="h-9 w-9 shrink-0 rounded-xl shadow-glow-sm ring-1 ring-stone-300" />
                 <span className="hidden font-display text-lg font-bold tracking-tight text-stone-900 min-[400px]:inline">
                   Dukaan<span className="bg-brand-gradient bg-clip-text text-transparent">OS</span>
@@ -319,12 +319,12 @@ export default function LandingPage() {
 
           <nav
             id="landing-navigation"
-            aria-label="Explore DukaanOS"
+            aria-label="Explore Sornio"
             aria-hidden={!menuOpen}
             className={`absolute left-0 right-0 top-full mt-2 rounded-2xl border border-stone-200 bg-panel/98 p-3 shadow-2xl shadow-black/40 transition-all duration-200 sm:p-4 ${menuOpen ? 'translate-y-0 opacity-100' : 'pointer-events-none -translate-y-1 opacity-0'}`}
           >
             <div className="mb-3 flex items-center justify-between px-1">
-              <span className="text-xs font-bold uppercase tracking-[0.16em] text-stone-600">Explore DukaanOS</span>
+              <span className="text-xs font-bold uppercase tracking-[0.16em] text-stone-600">Explore Sornio</span>
               <span className="text-[11px] text-stone-600">Jump to a section</span>
             </div>
             <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
@@ -437,7 +437,7 @@ export default function LandingPage() {
               <SectionEyebrow index="02" label="No middleman. Ever." />
               <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-stone-900 md:text-4xl">Your own UPI QR, from your own bank</h2>
               <p className="mt-4 text-sm leading-relaxed text-stone-600 md:text-base">
-                During setup you add your own UPI ID and bank account. DukaanOS generates your
+                During setup you add your own UPI ID and bank account. Sornio generates your
                 <span className="font-semibold text-brand-600"> upi://pay</span> collection QR instantly.
                 Every payment settles <span className="font-semibold text-stone-900">directly into your bank account</span> —
                 we never touch your money, so nothing you do can ever land on us.
@@ -761,8 +761,8 @@ export default function LandingPage() {
           <div className="flex items-center gap-3">
             <BrandIcon size={32} className="h-8 w-8 shrink-0 rounded-lg" />
             <div>
-              <span className="font-display text-sm font-bold text-stone-900">DukaanOS</span>
-              <p className="text-[10px] font-medium tracking-[0.08em] text-brand-600">Smarter Business. Bigger Dreams.</p>
+              <span className="font-display text-sm font-bold text-stone-900">Sornio</span>
+              <p className="text-[10px] font-medium tracking-[0.08em] text-brand-600">Business management, simplified.</p>
               <p className="text-[11px] text-stone-600">English + all 22 scheduled Indian languages · हिन्दी · ਪੰਜਾਬੀ · मराठी · বাংলা · தமிழ்…</p>
             </div>
           </div>

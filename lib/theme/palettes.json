@@ -1,6 +1,6 @@
 {
   "version": "2026.10.0",
-  "default": "daylight",
+  "default": "monsoon",
   "note": "Source of truth for every paint DukaanOS ships. `scripts/build-themes.mjs` turns this into app/themes.css; lib/theme/palettes.ts types it for the picker. Hues are OKLCH degrees, chroma is OKLCH chroma — perceptual, so a ramp stays even across hues instead of going muddy in the greens and neon in the blues.",
   "themes": [
     {

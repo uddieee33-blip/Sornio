@@ -33,7 +33,7 @@ public sealed class ShopWindow : Form
 
     public ShopWindow()
     {
-        Text = "DukaanOS";
+        Text = "Sornio";
         MinimumSize = new Size(800, 580);
         Size = new Size(1200, 800);
         StartPosition = FormStartPosition.CenterScreen;
@@ -162,7 +162,7 @@ public sealed class ShopWindow : Form
         catch (Exception)
         {
             MessageBox.Show("Windows could not open this link. Please try it in your browser.",
-                "DukaanOS", MessageBoxButtons.OK, MessageBoxIcon.Information);
+                "Sornio", MessageBoxButtons.OK, MessageBoxIcon.Information);
         }
     }
 }

@@ -379,7 +379,7 @@ export default function OnboardingPage() {
             <p className="mt-5 flex items-start gap-1.5 text-[11px] leading-relaxed text-stone-600">
               {accountBacked ? <Cloud size={12} className="mt-0.5 shrink-0" /> : <HardDrive size={12} className="mt-0.5 shrink-0" />}
               {accountBacked
-                ? 'Held against your DukaanOS account, so signing in on another phone or tablet brings all of it back.'
+                ? 'Held against your Sornio account, so signing in on another phone or tablet brings all of it back.'
                 : 'Held in this device’s encrypted vault. Connect Supabase credentials and it follows you to any device.'}
             </p>
             <div className="mt-6 flex flex-col gap-2 sm:flex-row sm:justify-center">

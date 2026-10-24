@@ -6,11 +6,11 @@ type BrandIconProps = {
   size?: number;
 };
 
-/** Square DukaanOS mark for navigation, console chrome, and compact placements. */
+/** The single Sornio icon used by the navigation, desktop shell and browser. */
 export function BrandIcon({ className, priority = false, size = 40 }: BrandIconProps) {
   return (
     <Image
-      src="/brand/dukaanos-app-icon.svg"
+      src="/brand/sornio-app-icon.svg"
       alt=""
       aria-hidden="true"
       width={size}
@@ -29,18 +29,11 @@ type BrandWordmarkProps = {
 };
 
 /**
- * Full name-and-tagline lockup for sign-in and business setup screens.
- *
- * Drawn inline rather than through `<img src="…wordmark.svg">`. An image is a
- * sealed document: it cannot read the page's CSS variables, so its wordmark
- * stayed the near-black ink it was drawn in, and in a dark paint the name and
- * tagline vanished into the card behind them. Inline, the lettering takes the
- * active paint's ink and the blue mark keeps its own gradient in every paint.
- * The geometry matches `public/brand/dukaanos-wordmark.svg`.
+ * Inline lettering inherits the selected light/dark theme; the restrained
+ * silver-slate S retains its shape and subtle depth in every paint.
  */
 export function BrandWordmark({ className, width = 220 }: BrandWordmarkProps) {
   const height = Math.round((width * 430) / 680);
-
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
@@ -48,58 +41,43 @@ export function BrandWordmark({ className, width = 220 }: BrandWordmarkProps) {
       width={width}
       height={height}
       role="img"
-      aria-label="DukaanOS — Smarter Business. Bigger Dreams."
+      aria-label="Sornio — Business Management"
       className={className}
     >
       <defs>
-        <linearGradient id="dukaan-wordmark-blue" x1="0" y1="0" x2="1" y2="1">
-          <stop offset="0" stopColor="#08a8ff" />
-          <stop offset="0.48" stopColor="#0874f5" />
-          <stop offset="1" stopColor="#073ed1" />
-        </linearGradient>
-        <linearGradient id="dukaan-wordmark-bars" x1="0" y1="1" x2="1" y2="0">
-          <stop offset="0" stopColor="#08a9ff" />
-          <stop offset="1" stopColor="#1764ec" />
+        <linearGradient id="sornio-wordmark-silver" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor="#DDE5EA" />
+          <stop offset=".5" stopColor="#9BABBB" />
+          <stop offset="1" stopColor="#586F83" />
         </linearGradient>
       </defs>
-
-      <g transform="translate(237 27) scale(.8)">
+      <g transform="translate(122 -60) scale(.83)">
         <path
-          fill="url(#dukaan-wordmark-blue)"
-          fillRule="evenodd"
-          d="M30 30h89c69 0 109 40 109 98s-40 98-109 98H30v-50h88c37 0 58-16 58-48s-21-48-58-48H30V30Zm49 50h40c32 0 57 16 57 48s-25 48-57 48H79V80Z"
+          d="M337 145 C291 123 248 128 219 150 C188 172 188 205 225 229 L301 277 C349 307 343 355 298 381 C263 400 219 396 175 375 L191 331 C222 348 250 353 275 340 C292 331 295 316 274 303 L194 253 C139 219 147 161 195 127 C241 95 298 96 353 123 Z"
+          transform="translate(2 4)"
+          fill="#142231"
+          opacity=".32"
         />
         <path
-          fill="url(#dukaan-wordmark-bars)"
-          d="m84 140 17-9v40c0 4-2 7-6 9l-9 5c-4 2-7 0-7-4v-32c0-4 2-7 5-9Zm29-20 17-10v48c0 4-2 7-6 9l-9 5c-4 2-7 0-7-4v-40c0-4 2-7 5-8Zm29-20 17-10v58c0 4-2 7-6 9l-9 5c-4 2-7 0-7-4v-49c0-4 2-7 5-9Z"
+          d="M337 145 C291 123 248 128 219 150 C188 172 188 205 225 229 L301 277 C349 307 343 355 298 381 C263 400 219 396 175 375 L191 331 C222 348 250 353 275 340 C292 331 295 316 274 303 L194 253 C139 219 147 161 195 127 C241 95 298 96 353 123 Z"
+          fill="url(#sornio-wordmark-silver)"
         />
       </g>
-
-      {/* The ink follows the paint: stone-900 is the body text in every paint,
-          so the name is dark on Daylight and light on Midnight, by design. */}
       <text
-        x="340"
-        y="325"
-        textAnchor="middle"
+        x="340" y="326" textAnchor="middle"
         style={{ fill: 'rgb(var(--c-stone-900))' }}
-        fontFamily="'Space Grotesk', 'Inter', Arial, sans-serif"
-        fontSize="100"
-        fontWeight="700"
-        letterSpacing="-5"
+        fontFamily="'Inter Variable', 'Inter', Arial, sans-serif"
+        fontSize="99" fontWeight="700" letterSpacing="-4"
       >
-        DukaanOS
+        Sornio
       </text>
       <text
-        x="340"
-        y="387"
-        textAnchor="middle"
+        x="340" y="383" textAnchor="middle"
         style={{ fill: 'rgb(var(--c-stone-600))' }}
-        fontFamily="'Inter', Arial, sans-serif"
-        fontSize="25"
-        fontWeight="400"
-        letterSpacing="8"
+        fontFamily="'Inter Variable', 'Inter', Arial, sans-serif"
+        fontSize="23" fontWeight="500" letterSpacing="7"
       >
-        Smarter Business. Bigger Dreams.
+        BUSINESS MANAGEMENT
       </text>
     </svg>
   );

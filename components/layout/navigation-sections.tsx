@@ -302,15 +302,15 @@ function NavigationLink({
       aria-current={active ? 'page' : undefined}
       className={`group relative flex items-center gap-3 rounded-xl font-medium transition-all duration-base ease-settle ${sizeClass} ${nested ? (variant === 'mobile' ? 'min-h-11' : 'min-h-10') : ''} ${className} ${
         active
-          ? 'bg-portal/10 text-portal ring-1 ring-inset ring-portal/25'
+          ? 'bg-portal/10 text-stone-900 ring-1 ring-inset ring-portal/20'
           : 'text-stone-600 hover:bg-stone-50 hover:text-stone-900'
       }`}
     >
       <span
         className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all duration-base ease-spring ${
           active
-            ? 'bg-portal-gradient scale-105 text-white shadow-glow-sm'
-            : 'bg-stone-50 text-stone-600 group-hover:scale-105 group-hover:text-stone-700'
+            ? 'bg-portal/15 text-portal'
+            : 'bg-stone-50 text-stone-600 group-hover:bg-stone-100 group-hover:text-stone-900'
         }`}
       >
         <Icon size={variant === 'mobile' ? 16 : 15} strokeWidth={2.2} />

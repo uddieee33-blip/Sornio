@@ -19,18 +19,18 @@ import { InstallProvider } from '@/components/pwa/install-provider';
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
   title: {
-    default: 'DukaanOS — Run your entire business from one console',
+    default: 'Sornio — Business management made simpler',
     template: '%s',
   },
   description:
     'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.',
-  applicationName: 'DukaanOS',
-  icons: { icon: '/brand/dukaanos-app-icon.svg', apple: '/brand/apple-touch-icon.png',
+  applicationName: 'Sornio',
+  icons: { icon: '/brand/sornio-app-icon.svg', apple: '/brand/apple-touch-icon.png',
   },
   formatDetection: { telephone: false, address: false, email: false },
   robots: { index: true, follow: true },
   openGraph: {
-    title: 'DukaanOS — Run your entire business from one console',
+    title: 'Sornio — Business management made simpler',
     description:
       'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses.',
     type: 'website',
@@ -100,8 +100,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <I18nProvider>
               <ToastProvider>
                 <div className="relative min-h-screen">
-                  {/* Ambient page glow behind everything */}
-                  <div className="pointer-events-none fixed inset-0 bg-page-glow" aria-hidden />
                   <InstallProvider><div className="relative">{children}</div></InstallProvider>
                 </div>
               </ToastProvider>

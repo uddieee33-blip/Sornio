@@ -55,7 +55,7 @@ export function PortalGate({ children }: { children: React.ReactNode }) {
     : `${entry?.label ?? 'This module'} is not part of your ${portal.name} portal`;
 
   const body = mustChooseType
-    ? 'You are on the general console. Pick the type that matches your business and DukaanOS reshapes itself — the navigation, the words, and what each screen asks for.'
+    ? 'You are on the general console. Pick the type that matches your business and Sornio reshapes itself — the navigation, the words, and what each screen asks for.'
     : portal.excluded;
 
   const missing = disabledModules(portal.id);

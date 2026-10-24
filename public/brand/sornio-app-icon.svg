@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Sornio</title>
+  <desc id="desc">A softly curved silver slate S on a charcoal rounded square.</desc>
+  <defs>
+    <linearGradient id="sornio-tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#202B37"/>
+      <stop offset="1" stop-color="#111820"/>
+    </linearGradient>
+    <linearGradient id="sornio-silver" x1=".05" y1="0" x2=".94" y2="1">
+      <stop offset="0" stop-color="#E5EBEF"/>
+      <stop offset=".47" stop-color="#A6B6C5"/>
+      <stop offset="1" stop-color="#657B90"/>
+    </linearGradient>
+  </defs>
+  <rect x="9" y="9" width="494" height="494" rx="106" fill="url(#sornio-tile)" stroke="#3C4A59" stroke-width="2"/>
+  <rect x="16" y="16" width="480" height="480" rx="100" fill="none" stroke="#FFFFFF" stroke-opacity=".045" stroke-width="2"/>
+  <path d="M337 145 C291 123 248 128 219 150 C188 172 188 205 225 229 L301 277 C349 307 343 355 298 381 C263 400 219 396 175 375 L191 331 C222 348 250 353 275 340 C292 331 295 316 274 303 L194 253 C139 219 147 161 195 127 C241 95 298 96 353 123 Z" transform="translate(3 6)" fill="#070F18" opacity=".7"/>
+  <path d="M337 145 C291 123 248 128 219 150 C188 172 188 205 225 229 L301 277 C349 307 343 355 298 381 C263 400 219 396 175 375 L191 331 C222 348 250 353 275 340 C292 331 295 316 274 303 L194 253 C139 219 147 161 195 127 C241 95 298 96 353 123 Z" fill="url(#sornio-silver)"/>
+  <path d="M219 150 C254 126 291 125 337 145" fill="none" stroke="#FFFFFF" stroke-opacity=".32" stroke-width="3" stroke-linecap="round"/>
+</svg>

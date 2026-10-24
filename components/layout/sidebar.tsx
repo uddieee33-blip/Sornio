@@ -75,18 +75,18 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
   const PortalIcon = PORTAL_ICONS[portal.icon] ?? PORTAL_ICONS.general;
 
   return (
-    <aside className="console-sidebar portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel/95 lg:flex lg:flex-col">
+    <aside className="console-sidebar portal-transition hidden w-72 shrink-0 border-r border-stone-200 bg-panel lg:flex lg:flex-col">
       <div className="flex items-center gap-3 px-6 py-6">
-        <BrandIcon size={44} className="h-11 w-11 shrink-0 rounded-2xl shadow-glow" />
+        <BrandIcon size={44} className="h-11 w-11 shrink-0 rounded-2xl shadow-card" />
         <div className="min-w-0">
-          <p className="font-display text-base font-bold tracking-tight text-stone-900">DukaanOS</p>
+          <p className="font-display text-base font-bold tracking-tight text-stone-900">Sornio</p>
           <p className="truncate text-[11px] font-medium uppercase tracking-[0.18em] text-portal">{portal.name}</p>
         </div>
       </div>
 
       {/* Which console am I in, and why does it look like this? */}
-      <div className="mx-4 mb-4 flex items-start gap-3 rounded-2xl bg-portal/[0.07] p-3.5 ring-1 ring-inset ring-portal/20">
-        <span className="bg-portal-gradient mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-glow-sm">
+      <div className="mx-4 mb-4 flex items-start gap-3 rounded-xl bg-stone-50 p-3.5 ring-1 ring-inset ring-stone-200">
+        <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-700">
           <PortalIcon size={17} strokeWidth={2.2} />
         </span>
         <div className="min-w-0">
@@ -101,7 +101,7 @@ export function Sidebar({ identity = null }: { identity?: RenderedIdentity | nul
             the visual half of the same fact, not a second one. */}
         <span
           aria-hidden
-          className="nav-indicator bg-portal-gradient pointer-events-none absolute left-4 w-[3px] rounded-r-full shadow-glow-sm"
+          className="nav-indicator pointer-events-none absolute left-4 w-[3px] rounded-r-full bg-portal"
           style={{
             opacity: box ? 1 : 0,
             height: box ? `${box.height - 20}px` : 0,

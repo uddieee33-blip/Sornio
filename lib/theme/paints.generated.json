@@ -1,6 +1,6 @@
 {
   "_generated": "scripts/build-themes.mjs — do not edit; run `npm run theme:build`",
-  "default": "daylight",
+  "default": "monsoon",
   "paints": [
     {
       "id": "daylight",
