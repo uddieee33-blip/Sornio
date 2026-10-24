@@ -80,6 +80,7 @@ function endsAt(epochSeconds: number): string {
 export type AuthFormProps = {
   /** True when real Supabase credentials exist for this deployment. */
   supabaseReady: boolean;
+  initialMode?: 'signin' | 'signup';
   /**
    * The destination the *caller* asked for — a bookmarked `?next=`, a price they
    * clicked — already through `safeNext` on the server, or `null` when nobody
@@ -96,12 +97,12 @@ export type AuthFormProps = {
 /** What the "Welcome back" door is waiting for before it opens. */
 type Gate = 'closed' | 'password' | 'passcode';
 
-export default function AuthForm({ supabaseReady, requested, accountSetupComplete, notice, identity }: AuthFormProps) {
+export default function AuthForm({ supabaseReady, requested, accountSetupComplete, notice, identity, initialMode = 'signin' }: AuthFormProps) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [remember, setRemember] = useState(true);
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'signup'>(initialMode);
   // A boolean rather than a named panel: 'form' / 'forgot' as string states are
   // values, and a value extractor cannot tell them apart from a label.
   const [forgotOpen, setForgotOpen] = useState(false);
@@ -407,9 +408,9 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
     }
   };
 
-  const fieldError = (message?: string) =>
+  const fieldError = (message?: string, id?: string) =>
     message ? (
-      <p className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-700">
+      <p id={id} role="alert" className="mt-1.5 flex items-center gap-1.5 text-xs font-semibold text-red-700">
         <AlertCircle size={12} /> {message}
       </p>
     ) : null;
@@ -430,7 +431,7 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
     const passcodeGate = gate === 'passcode';
     const gateOpen = !doorClosed;
     return (
-      <div className="rounded-3xl border border-stone-200 bg-stone-50 p-7 text-center shadow-card">
+      <div className="sornio-auth-form sornio-auth-door text-center">
         <span
           className={`mx-auto flex h-11 w-11 items-center justify-center rounded-2xl ring-1 ring-inset ${
             gateOpen ? 'bg-amber-500/15 text-amber-700 ring-amber-500/25' : 'bg-emerald-500/15 text-emerald-700 ring-emerald-500/25'
@@ -438,9 +439,9 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
         >
           {gateOpen ? <Lock size={20} /> : <Check size={20} />}
         </span>
-        <h2 className="mt-3 font-display text-lg font-bold text-stone-900">
+        <h1 className="sornio-auth-title">
           {passwordGate ? 'Confirm it’s you' : passcodeGate ? 'Owner password needed' : 'Welcome back'}
-        </h2>
+        </h1>
         <p className="mt-1.5 text-sm leading-relaxed text-stone-600">
           {identity.displayName}
           {identity.expiresAt ? ` · ${`Session ends ${endsAt(identity.expiresAt)}`}` : ''}
@@ -499,6 +500,7 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
             <div className="relative">
               <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-600" />
               <input
+                aria-label="Account password"
                 type={showConfirmPassword ? 'text' : 'password'}
                 autoComplete="current-password"
                 suppressHydrationWarning
@@ -660,51 +662,46 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
       onSubmit={handleSubmit}
       noValidate
       suppressHydrationWarning
-      className="rounded-3xl border border-stone-200 bg-stone-50 p-7 shadow-card"
+      className="sornio-auth-form" aria-labelledby="auth-title"
     >
+      <div className="sornio-auth-heading">
+        <h1 id="auth-title">{forgotOpen ? 'Reset your password' : mode === 'signup' ? 'Your next chapter starts here.' : 'Welcome back.'}</h1>
+        <p>{forgotOpen ? 'Let’s get you back to your business.' : mode === 'signup' ? 'Create your account. Make Sornio yours.' : 'Sign in to your Sornio workspace.'}</p>
+      </div>
+      <div className="sornio-auth-modes" role="group" aria-label="Account access">
+        {(['signin', 'signup'] as const).map(option => <button key={option} type="button" aria-pressed={mode === option && !forgotOpen} disabled={status !== 'idle'} onClick={() => { setMode(option); setForgotOpen(false); setErrors({}); }}>{option === 'signin' ? 'Sign in' : 'Create account'}</button>)}
+      </div>
       {errors.form ? (
-        <div className="animate-fade-in mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20">
+        <div role="alert" className="animate-fade-in mb-4 flex items-start gap-2 rounded-xl bg-red-500/10 px-3.5 py-2.5 text-xs font-semibold text-red-700 ring-1 ring-inset ring-red-500/20">
           <AlertCircle size={14} className="mt-0.5 shrink-0" /> {errors.form}
         </div>
       ) : null}
 
       {errors.note ? (
-        <div className="animate-fade-in mb-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-500/20">
+        <div role="status" className="animate-fade-in mb-4 flex items-start gap-2 rounded-xl bg-emerald-500/10 px-3.5 py-2.5 text-xs font-semibold text-emerald-800 ring-1 ring-inset ring-emerald-500/20">
           <Check size={14} className="mt-0.5 shrink-0" /> {errors.note}
         </div>
       ) : null}
 
-      {supabaseReady ? (
-        <div className="mb-4 grid grid-cols-2 gap-1 rounded-xl bg-stone-50 p-1 ring-1 ring-inset ring-stone-200">
-          {(['signin', 'signup'] as const).map((option) => (
-            <button
-              key={option}
-              type="button"
-              onClick={() => {
-                setMode(option);
-                setForgotOpen(false);
-                setErrors((current) => ({ ...current, form: undefined, note: undefined }));
-              }}
-              className={`rounded-lg px-3 py-2 text-xs font-bold transition ${mode === option ? 'bg-brand-500/15 text-brand-700 shadow-card ring-1 ring-inset ring-brand-500/25' : 'text-stone-600 hover:text-stone-900'}`}
-            >
-              {option === 'signin' ? 'Sign in' : 'Create account'}
-            </button>
-          ))}
-        </div>
-      ) : (
-        <div className="mb-4 rounded-xl bg-amber-500/[0.08] px-3.5 py-2.5 text-xs font-semibold text-amber-700/90 ring-1 ring-inset ring-amber-500/20">
+      {!supabaseReady ? (
+        <div className="sornio-auth-demo">
           Demo mode — Supabase credentials are not set, so sign-in is simulated on this device.
         </div>
-      )}
+      ) : null}
 
       {forgotOpen ? (
         /* Recovery is a panel of this form rather than a route: the address is
            already typed, and a page change would throw it away. */
         <div className="space-y-4">
           <div>
+            <label htmlFor="auth-email" className="sornio-auth-label">Email address</label>
             <div className="relative">
               <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-600" />
               <input
+                id="auth-email"
+                name="email"
+                aria-invalid={!!errors.email}
+                aria-describedby={errors.email ? 'auth-email-error' : undefined}
                 type="email"
                 autoComplete="email"
                 suppressHydrationWarning
@@ -717,7 +714,7 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
                 className={`${inputClass} ${errors.email ? 'border-red-500/50' : ''}`}
               />
             </div>
-            {fieldError(errors.email)}
+            {fieldError(errors.email, 'auth-email-error')}
           </div>
           <p className="text-xs leading-relaxed text-stone-600">
             We send a link to that address if an account uses it. It opens the console once and lets you set a new
@@ -754,9 +751,14 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
         <>
           <div className="space-y-4">
             <div>
+              <label htmlFor="auth-email" className="sornio-auth-label">Email address</label>
               <div className="relative">
                 <Mail size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-600" />
                 <input
+                  id="auth-email"
+                  name="email"
+                  aria-invalid={!!errors.email}
+                  aria-describedby={errors.email ? 'auth-email-error' : undefined}
                   type="email"
                   autoComplete="email"
                   suppressHydrationWarning
@@ -769,13 +771,18 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
                   className={`${inputClass} ${errors.email ? 'border-red-500/50' : ''}`}
                 />
               </div>
-              {fieldError(errors.email)}
+              {fieldError(errors.email, 'auth-email-error')}
             </div>
 
             <div>
+              <label htmlFor="auth-password" className="sornio-auth-label">Password</label>
               <div className="relative">
                 <Lock size={16} className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-stone-600" />
                 <input
+                  id="auth-password"
+                  name="password"
+                  aria-invalid={!!errors.password}
+                  aria-describedby={errors.password ? 'auth-password-error' : undefined}
                   type={showPassword ? 'text' : 'password'}
                   autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
                   suppressHydrationWarning
@@ -796,7 +803,7 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
                   {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
                 </button>
               </div>
-              {fieldError(errors.password)}
+              {fieldError(errors.password, 'auth-password-error')}
 
               {mode === 'signup' && password ? (
                 <div className="mt-2.5" aria-live="polite">
@@ -869,14 +876,14 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
             )}
             {status === 'success' && (
               <>
-                <Check size={16} /> Welcome — setting up your business
+                <Check size={16} /> Signed in. Opening your workspace…
               </>
             )}
           </button>
 
           <p className="mt-4 text-center text-xs text-stone-600">
             {supabaseReady
-              ? 'Secured by Supabase Auth — passwords are never stored by the app.'
+              ? 'Your account. Your business. One workspace.'
               : `Demo build — any valid email + a ${LIMITS.minPassword}-character password opens the console${remember ? ' and stays signed in on this device' : ''}.`}
           </p>
         </>
