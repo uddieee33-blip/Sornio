@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import { BarChart3, Boxes, Receipt } from 'lucide-react';
+import { ArrowLeft } from 'lucide-react';
 import AuthForm from '@/components/auth/auth-form';
-import { BrandWordmark } from '@/components/ui/BrandLogo';
+import { BrandIcon } from '@/components/ui/BrandLogo';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { isSupabaseConfigured } from '@/lib/supabase/config';
@@ -102,40 +102,28 @@ export default async function AuthPage({
     : null;
 
   return (
-    <div className="auth-page relative min-h-screen">
-      {/* These controls stay available before sign-in. */}
-      <div className="auth-tools flex flex-wrap items-center justify-end gap-2">
-        <AppearanceMenu />
-        <LanguagePicker />
-      </div>
-
-      <div className="auth-layout animate-fade-up">
-        <div className="auth-intro">
-          <BrandWordmark width={220} priority className="auth-wordmark h-auto w-[220px]" />
-          <h1 className="font-display font-bold tracking-tight text-stone-900">Business access</h1>
-          <p className="mt-4 max-w-sm text-base leading-relaxed text-stone-600">Sign in to manage your store, sales, and insights.</p>
-          <div className="auth-features" aria-hidden="true">
-            <span><Receipt size={18} />Billing</span>
-            <span><Boxes size={18} />Inventory</span>
-            <span><BarChart3 size={18} />Reports</span>
-          </div>
-        </div>
-
-        <div className="auth-panel min-w-0">
+    <div className="sornio-auth-page">
+      <header className="sornio-auth-header">
+        <Link href="/" className="sornio-auth-back"><ArrowLeft size={16} aria-hidden="true" /><span>Back to home</span></Link>
+        <div className="sornio-auth-tools"><AppearanceMenu /><LanguagePicker /></div>
+      </header>
+      <main id="main" className="sornio-auth-main">
+        <div className="sornio-auth-stack">
+          <Link href="/" aria-label="Sornio home" className="sornio-auth-brand"><BrandIcon size={54} priority /><span>Sornio</span></Link>
+          <div className="auth-panel min-w-0">
           <AuthForm
+            initialMode={param(params.mode) === 'signup' ? 'signup' : 'signin'}
             supabaseReady={isSupabaseConfigured()}
             requested={requested}
             accountSetupComplete={accountSetupComplete}
             notice={notice}
             identity={identity}
           />
-          <p className="mt-6 text-center text-xs">
-            <Link href="/" className="inline-flex min-h-11 items-center rounded-lg px-3 text-stone-600 transition hover:text-stone-900">
-              ← Back to home
-            </Link>
-          </p>
+          </div>
+          <p className="sornio-auth-caption">A clearer day for your business.</p>
         </div>
-      </div>
+      </main>
+      <footer className="sornio-auth-footer"><span>Sornio · Business management</span><Link href="/install">Windows installation <ArrowLeft size={13} aria-hidden="true" /></Link></footer>
     </div>
   );
 }
