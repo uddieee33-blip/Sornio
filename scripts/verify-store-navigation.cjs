@@ -80,6 +80,18 @@ const actions = () => rendered.props.children.props.value;
 (async () => {
   try {
     render(); await settle();
+    const profileBefore = JSON.stringify(state().profile);
+    for (const bank of [
+      { accountNumber: '12ab34' },
+      { accountNumber: '1'.repeat(21), ifsc: 'HDFC0001234', accountHolder: 'Owner' },
+      { accountNumber: '123456', accountHolder: 'Owner' },
+      { accountNumber: '123456', ifsc: 'HDFC0001234' },
+      { upiId: 'bad upi' },
+    ]) assert.equal(actions().updateProfile({ bank }).ok, false);
+    assert.equal(actions().updateProfile({ upiId: 'one@bank', bank: { upiId: 'other@bank' } }).ok, false);
+    await settle();
+    assert.equal(JSON.stringify(state().profile), profileBefore, 'invalid bank settings never change the local profile');
+    console.log('ok invalid bank settings preserve the local profile');
     const result = actions().createInvoice({ customerName: 'Navigation customer', lines: [{ name: 'Service', category: 'Services', quantity: 1, unitPrice: 200 }], method: 'Cash', taxRate: 0 });
     assert.equal(result.ok, true);
     await settle();

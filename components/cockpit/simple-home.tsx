@@ -13,6 +13,7 @@ import { formatInvoiceAmount } from '@/lib/invoices';
 import { useI18n } from '@/lib/i18n';
 import { dailyWorkspaceSnapshot, type DailyFocus } from '@/lib/portals/daily-workspace';
 import { portalHasModule } from '@/lib/portals/registry';
+import { canUseDailySetup, canUseDailyTask } from '@/lib/portals/daily-access';
 import { Badge } from '@/components/ui/Badge';
 import { WorkspaceTools } from './workspace-tools';
 
@@ -31,7 +32,7 @@ function AccessNotice() {
 
 /** The daily home: a quiet working surface, with real records and existing access rules. */
 export function SimpleHome({ onDetails }: { onDetails: () => void }) {
-  const { state, hydrated } = useDukaanStore();
+  const { state, hydrated, identity } = useDukaanStore();
   const { allows, portal } = usePortal();
   const { entitlement } = usePlan();
   const { locale } = useI18n();
@@ -39,13 +40,14 @@ export function SimpleHome({ onDetails }: { onDetails: () => void }) {
   const snapshot = dailyWorkspaceSnapshot(portal.id, state, new Date(), locale);
   const { config, summary } = snapshot;
   const canOpen = (href: string) => allows(href) && checkPlanAccess(entitlement, href).allowed;
-  const tasks = config.tasks.filter(task => canOpen(task.href));
+  const role = state.demoMode ? 'owner' : identity?.role;
+  const tasks = config.tasks.filter(task => canOpen(task.href) && canUseDailyTask(role, task.href));
   const primary = tasks[0];
   const PrimaryIcon = primary ? TASK_ICONS[primary.icon] : Receipt;
   const recentBills = [...state.invoices].reverse().slice(0, 5);
   const billsOpen = portalHasModule(portal.id, 'billing') && canOpen('/billing');
   const focus = snapshot.focus && canOpen(snapshot.focus.href) ? snapshot.focus : null;
-  const setupSteps = config.setup.map(step => ({ ...step, complete: state[step.collection].length > 0 })).filter(step => canOpen(step.href));
+  const setupSteps = config.setup.map(step => ({ ...step, complete: state[step.collection].length > 0 })).filter(step => canOpen(step.href) && canUseDailySetup(role, step.collection));
   const completed = setupSteps.filter(step => step.complete).length;
   const needsSetup = hydrated && setupSteps.length > 0 && completed < setupSteps.length;
   const attention = [

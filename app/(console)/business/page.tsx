@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { Building2, Check, Fingerprint, Lock, QrCode, Save, ScanBarcode, Sparkles } from 'lucide-react';
+import { AlertCircle, Building2, Check, Fingerprint, Lock, QrCode, Save, ScanBarcode, Sparkles } from 'lucide-react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -43,6 +43,7 @@ export default function BusinessPage() {
   const [bankName, setBankName] = useState(profile.bank?.bankName ?? '');
   const [accountHolder, setAccountHolder] = useState(profile.bank?.accountHolder ?? '');
   const [accountNumber, setAccountNumber] = useState(profile.bank?.accountNumber ?? '');
+  const [showAccountNumber, setShowAccountNumber] = useState(false);
   const [ifsc, setIfsc] = useState(profile.bank?.ifsc ?? '');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [templateFlash, setTemplateFlash] = useState<string | null>(null);
@@ -101,8 +102,8 @@ export default function BusinessPage() {
       />
 
       {message ? (
-        <div className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-red-500/20'}`}>
-          <Check size={15} /> {message.text}
+        <div role={message.tone === 'error' ? 'alert' : 'status'} className={`mb-6 flex items-center gap-2 rounded-xl px-3.5 py-2.5 text-sm ring-1 ring-inset animate-fade-in ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-red-500/20'}`}>
+          {message.tone === 'error' ? <AlertCircle size={15} aria-hidden="true" /> : <Check size={15} aria-hidden="true" />} {message.text}
         </div>
       ) : null}
 
@@ -113,17 +114,17 @@ export default function BusinessPage() {
             <Button variant="secondary" onClick={saveProfile}>{gated ? <Lock size={15} /> : <Save size={15} />} Save</Button>
           </div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div><span className={labelClass}>Business name</span><input className={inputClass} placeholder="Cult Fitness" value={name} onChange={(e) => setName(e.target.value)} /></div>
-            <div><span className={labelClass}>GSTIN (registered businesses only)</span><input className={inputClass} placeholder="15-character GSTIN" maxLength={15} autoCapitalize="characters" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} /><p className="mt-1 text-xs text-stone-600">Leave blank if your shop is not GST registered. Entering a GSTIN does not verify registration.</p></div>
+            <div><label htmlFor="business-name" className={labelClass}>Business name</label><input id="business-name" className={inputClass} placeholder="Cult Fitness" value={name} onChange={(e) => setName(e.target.value)} /></div>
+            <div><label htmlFor="business-gstin" className={labelClass}>GSTIN (registered businesses only)</label><input id="business-gstin" className={inputClass} placeholder="15-character GSTIN" maxLength={15} autoCapitalize="characters" value={gstin} onChange={(e) => setGstin(e.target.value.toUpperCase())} /><p className="mt-1 text-xs text-stone-600">Leave blank if your shop is not GST registered. Entering a GSTIN does not verify registration.</p></div>
             <div>
-              <span className={labelClass}>Business type</span>
-              <select className={inputClass} value={profile.templateId} onChange={(e) => applyTemplate(e.target.value)}>
+              <label htmlFor="business-type" className={labelClass}>Business type</label>
+              <select id="business-type" className={inputClass} value={profile.templateId} onChange={(e) => applyTemplate(e.target.value)}>
                 <option value="">Select a template…</option>
                 {businessTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}
               </select>
             </div>
-            <div><span className={labelClass}>Currency</span><input className={inputClass} value={currency} onChange={(e) => setCurrency(e.target.value)} /></div>
-            <div><span className={labelClass}>Time zone</span><input className={inputClass} value={timezone} onChange={(e) => setTimezone(e.target.value)} /></div>
+            <div><label htmlFor="business-currency" className={labelClass}>Currency</label><input id="business-currency" className={inputClass} value={currency} onChange={(e) => setCurrency(e.target.value)} /></div>
+            <div><label htmlFor="business-timezone" className={labelClass}>Time zone</label><input id="business-timezone" className={inputClass} value={timezone} onChange={(e) => setTimezone(e.target.value)} /></div>
           </div>
 
           <div className="mt-5 rounded-2xl border border-brand-500/20 bg-brand-500/[0.06] p-4">
@@ -131,17 +132,23 @@ export default function BusinessPage() {
             <p className="mb-3 text-xs text-stone-600">Your own bank&apos;s UPI ID and account — payments land directly in your account, no middleman. The desk shows the QR for UPI and these account details for bank transfers.</p>
             <div className="grid items-start gap-4 md:grid-cols-[1fr_auto]">
               <div className="space-y-3">
-                <div><span className={labelClass}>UPI ID</span><input className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} /></div>
+                <div><label htmlFor="business-upi" className={labelClass}>UPI ID</label><input id="business-upi" className={inputClass} placeholder="businessname@okhdfcbank" value={upiId} onChange={(e) => setUpiId(e.target.value)} /></div>
                 <div className="grid gap-3 sm:grid-cols-2">
-                  <div><span className={labelClass}>Bank name</span><input className={inputClass} placeholder="HDFC Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} /></div>
-                  <div><span className={labelClass}>Account holder</span><input className={inputClass} placeholder="As printed on the passbook" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} /></div>
-                  <div><span className={labelClass}>Account number</span><input className={inputClass} placeholder="Digits only" inputMode="numeric" value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} /></div>
-                  <div><span className={labelClass}>IFSC</span><input className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} /></div>
+                  <div><label htmlFor="business-bank-name" className={labelClass}>Bank name</label><input id="business-bank-name" className={inputClass} placeholder="HDFC Bank" value={bankName} onChange={(e) => setBankName(e.target.value)} /></div>
+                  <div><label htmlFor="business-bank-holder" className={labelClass}>Account holder</label><input id="business-bank-holder" className={inputClass} placeholder="As printed on the passbook" value={accountHolder} onChange={(e) => setAccountHolder(e.target.value)} /></div>
+                  <div>
+                    <label htmlFor="business-bank-account" className={labelClass}>Account number</label>
+                    <div className="relative">
+                      <input id="business-bank-account" className={inputClass + ' pr-20'} type={showAccountNumber ? 'text' : 'password'} placeholder="Digits only" inputMode="numeric" autoComplete="off" maxLength={24} value={accountNumber} onChange={(e) => setAccountNumber(e.target.value)} />
+                      <button type="button" aria-controls="business-bank-account" aria-pressed={showAccountNumber} onClick={() => setShowAccountNumber(current => !current)} className="absolute inset-y-0 right-2 px-2 text-xs font-semibold text-stone-600">{showAccountNumber ? 'Hide' : 'Show'}</button>
+                    </div>
+                  </div>
+                  <div><label htmlFor="business-ifsc" className={labelClass}>IFSC</label><input id="business-ifsc" className={inputClass} placeholder="HDFC0001234" value={ifsc} onChange={(e) => setIfsc(e.target.value.toUpperCase())} /></div>
                 </div>
               </div>
               {upiValid ? (
                 <div className="flex flex-col items-center gap-1.5">
-                  <div className="qr-pulse rounded-xl bg-white p-2">
+                  <div className="rounded-xl bg-white p-2">
                     <QRCodeCanvas
                       value={buildUpiDeepLink({ payeeVpa: upiId.trim(), payeeName: name.trim() || 'My Business' })}
                       size={220}
@@ -160,8 +167,8 @@ export default function BusinessPage() {
           </div>
 
           <div className="mt-5">
-            <span className={labelClass}>Business description</span>
-            <textarea className="min-h-[110px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="Describe your business, customers, and service model." value={description} onChange={(e) => setDescription(e.target.value)} />
+            <label htmlFor="business-description" className={labelClass}>Business description</label>
+            <textarea id="business-description" className="min-h-[110px] w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" placeholder="Describe your business, customers, and service model." value={description} onChange={(e) => setDescription(e.target.value)} />
           </div>
         </Card>
 

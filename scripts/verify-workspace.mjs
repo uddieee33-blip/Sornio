@@ -66,6 +66,26 @@ check('route matching does not confuse neighboring or unknown routes', () => {
   assert.equal(W.activeWorkArea(areas, '/not-a-tool'), undefined);
 });
 const { dailyWorkspace, dailyWorkspaceSnapshot } = load('lib/portals/daily-workspace.ts');
+const { canUseDailyTask, canUseDailySetup } = load('lib/portals/daily-access.ts');
+for (const portal of PORTALS) check(`${portal.id}: daily actions use verified role permissions`, () => {
+  const config = dailyWorkspace(portal.id);
+  for (const task of config.tasks) {
+    assert(canUseDailyTask('owner', task.href), `owner action missing permission: ${task.href}`);
+    assert(canUseDailyTask('manager', task.href));
+    assert(!canUseDailyTask(undefined, task.href), 'unknown identity fails closed');
+    assert.equal(canUseDailyTask('auditor', task.href), ['/customers', '/inventory'].includes(task.href));
+    assert.equal(canUseDailyTask('cashier', task.href), !['/products', '/expenses'].includes(task.href));
+  }
+  for (const step of config.setup) {
+    assert(canUseDailySetup('owner', step.collection));
+    assert(!canUseDailySetup('auditor', step.collection));
+    assert(!canUseDailySetup(null, step.collection));
+  }
+});
+check('unconfigured daily actions fail closed', () => {
+  assert(!canUseDailyTask('owner', '/not-a-tool'));
+  assert(!canUseDailySetup('owner', 'not-a-collection'));
+});
 for (const portal of PORTALS) check(`${portal.id}: daily jobs and setup belong to the chosen business`, () => {
   const config = dailyWorkspace(portal.id);
   assert.equal(new Set(config.tasks.map(task => task.href)).size, config.tasks.length);

@@ -283,10 +283,20 @@ export default function OnboardingPage() {
       setFinishing(false);
       return;
     }
-    actions.applyTemplate(templateId);
+    const templateResult = actions.applyTemplate(templateId);
+    if (!templateResult.ok) {
+      setError(templateResult.error ?? 'Could not update this device. Your account details may already be saved.');
+      setFinishing(false);
+      return;
+    }
     // Publish only after a successful account save; do not change console
     // navigation when the business setup has not reached the server.
-    await publishPortal(templateId);
+    const published = await publishPortal(templateId);
+    if (accountBacked && !published.ok) {
+      setError(published.error ?? 'Could not save your profile. Please retry.');
+      setFinishing(false);
+      return;
+    }
 
     setSavedTo({ account: accountBacked });
     // Rebind the account vault after provisioning the new business.

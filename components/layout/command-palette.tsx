@@ -14,6 +14,8 @@ import { ArrowRight, CornerDownLeft, Search, Sparkles } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { usePortal } from '@/lib/portals/portal-provider';
 import { dailyWorkspace } from '@/lib/portals/daily-workspace';
+import { canUseDailyTask } from '@/lib/portals/daily-access';
+import { useDukaanStore } from '@/lib/store';
 import { workspaceAreas, workspaceLinkMatches } from '@/lib/workspace';
 import { usePlan } from '@/components/billing/plan-provider';
 import { checkPlanAccess } from '@/lib/plans/routes';
@@ -53,6 +55,8 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
   const router = useRouter();
   const { portal, nav, allows } = usePortal();
   const { entitlement } = usePlan();
+  const { state, identity } = useDukaanStore();
+  const role = state.demoMode ? 'owner' : identity?.role;
   const [query, setQuery] = useState('');
   const [active, setActive] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -60,7 +64,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
 
   const commands = useMemo<Command[]>(() => {
     const areas = workspaceAreas(nav, portal.id);
-    const daily = dailyWorkspace(portal.id).tasks.filter(task => allows(task.href) && checkPlanAccess(entitlement, task.href).allowed);
+    const daily = dailyWorkspace(portal.id).tasks.filter(task => allows(task.href) && checkPlanAccess(entitlement, task.href).allowed && canUseDailyTask(role, task.href));
     const dailyRoutes = new Set<string>(daily.map(task => task.href));
     const actions: Command[] = daily.map(task => ({
       id: `task:${task.href}`, label: task.label, hint: task.description, group: 'Everyday jobs',
@@ -73,7 +77,7 @@ export function CommandPalette({ open, onClose }: { open: boolean; onClose: () =
       run: () => router.push(link.href),
     })));
     return [...actions, ...pages];
-  }, [router, nav, portal.id, portal.name, allows, entitlement]);
+  }, [router, nav, portal.id, portal.name, allows, entitlement, role]);
 
   const results = useMemo(() => {
     return commands
