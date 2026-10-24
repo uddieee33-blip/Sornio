@@ -6,7 +6,7 @@ import { SecurityScore } from '@/components/security/security-score';
 import { SessionCard } from '@/components/security/session-card';
 
 export const metadata: Metadata = {
-  title: 'Trust Centre — DukaanOS',
+  title: 'Trust Centre — Sornio',
   description: 'Encryption, access control, audit integrity, and where your data lives.',
 };
 
