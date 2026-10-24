@@ -1,6 +1,6 @@
 {
-  "name": "DukaanOS — Run your entire business from one console",
-  "short_name": "DukaanOS",
+  "name": "Sornio — Business management made simpler",
+  "short_name": "Sornio",
   "description": "Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.",
   "id": "/",
   "start_url": "/home",
