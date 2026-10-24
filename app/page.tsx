@@ -762,7 +762,7 @@ export default function LandingPage() {
             <BrandIcon size={32} className="h-8 w-8 shrink-0 rounded-lg" />
             <div>
               <span className="font-display text-sm font-bold text-stone-900">Sornio</span>
-              <p className="text-[10px] font-medium tracking-[0.08em] text-brand-600">Smarter Business. Bigger Dreams.</p>
+              <p className="text-[10px] font-medium tracking-[0.08em] text-brand-600">Business management, simplified.</p>
               <p className="text-[11px] text-stone-600">English + all 22 scheduled Indian languages · हिन्दी · ਪੰਜਾਬੀ · मराठी · বাংলা · தமிழ்…</p>
             </div>
           </div>
