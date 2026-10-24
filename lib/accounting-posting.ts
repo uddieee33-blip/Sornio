@@ -2,6 +2,7 @@ import type { Product, Transaction } from './business-data';
 import type { StockMovement } from './inventory';
 import { buildMovement, pushMovements, unitFor } from './inventory';
 import { money } from './accounting';
+import { validateSaleStock, type SaleStockLine } from './sale-stock';
 export type SoldLine = {
   productId?: string;
   name?: string;
@@ -32,11 +33,10 @@ export function postSale(
     input.lines.some((l) => !Number.isFinite(l.quantity) || !Number.isFinite(l.rate) || l.quantity <= 0 || l.rate < 0)
   )
     throw new Error('Every line needs a valid quantity and price.');
-  const quantities = new Map<string, number>();
-  for (const line of input.lines) {
-    if (!line.productId) continue;
-    quantities.set(line.productId, (quantities.get(line.productId) ?? 0) + line.quantity);
-  }
+  const stockLines = input.lines.filter((line): line is SaleStockLine => Boolean(line.productId));
+  const validation = stockLines.length ? validateSaleStock(stockLines, current.products) : null;
+  if (validation && !validation.ok) throw new Error(validation.error);
+  const quantities = validation?.ok ? validation.quantities : new Map<string, number>();
   for (const [id, quantity] of quantities) {
     const p = current.products.find((p) => p.id === id);
     if (!p || p.status !== 'Active') throw new Error('Select an active item on every line.');

@@ -25,7 +25,7 @@ The migration has been executed in PGlite with role/RLS checks, idempotency, ato
 ## Validation
 
 - ESLint, both TypeScript compilers, and production build.
-- All 23 verification suites, including `verify:reliability` (14 operating scenarios), invoice arithmetic/rapid-command regression checks (42 assertions), and `verify:operating-database` (59 database assertions including complete fresh-schema installation and invitation access controls).
+- All 23 verification suites, including `verify:reliability` (14 operating scenarios), invoice arithmetic/rapid-command regression checks (48 assertions), and `verify:operating-database` (59 database assertions including complete fresh-schema installation and invitation access controls).
 - Previous branch HTTP checks are historical; hosted acceptance must be rerun for the reconciled branch.
 - Hardware scans, real bank settlement, hosted login/onboarding and simultaneous browser flows remain staging acceptance checks.
 
