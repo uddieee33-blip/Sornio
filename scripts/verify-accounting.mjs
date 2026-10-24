@@ -173,6 +173,7 @@ console.log('Invoice arithmetic and settlement:');
     setState: (update) => { const next = typeof update === 'function' ? update(stateRef.current) : update; stateRef.current = next; queued.push(next); }, track: () => {},
     ...(await import(compile(join(root, 'lib/accounting.ts')))),
     ...(await import(compile(join(root, 'lib/accounting-posting.ts')))),
+    ...(await import(compile(join(root, 'lib/offline-payments.ts')))),
     meterCollection: () => refusal ? { ok: false, code: 'collection-limit' } : { ok: true },
   };
   const js = ts.transpileModule([...helpers.values()].join('\n') + '\nconst actions = {' + [...methods.values()].join(',\n') + '};', {

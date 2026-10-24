@@ -1410,7 +1410,6 @@
   "off": "बन्द",
   "Off": "अफ खालाम।",
   "Off ·": "बन्द ·",
-  "Offline — still working": "अफलाइन-दाबो खामानि मावगासिनो दं।",
   "ok": "मोजां।",
   "on": "अन",
   "On · locks after": "बिनि उनाव तालाफोरखौ अन खालाम।",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "नंगौ, गासिबोखौ रिसेट खालाम।",
   "you": "you",
   "You add the item": "नों बेसादखौ दाजाबदेर।",
-  "You are offline. Everything still works — your data stays on this device.": "नोंथाङा अफलाइन। गासैबो दाबो खामानि मावो-नोंथांनि डेटाया बे दाइसियाव थायो।",
   "You are on": "नों दं।",
   "You are on the": "नोंयाव दं।",
   "You are on the free plan. Everything you recorded is untouched.": "नोंथाङा बेसेन गैयै प्लानआव दं। नोंथाङा रेबगान्थि खालामनाय गासिबो दांजायाखै।",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }

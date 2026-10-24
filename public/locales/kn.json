@@ -1410,7 +1410,6 @@
   "off": "ಆಫ್",
   "Off": "ಆಫ್",
   "Off ·": "ಆಫ್ ·",
-  "Offline — still working": "ಆಫ್‌ಲೈನ್ — ಇನ್ನೂ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತಿದೆ",
   "ok": "ಸರಿ",
   "on": "ಚಾಲೂ",
   "On · locks after": "ಆನ್ · ನಂತರ ಲಾಕ್ಸ್",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "ಹೌದು, ಎಲ್ಲವನ್ನೂ ಮರುಹೊಂದಿಸಿ",
   "you": "you",
   "You add the item": "ನೀವು ಐಟಂ ಸೇರಿಸಿ",
-  "You are offline. Everything still works — your data stays on this device.": "ನೀವು ಆಫ್‌ಲೈನ್‌ನಲ್ಲಿರುವಿರಿ. ಎಲ್ಲವೂ ಇನ್ನೂ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ - ನಿಮ್ಮ ಡೇಟಾ ಈ ಸಾಧನದಲ್ಲಿ ಉಳಿಯುತ್ತದೆ.",
   "You are on": "ನೀವು ಆನ್ ಆಗಿದ್ದೀರಿ",
   "You are on the": "ನೀವು ಮೇಲೆ ಇದ್ದೀರಿ",
   "You are on the free plan. Everything you recorded is untouched.": "ನೀವು ಉಚಿತ ಯೋಜನೆಯಲ್ಲಿದ್ದೀರಿ. ನೀವು ರೆಕಾರ್ಡ್ ಮಾಡಿದ ಎಲ್ಲವೂ ಅಸ್ಪೃಶ್ಯವಾಗಿದೆ.",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }

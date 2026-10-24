@@ -1410,7 +1410,6 @@
   "off": "বন্ধ",
   "Off": "বন্ধ",
   "Off ·": "বন্ধ ·",
-  "Offline — still working": "অফলাইন — এখনও কাজ করছে",
   "ok": "ঠিক আছে",
   "on": "চালু",
   "On · locks after": "চালু · লক পরে",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "হ্যাঁ, সবকিছু রিসেট করুন",
   "you": "you",
   "You add the item": "আপনি আইটেম যোগ করুন",
-  "You are offline. Everything still works — your data stays on this device.": "আপনি অফলাইনে আছেন। সবকিছু এখনও কাজ করে — আপনার ডেটা এই ডিভাইসে থেকে যায়।",
   "You are on": "আপনি চালু আছে",
   "You are on the": "আপনি আছে",
   "You are on the free plan. Everything you recorded is untouched.": "আপনি বিনামূল্যে পরিকল্পনা আছে. আপনি যা কিছু রেকর্ড করেছেন তা অস্পৃশ্য।",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }

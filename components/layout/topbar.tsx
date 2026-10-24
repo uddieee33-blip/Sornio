@@ -99,10 +99,10 @@ export function Topbar({
           {!online ? (
             <span
               className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 ring-1 ring-inset ring-amber-500/25 sm:h-8 sm:w-auto sm:gap-1.5 sm:px-2.5 sm:text-[11px] sm:font-bold"
-              title="You are offline. Everything still works — your data stays on this device."
+              title="You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
             >
               <WifiOff size={13} />
-              <span className="hidden sm:inline">Offline — still working</span>
+              <span className="hidden sm:inline">Offline — local records only</span>
             </span>
           ) : null}
 

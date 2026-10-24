@@ -1410,7 +1410,6 @@
   "off": "ఆఫ్",
   "Off": "ఆఫ్",
   "Off ·": "ఆఫ్ ·",
-  "Offline — still working": "ఆఫ్‌లైన్ — ఇప్పటికీ పని చేస్తోంది",
   "ok": "సరే",
   "on": "ఆన్",
   "On · locks after": "ఆన్ · తర్వాత తాళాలు",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "అవును, ప్రతిదీ రీసెట్ చేయండి",
   "you": "you",
   "You add the item": "మీరు అంశాన్ని జోడించండి",
-  "You are offline. Everything still works — your data stays on this device.": "మీరు ఆఫ్‌లైన్‌లో ఉన్నారు. ప్రతిదీ ఇప్పటికీ పని చేస్తుంది — మీ డేటా ఈ పరికరంలో ఉంటుంది.",
   "You are on": "మీరు ఉన్నారు",
   "You are on the": "మీరు ఉన్నారు",
   "You are on the free plan. Everything you recorded is untouched.": "మీరు ఉచిత ప్లాన్‌లో ఉన్నారు. మీరు రికార్డ్ చేసిన ప్రతిదీ తాకబడలేదు.",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }

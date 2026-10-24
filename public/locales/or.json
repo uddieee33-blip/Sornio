@@ -1410,7 +1410,6 @@
   "off": "ବନ୍ଦ",
   "Off": "ବନ୍ଦ",
   "Off ·": "ବନ୍ଦ ·",
-  "Offline — still working": "ଅଫଲାଇନ୍ - ତଥାପି କାମ କରୁଛି |",
   "ok": "ଠିକ ଅଛି",
   "on": "ଚାଲୁ",
   "On · locks after": "ପରେ · ତାଲା |",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "ହଁ, ସବୁକିଛି ପୁନ res ସେଟ୍ କରନ୍ତୁ |",
   "you": "you",
   "You add the item": "ଆପଣ ଆଇଟମ୍ ଯୋଗ କରନ୍ତି |",
-  "You are offline. Everything still works — your data stays on this device.": "ଆପଣ ଅଫଲାଇନରେ ଅଛନ୍ତି | ସବୁକିଛି ତଥାପି କାମ କରେ - ଆପଣଙ୍କର ତଥ୍ୟ ଏହି ଡିଭାଇସରେ ରହିଥାଏ |",
   "You are on": "ଆପଣ ଅନ୍ ଅଛନ୍ତି",
   "You are on the": "ଆପଣ ଉପରେ ଅଛନ୍ତି",
   "You are on the free plan. Everything you recorded is untouched.": "ଆପଣ ମାଗଣା ଯୋଜନାରେ ଅଛନ୍ତି | ଆପଣ ରେକର୍ଡ କରିଥିବା ସମସ୍ତ ଜିନିଷ ଅସ୍ପୃଶ୍ୟ |",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }

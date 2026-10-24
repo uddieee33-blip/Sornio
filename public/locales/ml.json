@@ -1410,7 +1410,6 @@
   "off": "ഓഫ്",
   "Off": "ഓഫ്",
   "Off ·": "ഓഫ് ·",
-  "Offline — still working": "ഓഫ്‌ലൈൻ — ഇപ്പോഴും പ്രവർത്തിക്കുന്നു",
   "ok": "ശരി",
   "on": "ഓൺ",
   "On · locks after": "ഓൺ · ലോക്കുകൾ ശേഷം",
@@ -2436,7 +2435,6 @@
   "Yes, reset everything": "അതെ, എല്ലാം റീസെറ്റ് ചെയ്യുക",
   "you": "you",
   "You add the item": "നിങ്ങൾ ഇനം ചേർക്കുക",
-  "You are offline. Everything still works — your data stays on this device.": "നിങ്ങൾ ഓഫ്‌ലൈനാണ്. എല്ലാം ഇപ്പോഴും പ്രവർത്തിക്കുന്നു - നിങ്ങളുടെ ഡാറ്റ ഈ ഉപകരണത്തിൽ നിലനിൽക്കും.",
   "You are on": "നിങ്ങൾ ഓണാണ്",
   "You are on the": "നിങ്ങൾ ഇതിലാണ്",
   "You are on the free plan. Everything you recorded is untouched.": "നിങ്ങൾ സൗജന്യ പ്ലാനിലാണ്. നിങ്ങൾ റെക്കോർഡുചെയ്‌തതെല്ലാം തൊട്ടുകൂടാത്തതാണ്.",
@@ -2558,5 +2556,8 @@
   "Windows": "Windows",
   "You are using the installed app.": "You are using the installed app.",
   "You can keep using the website, or install later from your browser menu.": "You can keep using the website, or install later from your browser menu.",
-  "Your shop or business name": "Your shop or business name"
+  "Your shop or business name": "Your shop or business name",
+  "Offline — local records only": "Offline — local records only",
+  "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.": "This device is offline. Keep the bill unpaid until you can verify the digital payment. Cash can be recorded offline.",
+  "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices.": "You are offline. Current screens can use locally saved records. New screens, digital payment confirmation and cloud sync need a connection. Check sync before switching devices."
 }
