@@ -79,7 +79,7 @@ export function BankDetailsStep({
           <p className="text-xs leading-relaxed text-stone-600">Bank accounts are stored once, displayed masked (•••• last 4).</p>
           <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-700/90 ring-1 ring-inset ring-emerald-500/20">
             <ShieldCheck size={13} className="mr-1.5 inline" />
-            Payment collection stays inactive until you add a valid UPI ID. When activated, money goes <strong>directly into your bank account</strong> — DukaanOS never touches your money.
+            Payment collection stays inactive until you add a valid UPI ID. When activated, money goes <strong>directly into your bank account</strong> — Sornio never touches your money.
             We will <strong>never</strong> ask for your UPI PIN, OTP, card PIN, or passwords.
           </div>
         </div>

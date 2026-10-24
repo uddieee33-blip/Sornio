@@ -3,7 +3,7 @@
 /**
  * Extract every user-facing English phrase from the application.
  *
- * DukaanOS intentionally keeps product copy close to the screens and business
+ * Sornio intentionally keeps product copy close to the screens and business
  * blueprints that use it. This extractor lets that remain true: it walks the
  * TypeScript/TSX syntax tree, collects rendered JSX, accessibility attributes,
  * copy-bearing object properties, dynamic templates, errors, and toast text,
@@ -120,10 +120,10 @@ const CORE_MESSAGES = [
   'Modules',
   'Security',
   'Pricing',
-  'One operating system for every business — gyms, cafés, salons, shops & more',
+  'One workspace for every business — gyms, cafés, salons, shops & more',
   'Your business. Your money.',
   'Straight to your bank.',
-  'DukaanOS runs your billing, inventory, memberships, and reports on one live ledger. Your collection QR comes from your own bank account — customers pay you directly. No gateway. No middleman. No liability.',
+  'Sornio runs your billing, inventory, memberships, and reports on one live ledger. Your collection QR comes from your own bank account — customers pay you directly. No gateway. No middleman. No liability.',
   'Start your business — free',
   'Peek at the live console',
   'Sample data only — never real or fabricated business numbers',

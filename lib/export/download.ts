@@ -38,7 +38,7 @@ const BOM = '\uFEFF';
 
 /** Timestamped, filesystem-safe filename. */
 function filenameFor(kind: ExportKind, businessName: string, extension: string): string {
-  const slug = (businessName || 'dukaanos')
+  const slug = (businessName || 'sornio')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
@@ -172,7 +172,7 @@ export function buildBackupJson(state: StoreState): string {
 
 /** Run an export end to end, reporting a count the UI can confirm. */
 export function runExport(state: StoreState, kind: ExportKind): ExportResult {
-  const businessName = state.profile.name ?? 'dukaanos';
+  const businessName = state.profile.name ?? 'sornio';
   try {
     switch (kind) {
       case 'transactions': {

@@ -4,7 +4,7 @@
  * A shop counter is not a controlled environment: it might be an Android phone
  * with a camera, a ₹6,000 Windows billing PC with a USB laser scanner, or a
  * front-desk tablet with a fingerprint reader. Rather than pretend every device
- * can do everything, DukaanOS asks the device, reports honestly, and always
+ * can do everything, Sornio asks the device, reports honestly, and always
  * leaves a way to work:
  *
  *   • **Hardware scanner (keyboard wedge)** — every device has one, because a
@@ -14,7 +14,7 @@
  *   • **On-device decoding** — the browser's own `BarcodeDetector`. Where it
  *     exists, no image ever leaves the phone; where it does not, the counter
  *     falls back to the wedge and typed entry rather than sending frames to a
- *     server. DukaanOS has no server-side image pipeline at all.
+ *     server. Sornio has no server-side image pipeline at all.
  *   • **Fingerprint** — a platform authenticator through WebAuthn. A desktop PC
  *     with no reader reports unavailable, and the front desk keeps working on
  *     phone lookup.
@@ -41,7 +41,7 @@ export function isSecureContext(): boolean {
  * chat client's built-in browser, or a social app's webview usually does not.
  * The counter then reports "camera refused" and the owner reasonably concludes
  * the software is broken, when the same page in its own tab would have worked.
- * DukaanOS watches for exactly that case and says which one it is (see
+ * Sornio watches for exactly that case and says which one it is (see
  * `captureBlockedByEmbedding`).
  */
 export function isEmbedded(): boolean {
@@ -175,7 +175,7 @@ export async function detectCaptureReadiness(): Promise<CaptureReadiness> {
     onDeviceDecoder: { available: false },
     wedge: {
       available: true,
-      note: 'A USB or Bluetooth scanner types the code into the field below. Nothing to install, nothing to pair in DukaanOS.',
+      note: 'A USB or Bluetooth scanner types the code into the field below. Nothing to install, nothing to pair in Sornio.',
     },
     fingerprint: { available: false },
     embedded: hasWindow() ? isEmbedded() : false,
@@ -199,7 +199,7 @@ export async function detectCaptureReadiness(): Promise<CaptureReadiness> {
     // another app's frame, and frames only get the camera if the app that
     // embedded them said so. The hardware scanner and the keypad are unaffected.
     readiness.camera.reason =
-      'This page is running inside another app’s frame, and that app has not handed over the camera. Open DukaanOS in its own tab (or browser) and the camera works — or use your handheld scanner, which needs no permission at all.';
+      'This page is running inside another app’s frame, and that app has not handed over the camera. Open Sornio in its own tab (or browser) and the camera works — or use your handheld scanner, which needs no permission at all.';
   } else {
     const permission = await cameraPermission();
     if (permission === 'denied') {

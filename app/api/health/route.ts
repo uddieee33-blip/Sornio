@@ -1,7 +1,7 @@
 /**
  * `GET /api/health` — what this deployment is actually configured with.
  *
- * Every setting in DukaanOS that matters is a server-side environment variable:
+ * Every setting in Sornio that matters is a server-side environment variable:
  * the platform's own UPI id, the two secrets that sign sessions and activation
  * codes, the Supabase keys. That is deliberate — a value a browser can rewrite
  * is a value anybody can rewrite — but it leaves the owner of a fresh install
@@ -112,10 +112,10 @@ export async function GET() {
       configured: payeeName.length > 0,
       detail: payeeName.length > 0
         ? `Set to ${payeeName}. This is what appears next to the amount in the paying app.`
-        : 'Not set — the QR falls back to showing “DukaanOS”. Set your own name so a payer recognises who they are paying.',
-      surface: 'Falls back to “DukaanOS” on the payment QR.',
+        : 'Not set — the QR falls back to showing “Sornio”. Set your own name so a payer recognises who they are paying.',
+      surface: 'Falls back to “Sornio” on the payment QR.',
       hint: 'A recognisable payee name is the difference between a completed payment and an abandoned one.',
-      format: 'Plain text — e.g. DukaanOS, or your registered business name',
+      format: 'Plain text — e.g. Sornio, or your registered business name',
     },
     {
       key: 'NEXT_PUBLIC_SUPPORT_WHATSAPP',

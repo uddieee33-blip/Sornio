@@ -73,6 +73,8 @@ import {
   DARK_PAINTS,
   LIGHT_PAINTS,
   SYSTEM_PAINT,
+  SYSTEM_DARK,
+  SYSTEM_LIGHT,
   type Density,
   type MotionLevel,
   type Paint,
@@ -355,7 +357,7 @@ function AppearanceControls() {
               {systemSelected ? <Check size={13} className="text-portal" /> : null}
             </span>
             <span className="mt-0.5 block text-[11px] leading-snug text-stone-600">
-              Warm Daylight by day, Midnight when the phone or the PC switches over.{' '}
+              Sornio Light by day, Sornio Dark when your device switches over.{' '}
               <span className="font-semibold text-stone-700">
                 Right now your device is asking for {prefersDark ? 'dark' : 'light'}.
               </span>
@@ -572,7 +574,7 @@ export function AppearanceMenu({
 
   const flip = useCallback(() => {
     const goingDark = resolved.mode === 'light';
-    setTheme(recall(goingDark ? LAST_DARK_KEY : LAST_LIGHT_KEY, goingDark ? 'midnight' : 'monsoon'));
+    setTheme(recall(goingDark ? LAST_DARK_KEY : LAST_LIGHT_KEY, goingDark ? SYSTEM_DARK : SYSTEM_LIGHT));
   }, [resolved.mode, setTheme]);
 
   const panel =

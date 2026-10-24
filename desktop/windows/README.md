@@ -1,6 +1,6 @@
-# DukaanOS for Windows
+# Sornio for Windows
 
-This is a Windows desktop window for the production DukaanOS service at
+This is a Windows desktop window for the production Sornio service at
 `https://dukaan-os-six.vercel.app`. It uses Microsoft's WebView2, and keeps a
 separate app profile under `%LOCALAPPDATA%\DukaanOS\WebView2`. Sign in with the
 same account as the web app. The server remains responsible for authentication,
@@ -15,7 +15,7 @@ From the repository root with the .NET 8 SDK:
 dotnet publish desktop/windows/DukaanOS.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist/windows
 ```
 
-Keep **all** files in `dist/windows` together and run `DukaanOS.exe`. The EXE
+Keep **all** files in `dist/windows` together and run `Sornio.exe`. The EXE
 does not work if copied out of that folder on its own. The repository's
 "Windows desktop package" GitHub Action builds a ZIP on review branches and
 can also be started manually. Download the ZIP from the workflow run's
@@ -31,7 +31,7 @@ window; changes to the native window require a new package.
 
 ## Acceptance on a Windows machine
 
-1. Extract the full ZIP on Windows 10/11 x64 and run `DukaanOS.exe`.
+1. Extract the full ZIP on Windows 10/11 x64 and run `Sornio.exe`.
 2. Check an account with completed setup and a new account through sign-up,
    confirmation, owner details, business details and optional payment setup.
 3. Make a bill, collect a payment, print a receipt, scan with actual hardware

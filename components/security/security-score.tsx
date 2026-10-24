@@ -383,7 +383,7 @@ export function SecurityScore() {
           <CardTitle icon={<ShieldCheck size={15} />}>Nothing to fix</CardTitle>
           <p className="mt-3 text-sm leading-relaxed text-stone-600">
             Every check that could be answered in this browser passed. That is not a promise that nothing can go
-            wrong — it is a statement that the controls DukaanOS ships are on, right now, on this device.
+            wrong — it is a statement that the controls Sornio ships are on, right now, on this device.
           </p>
         </Card>
       )}
@@ -398,7 +398,7 @@ export function SecurityScore() {
           watch, nothing to type.
         </p>
         <p className="mt-2 text-xs leading-relaxed text-stone-600">
-          DukaanOS stores one thing: a credential id. Not a fingerprint, not a face, not a template of either — the
+          Sornio stores one thing: a credential id. Not a fingerprint, not a face, not a template of either — the
           match happens inside the device and never reaches us. Your PIN keeps working, deliberately: a passkey tied
           to a tablet that falls in a bucket of water must never be the only way into your books.
         </p>
@@ -520,4 +520,3 @@ export function SecurityScore() {
     </div>
   );
 }
-

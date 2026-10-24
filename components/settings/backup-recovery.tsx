@@ -82,7 +82,7 @@ export function BackupRecovery() {
             if (parsed.product !== 'DukaanOS' || parsed.kind !== 'business-backup') throw new Error();
             restore(parsed.data);
           } catch {
-            setMessage('This is not a valid DukaanOS backup.');
+            setMessage('This is not a valid Sornio backup.');
           }
           e.target.value = '';
         }}

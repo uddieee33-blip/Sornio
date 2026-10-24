@@ -1,7 +1,7 @@
 'use client';
 
 /**
- * Whole-product internationalisation for DukaanOS.
+ * Whole-product internationalisation for Sornio.
  *
  * English is the authored source language. Selecting a locale loads one static,
  * same-origin catalogue and translates rendered copy, dynamic messages,
@@ -89,10 +89,10 @@ const CORE_MESSAGES = {
   'nav.features': 'Modules',
   'nav.security': 'Security',
   'nav.pricing': 'Pricing',
-  'hero.badge': 'One operating system for every business — gyms, cafés, salons, shops & more',
+  'hero.badge': 'One workspace for every business — gyms, cafés, salons, shops & more',
   'hero.titleA': 'Your business. Your money.',
   'hero.titleB': 'Straight to your bank.',
-  'hero.sub': 'DukaanOS runs your billing, inventory, memberships, and reports on one live ledger. Your collection QR comes from your own bank account — customers pay you directly. No gateway. No middleman. No liability.',
+  'hero.sub': 'Sornio runs your billing, inventory, memberships, and reports on one live ledger. Your collection QR comes from your own bank account — customers pay you directly. No gateway. No middleman. No liability.',
   'hero.ctaStart': 'Start your business — free',
   'hero.ctaConsole': 'Peek at the live console',
   'charts.sample': 'Sample data only — never real or fabricated business numbers',

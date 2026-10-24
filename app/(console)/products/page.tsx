@@ -30,7 +30,7 @@ const emptyForm = {
 
 /**
  * Where a scanned code belongs. A GTIN or a supplier label is read off a
- * printed packet, so it goes in the barcode field; a code DukaanOS minted itself
+ * printed packet, so it goes in the barcode field; a code Sornio minted itself
  * belongs in the internal field. One field on screen, the right slot in the
  * catalogue.
  */
@@ -263,7 +263,7 @@ export default function ProductsPage() {
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
                   className={`${inputClass} pl-9 font-mono`}
-                  placeholder="8901234567890 — or a DukaanOS code like DK000000018"
+                  placeholder="8901234567890 — or a Sornio code like DK000000018"
                 />
               </div>
               <p className="mt-1.5 text-[11px] leading-relaxed text-stone-600">
@@ -416,7 +416,7 @@ export default function ProductsPage() {
                   <Badge tone="emerald" dot>Scannable</Badge>
                   <span className="font-mono text-xs font-semibold text-stone-900">{selected.barcode ?? selected.internalCode}</span>
                   <span className="text-[11px] text-stone-600">
-                    {selected.barcode ? 'retail barcode' : 'DukaanOS internal code'}
+                    {selected.barcode ? 'retail barcode' : 'Sornio internal code'}
                     {selected.looseMode && selected.looseMode !== 'none' ? ' · sold loose' : ''}
                   </span>
                 </>

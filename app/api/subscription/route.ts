@@ -290,10 +290,10 @@ export async function POST(request: Request) {
 
       const params = new URLSearchParams({
         pa: upiId ?? '',
-        pn: payeeName ?? 'DukaanOS',
+        pn: payeeName ?? 'Sornio',
         am: String(price.amount),
         cu: 'INR',
-        tn: `DukaanOS ${plan.name} ${price.months}mo ${reference}`,
+        tn: `Sornio ${plan.name} ${price.months}mo ${reference}`,
       });
       const upiIntent = upiId ? `upi://pay?${params.toString()}` : null;
       const ownerClient = await getGuardedServerClient();
@@ -301,7 +301,7 @@ export async function POST(request: Request) {
       const businessId = ownerScope?.data?.businessId ?? null;
       const whatsappHref = support
         ? `https://wa.me/${support}?text=${encodeURIComponent(
-            `I have paid for DukaanOS ${plan.name} (${price.months} month(s)). Business: ${businessId ?? 'local device'}. Reference: ${reference}. Amount: ₹${price.amount}. Please activate my plan.`,
+            `I have paid for Sornio ${plan.name} (${price.months} month(s)). Business: ${businessId ?? 'local device'}. Reference: ${reference}. Amount: ₹${price.amount}. Please activate my plan.`,
           )}`
         : null;
 

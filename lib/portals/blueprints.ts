@@ -275,7 +275,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       label: 'Counter scanner',
       what: 'Every packet in the shop — and your own labels for loose atta, dal, sugar and rice',
       channels: ['barcode', 'keypad'],
-      note: 'Goods that arrive without a barcode are not a problem: DukaanOS prints its own label (an internal code, or an in-store EAN-13 that carries the weight the scale read out), and any scanner in the shop reads it. No fingerprint pad — a kirana knows its customers by name.',
+      note: 'Goods that arrive without a barcode are not a problem: Sornio prints its own label (an internal code, or an in-store EAN-13 that carries the weight the scale read out), and any scanner in the shop reads it. No fingerprint pad — a kirana knows its customers by name.',
       symbologies: ['EAN-13', 'EAN-8', 'UPC-A', 'ITF-14 (carton)', 'Code 128', 'Code 39'],
       jobs: [
         { href: '/scan', label: 'Bill a customer by scanning' },
@@ -595,7 +595,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
       label: 'Counter scanner',
       what: 'Design tags — size and colour — plus a shop-made label on every stitched order',
       channels: ['barcode', 'keypad'],
-      note: 'A readymade tag already scans; a stitched order gets a DukaanOS internal code on the order slip, so the same tag works when the client comes to collect. Nothing is scanned at the trial room, only at the counter.',
+      note: 'A readymade tag already scans; a stitched order gets a Sornio internal code on the order slip, so the same tag works when the client comes to collect. Nothing is scanned at the trial room, only at the counter.',
       symbologies: ['EAN-13', 'Code 128', 'Code 39 (small tags)'],
       jobs: [
         { href: '/scan', label: 'Bill a set at the counter' },
@@ -799,7 +799,7 @@ export const PORTAL_BLUEPRINTS: PortalBlueprint[] = [
     excluded:
       'Nothing is hidden in this portal — it is the honest default for a business that does a bit of everything. Pick a sharper portal whenever one fits, and your records stay exactly where they are.',
     examples: ['Mixed retail + services', 'New businesses still finding shape', 'Wholesale + retail'],
-    accent: { rgb: '40 98 59', deepRgb: '17 50 31', label: 'DukaanOS green' },
+    accent: { rgb: '71 90 114', deepRgb: '38 50 66', label: 'Sornio blue-gray' },
     capture: {
       label: 'Full capture — every channel',
       what: 'Barcodes at the counter, weigh-scale labels for loose goods, fingerprints at a front desk, and the keypad when a label is torn',

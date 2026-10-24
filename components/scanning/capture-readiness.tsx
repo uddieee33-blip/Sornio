@@ -99,7 +99,7 @@ export function CaptureReadinessCard() {
       label: 'Fingerprint sensor',
       ready: readiness ? readiness.fingerprint.available : null,
       note: readiness?.fingerprint.available
-        ? 'The sensor on this device can open a member’s visit. The finger is matched in the sensor; DukaanOS only ever receives a credential id.'
+        ? 'The sensor on this device can open a member’s visit. The finger is matched in the sensor; Sornio only ever receives a credential id.'
         : readiness?.fingerprint.reason ?? 'Asking this device…',
     });
   }
@@ -131,7 +131,7 @@ export function CaptureReadinessCard() {
       {readiness?.embedded ? (
         <p className="mt-3 rounded-xl border border-amber-500/30 bg-amber-500/[0.07] p-3 text-xs leading-relaxed text-amber-900">
           This page is inside another app&apos;s frame, which is not allowed to open the camera. Your handheld scanner and
-          typed entry work here — open DukaanOS in its own tab for camera scans.
+          typed entry work here — open Sornio in its own tab for camera scans.
         </p>
       ) : null}
       <div className="mt-2.5 flex flex-wrap gap-1.5">
@@ -202,7 +202,7 @@ export function CaptureReadinessCard() {
       ) : null}
 
       <p className="mt-4 text-[11px] leading-relaxed text-stone-500">
-        DukaanOS has no server-side image pipeline: a camera read is decoded by this browser. Fingerprints are matched inside the
+        Sornio has no server-side image pipeline: a camera read is decoded by this browser. Fingerprints are matched inside the
         sensor and never stored — only a credential id is.{' '}
         <Link href="/security" className="font-semibold text-stone-600 underline underline-offset-4">
           More in the Trust Centre

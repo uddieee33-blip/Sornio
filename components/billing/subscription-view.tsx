@@ -15,7 +15,7 @@ import { useLocaleRefresh } from '@/lib/i18n';
  *     due this week, unpaid invoices, revenue already recorded this month —
  *     instead of an invented statistic;
  *   • it states the prices, the limits, and exactly what a lapsed plan does;
- *   • and it says out loud what DukaanOS will never do: no auto-debit, no cut of
+ *   • and it says out loud what Sornio will never do: no auto-debit, no cut of
  *     collections, no holding records hostage.
  *
  * Payment is direct UPI to the platform, with a reference in the note, and the
@@ -167,7 +167,7 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
     <div className="mx-auto max-w-5xl p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Your Plan"
-        title="What DukaanOS costs — and what it gives back"
+        title="What Sornio costs — and what it gives back"
         subtitle="One price, paid directly by UPI. No auto-debit, no commission on your collections, and nothing you have recorded is ever locked away."
         actions={
           <>
@@ -381,7 +381,7 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
           </>
         ) : (
           <p className="mt-3 text-sm leading-relaxed text-stone-700">
-            Your console starts at zero, so there is nothing to compute yet. Record a sale, a member or a bill and this panel fills itself in from your own ledger — the same discipline as every other number in DukaanOS.
+            Your console starts at zero, so there is nothing to compute yet. Record a sale, a member or a bill and this panel fills itself in from your own ledger — the same discipline as every other number in Sornio.
           </p>
         )}
       </Card>
@@ -505,7 +505,7 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
               <AlertTriangle size={16} className="mt-0.5 shrink-0" />
               <span>
                 <strong>Online payment is not switched on for this deployment yet.</strong>{' '}
-                You can test the plan selection and activation screens now. Do not send money until DukaanOS publishes its payment details. This checkout reference is for support matching; it is not proof of payment.
+                You can test the plan selection and activation screens now. Do not send money until Sornio publishes its payment details. This checkout reference is for support matching; it is not proof of payment.
               </span>
             </div>
           ) : null}

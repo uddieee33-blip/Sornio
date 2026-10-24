@@ -3,7 +3,7 @@
 /**
  * Environment setup — the section that says what to put where.
  *
- * DukaanOS has a handful of settings that are deliberately **not** editable in
+ * Sornio has a handful of settings that are deliberately **not** editable in
  * the console: the platform's UPI id, the secrets that sign sessions and
  * activation codes, the Supabase keys. They live in the deployment's environment
  * because they are the platform's own money and cryptography, and a value a
@@ -261,7 +261,7 @@ export function EnvSetup({ children }: { children?: ReactNode }) {
               <pre className="mt-2 overflow-x-auto rounded-xl bg-stone-900 px-3.5 py-3 font-mono text-[11px] leading-relaxed text-stone-100">{`DUKAANOS_SESSION_SECRET=<paste the first random string>
 DUKAANOS_ACTIVATION_SECRET=<paste the second random string>
 NEXT_PUBLIC_PLANS_UPI_ID=yourbusiness@okhdfcbank
-NEXT_PUBLIC_PLANS_PAYEE_NAME=DukaanOS
+NEXT_PUBLIC_PLANS_PAYEE_NAME=Sornio
 NEXT_PUBLIC_SUPPORT_WHATSAPP=919876543210
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=<your anon key>`}</pre>

@@ -218,7 +218,7 @@ export function buildPostureReport(input: PostureInput, facts: BrowserFacts | nu
           : !webauthn
             ? 'This browser has no WebAuthn support, so a passkey cannot be enrolled here.'
             : input.passkeyEnrolled
-              ? 'A passkey on this device can unlock the console — the sensor matches in hardware and DukaanOS only ever stores the credential id.'
+              ? 'A passkey on this device can unlock the console — the sensor matches in hardware and Sornio only ever stores the credential id.'
               : 'No passkey enrolled. The PIN still works; a passkey is faster and cannot be watched over your shoulder.',
       state: !webauthn ? 'unknown' : input.passkeyEnrolled ? 'pass' : 'warn',
       action: webauthn && !input.passkeyEnrolled ? 'Add a passkey from the Trust Centre.' : undefined,
@@ -313,4 +313,3 @@ export const GROUP_LABELS: Record<PostureCheck['group'], string> = {
   records: 'Your records',
   console: 'This console',
 };
-

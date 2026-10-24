@@ -356,7 +356,7 @@ export function CollectPaymentPanel({
                   </p>
                   <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
                     The QR already carries the exact amount ({formatCurrency(due)}) and the bill reference ({invoice.id}).
-                    Money lands directly in your bank — DukaanOS never touches it.
+                    Money lands directly in your bank — Sornio never touches it.
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2">
                     <CopyButton value={shopUpi ?? ''} label="Copy UPI ID" />
@@ -432,7 +432,7 @@ export function CollectPaymentPanel({
             </div>
             <p className="mt-3.5 flex items-start gap-2 rounded-xl border border-violet-500/20 bg-white/70 p-3 text-xs leading-relaxed text-violet-900">
               <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-              <span>Never type the full card number, expiry, or CVV here — cards settle through your PoS machine, and DukaanOS only keeps the traceable reference.</span>
+              <span>Never type the full card number, expiry, or CVV here — cards settle through your PoS machine, and Sornio only keeps the traceable reference.</span>
             </p>
           </div>
         ) : null}
@@ -675,4 +675,3 @@ export function CollectPaymentModal({ invoice, onClose }: { invoice: Invoice; on
     </div>
   );
 }
-

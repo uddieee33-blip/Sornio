@@ -516,7 +516,7 @@ export function CounterLockScreen() {
         ) : null}
 
         <p className="mt-6 text-center text-[11px] leading-relaxed text-stone-500">
-          The PIN is kept on this device only, as a PBKDF2 hash — never sent anywhere, never stored by DukaanOS.
+          The PIN is kept on this device only, as a PBKDF2 hash — never sent anywhere, never stored by Sornio.
         </p>
       </div>
     </div>

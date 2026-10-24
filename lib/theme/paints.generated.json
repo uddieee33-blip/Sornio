@@ -28,15 +28,15 @@
     },
     {
       "id": "monsoon",
-      "name": "Monsoon",
-      "tagline": "Cool blue-grey daylight, for long hours at the desk.",
+      "name": "Sornio Light",
+      "tagline": "Off-white and blue-gray. A clear workspace.",
       "mode": "light",
-      "page": "#f1f5f8",
-      "surface": "#fdfdfd",
-      "accent": "#04729b",
-      "ink": "#181a1c",
-      "muted": "#4f5459",
-      "line": "#e1e6eb"
+      "page": "#fafafb",
+      "surface": "#ffffff",
+      "accent": "#475a72",
+      "ink": "#191a1b",
+      "muted": "#515457",
+      "line": "#e3e6e9"
     },
     {
       "id": "saffron",
@@ -76,15 +76,15 @@
     },
     {
       "id": "graphite",
-      "name": "Graphite",
-      "tagline": "Neutral dark grey. No colour cast, no opinion.",
+      "name": "Sornio Dark",
+      "tagline": "Charcoal and silver. A quieter workspace.",
       "mode": "dark",
-      "page": "#0f0f10",
-      "surface": "#191a1b",
-      "accent": "#6ba97a",
-      "ink": "#ecedee",
-      "muted": "#adafb0",
-      "line": "#353637"
+      "page": "#0d1117",
+      "surface": "#161b22",
+      "accent": "#475a72",
+      "ink": "#ebedef",
+      "muted": "#acafb3",
+      "line": "#343638"
     },
     {
       "id": "nightmarket",

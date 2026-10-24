@@ -8,7 +8,7 @@ import { getActiveFormattingLocale } from '../locale';
  * this in a browser is WebAuthn's **platform authenticator**: the sensor in the
  * device (phone, tablet, Windows Hello laptop, or a USB reader the OS already
  * knows how to talk to) verifies the finger in hardware, and hands the page
- * back only a credential id. DukaanOS stores that id.
+ * back only a credential id. Sornio stores that id.
  *
  * What that means, stated plainly — this is also what the Trust Centre shows:
  *
@@ -178,7 +178,7 @@ export async function enrollFingerprint(input: {
       ok: false,
       code: 'unsupported',
       error:
-        'This page is inside another app’s frame, so the fingerprint would be bound to that frame and would not work at your counter. Open DukaanOS in its own tab and enrol there.',
+        'This page is inside another app’s frame, so the fingerprint would be bound to that frame and would not work at your counter. Open Sornio in its own tab and enrol there.',
     };
   }
 
@@ -187,7 +187,7 @@ export async function enrollFingerprint(input: {
     const credential = (await navigator.credentials.create({
       publicKey: {
         challenge: randomChallenge(),
-        rp: { id: rpId, name: 'DukaanOS' },
+        rp: { id: rpId, name: 'Sornio' },
         user: {
           // The member's own id, so a re-enrolment on a new device is still the
           // same person. It is an id, never a name or a phone number.

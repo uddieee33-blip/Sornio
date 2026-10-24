@@ -18,7 +18,7 @@ import { useLocaleRefresh } from '@/lib/i18n';
  *   2. **Goods inward** — scan the delivery in off the supplier's carton,
  *      raising stock at the price it actually came in at. This is where an
  *      ITF-14 case code or a supplier's Code 128 earns its keep.
- *   3. **Labels** — print a DukaanOS code for anything that will never carry a
+ *   3. **Labels** — print a Sornio code for anything that will never carry a
  *      manufacturer's barcode: loose grain, stitched orders, house packs. The
  *      sheet prints through the browser to any printer in the shop, including a
  *      thermal label printer.
@@ -555,7 +555,7 @@ export default function ScanStationPage() {
                 <EmptyState
                   icon={Tag}
                   title={hydrated ? 'No printable items yet' : 'Reading this device…'}
-                  description="Once an item has a barcode or a DukaanOS internal code, its label can be printed here — a shelf tag, a packet label, or an in-store weigh label that carries the weight itself."
+                  description="Once an item has a barcode or a Sornio internal code, its label can be printed here — a shelf tag, a packet label, or an in-store weigh label that carries the weight itself."
                 />
               ) : (
                 <>
