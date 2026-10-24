@@ -9,6 +9,7 @@
  */
 import { daysUntil } from '@/lib/models/membership';
 import type { StoreState } from '@/lib/store';
+import { customerBalance } from '@/lib/accounting';
 
 export type ReminderChannel = 'sms' | 'whatsapp';
 
@@ -38,9 +39,35 @@ function digitsOnly(value: string): string {
 
 /** Normalize an Indian phone number to the international format deep links need. */
 export function normalizePhoneForLink(phone: string): string {
-  const digits = digitsOnly(phone);
+  if (!/^\+?[\d\s().-]+$/.test(phone.trim())) return '';
+  const digits = digitsOnly(phone).replace(/^00/, '');
   if (digits.length === 10 && /^[6-9]/.test(digits)) return `91${digits}`;
-  return digits;
+  if (/^91\d{10}$/.test(digits) && !/^91[6-9]/.test(digits)) return '';
+  return /^[1-9]\d{7,14}$/.test(digits) && (phone.trim().startsWith('+') || digits.length > 10) ? digits : '';
+}
+
+export type CustomerDueReminder = {
+  id: string;
+  customerName: string;
+  phone: string;
+  amount: number;
+  message: string;
+  whatsappHref: string;
+  smsHref: string;
+};
+
+/** Prepare from the current ledger; opening a link never means "delivered". */
+export function getCustomerDueReminders(state: Pick<StoreState, 'profile' | 'customers' | 'transactions'>): CustomerDueReminder[] {
+  const businessName = state.profile.name.trim() || 'our business';
+  return state.customers.flatMap((customer) => {
+    const phone = normalizePhoneForLink(customer.phone ?? '');
+    const amount = customerBalance(customer, state.transactions);
+    if (!phone || !Number.isFinite(amount) || amount <= 0) return [];
+    const firstName = customer.name.trim().split(/\s+/)[0] || 'customer';
+    const message = `Hi ${firstName}, your outstanding balance at ${businessName} is INR ${amount.toFixed(2)}. Please contact us to arrange payment. Thank you.`;
+    const encoded = encodeURIComponent(message);
+    return [{ id: customer.id, customerName: customer.name, phone, amount, message, whatsappHref: `https://wa.me/${phone}?text=${encoded}`, smsHref: `sms:+${phone}?body=${encoded}` }];
+  }).sort((a, b) => b.amount - a.amount || a.id.localeCompare(b.id));
 }
 
 export function buildReminderMessage(input: {
@@ -87,6 +114,7 @@ export function getMembershipReminders(state: StoreState, reference: Date = new 
       if (settings.sendWhatsappReminders && member.preferredChannel !== 'sms') channels.push('whatsapp');
 
       const linkPhone = normalizePhoneForLink(member.phone);
+      if (!linkPhone) return null;
       const encoded = encodeURIComponent(message);
 
       return {
@@ -101,7 +129,7 @@ export function getMembershipReminders(state: StoreState, reference: Date = new 
         message,
         channels,
         whatsappHref: channels.includes('whatsapp') ? `https://wa.me/${linkPhone}?text=${encoded}` : undefined,
-        smsHref: channels.includes('sms') ? `sms:${member.phone.trim()}?&body=${encoded}` : undefined,
+        smsHref: channels.includes('sms') ? `sms:+${linkPhone}?body=${encoded}` : undefined,
       };
     })
     .filter((reminder): reminder is MembershipReminder => reminder !== null)

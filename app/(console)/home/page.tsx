@@ -9,8 +9,14 @@
  * so this page stays a one-line composition rather than a pile of conditionals.
  */
 
-import { PortalCockpit } from '@/components/cockpit/portal-cockpit';
+import dynamic from 'next/dynamic';
+import { useState } from 'react';
+import { SimpleHome } from '@/components/cockpit/simple-home';
+
+const PortalCockpit = dynamic(() => import('@/components/cockpit/portal-cockpit').then((loaded) => loaded.PortalCockpit));
 
 export default function HomePage() {
-  return <PortalCockpit />;
+  const [details, setDetails] = useState(false);
+  if (!details) return <SimpleHome onDetails={() => setDetails(true)} />;
+  return <><div className="px-4 pt-4 sm:px-6"><button type="button" onClick={() => setDetails(false)} className="min-h-11 rounded-xl border border-stone-200 px-4 py-2 text-sm font-semibold text-stone-700">Back to daily work</button></div><PortalCockpit /></>;
 }

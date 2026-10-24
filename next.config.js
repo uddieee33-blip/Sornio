@@ -208,6 +208,7 @@ const nextConfig = {
       // Capture surfaces re-grant only what they need. Declared after the
       // blanket rule so it wins for the paths above.
       ...captureHeaders,
+      { source: '/sw.js', headers: [{ key: 'Cache-Control', value: 'no-cache, no-store, must-revalidate' }, { key: 'Service-Worker-Allowed', value: '/' }] },
       // The console holds business records — never let a proxy or disk cache it.
       {
         source: '/(home|dashboard|products|inventory|sales|billing|payments|expenses|transactions|customers|suppliers|memberships|reminders|marketing|reports|comparisons|profitability|cashflow|insights|alerts|audit|team|settings|business|subscription|check-ins|appointments|scan)/:path*',

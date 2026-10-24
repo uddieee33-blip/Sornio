@@ -26,7 +26,7 @@
 import { isSupabaseConfigured } from '@/lib/supabase/config';
 
 /** Pages that work with no session at all. */
-const PUBLIC_PATHS = ['/', '/auth', '/onboarding'] as const;
+const PUBLIC_PATHS = ['/', '/auth', '/onboarding', '/install', '/sw.js', '/offline.html'] as const;
 
 /**
  * Public *prefixes*.

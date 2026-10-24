@@ -9,7 +9,10 @@
   "lang": "en",
   "background_color": "#f7f6f3",
   "theme_color": "#f7f6f3",
-  "categories": ["business", "finance"],
+  "categories": [
+    "business",
+    "finance"
+  ],
   "icons": [
     {
       "src": "/brand/icon-192.png",
@@ -28,6 +31,23 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Make a bill",
+      "short_name": "New bill",
+      "url": "/billing"
+    },
+    {
+      "name": "Collect payment",
+      "short_name": "Payments",
+      "url": "/payments"
+    },
+    {
+      "name": "Customer dues",
+      "short_name": "Dues",
+      "url": "/customers"
     }
   ]
 }
