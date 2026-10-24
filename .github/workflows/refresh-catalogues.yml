@@ -1,21 +1,32 @@
 name: Refresh localization catalogues
 on:
   push:
-    branches: [fix/localization-source-drift-20261023]
+    branches: ['fix/i18n-*', 'fix/enforce-owner-onboarding-20261023']
     paths:
       - .github/workflows/refresh-catalogues.yml
+      - supabase/schema.sql
+      - app/auth/page.tsx
+      - components/security/**
+      - lib/security/posture.ts
+      - app/(console)/billing/page.tsx
+      - components/billing/invoice-composer.tsx
+      - components/payments/collect-payment.tsx
+      - lib/invoices.ts
+      - lib/store.tsx
   workflow_dispatch:
+
+  # Runs on review branches only. Never commit generated translations to main.
 
 permissions:
   contents: write
 
 concurrency:
-  group: dukaan-localization-refresh
+  group: dukaan-localization-refresh-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   translate:
-    if: github.repository == 'uddieee33-blip/DukaanOS' && github.ref == 'refs/heads/fix/localization-source-drift-20261023'
+    if: github.repository == 'uddieee33-blip/DukaanOS' && (startsWith(github.ref, 'refs/heads/fix/i18n-') || github.ref == 'refs/heads/fix/enforce-owner-onboarding-20261023')
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -39,7 +50,9 @@ jobs:
         with:
           python-version: '3.11'
       - name: Install low-resource translation dependencies
-        run: python -m pip install --disable-pip-version-check huggingface_hub onnxruntime sentencepiece transformers protobuf numpy
+        run: |
+          python -m pip install --disable-pip-version-check huggingface_hub onnxruntime sentencepiece transformers==4.57.6 protobuf numpy indictranstoolkit==1.1.1
+          python -c 'from IndicTransToolkit import IndicProcessor; print("IndicTransToolkit is importable")'
       - name: Translate Bodo and Kashmiri
         run: npm run i18n:generate:low-resource
       - name: Require all language catalogues to pass
@@ -58,5 +71,6 @@ jobs:
           git add locales/en.json public/locales/
           if ! git diff --cached --quiet; then
             git commit -m "fix(i18n): regenerate and validate complete locale catalogues"
-            git push origin HEAD:fix/localization-source-drift-20261023
+            git push origin "HEAD:${GITHUB_REF#refs/heads/}"
           fi
+

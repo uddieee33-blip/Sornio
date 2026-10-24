@@ -26,6 +26,7 @@ import { checkPortalAccess, moduleForPath, PORTAL_COOKIE } from './routes';
 import { publishPortal } from './sync';
 import { revealedNavSection, useMasterSwitchOptional } from './master-client';
 import { useDukaanStore } from '@/lib/store';
+import { usePlan } from '@/components/billing/plan-provider';
 import type { ModuleKey, PortalBlueprint, PortalId, PortalVocabulary } from './types';
 
 export type PortalContextValue = {
@@ -64,6 +65,7 @@ export function PortalProvider({
   initialPortalId?: PortalId | null;
 }) {
   const { state, hydrated } = useDukaanStore();
+  const { entitlement } = usePlan();
 
   // Which portal are we on? Before hydration, trust the cookie the server read.
   // After hydration, the store is authoritative and the cookie is reconciled.
@@ -101,7 +103,10 @@ export function PortalProvider({
   // Everything On, when the console shell is above us. `null` means there is
   // no shell (the public site, a test) and therefore nothing to reveal.
   const master = useMasterSwitchOptional();
-  const revealAll = master?.on ?? false;
+  // A genuine, currently running full trial reveals all modules. The signed
+  // entitlement was validated by the plan API and remains separately enforced
+  // by the server; this only controls the visible portal navigation and gate.
+  const revealAll = (master?.on ?? false) || entitlement.state === 'trialing';
 
   const portalNav = useMemo(() => resolveNav(portal), [portal]);
 

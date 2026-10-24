@@ -9,7 +9,7 @@ type PageHeaderProps = {
 
 export function PageHeader({ eyebrow, title, subtitle, actions }: PageHeaderProps) {
   return (
-    <div className="mb-6 flex min-w-0 flex-col gap-4 sm:mb-8 md:flex-row md:items-end md:justify-between">
+    <div className="page-heading mb-6 flex min-w-0 flex-col gap-4 sm:mb-8 md:flex-row md:items-end md:justify-between">
       <div className="min-w-0">
         {eyebrow ? (
           <p className="text-[11px] font-bold uppercase tracking-[0.22em] text-brand-600">{eyebrow}</p>
@@ -21,3 +21,4 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: PageHeaderProp
     </div>
   );
 }
+

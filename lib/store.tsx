@@ -1,6 +1,8 @@
 'use client';
 
 import { getActiveFormattingLocale } from './locale';
+import { calculateInvoice, invoiceBalance, nextInvoiceId, type InvoiceLine } from './invoices';
+export type { InvoiceLine } from './invoices';
 
 import { createContext, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import {
@@ -17,6 +19,7 @@ import { currentSyncMode } from '@/lib/supabase/config';
 import { pushStateToSupabase, type SyncStatus } from '@/lib/sync/supabase-sync';
 import {
   adoptRemoteProfile,
+  isValidGstin,
   profileFromSnapshot,
   remoteWins,
   snapshotFromProfile,
@@ -49,7 +52,6 @@ import {
   sampleInvoices,
   samplePaymentRecords,
   type Invoice,
-  type InvoiceItem,
   type PaymentMethod,
   type PaymentRecord,
 } from '@/lib/models/billing';
@@ -168,6 +170,8 @@ export type BusinessProfile = {
   ownerName?: string;
   ownerPhone?: string;
   ownerEmail?: string;
+  /** Optional GST identity of a registered shop, not verification of registration. */
+  gstin?: string;
   /** The owner's own UPI ID for receiving payments (never bank credentials). */
   upiId?: string;
   /**
@@ -307,7 +311,8 @@ export type SaleResult = ActionResult & { stockChanges?: StockMovement[] };
 export type ProductActionResult = ActionResult & { productId?: string };
 
 export type SaleLine = { productId: string; quantity: number; rate: number };
-export type InvoiceLine = { name: string; category: string; quantity: number; unitPrice: number };
+export type InvoiceActionResult = ActionResult & { invoiceId?: string };
+export type InvoicePaymentResult = ActionResult & { amount?: number };
 
 const STORAGE_KEY = 'dukaanos-store-v5';
 
@@ -770,13 +775,13 @@ export type StoreActions = {
     notes?: string;
   }) => ActionResult;
   setAppointmentStatus: (appointmentId: string, status: Appointment['status']) => ActionResult;
-  createInvoice: (input: { customerName: string; customerPhone?: string; lines: InvoiceLine[]; method: PaymentMethod; taxRate: number }) => ActionResult;
+  createInvoice: (input: { customerName: string; customerPhone?: string; lines: InvoiceLine[]; method: PaymentMethod; taxRate: number }) => InvoiceActionResult;
   /**
    * Settle an invoice. The desk may pass the method the money actually arrived
    * by (the front-desk collection flow) — otherwise the method already on the
    * invoice is used.
    */
-  markInvoicePaid: (invoiceId: string, method?: PaymentMethod) => ActionResult;
+  markInvoicePaid: (invoiceId: string, method?: PaymentMethod) => InvoicePaymentResult;
   updateProduct: (productId: string, patch: Partial<Omit<Product, 'id'>>) => ActionResult;
   addCampaign: (input: { name: string; channel: MarketingCampaign['channel']; spend: number; notes?: string }) => ActionResult;
   updateProfile: (patch: Partial<BusinessProfile>) => ActionResult;
@@ -888,6 +893,8 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
   // event handler or async callback, which by definition runs after commit, so
   // no reader can observe a stale value.
   const stateRef = useRef(state);
+  const invoiceSequence = useRef(1000);
+  const settlingInvoices = useRef(new WeakSet<Invoice>());
   useEffect(() => {
     stateRef.current = state;
   }, [state]);
@@ -2177,54 +2184,46 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
     },
 
     createInvoice({ customerName, customerPhone, lines, method, taxRate }) {
-      if (!customerName.trim()) return { ok: false, error: 'Customer name is required.' };
-      const validLines = lines.filter((line) => line.name.trim() && line.quantity > 0 && line.unitPrice >= 0);
-      if (validLines.length === 0) return { ok: false, error: 'Add at least one invoice line.' };
-      const subtotal = validLines.reduce((sum, line) => sum + line.quantity * line.unitPrice, 0);
-      if (subtotal <= 0) return { ok: false, error: 'Invoice total must be greater than zero.' };
-      const tax = Math.round(subtotal * (taxRate / 100));
-      const items: InvoiceItem[] = validLines.map((line) => ({
-        id: newId('it'),
-        name: line.name.trim(),
-        category: line.category.trim() || 'General',
-        quantity: line.quantity,
-        unitPrice: line.unitPrice,
-        total: line.quantity * line.unitPrice,
-      }));
-      setState((current) => ({
-        ...current,
-        invoices: [
-          ...current.invoices,
-          {
-            id: `INV-${1000 + current.invoices.length + 1}`,
-            businessId: 'biz-1',
-            customerName: customerName.trim(),
-            customerPhone: customerPhone?.trim() || undefined,
-            createdAt: new Date().toISOString(),
-            paymentMethod: method,
-            paymentStatus: 'pending',
-            receiptMode: 'both',
-            items,
-            subtotal,
-            tax,
-            totalAmount: subtotal + tax,
-            notes: 'Created from the billing console',
-          },
-        ],
-      }));
-      track('invoice', `Invoice raised for ${customerName.trim()} (${lines.length} line(s)).`);
-      return { ok: true };
+      const calculation = calculateInvoice(lines, taxRate);
+      if (!calculation.ok) return calculation;
+      const invoiceId = nextInvoiceId(stateRef.current.invoices, invoiceSequence.current);
+      invoiceSequence.current = Number(invoiceId.slice(4));
+      const name = customerName.trim() || 'Walk-in customer';
+      const invoice: Invoice = {
+        id: invoiceId,
+        businessId: 'biz-1',
+        customerName: name,
+        customerPhone: customerPhone?.trim() || undefined,
+        createdAt: new Date().toISOString(),
+        paymentMethod: method,
+        paymentStatus: 'pending',
+        receiptMode: 'both',
+        items: calculation.lines.map((line) => ({ ...line, id: newId('it') })),
+        subtotal: calculation.subtotal,
+        tax: calculation.tax,
+        totalAmount: calculation.total,
+        notes: 'Created from the billing console',
+      };
+      setState((current) => ({ ...current, invoices: [...current.invoices, invoice] }));
+      track('invoice', `Invoice raised for ${name} (${lines.length} line(s)).`, invoiceId);
+      return { ok: true, invoiceId };
     },
 
     markInvoicePaid(invoiceId, method) {
       const invoice = stateRef.current.invoices.find((item) => item.id === invoiceId);
       if (!invoice) return { ok: false, error: 'Invoice not found.' };
-      if (invoice.paymentStatus === 'paid') return { ok: false, error: 'Invoice is already paid.' };
+      if (invoice.paymentStatus === 'paid' || settlingInvoices.current.has(invoice)) return { ok: false, error: 'Invoice is already paid.' };
       // The method the money actually arrived by wins over whatever the
       // invoice was raised with — the desk knows, the paper only guessed.
       const settledMethod = method ?? invoice.paymentMethod;
+      if (!['Cash', 'UPI', 'Card', 'Bank Transfer'].includes(settledMethod)) {
+        return { ok: false, error: 'Choose how the money was received: cash, UPI, card or bank transfer.' };
+      }
+      const amount = invoiceBalance(invoice, stateRef.current.paymentRecords);
+      if (!Number.isFinite(amount) || amount <= 0) return { ok: false, error: 'This invoice has no outstanding balance.' };
       const metered = meterCollection(settledMethod, stateRef.current.transactions, stateRef.current.profile.timezone);
       if (!metered.ok) return metered;
+      settlingInvoices.current.add(invoice);
       const date = todayISO();
       setState((current) => ({
         ...current,
@@ -2236,7 +2235,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
             businessId: invoice.businessId,
             invoiceId,
             customerName: invoice.customerName,
-            amount: invoice.totalAmount,
+            amount,
             paymentMethod: settledMethod,
             status: 'paid',
             paymentDate: new Date().toISOString(),
@@ -2245,11 +2244,11 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
         ],
         transactions: [
           ...current.transactions,
-          ...buildRevenueTransactions(`Invoice ${invoice.id}`, invoice.totalAmount, settledMethod, invoice.customerName).map((tx) => ({ ...tx, date })),
+          ...buildRevenueTransactions(`Invoice ${invoice.id}`, amount, settledMethod, invoice.customerName).map((tx) => ({ ...tx, date })),
         ],
       }));
       track('invoice', `Invoice ${invoiceId} settled via ${settledMethod} — revenue and cash updated.`, invoiceId);
-      return { ok: true };
+      return { ok: true, amount };
     },
 
     setActiveRole(role) {
@@ -2355,6 +2354,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
 
     updateProfile(patch) {
       if (patch.name !== undefined && !patch.name.trim()) return { ok: false, error: 'Business name is required.' };
+      if (patch.gstin && !isValidGstin(patch.gstin)) return { ok: false, error: 'Enter a valid 15-character GSTIN or leave it blank.' };
       if (patch.upiId && !isValidUpiId(patch.upiId)) {
         return { ok: false, error: 'Enter a valid UPI ID (e.g. businessname@bank).' };
       }
@@ -2367,6 +2367,7 @@ export function DukaanStoreProvider({ children }: { children: ReactNode }) {
           ...current.profile,
           ...patch,
           ...(patch.name !== undefined ? { name: patch.name.trim() } : {}),
+          ...(patch.gstin !== undefined ? { gstin: patch.gstin.trim().toUpperCase() } : {}),
           // Stamped last so no patch can leave it stale: this is the value the
           // sync compares against the account's copy to decide which is newer.
           updatedAt: new Date().toISOString(),
@@ -2483,3 +2484,4 @@ export function useFinancialSnapshot() {
   const { state } = useDukaanStore();
   return useMemo(() => summarizeFinancials(state.transactions, state.products, state.customers), [state.transactions, state.products, state.customers]);
 }
+

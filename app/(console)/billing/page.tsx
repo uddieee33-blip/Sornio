@@ -6,19 +6,17 @@ import { useLocaleRefresh } from '@/lib/i18n';
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { ArrowRight, BadgeIndianRupee, CheckCircle2, CreditCard, FilePlus2, HandCoins, Plus, Printer, Receipt, Trash2 } from 'lucide-react';
+import { ArrowRight, BadgeIndianRupee, CreditCard, HandCoins, Plus, Printer, Receipt, Search } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
-import { Button } from '@/components/ui/Button';
+import { InvoiceComposer } from '@/components/billing/invoice-composer';
 import { CollectPaymentModal } from '@/components/payments/collect-payment';
-import { formatCurrency } from '@/lib/business-data';
-import type { PaymentMethod } from '@/lib/models/billing';
-import { useDukaanStore, type InvoiceLine } from '@/lib/store';
+import { formatInvoiceAmount as formatCurrency, invoiceBalance } from '@/lib/invoices';
+import { useDukaanStore } from '@/lib/store';
 
-const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 const statusTone: Record<string, BadgeTone> = { paid: 'emerald', pending: 'amber', partial: 'sky', failed: 'red' };
-const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus';
+const inputClass = 'min-h-11 w-full rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-brand-500 focus:ring-2 focus:ring-focus';
 
 function formatDate(iso: string) {
   return new Date(iso).toLocaleDateString(getActiveFormattingLocale(), { day: '2-digit', month: 'short', year: 'numeric' });
@@ -26,57 +24,43 @@ function formatDate(iso: string) {
 
 export default function BillingPage() {
   useLocaleRefresh();
-  const { state, actions } = useDukaanStore();
-  const [selectedId, setSelectedId] = useState(state.invoices[0]?.id);
-  const [form, setForm] = useState({ customerName: '', customerPhone: '', method: 'UPI' as PaymentMethod, taxRate: '0' });
-  const [lines, setLines] = useState<InvoiceLine[]>([{ name: '', category: 'General', quantity: 1, unitPrice: 0 }]);
+  const { state } = useDukaanStore();
+  const [selectedId, setSelectedId] = useState(state.invoices.at(-1)?.id);
+  const [query, setQuery] = useState('');
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [collectingId, setCollectingId] = useState<string | null>(null);
 
-  const selected = state.invoices.find((invoice) => invoice.id === selectedId) ?? state.invoices[0];
+  const selected = state.invoices.find((invoice) => invoice.id === selectedId) ?? state.invoices.at(-1);
 
-  const updateLine = (index: number, patch: Partial<InvoiceLine>) => {
-    setLines((current) => current.map((line, i) => (i === index ? { ...line, ...patch } : line)));
-  };
-
-  const handleCreate = () => {
-    const result = actions.createInvoice({ customerName: form.customerName, customerPhone: form.customerPhone, lines, method: form.method, taxRate: Number(form.taxRate || 0) });
-    if (result.ok) {
-      setMessage({ tone: 'ok', text: `Invoice created for ${form.customerName.trim()} — mark it paid when the money lands.` });
-      setForm({ customerName: '', customerPhone: '', method: 'UPI', taxRate: '0' });
-      setLines([{ name: '', category: 'General', quantity: 1, unitPrice: 0 }]);
-    } else {
-      setMessage({ tone: 'error', text: result.error ?? 'Could not create invoice.' });
-    }
-  };
-
-  const handleMarkPaid = (invoiceId: string) => {
-    const result = actions.markInvoicePaid(invoiceId);
-    setMessage(result.ok ? { tone: 'ok', text: `Invoice ${invoiceId} settled — revenue and cash updated.` } : { tone: 'error', text: result.error ?? 'Could not update invoice.' });
-  };
+  const selectedDue = selected ? invoiceBalance(selected, state.paymentRecords) : 0;
+  const search = query.trim().toLocaleLowerCase();
+  const searchPhone = query.replace(/\D/g, '');
+  const invoices = [...state.invoices].reverse().filter((invoice) => !search ||
+    `${invoice.id} ${invoice.customerName} ${invoice.customerPhone ?? ''}`.toLocaleLowerCase().includes(search) ||
+    (searchPhone.length > 0 && /^[+\d\s()-]+$/.test(query) && invoice.customerPhone?.replace(/\D/g, '').includes(searchPhone)));
 
   return (
     <div className="mx-auto max-w-6xl p-4 sm:p-6 md:p-8">
       <PageHeader
         eyebrow="Billing"
-        title="Bills, receipts, and payment flow"
-        subtitle="These are the bills you raise for your customers. What DukaanOS costs you is a separate thing, and it lives in one place."
+        title="Customer bills"
+        subtitle="Create a bill, collect the balance, and print the receipt."
         actions={
-          <Link
-            href="/subscription"
-            className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-stone-200 bg-white px-4 py-2.5 text-sm font-semibold text-stone-700 transition hover:border-brand-400/40 hover:bg-stone-50"
-          >
-            <BadgeIndianRupee size={15} /> Your DukaanOS plan <ArrowRight size={14} />
-          </Link>
+          <a href="#new-invoice" className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-brand-gradient px-4 py-2.5 text-sm font-semibold text-white shadow-glow-sm"><Plus size={15} /> New invoice</a>
         }
       />
 
       {message ? (
-        <p className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+        <p role={message.tone === 'error' ? 'alert' : 'status'} className={`mb-6 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
       ) : null}
 
-      <div className="grid gap-6 lg:grid-cols-[1.2fr_0.8fr]">
-        <div className="space-y-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)]">
+        <div className="min-w-0 space-y-6">
+          <InvoiceComposer onCreated={(invoiceId, customerName) => {
+            setSelectedId(invoiceId);
+            setMessage({ tone: 'ok', text: `Invoice created for ${customerName} — mark it paid when the money lands.` });
+            requestAnimationFrame(() => document.getElementById('invoice-preview')?.scrollIntoView({ block: 'start' }));
+          }} />
           {selected ? (
             <Card className="print-area invoice-print-area animate-fade-up relative overflow-hidden">
               <div className="no-print pointer-events-none absolute inset-x-0 top-0 h-1 bg-brand-gradient" />
@@ -84,26 +68,25 @@ export default function BillingPage() {
                 <span className="invoice-watermark-mark">D</span>
                 <span className="invoice-watermark-name">DukaanOS</span>
               </div>
-              <div className="mb-5 flex items-center justify-between">
-                <div>
+              <div id="invoice-preview" className="mb-5 flex scroll-mt-24 flex-wrap items-start justify-between gap-4">
+                <div className="min-w-0">
                   <p className="font-display text-lg font-bold text-stone-900 print:text-2xl">{state.profile.name}</p>
+                  {state.profile.gstin ? <p className="text-xs font-semibold text-stone-700">GSTIN: {state.profile.gstin}</p> : null}
                   <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-stone-600">Invoice · {selected.id}</p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone={statusTone[selected.paymentStatus]} dot>{selected.paymentStatus}</Badge>
-                  {selected.paymentStatus !== 'paid' ? (
+                  {selectedDue > 0 ? (
                     <>
-                      <button onClick={() => setCollectingId(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-glow-sm transition hover:brightness-110 active:scale-95">
+                      <button onClick={() => setCollectingId(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full min-h-11 bg-brand-gradient px-3.5 py-2.5 text-xs font-semibold text-white shadow-glow-sm transition hover:brightness-110 active:scale-95">
                         <HandCoins size={13} /> Collect payment
                       </button>
-                      <button onClick={() => handleMarkPaid(selected.id)} className="no-print inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 px-3.5 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25 active:scale-95">
-                        <CheckCircle2 size={13} /> Quick mark paid
-                      </button>
+
                     </>
                   ) : null}
                   <button
                     onClick={() => window.print()}
-                    className="no-print inline-flex items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-semibold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200"
+                    className="no-print inline-flex min-h-11 items-center gap-1.5 rounded-full bg-stone-100 px-3.5 py-1.5 text-xs font-semibold text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-200"
                     title="Print this bill as a physical receipt"
                   >
                     <Printer size={13} /> Print bill
@@ -148,6 +131,8 @@ export default function BillingPage() {
                 <div className="flex justify-between"><span>Subtotal</span><span className="tabular-nums">{formatCurrency(selected.subtotal)}</span></div>
                 <div className="flex justify-between"><span>Tax</span><span className="tabular-nums">{formatCurrency(selected.tax)}</span></div>
                 <div className="flex justify-between border-t border-stone-200 pt-2 text-base font-bold text-stone-900"><span>Total</span><span className="tabular-nums">{formatCurrency(selected.totalAmount)}</span></div>
+                <div className="flex justify-between"><span>Paid</span><span className="tabular-nums">{formatCurrency(selected.totalAmount - selectedDue)}</span></div>
+                <div className="flex justify-between font-bold text-stone-900"><span>Amount due</span><span className="tabular-nums">{formatCurrency(selectedDue)}</span></div>
               </div>
 
               {state.profile.upiId ? (
@@ -163,6 +148,13 @@ export default function BillingPage() {
               <CardTitle icon={<Receipt size={17} />}>All invoices</CardTitle>
               <Badge tone="brand" dot>{state.invoices.length}</Badge>
             </div>
+            <label className="mb-4 block">
+              <span className="mb-2 block text-xs font-semibold text-stone-700">Find a bill</span>
+              <span className="relative block"><Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
+                <input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Invoice number, customer or phone" className={`${inputClass} pl-10`} />
+              </span>
+            </label>
+            {invoices.length > 0 ? (
             <div className="overflow-x-auto rounded-2xl border border-stone-200">
               <table className="min-w-full text-left text-sm">
                 <thead className="bg-stone-50 text-xs uppercase tracking-wide text-stone-600">
@@ -175,17 +167,19 @@ export default function BillingPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {state.invoices.map((invoice) => (
+                  {invoices.map((invoice) => (
                     <tr key={invoice.id} className={`border-t border-stone-200 transition ${invoice.id === selected?.id ? 'bg-brand-500/[0.07]' : 'hover:bg-stone-50'}`}>
                       <td className="px-4 py-3">
                         <button onClick={() => setSelectedId(invoice.id)} className="font-semibold text-brand-600 underline-offset-2 hover:underline">{invoice.id}</button>
                       </td>
                       <td className="px-4 py-3 text-stone-700">{invoice.customerName}</td>
-                      <td className="px-4 py-3 font-semibold text-stone-900 tabular-nums">{formatCurrency(invoice.totalAmount)}</td>
+                      <td className="px-4 py-3 font-semibold text-stone-900 tabular-nums">{formatCurrency(invoice.totalAmount)}
+                        {invoice.paymentStatus !== 'paid' ? <p className="mt-1 text-xs font-normal text-stone-600">Due: {formatCurrency(invoiceBalance(invoice, state.paymentRecords))}</p> : null}
+                      </td>
                       <td className="px-4 py-3"><Badge tone={statusTone[invoice.paymentStatus]} dot>{invoice.paymentStatus}</Badge></td>
                       <td className="px-4 py-3 text-right">
-                        {invoice.paymentStatus !== 'paid' ? (
-                          <button onClick={() => { setSelectedId(invoice.id); setCollectingId(invoice.id); }} className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25 active:scale-95">
+                        {invoiceBalance(invoice, state.paymentRecords) > 0 ? (
+                          <button onClick={() => { setSelectedId(invoice.id); setCollectingId(invoice.id); }} className="inline-flex min-h-11 items-center gap-1 rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-semibold text-emerald-700 ring-1 ring-inset ring-emerald-500/30 transition hover:bg-emerald-500/25 active:scale-95">
                             <HandCoins size={12} /> Collect
                           </button>
                         ) : null}
@@ -195,41 +189,13 @@ export default function BillingPage() {
                 </tbody>
               </table>
             </div>
+            ) : <p className="rounded-2xl bg-stone-50 px-4 py-6 text-center text-sm leading-relaxed text-stone-600">{search ? 'No matching bills. Try another name, phone number or invoice number.' : 'Create your first bill above. It stays unpaid until you confirm receipt.'}</p>}
           </Card>
 
-          <Card className="animate-fade-up">
-            <div className="mb-5 flex items-center justify-between">
-              <CardTitle icon={<FilePlus2 size={17} />}>New invoice</CardTitle>
-              <Button variant="secondary" onClick={() => setLines((current) => [...current, { name: '', category: 'General', quantity: 1, unitPrice: 0 }])}><Plus size={15} /> Add line</Button>
-            </div>
-            <div className="grid gap-3 md:grid-cols-2">
-              <input value={form.customerName} onChange={(e) => setForm({ ...form, customerName: e.target.value })} placeholder="Customer name" className={inputClass} />
-              <input value={form.customerPhone} onChange={(e) => setForm({ ...form, customerPhone: e.target.value })} placeholder="Phone (optional)" className={inputClass} />
-            </div>
-            <div className="mt-4 space-y-3">
-              {lines.map((line, index) => (
-                <div key={index} className="grid gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-3.5 md:grid-cols-[1.3fr_0.8fr_0.4fr_0.6fr_auto]">
-                  <input value={line.name} onChange={(e) => updateLine(index, { name: e.target.value })} placeholder="Item name" className={inputClass} />
-                  <input value={line.category} onChange={(e) => updateLine(index, { category: e.target.value })} placeholder="Category" className={inputClass} />
-                  <input type="number" min={1} value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
-                  <input type="number" min={0} value={line.unitPrice} onChange={(e) => updateLine(index, { unitPrice: Number(e.target.value || 0) })} className={inputClass} />
-                  <button onClick={() => setLines((current) => current.filter((_, i) => i !== index))} className="flex items-center justify-center rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
-                </div>
-              ))}
-            </div>
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethod })} className={inputClass}>
-                {METHODS.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
-              <input type="number" min={0} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })} placeholder="Tax rate %" className={inputClass} />
-            </div>
-            <div className="mt-5 flex justify-end">
-              <Button onClick={handleCreate}><FilePlus2 size={16} /> Create invoice</Button>
-            </div>
-          </Card>
+
         </div>
 
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <Card className="animate-fade-up h-fit">
             <div className="mb-5 flex items-center justify-between">
               <CardTitle icon={<CreditCard size={17} />}>Payment activity</CardTitle>
@@ -237,8 +203,8 @@ export default function BillingPage() {
             <div className="space-y-3">
               {[...state.paymentRecords].reverse().slice(0, 8).map((record) => (
                 <div key={record.id} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5 transition hover:border-brand-400/30 hover:bg-stone-100">
-                  <div className="flex items-center justify-between">
-                    <p className="font-semibold text-stone-800">{record.customerName}</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="min-w-0 break-words font-semibold text-stone-800">{record.customerName}</p>
                     <Badge tone={statusTone[record.status] ?? 'slate'} dot>{record.status}</Badge>
                   </div>
                   <div className="mt-1.5 flex items-center justify-between text-xs text-stone-600">
@@ -247,16 +213,17 @@ export default function BillingPage() {
                   </div>
                 </div>
               ))}
+              {state.paymentRecords.length === 0 ? <p className="rounded-xl bg-stone-50 p-4 text-sm text-stone-600">No payments recorded yet.</p> : null}
             </div>
           </Card>
 
           <Card className="animate-fade-up h-fit">
-            <div className="mb-5"><CardTitle icon={<Receipt size={17} />}>Receipt modes</CardTitle></div>
+            <div className="mb-5"><CardTitle icon={<Receipt size={17} />}>How billing works</CardTitle></div>
             <div className="space-y-3">
               {[
-                { name: 'Digital receipt', details: 'Share via SMS or WhatsApp instantly.' },
-                { name: 'Physical receipt', details: 'Print on paper for hand-to-hand delivery.' },
-                { name: 'Both', details: 'Best for retail, cafes, and premium service businesses.' },
+                { name: 'Create the bill', details: 'A new bill starts unpaid. Check the total before you save it.' },
+                { name: 'Collect payment', details: 'Confirm only after cash is counted or the transfer reaches your account.' },
+                { name: 'Print the receipt', details: 'Open a bill and choose Print bill.' },
               ].map((mode) => (
                 <div key={mode.name} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
                   <p className="text-sm font-semibold text-stone-800">{mode.name}</p>
@@ -264,6 +231,7 @@ export default function BillingPage() {
                 </div>
               ))}
             </div>
+            <Link href="/subscription" className="mt-4 inline-flex min-h-11 items-center gap-2 text-xs font-semibold text-brand-600"><BadgeIndianRupee size={15} /> Your DukaanOS plan <ArrowRight size={14} /></Link>
           </Card>
         </div>
       </div>
@@ -271,9 +239,13 @@ export default function BillingPage() {
       {collectingId ? (
         (() => {
           const collecting = state.invoices.find((invoice) => invoice.id === collectingId);
-          return collecting ? <CollectPaymentModal invoice={collecting} onClose={() => setCollectingId(null)} /> : null;
+          return collecting ? <CollectPaymentModal invoice={collecting} onClose={() => {
+            setCollectingId(null);
+            if (collecting.paymentStatus === 'paid') setMessage({ tone: 'ok', text: `Invoice ${collecting.id} settled — revenue and cash updated.` });
+          }} /> : null;
         })()
       ) : null}
     </div>
   );
 }
+

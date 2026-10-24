@@ -322,6 +322,17 @@ export async function proxy(request: NextRequest) {
     }
   }
 
+  // Resolve the signed, business-scoped entitlement once, for both route gates.
+  // The plan cookie is never trusted on its own in a hosted deployment: it
+  // must belong to the tenant in the verified owner session.
+  let planEntitlement = resolveEntitlement(null, Date.now());
+  if (isSafeMethod(method)) {
+    const record = await openPlanRecord(request.cookies.get(PLAN_COOKIE)?.value);
+    const account = await openOwnerSession(request.cookies.get(AUTH_COOKIE)?.value);
+    const scopedRecord = supabaseConfigured && (!record?.businessId || record.businessId !== account?.tenantId) ? null : record;
+    planEntitlement = resolveEntitlement(scopedRecord, Date.now());
+  }
+
   // ---- 7. Portal policy: the module this route belongs to must be live. ----
   // Read-only navigation only: an API call or a write is never redirected, so
   // this can never mask a failed action or turn into a loop.
@@ -332,7 +343,10 @@ export async function proxy(request: NextRequest) {
   // business has not paid for.
   if (isSafeMethod(method)) {
     const master = await openMasterRecord(request.cookies.get(MASTER_COOKIE)?.value);
-    const revealAll = masterRevealActive(master);
+    // The advertised full trial really includes every module, not just the
+    // subset selected by the trade's portal. This only relaxes presentation:
+    // the independent plan gate and the authentication gate still run below.
+    const revealAll = masterRevealActive(master) || planEntitlement.state === 'trialing';
     const verdict = checkPortalAccess(request.cookies.get(PORTAL_COOKIE)?.value, pathname, { revealAll });
     if (!verdict.allowed) {
       const target = new URL(verdict.redirectTo, request.url);
@@ -353,11 +367,7 @@ export async function proxy(request: NextRequest) {
   // top of whatever the plan carries — so a lapsed business can always read its
   // own books and always reach the page that fixes it.
   if (isSafeMethod(method)) {
-    const record = await openPlanRecord(request.cookies.get(PLAN_COOKIE)?.value);
-    const account = await openOwnerSession(request.cookies.get(AUTH_COOKIE)?.value);
-    const scopedRecord = supabaseConfigured && (!record?.businessId || record.businessId !== account?.tenantId) ? null : record;
-    const entitlement = resolveEntitlement(scopedRecord, Date.now());
-    const verdict = checkPlanAccess(entitlement, pathname);
+    const verdict = checkPlanAccess(planEntitlement, pathname);
     if (!verdict.allowed) {
       const target = new URL(verdict.redirectTo, request.url);
       return applyHeaders(NextResponse.redirect(target, 307), [
@@ -365,7 +375,7 @@ export async function proxy(request: NextRequest) {
         ...buildFramingHeaders(posture, nonce),
         { key: REQUEST_ID_HEADER, value: requestId },
         { key: 'x-dukaan-plan-blocked', value: verdict.module },
-        { key: 'x-dukaan-plan-state', value: entitlement.state },
+        { key: 'x-dukaan-plan-state', value: planEntitlement.state },
         policy.noStore,
       ]);
     }
