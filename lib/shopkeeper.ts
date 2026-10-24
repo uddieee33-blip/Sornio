@@ -3,7 +3,7 @@ import type { StoreState } from '@/lib/store';
 
 /** One list of everyday jobs; access is still checked by portal and plan. */
 export const DAILY_TASKS = [
-  { href: '/billing', label: 'Make a bill', description: 'Add items, print a bill and record payment.', icon: 'bill' },
+  { href: '/billing/new', label: 'Make a bill', description: 'Add items, print a bill and record payment.', icon: 'bill' },
   { href: '/payments', label: 'Collect payment', description: 'Record cash or UPI received from a customer.', icon: 'payment' },
   { href: '/customers', label: 'Customer dues', description: 'See who owes you and record money received.', icon: 'customers' },
   { href: '/products', label: 'Items & prices', description: 'Add what you sell and change prices.', icon: 'items' },

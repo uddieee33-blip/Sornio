@@ -25,7 +25,7 @@
     "i18n:generate:low-resource": "python3 scripts/translate-low-resource.py",
     "verify:i18n": "node scripts/verify-i18n.mjs",
     "verify:lock": "node scripts/verify-lock.mjs",
-    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:accounting && npm run verify:inventory && npm run verify:import && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:onboarding && npm run verify:profile && npm run verify:pwa && npm run verify:team && npm run verify:team-database && npm run verify:i18n && npm run verify:render && npm run verify:recovery && npm run verify:database && npm run verify:owner-plans && npm run verify:key-console && npm run verify:reliability && npm run verify:operating-database && npm run verify:shopkeeper",
+    "verify": "npm run verify:scanning && npm run verify:billing && npm run verify:accounting && npm run verify:inventory && npm run verify:import && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:onboarding && npm run verify:profile && npm run verify:pwa && npm run verify:team && npm run verify:team-database && npm run verify:i18n && npm run verify:render && npm run verify:recovery && npm run verify:database && npm run verify:owner-plans && npm run verify:key-console && npm run verify:reliability && npm run verify:operating-database && npm run verify:shopkeeper && npm run verify:workspace",
     "mint:activation": "node scripts/mint-activation.mjs",
     "verify:theme": "node scripts/verify-theme.mjs",
     "verify:security": "node scripts/verify-security.mjs",
@@ -44,7 +44,8 @@
     "verify:onboarding": "node scripts/verify-onboarding.mjs",
     "verify:reliability": "node scripts/verify-reliability.cjs",
     "verify:operating-database": "node scripts/verify-operating-database.mjs",
-    "verify:shopkeeper": "node scripts/verify-shopkeeper.mjs"
+    "verify:shopkeeper": "node scripts/verify-shopkeeper.mjs",
+    "verify:workspace": "node scripts/verify-workspace.mjs && node scripts/verify-store-navigation.cjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",

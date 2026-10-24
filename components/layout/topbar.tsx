@@ -15,6 +15,7 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { BrandIcon } from '@/components/ui/BrandLogo';
 import { AppearanceMenu } from '@/components/theme/appearance-menu';
 import { useCounterLock } from '@/components/security/counter-lock';
+import { activeWorkArea, workspaceAreas, workspacePageTitle } from '@/lib/workspace';
 import { LanguagePicker } from '@/components/ui/LanguagePicker';
 
 /** Browser connectivity, read as an external store to avoid a hydration mismatch. */
@@ -56,10 +57,9 @@ export function Topbar({
 
   // The breadcrumb speaks this trade's language: "Plans & Members" in a gym,
   // "Udhaar Khata" in a kirana — the same route, the owner's own words.
-  const title =
-    nav.flatMap((section) => section.links).find((link) => link.href === pathname)?.label ??
-    nav[0]?.links[0]?.label ??
-    'Console';
+  const areas = workspaceAreas(nav);
+  const area = activeWorkArea(areas, pathname);
+  const title = workspacePageTitle(areas, pathname);
 
   return (
     <header className="console-topbar mobile-topbar-safe sticky top-0 z-40 border-b border-stone-200 bg-panel/95">
@@ -85,16 +85,19 @@ export function Topbar({
           </button>
         </div>
 
-        <nav aria-label="Breadcrumb" className="hidden min-w-0 flex-1 items-center gap-2 overflow-hidden text-sm lg:flex">
-          <Link href="/home" className="inline-flex shrink-0 items-center gap-1.5 text-stone-600 transition hover:text-stone-900">
-            <span className="font-semibold">Sornio</span>
-            <span className="rounded-full bg-portal/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-portal ring-1 ring-inset ring-portal/20">
-              {portal.name}
-            </span>
-          </Link>
-          <ChevronRight size={14} className="shrink-0 text-stone-400" aria-hidden="true" />
-          <span className="truncate font-semibold text-stone-900">{title}</span>
+        <nav aria-label="Breadcrumb" className="hidden min-w-0 items-center gap-2 overflow-hidden text-xs lg:flex lg:max-w-64">
+          {area && area.label !== title ? <><span className="text-stone-600">{area.label}</span><ChevronRight size={14} className="shrink-0 text-stone-400" aria-hidden="true" /></> : null}<span className="truncate font-semibold text-stone-900">{title}</span>
         </nav>
+
+        <button
+          type="button"
+          onClick={onOpenCommand}
+          aria-label="Search Sornio"
+          className="mx-auto hidden h-10 min-w-0 max-w-xl flex-1 items-center gap-2.5 rounded-lg border border-stone-200 bg-stone-50 px-3 text-sm text-stone-500 transition hover:border-stone-400 lg:flex"
+        >
+          <Search size={16} aria-hidden="true" /><span className="flex-1 text-left">Search tools and daily tasks</span>
+          <kbd className="flex items-center gap-0.5 rounded border border-stone-200 bg-panel px-1.5 py-0.5 font-sans text-[10px]"><Command size={10} aria-hidden="true" />K</kbd>
+        </button>
 
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2">
           <AppearanceMenu className="hidden sm:block" />
@@ -127,14 +130,10 @@ export function Topbar({
           <button
             type="button"
             onClick={onOpenCommand}
-            className="touch-manipulation group flex h-11 w-11 items-center justify-center gap-2 rounded-xl bg-stone-50 text-xs font-medium text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 hover:text-stone-900 lg:h-9 lg:w-auto lg:justify-start lg:px-3"
-            aria-label="Open the command palette"
+            className="touch-manipulation flex h-11 w-11 items-center justify-center rounded-lg bg-stone-50 text-stone-700 ring-1 ring-inset ring-stone-200 transition hover:bg-stone-100 lg:hidden"
+            aria-label="Search Sornio"
           >
             <Search size={15} />
-            <span className="hidden lg:inline">Search or jump to…</span>
-            <span className="hidden items-center gap-0.5 rounded-md bg-stone-100 px-1.5 py-0.5 font-mono text-[10px] text-stone-600 lg:flex">
-              <Command size={9} />K
-            </span>
           </button>
         </div>
       </div>

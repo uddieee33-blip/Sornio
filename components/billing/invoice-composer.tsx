@@ -15,7 +15,8 @@ const emptyLine: InvoiceLine = { name: '', category: 'General', quantity: 1, uni
 type DraftLine = InvoiceLine & { key: number };
 
 export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, customerName: string) => void }) {
-  const { actions, hydrated } = useDukaanStore();
+  const { state, actions, hydrated } = useDukaanStore();
+  const products = state.products.filter(product => product.status === 'Active');
   const id = useId();
   const nextKey = useRef(2);
   const errorRef = useRef<HTMLParagraphElement>(null);
@@ -50,7 +51,7 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
       <Card>
         <form onSubmit={submit}>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
-            <div id={`${id}-title`}><CardTitle icon={<FilePlus2 size={17} />}>New invoice</CardTitle></div>
+            <div id={`${id}-title`}><CardTitle icon={<FilePlus2 size={17} />}>Bill details</CardTitle></div>
             <Button type="button" variant="secondary" onClick={() => {
               const key = nextKey.current++;
               setLines((current) => [...current, { ...emptyLine, key }]);
@@ -70,9 +71,19 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
             {lines.map((line, index) => (
               <fieldset key={line.key} className="min-w-0 rounded-2xl border border-stone-200 p-4">
                 <legend className="px-1 text-xs font-bold text-stone-600">Item {index + 1}</legend>
+                <div className="mb-3"><label htmlFor={`${id}-product-${line.key}`} className={labelClass}>Choose an item</label>
+                  <select id={`${id}-product-${line.key}`} value={line.productId ?? ''} onChange={event => {
+                    const product = products.find(item => item.id === event.target.value);
+                    updateLine(line.key, product ? { productId: product.id, name: product.name, category: product.category, unitPrice: product.sellingPrice } : { ...emptyLine, productId: undefined, quantity: line.quantity });
+                  }} className={inputClass}>
+                    <option value="">Custom item or service</option>
+                    {products.map(product => <option key={product.id} value={product.id}>{product.name}{product.itemType === 'product' ? ` — ${product.stock} in stock` : ' — service'}</option>)}
+                  </select>
+                </div>
+                {line.productId && !products.some(product => product.id === line.productId) ? <p className="mb-3 text-xs text-red-700">This item is no longer available. Choose another item.</p> : null}
                 <div className="grid gap-3 sm:grid-cols-2">
                   <label className="min-w-0 sm:col-span-2"><span className={labelClass}>Item name</span>
-                    <input required value={line.name} onChange={(e) => updateLine(line.key, { name: e.target.value })} placeholder="Item or service" className={inputClass} />
+                    <input required readOnly={Boolean(line.productId)} value={line.name} onChange={(e) => updateLine(line.key, { name: e.target.value })} placeholder="Item or service" className={inputClass} />
                   </label>
                   <label className="min-w-0"><span className={labelClass}>Quantity</span>
                     <input required type="number" inputMode="decimal" min="0.001" step="any" value={line.quantity} onChange={(e) => updateLine(line.key, { quantity: Number(e.target.value) })} className={inputClass} />
@@ -116,8 +127,8 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
             ) : <p className="text-sm text-stone-600">Add the item details to see the bill total.</p>}
           </div>
           {error ? <p ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-700">{error}</p> : null}
-          <p className="mt-4 text-xs leading-relaxed text-stone-600">This creates an unpaid bill. Confirm payment after the money arrives. Record stock sales on the Sales page.</p>
-          <Button type="submit" disabled={!hydrated} className="mt-4 w-full"><FilePlus2 size={16} /> Create invoice</Button>
+          <p className="mt-4 text-xs leading-relaxed text-stone-600">This saves an unpaid bill. Catalogue items update stock when you save; custom items do not change stock. Confirm payment after the money arrives.</p>
+          <Button type="submit" disabled={!hydrated} className="mt-4 w-full"><FilePlus2 size={16} /> Save bill</Button>
         </form>
       </Card>
     </section>

@@ -1079,7 +1079,9 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
     const identityRef = useRef(identity);
     const supabaseMode = currentSyncMode() === 'supabase';
     const authed = Boolean(identity);
-    const storageKey = `${STORAGE_KEY}.${initialIdentity?.userId ?? 'guest'}.${initialIdentity?.businessId ?? 'unassigned'}`;
+    const initialUserId = initialIdentity?.userId;
+    const initialBusinessId = initialIdentity?.businessId;
+    const storageKey = `${STORAGE_KEY}.${initialUserId ?? 'guest'}.${initialBusinessId ?? 'unassigned'}`;
     const [syncStatus, setSyncStatus] = useState<SyncStatus>(supabaseMode ? 'idle' : 'local');
     const [syncError, setSyncError] = useState<string | null>(null);
     const realState = useRef<StoreState | null>(null);
@@ -1099,9 +1101,9 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
         (async () => {
             let saved = await vaultRead<StoreState>(storageKey);
             const failedRead = !saved.ok && saved.error !== 'No saved data yet.';
-            if (!saved.ok && initialIdentity?.businessId) {
-                const owned = await vaultRead<StoreState>(`${STORAGE_KEY}.${initialIdentity.userId}.unassigned`);
-                if (owned.ok && owned.data.cloud?.businessId === initialIdentity.businessId)
+            if (!saved.ok && initialBusinessId) {
+                const owned = await vaultRead<StoreState>(`${STORAGE_KEY}.${initialUserId}.unassigned`);
+                if (owned.ok && owned.data.cloud?.businessId === initialBusinessId)
                     saved = owned;
             }
             if (!saved.ok)
@@ -1129,7 +1131,10 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
         return () => {
             cancelled = true;
         };
-    }, [storageKey, initialIdentity, setState]);
+    // Server navigation can supply a fresh identity object for the same owner.
+    // Rehydrate only when the storage scope changes: re-reading on object
+    // identity would replace a just-recorded payment before its debounce saves.
+    }, [storageKey, initialUserId, initialBusinessId, setState]);
     const persist = useMemo(() => debounce((snapshot: StoreState) => {
         if (snapshot.demoMode)
             return;

@@ -903,8 +903,7 @@ html[data-motion='off'] .landing-hero-orb { animation: none !important; }
   .status-badge { line-height: 1.4; font-variant-numeric: tabular-nums; }
 
   .console-sidebar {
-    background: rgb(var(--c-white));
-    box-shadow: 1px 0 0 rgb(var(--c-stone-200) / 0.35);
+    background: rgb(var(--c-stone-50));
   }
   .console-sidebar .text-portal, .console-topbar .text-portal {
     color: rgb(var(--c-brand-600));
@@ -913,6 +912,19 @@ html[data-motion='off'] .landing-hero-orb { animation: none !important; }
     box-shadow: 0 1px 3px rgb(var(--c-shadow) / 0.05);
   }
   .console-topbar { background: rgb(var(--c-white)); }
+
+  /* The admin uses quiet, consistent surfaces across existing feature pages. */
+  .console-workspace .surface-card {
+    border-radius: 0.75rem;
+    box-shadow: 0 1px 2px rgb(var(--c-shadow) / 0.04);
+  }
+  .console-workspace .page-heading { margin-bottom: 1.5rem; }
+  .console-workspace .page-heading h1 {
+    font-family: "Inter Variable", ui-sans-serif, sans-serif;
+    font-size: 1.5rem;
+    font-weight: 650;
+    letter-spacing: -0.035em;
+  }
 
   .auth-page, .setup-page {
     background: radial-gradient(ellipse at 10% 0%, rgb(var(--c-brand-500) / 0.07), transparent 55%),
