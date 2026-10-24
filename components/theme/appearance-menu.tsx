@@ -572,7 +572,7 @@ export function AppearanceMenu({
 
   const flip = useCallback(() => {
     const goingDark = resolved.mode === 'light';
-    setTheme(recall(goingDark ? LAST_DARK_KEY : LAST_LIGHT_KEY, goingDark ? 'midnight' : 'daylight'));
+    setTheme(recall(goingDark ? LAST_DARK_KEY : LAST_LIGHT_KEY, goingDark ? 'midnight' : 'monsoon'));
   }, [resolved.mode, setTheme]);
 
   const panel =
