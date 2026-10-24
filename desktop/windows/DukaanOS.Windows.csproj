@@ -8,6 +8,7 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <AssemblyName>DukaanOS</AssemblyName>
     <ApplicationTitle>Sornio</ApplicationTitle>
+    <ApplicationIcon>Sornio.ico</ApplicationIcon>
     <Version>0.1.0</Version>
   </PropertyGroup>
   <ItemGroup>
