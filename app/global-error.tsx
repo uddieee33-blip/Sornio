@@ -38,7 +38,7 @@ export default function GlobalError({
       >
         <div style={{ maxWidth: '30rem' }}>
           <p style={{ margin: 0, fontSize: '11px', letterSpacing: '0.2em', textTransform: 'uppercase', color: '#28623b', fontWeight: 700 }}>
-            DukaanOS
+            Sornio
           </p>
           <h1 style={{ margin: '12px 0 0', fontSize: '24px', lineHeight: 1.25, fontWeight: 700 }}>
             The app could not start
@@ -61,7 +61,7 @@ export default function GlobalError({
               cursor: 'pointer',
             }}
           >
-            Reload DukaanOS
+            Reload Sornio
           </button>
           <p style={{ margin: '16px 0 0', fontSize: '11px', color: '#73796d', fontFamily: 'ui-monospace, monospace' }}>
             Reference: {error.digest ?? 'local'}
