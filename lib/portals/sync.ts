@@ -14,7 +14,9 @@
  *   • answers with an httpOnly, SameSite=Lax cookie, so no script can rewrite
  *     the portal a business is on.
  *
- * Failure is always non-fatal: the in-app gate still holds the line.
+ * Failure is returned to the caller. Hosted onboarding must retain the form
+ * and offer a retry before navigating; other callers may keep their current
+ * workspace while the existing in-app gate remains in force.
  */
 
 import { CSRF_COOKIE, CSRF_HEADER } from '@/lib/security/csrf';

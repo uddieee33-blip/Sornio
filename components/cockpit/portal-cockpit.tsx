@@ -40,6 +40,7 @@ import { formatCurrency } from '@/lib/business-data';
 import { AnimatedNumber } from '@/components/motion/animated-number';
 import { Reveal } from '@/components/motion/reveal';
 import { revenueSeries } from '@/lib/chart-data';
+import { customerBalance } from '@/lib/accounting';
 import { daysUntil } from '@/lib/models/membership';
 import { useDukaanStore, useFinancialSnapshot } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
@@ -219,15 +220,16 @@ function FocusPanel() {
 
       case 'udhaar':
         return state.customers
-          .filter((customer) => customer.openingBalance > 0)
-          .sort((a, b) => b.openingBalance - a.openingBalance)
+          .map(customer => ({ customer, balance: customerBalance(customer, state.transactions) }))
+          .filter(row => row.balance > 0)
+          .sort((a, b) => b.balance - a.balance)
           .slice(0, 5)
-          .map((customer) => ({
+          .map(({ customer, balance }) => ({
             id: customer.id,
             title: customer.name,
             meta: customer.phone ? `Open khata · ${customer.phone}` : 'Open khata',
-            value: formatCurrency(customer.openingBalance, locale),
-            urgent: customer.openingBalance >= 5000,
+            value: formatCurrency(balance, locale),
+            urgent: balance >= 5000,
             href: '/customers',
           }));
 

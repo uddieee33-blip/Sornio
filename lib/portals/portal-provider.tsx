@@ -106,10 +106,10 @@ export function PortalProvider({
   // Everything On, when the console shell is above us. `null` means there is
   // no shell (the public site, a test) and therefore nothing to reveal.
   const master = useMasterSwitchOptional();
-  // A genuine, currently running full trial reveals all modules. The signed
-  // entitlement was validated by the plan API and remains separately enforced
-  // by the server; this only controls the visible portal navigation and gate.
-  const revealAll = (master?.on ?? false) || entitlement.state === 'trialing';
+  // A trial unlocks features without replacing the business's own workspace.
+  // Only the owner's explicit Everything On switch expands navigation.
+  const revealAll = master?.on ?? false;
+  const fullTrialAccess = entitlement.state === 'trialing';
 
   const portalNav = useMemo(() => resolveNav(portal), [portal]);
 
@@ -123,8 +123,8 @@ export function PortalProvider({
   }, [revealAll, portal, portalNav]);
 
   const allows = useCallback(
-    (href: string) => checkPortalAccess(portal.id, href, { revealAll }).allowed,
-    [portal.id, revealAll],
+    (href: string) => checkPortalAccess(portal.id, href, { revealAll: revealAll || fullTrialAccess }).allowed,
+    [portal.id, revealAll, fullTrialAccess],
   );
 
   const accentStyle = useMemo(

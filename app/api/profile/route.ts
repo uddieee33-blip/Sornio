@@ -18,8 +18,8 @@
  *     keys, or that ships a UPI id that is not a VPA, is corrected or refused
  *     rather than stored.
  *   • **`setup_complete` is derived here.** A client that claims to have
- *     finished setup while sending no UPI id gets `false` written anyway, which
- *     is what stops the sign-in screen from skipping setup it has not seen.
+ *     finished setup without the required owner/business fields cannot skip
+ *     setup. Payment details remain optional for cash-only businesses.
  *
  * Local-first honesty: with placeholder Supabase credentials there is no
  * database to remember anything in, and saying so is the whole answer. GET
@@ -164,9 +164,9 @@ export async function PUT(request: Request) {
     const business = await ensureBusiness(client, user.id, snapshot);
     if ('error' in business)
         return json({ ok: false, error: 'Could not save the profile.' }, 500);
-    // The tenant row keeps the name the profile carries, so the businesses table
-    // and the profile can never disagree about what the shop is called.
-    await client
+    // Refuse success when tenant metadata fails. These are separate writes;
+    // an atomic profile/business transaction still needs a database migration.
+    const { data: updatedBusiness, error: businessUpdateError } = await client
         .from('businesses')
         .update({
         name: snapshot.businessName || 'My Business',
@@ -176,7 +176,13 @@ export async function PUT(request: Request) {
         timezone: snapshot.timezone || 'Asia/Kolkata',
         updated_at: new Date().toISOString(),
     })
-        .eq('id', business.id);
+        .eq('id', business.id)
+        .select('id')
+        .maybeSingle();
+    // RLS can filter out an UPDATE without an error. Require its RETURNING
+    // row before accepting the metadata write or attempting the profile save.
+    if (businessUpdateError || updatedBusiness?.id !== business.id)
+        return json({ ok: false, error: 'Could not save the profile.' }, 500);
     const { error } = await client
         .from('owner_profiles')
         .upsert({ business_id: business.id, user_id: user.id, ...rowFromSnapshot(snapshot),

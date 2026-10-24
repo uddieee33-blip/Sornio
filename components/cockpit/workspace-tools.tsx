@@ -9,11 +9,11 @@ import { checkPlanAccess } from '@/lib/plans/routes';
 import { workspaceAreas, type WorkAreaId } from '@/lib/workspace';
 
 export function WorkspaceTools() {
-  const { nav } = usePortal();
+  const { nav, portal } = usePortal();
   const { entitlement } = usePlan();
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState<WorkAreaId | 'all'>('all');
-  const areas = workspaceAreas(nav);
+  const areas = workspaceAreas(nav, portal.id);
   const needle = query.trim().toLocaleLowerCase();
   const shown = areas.filter(area => category === 'all' || category === area.id).flatMap(area => {
     const links = area.links.filter(link => `${link.label} ${link.keywords} ${area.label}`.toLocaleLowerCase().includes(needle));

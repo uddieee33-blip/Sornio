@@ -94,3 +94,16 @@
 @media (max-width:400px) { .sornio-home { padding-inline:16px; } .home-heading-actions { gap:8px; } .home-primary-button,.home-secondary-button { padding-inline:12px; font-size:.6875rem; } .home-metrics > div { padding:20px 16px; } .home-metrics dt { font-size:.625rem; } .home-metrics dd > strong { font-size:1.6rem; } .home-bills-list a { gap:10px; padding-inline:17px; } .home-row-arrow { display:none; } .home-subtitle { font-size:.6875rem; } }
 @media (prefers-reduced-motion:reduce) { .sornio-home :is(a,button,div) { transition:none !important; } }
 html[data-motion='off'] .sornio-home :is(a,button,div) { transition:none !important; }
+
+.home-main-column { min-width:0; display:flex; flex-direction:column; gap:24px; }
+.home-focus-list { list-style:none; padding:0; margin:0; }
+.home-focus-list li + li { border-top:1px solid rgb(var(--c-stone-200)); }
+.home-focus-list a { display:flex; align-items:center; gap:16px; min-height:82px; padding:20px 24px; }
+.home-focus-list a:hover { background:rgb(var(--c-stone-50)); }
+.home-focus-list a > span { flex:1; min-width:0; }
+.home-focus-list strong { display:block; font-size:.8125rem; font-weight:500; font-variant-numeric:tabular-nums; }
+.home-focus-list small { display:block; font-size:.6875rem; color:rgb(var(--c-stone-500)); margin-top:7px; }
+.home-focus-list svg { flex-shrink:0; color:rgb(var(--c-stone-500)); }
+.home-focus-empty { padding:48px 24px; text-align:center; }
+.home-focus-empty > svg { margin:0 auto 15px; color:rgb(var(--c-stone-500)); }
+.home-focus-empty p { max-width:320px; margin:0 auto 22px; font-size:.8125rem; line-height:1.8; color:rgb(var(--c-stone-600)); }

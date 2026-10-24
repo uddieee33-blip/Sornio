@@ -2778,9 +2778,22 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
                 if (patch.upiId && !isValidUpiId(patch.upiId)) {
                     return { ok: false, error: 'Enter a valid UPI ID (e.g. businessname@bank).' };
                 }
+                if (patch.bank?.upiId && !isValidUpiId(patch.bank.upiId)) {
+                    return { ok: false, error: 'Enter a valid UPI ID (e.g. businessname@bank).' };
+                }
+                if (patch.upiId && patch.bank?.upiId && patch.upiId.trim().toLowerCase() !== patch.bank.upiId.trim().toLowerCase()) {
+                    return { ok: false, error: 'The collection UPI IDs must match.' };
+                }
                 if (patch.bank?.ifsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(patch.bank.ifsc.toUpperCase().trim())) {
                     return { ok: false, error: 'Enter a valid IFSC code (e.g. HDFC0001234).' };
                 }
+                const accountNumber = (patch.bank?.accountNumber ?? '').replace(/\s/g, '');
+                if (accountNumber && !/^\d{6,20}$/.test(accountNumber))
+                    return { ok: false, error: 'Account numbers have 6–20 digits.' };
+                if (accountNumber && !patch.bank?.ifsc?.trim())
+                    return { ok: false, error: 'Enter a valid IFSC code (e.g. HDFC0001234).' };
+                if (accountNumber && !patch.bank?.accountHolder?.trim())
+                    return { ok: false, error: 'Enter the account holder name as shown by your bank.' };
                 setState((current) => ({
                     ...current,
                     profile: {

@@ -9,6 +9,8 @@ const inputClass = 'w-full rounded-xl border border-stone-200 bg-stone-50 px-3.5
 const labelClass = 'mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600';
 
 type BankDetailsStepProps = {
+  gstin: string;
+  onGstinChange: (value: string) => void;
   upiId: string;
   accountHolder: string;
   bankName: string;
@@ -31,14 +33,15 @@ type BankDetailsStepProps = {
  * The account field is masked by default even while editing on a shared tablet.
  */
 export function BankDetailsStep({
-  upiId, accountHolder, bankName, accountNumber, ifsc, ownerName, businessName, upiValid, deepLink,
+  gstin, onGstinChange, upiId, accountHolder, bankName, accountNumber, ifsc, ownerName, businessName, upiValid, deepLink,
   onUpiIdChange, onAccountHolderChange, onBankNameChange, onAccountNumberChange, onIfscChange,
 }: BankDetailsStepProps) {
   const [showAccountNumber, setShowAccountNumber] = useState(false);
 
   return (
     <section aria-labelledby="bank-details-title" className="space-y-4">
-      <h2 id="bank-details-title" className="font-display text-lg font-bold text-stone-900">Bank details</h2>
+      <h2 id="bank-details-title" tabIndex={-1} className="font-display text-lg font-bold text-stone-900">Bank & tax details</h2>
+      <p className="text-sm leading-relaxed text-stone-600">Add your collection details, or leave them blank and finish setup. Your business workspace is available either way.</p>
       <div className="grid gap-6 md:grid-cols-[1fr_auto]">
         <div className="space-y-4">
           <div>
@@ -76,10 +79,11 @@ export function BankDetailsStep({
                 placeholder="HDFC0001234" value={ifsc} onChange={(event) => onIfscChange(event.target.value.toUpperCase())} />
             </div>
           </div>
+          <div><label htmlFor="setup-gstin" className={labelClass}>GSTIN (only if GST registered)</label><input id="setup-gstin" name="gstin" className={inputClass} maxLength={15} autoCapitalize="characters" autoComplete="off" placeholder="15-character GSTIN" value={gstin} onChange={event => onGstinChange(event.target.value.toUpperCase())} /><p className="mt-2 text-xs leading-relaxed text-stone-600">Optional. Your GSTIN will appear on printed invoices after you save.</p></div>
           <p className="text-xs leading-relaxed text-stone-600">Bank accounts are stored once, displayed masked (•••• last 4).</p>
           <div className="rounded-xl bg-emerald-500/[0.07] px-3.5 py-3 text-xs leading-relaxed text-emerald-700/90 ring-1 ring-inset ring-emerald-500/20">
             <ShieldCheck size={13} className="mr-1.5 inline" />
-            Payment collection stays inactive until you add a valid UPI ID. When activated, money goes <strong>directly into your bank account</strong> — Sornio never touches your money.
+            Your collection QR uses the UPI ID you enter. Customers pay that UPI account <strong>directly</strong>. Verify the recipient details in your UPI app before sharing the QR.
             We will <strong>never</strong> ask for your UPI PIN, OTP, card PIN, or passwords.
           </div>
         </div>
@@ -96,7 +100,7 @@ export function BankDetailsStep({
             </>
           ) : (
             <div className="flex h-[174px] w-[174px] items-center justify-center rounded-2xl border border-dashed border-stone-300 p-4 text-center text-xs leading-snug text-stone-600">
-              Payments not connected yet. Add a UPI ID anytime to enable your QR code.
+              Add a valid UPI ID to preview your collection QR. A QR preview does not verify the account or confirm payment.
             </div>
           )}
         </div>

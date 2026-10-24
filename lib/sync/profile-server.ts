@@ -70,12 +70,13 @@ export async function readStoredProfile(userId?: string): Promise<StoredProfileR
  * Deliberately derived from the stored fields by `isSetupComplete` (inside
  * `snapshotFromRow`) rather than read from the `setup_complete` column: the
  * column is a convenience for a SQL query, and a row that says "complete" while
- * holding no UPI id must not be allowed to skip the screen that collects one.
+ * missing required owner/business details must still complete setup. UPI and
+ * bank details are optional for cash-only businesses.
  *
  * `false` is the answer for every kind of "we cannot tell" — no database, no
  * session, no business, no row, an unreadable row. Sending an owner who is
- * already set up through setup once more is an inconvenience; sending one who is
- * not into a console with no collection QR is a shop that cannot be paid.
+ * already set up through setup once more is an inconvenience; an unreadable row
+ * must never be treated as proof that setup completed.
  */
 export async function storedSetupComplete(userId?: string): Promise<boolean> {
   try {

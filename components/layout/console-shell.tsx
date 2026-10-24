@@ -104,8 +104,8 @@ export function ConsoleShell({
     // menu — and the plan layer below is deliberately not told about it.
     <MasterSwitchProvider initialOn={initialRevealAll} initialDaysLeft={initialRevealDaysLeft}>
       {/* Resolve the verified subscription before selecting the portal's
-          visible modules. A full trial can then reveal the complete catalogue,
-          while the independent server-side plan gate still decides access. */}
+          available features. Each business keeps its own navigation during a
+          trial, while the independent server-side plan gate still decides access. */}
       <PlanProvider>
         <PortalProvider initialPortalId={initialPortalId ?? null}>
           {/* The lock wraps the frame so the whole console — navigation included —

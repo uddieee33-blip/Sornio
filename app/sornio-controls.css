@@ -1,0 +1,61 @@
+/* Shared working surfaces; screen-only so printed invoices keep their layout. */
+@media screen {
+  :is(.console-workspace, .setup-page) {
+    --control-radius: 10px;
+  }
+
+  .console-workspace :is(.page-heading h1, .ui-card-heading h2, .ui-empty-state h3) {
+    font-family: 'Inter Variable', ui-sans-serif, sans-serif;
+    text-wrap: balance;
+  }
+  .console-workspace .page-heading h1 {
+    font-size: clamp(1.5rem, 2.3vw, 1.9rem);
+    line-height: 1.2;
+    letter-spacing: -.04em;
+    font-weight: 650;
+  }
+  .console-workspace .ui-card-heading h2 { font-weight: 600; letter-spacing: -.02em; line-height: 1.4; }
+  .console-workspace .ui-empty-state h3 { font-size: 1.125rem; letter-spacing: -.025em; }
+  .console-workspace .surface-card {
+    border-radius: 14px;
+    box-shadow: 0 1px 3px rgb(var(--c-shadow) / .045);
+  }
+
+  .ui-button { border-radius: 10px; letter-spacing: -.01em; }
+  .ui-button[data-variant='primary'] {
+    background: rgb(var(--c-stone-900));
+    color: rgb(var(--c-white));
+    box-shadow: 0 1px 2px rgb(var(--c-shadow) / .1);
+  }
+  .ui-button:active:not(:disabled) { transform: none; }
+
+  :is(.console-workspace, .setup-page) :is(input:not([type='checkbox']):not([type='radio']):not([type='range']):not([type='color']):not([type='hidden']), select, textarea) {
+    border-radius: var(--control-radius);
+    border-color: rgb(var(--c-stone-300));
+    background-color: rgb(var(--c-white));
+    color: rgb(var(--c-stone-900));
+    box-shadow: 0 1px 2px rgb(var(--c-shadow) / .025);
+    min-height: 44px;
+    transition: border-color calc(140ms * var(--motion-scale)), box-shadow calc(140ms * var(--motion-scale));
+  }
+  :is(.console-workspace, .setup-page) :is(input, select, textarea)[aria-invalid='true'] { border-color: rgb(var(--c-red-600)); }
+  :is(.console-workspace, .setup-page) :is(input, select, textarea):disabled { opacity: .6; cursor: not-allowed; }
+  :is(.console-workspace, .setup-page) :is(input, select, textarea, button, a):focus-visible,
+  .ui-button:focus-visible {
+    outline: 2px solid var(--c-focus);
+    outline-offset: 3px;
+  }
+  .console-workspace table { font-variant-numeric: tabular-nums; }
+  .console-workspace table thead th { font-size: 11px; letter-spacing: .035em; font-weight: 600; line-height: 1.5; }
+  .console-workspace table tbody td { line-height: 1.5; }
+  .console-workspace .status-badge { font-size: 11px; }
+}
+
+@media screen and (max-width: 639px) {
+  .console-workspace .page-heading { gap: 16px; margin-bottom: 24px; }
+  .console-workspace .ui-empty-state { padding: 32px 20px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :is(.console-workspace, .setup-page) :is(input, select, textarea, .ui-button) { transition: none; }
+}

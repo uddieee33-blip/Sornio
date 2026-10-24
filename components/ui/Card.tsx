@@ -14,12 +14,9 @@ type CardProps = {
 
 export function Card({ children, className = '', hover = false, padded = true, sensitive = false }: CardProps) {
   const base = 'surface-card min-w-0 rounded-2xl bg-white ring-1 ring-stone-200 shadow-card';
-  // The lift is `transform`, not `margin` or `top`: it stays on the compositor,
-  // so hovering a grid of twenty cards costs no layout. The shadow grows with
-  // it, because a surface that rises without its shadow following reads as a
-  // glitch rather than as depth.
+  // Quiet feedback keeps dense operational pages stable under the pointer.
   const hoverCls = hover
-    ? 'transition-all duration-slow ease-settle hover:-translate-y-0.5 hover:bg-stone-50 hover:ring-brand-400/30 hover:shadow-card-hover'
+    ? 'transition-colors duration-base hover:bg-stone-50 hover:ring-stone-300'
     : '';
   const pad = padded ? 'p-5 md:p-6' : '';
   return (
@@ -31,9 +28,9 @@ export function Card({ children, className = '', hover = false, padded = true, s
 
 export function CardTitle({ children, icon }: { children: ReactNode; icon?: ReactNode }) {
   return (
-    <div className="flex items-center gap-2.5">
+    <div className="ui-card-heading flex items-center gap-2.5">
       {icon ? (
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-inset ring-brand-200">
+        <span aria-hidden="true" className="ui-card-mark flex h-8 w-8 items-center justify-center rounded-lg bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200">
           {icon}
         </span>
       ) : null}

@@ -375,21 +375,35 @@ check('an over-long field is capped, not refused', () => {
   assert(parsed.snapshot.businessName.length <= 120, `capped at 120, got ${parsed.snapshot.businessName.length}`);
 });
 
-check('an invalid UPI id is emptied rather than stored', () => {
+check('an invalid supplied UPI id is rejected before a write', () => {
   const parsed = profile.parseProfilePayload({ ...WIRE, upiId: 'not a vpa at all' });
-  assert(parsed.ok, 'the rest of the profile is still worth saving');
-  assertEqual(parsed.snapshot.upiId, '', 'the address is dropped');
-  assertEqual(parsed.snapshot.setupComplete, true, 'business setup remains complete without an active UPI ID');
+  assertEqual(parsed.ok, false, 'do not silently replace the collection destination');
 });
 
-check('bank details that are not bank details are dropped field by field', () => {
+check('supplied bank details validate without truncating account numbers or IFSC', () => {
+  for (const bank of [
+    'not an object', [], { accountNumber: '12ab34' }, { ifsc: 'NOPE' },
+    { accountNumber: '1'.repeat(21), ifsc: 'HDFC0001234', accountHolder: 'Owner' },
+    { accountNumber: '123456', ifsc: 'HDFC0001234EXTRA', accountHolder: 'Owner' },
+    { accountNumber: '123456', accountHolder: 'Owner' },
+    { accountNumber: '123456', ifsc: 'HDFC0001234' },
+    { upiId: 'not a vpa' }, { upiId: 'another@bank' },
+  ]) assertEqual(profile.parseProfilePayload({ ...WIRE, bank }).ok, false, 'invalid bank input refused');
+  assertEqual(profile.parseProfilePayload({ ...WIRE, upiId: 'a'.repeat(60) + '@bank', bank: {} }).ok, false, 'overlong UPI refused, never truncated');
+});
+
+check('cash-only setup and bank-only UPI remain valid; credentials never travel', () => {
+  const cash = profile.parseProfilePayload({ ...WIRE, upiId: '', bank: {} });
+  assert(cash.ok, 'bank details are optional');
+  assertEqual(cash.snapshot.setupComplete, true, 'unregistered cash-only owner can start');
+  assertEqual(cash.snapshot.upiId, '', 'no destination invented');
   const parsed = profile.parseProfilePayload({
-    ...WIRE,
-    bank: { accountNumber: '12ab34', ifsc: 'NOPE', bankName: 'HDFC', pin: '1234', otp: '999999' },
+    ...WIRE, upiId: '',
+    bank: { upiId: 'COLLECTION@BANK', bankName: 'HDFC', pin: '1234', otp: '999999' },
   });
   assert(parsed.ok, 'accepted');
-  assertEqual(parsed.snapshot.bank.accountNumber, undefined, 'a non-numeric account number is dropped');
-  assertEqual(parsed.snapshot.bank.ifsc, undefined, 'so is a malformed IFSC');
+  assertEqual(parsed.snapshot.upiId, 'collection@bank', 'one normalized destination for QR and sync');
+  assertEqual(parsed.snapshot.bank.upiId, 'collection@bank', 'nested destination agrees');
   assertEqual(parsed.snapshot.bank.bankName, 'HDFC', 'the bank name stays');
   assertEqual(parsed.snapshot.bank.pin, undefined, 'and no credential of any kind is carried');
 });
@@ -512,7 +526,7 @@ console.log('\n6. The endpoint against a client that enforces the schema’s own
  * Anything the route calls that is not implemented here throws, so a change that
  * reaches for a new method fails loudly instead of passing silently.
  */
-function createFakeSupabase({ uid, tables, violations, missing = [] }) {
+function createFakeSupabase({ uid, tables, violations, missing = [], failUpdates = [], filteredUpdates = [] }) {
   const membershipsFor = (userId, roles) =>
     tables.business_members.filter((row) => row.user_id === userId && (!roles || roles.includes(row.role)));
   const businessesFor = (userId) => membershipsFor(userId).map((row) => row.business_id);
@@ -603,6 +617,8 @@ function createFakeSupabase({ uid, tables, violations, missing = [] }) {
         return { data: created, error: null };
       }
       if (pending.kind === 'update') {
+        if (failUpdates.includes(table)) return { data: null, error: { message: 'Injected update failure' } };
+        if (filteredUpdates.includes(table)) return { data: [], error: null };
         const updated = [];
         for (const row of rows()) {
           if (!matches(row)) continue;
@@ -792,9 +808,36 @@ await checkAsync('the row holds the details an owner would otherwise be asked fo
 await checkAsync('setup_complete is derived on the server, not copied from the client', async () => {
   assertEqual(tables.owner_profiles[0].setup_complete, true, 'a complete profile is complete');
   const response = await save({ ...PAYLOAD, upiId: 'not a vpa' });
-  assertEqual(response.status, 200, 'the save still succeeds — the rest is worth keeping');
-  assertEqual(tables.owner_profiles[0].upi_id, null, 'the unusable address is emptied');
-  assertEqual(tables.owner_profiles[0].setup_complete, true, 'setup remains complete without a valid payment address');
+  assertEqual(response.status, 422, 'invalid supplied details are refused');
+  assertEqual(tables.owner_profiles[0].upi_id, PAYLOAD.upiId, 'previous destination is preserved');
+  const cash = await save({ ...PAYLOAD, upiId: '', bank: {}, setup_complete: false });
+  assertEqual(cash.status, 200, 'cash-only setup succeeds');
+  assertEqual(tables.owner_profiles[0].upi_id, null, 'no collection QR destination');
+  assertEqual(tables.owner_profiles[0].setup_complete, true, 'completion is derived from required owner and business details');
+});
+
+await checkAsync('a failed business metadata update cannot report a saved profile', async () => {
+  const before = JSON.stringify(tables.owner_profiles);
+  const normal = client;
+  client = createFakeSupabase({ uid: session.uid, tables, violations, failUpdates: ['businesses'] });
+  try {
+    const response = await save({ ...PAYLOAD, businessName: 'Must not save' });
+    assertEqual(response.status, 500, 'metadata failure is returned');
+    assertEqual((await response.json()).ok, false, 'no false success');
+    assertEqual(JSON.stringify(tables.owner_profiles), before, 'profile upsert was not attempted');
+  } finally { client = normal; }
+});
+
+await checkAsync('a silently filtered metadata update cannot report a saved profile', async () => {
+  const before = JSON.stringify(tables);
+  const normal = client;
+  client = createFakeSupabase({ uid: session.uid, tables, violations, filteredUpdates: ['businesses'] });
+  try {
+    const response = await save({ ...PAYLOAD, businessName: 'Must not save' });
+    assertEqual(response.status, 500, 'a zero-row UPDATE is a failed save');
+    assertEqual((await response.json()).ok, false, 'no false success without a saved row');
+    assertEqual(JSON.stringify(tables), before, 'neither metadata nor profile changed');
+  } finally { client = normal; }
 });
 
 await checkAsync('a second save updates the one row instead of adding another', async () => {
