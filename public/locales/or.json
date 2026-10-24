@@ -2484,7 +2484,6 @@
   "Your own UPI QR": "ଆପଣଙ୍କର ନିଜର UPI QR |",
   "Your own UPI QR, from your own bank": "ଆପଣଙ୍କ ନିଜ ବ୍ୟାଙ୍କରୁ ଆପଣଙ୍କର ନିଜର UPI QR |",
   "Your paid period has ended. Your records are safe and the free plan is running — the Growth automations are paused.": "ତୁମର ଦେୟ ଅବଧି ସମାପ୍ତ ହୋଇଛି | ଆପଣଙ୍କର ରେକର୍ଡଗୁଡିକ ନିରାପଦ ଏବଂ ମାଗଣା ଯୋଜନା ଚାଲୁଛି - ଅଭିବୃଦ୍ଧି ସ୍ୱୟଂଚାଳିତ ଅଟକି ଯାଇଛି |",
-  "Your password is changed. This device stays signed in; every other one must sign in again.": "Your password is changed. This device stays signed in; every other one must sign in again.",
   "Your plan": "ଆପଣଙ୍କ ପ୍ଲାନ",
   "Your Plan": "ତୁମର ଯୋଜନା",
   "Your QR": "ତୁମର QR |",
@@ -2505,5 +2504,6 @@
   "yourbusiness@okhdfcbank": "ତୁମର ବ୍ୟବସାୟ @ okhdfcbank",
   "Zero fees · sweep excess to bank": "ଶୂନ ଶୁଳ୍କ · ବ୍ୟାଙ୍କକୁ ଅଧିକ ସ୍ୱିପ୍ କରନ୍ତୁ |",
   "Zero fees. Count the drawer at the end of every shift and sweep excess cash to the bank.": "ଶୂନ ଦେୟ ପ୍ରତ୍ୟେକ ସିଫ୍ଟ ଶେଷରେ ଡ୍ରୟରକୁ ଗଣନା କରନ୍ତୁ ଏବଂ ବ୍ୟାଙ୍କକୁ ଅଧିକ ନଗଦ ସ୍ୱିପ୍ କରନ୍ତୁ |",
-  "Zero fund custody": "ଶୂନ ପାଣ୍ଠି ହେପାଜତ |"
+  "Zero fund custody": "ଶୂନ ପାଣ୍ଠି ହେପାଜତ |",
+  "Your password is changed. This device stays signed in.": "Your password is changed. This device stays signed in."
 }

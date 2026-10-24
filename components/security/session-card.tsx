@@ -24,6 +24,7 @@
  */
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { KeyRound, LogOut, ShieldCheck, UserRound } from 'lucide-react';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
@@ -67,7 +68,7 @@ export function SessionCard({ recovery = false }: { recovery?: boolean }) {
     if (result.ok) {
       setPassword('');
       setConfirm('');
-      setMessage({ tone: 'ok', text: 'Your password is changed. This device stays signed in; every other one must sign in again.' });
+      setMessage({ tone: 'ok', text: 'Your password is changed. This device stays signed in.' });
     } else {
       setMessage({ tone: 'error', text: result.error ?? 'The password could not be changed.' });
     }
@@ -127,6 +128,7 @@ export function SessionCard({ recovery = false }: { recovery?: boolean }) {
               type="password"
               autoComplete="new-password"
               placeholder={`New password (${LIMITS.minPassword}+ characters)`}
+              aria-label={`New password (${LIMITS.minPassword}+ characters)`}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className={inputClass}
@@ -135,6 +137,7 @@ export function SessionCard({ recovery = false }: { recovery?: boolean }) {
               type="password"
               autoComplete="new-password"
               placeholder="Repeat it"
+              aria-label="Repeat it"
               value={confirm}
               onChange={(e) => setConfirm(e.target.value)}
               className={inputClass}
@@ -142,6 +145,7 @@ export function SessionCard({ recovery = false }: { recovery?: boolean }) {
           </div>
           {message ? (
             <p
+              role={message.tone === 'error' ? 'alert' : 'status'}
               className={`mt-3 rounded-xl px-3 py-2.5 text-sm ring-1 ring-inset ${
                 message.tone === 'ok'
                   ? 'bg-emerald-500/10 text-emerald-800 ring-emerald-500/20'
@@ -154,6 +158,9 @@ export function SessionCard({ recovery = false }: { recovery?: boolean }) {
           <Button className="mt-3" disabled={busy || !password || !confirm} onClick={() => void changePassword()}>
             {busy ? 'Checking…' : 'Change password'}
           </Button>
+          {recovery && message?.tone === 'ok' ? (
+            <Link href="/onboarding" className="ml-4 text-sm font-semibold text-portal underline">Continue</Link>
+          ) : null}
           <p className="mt-2 text-[11px] leading-relaxed text-stone-500">
             {hosted
               ? 'The change is made by Supabase — this app never stores a password, so it cannot show you the old one.'

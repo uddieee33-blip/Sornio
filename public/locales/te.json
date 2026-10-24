@@ -2484,7 +2484,6 @@
   "Your own UPI QR": "మీ స్వంత UPI QR",
   "Your own UPI QR, from your own bank": "మీ స్వంత UPI QR, మీ స్వంత బ్యాంక్ నుండి",
   "Your paid period has ended. Your records are safe and the free plan is running — the Growth automations are paused.": "మీ చెల్లింపు వ్యవధి ముగిసింది. మీ రికార్డ్‌లు సురక్షితంగా ఉన్నాయి మరియు ఉచిత ప్లాన్ అమలులో ఉంది — గ్రోత్ ఆటోమేషన్‌లు పాజ్ చేయబడ్డాయి.",
-  "Your password is changed. This device stays signed in; every other one must sign in again.": "Your password is changed. This device stays signed in; every other one must sign in again.",
   "Your plan": "మీ ప్లాన్",
   "Your Plan": "మీ ప్లాన్",
   "Your QR": "మీ QR",
@@ -2505,5 +2504,6 @@
   "yourbusiness@okhdfcbank": "yourbusiness@okhdfcbank",
   "Zero fees · sweep excess to bank": "సున్నా రుసుములు · బ్యాంకుకు అధికంగా స్వీప్ చేయండి",
   "Zero fees. Count the drawer at the end of every shift and sweep excess cash to the bank.": "జీరో ఫీజు. ప్రతి షిఫ్టు చివరిలో డ్రాయర్‌ను లెక్కించండి మరియు అదనపు నగదును బ్యాంకుకు స్వీప్ చేయండి.",
-  "Zero fund custody": "జీరో ఫండ్ అదుపు"
+  "Zero fund custody": "జీరో ఫండ్ అదుపు",
+  "Your password is changed. This device stays signed in.": "Your password is changed. This device stays signed in."
 }

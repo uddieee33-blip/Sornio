@@ -2484,7 +2484,6 @@
   "Your own UPI QR": "ꯅꯍꯥꯛꯀꯤ ꯏꯁꯥꯒꯤ UPI QR",
   "Your own UPI QR, from your own bank": "ꯅꯍꯥꯛꯀꯤ ꯏꯁꯥꯒꯤ UPI QR, ꯅꯍꯥꯛꯀꯤ ꯏꯁꯥꯒꯤ ꯕꯦꯉ꯭ꯀꯇꯒꯤ꯫",
   "Your paid period has ended. Your records are safe and the free plan is running — the Growth automations are paused.": "ꯅꯍꯥꯛꯀꯤ ꯄꯦꯃꯦꯟꯇꯀꯤ ꯃꯇꯝ ꯑꯗꯨ ꯂꯣꯏꯔꯦ꯫ ꯅꯍꯥꯛꯀꯤ ꯔꯦꯀꯣꯔꯗꯁꯤꯡ ꯑꯗꯨ ꯁꯦꯐ ꯑꯣꯏ ꯑꯃꯁꯨꯡ ꯐ꯭ꯔꯤ ꯄ꯭ꯂꯥꯟ ꯑꯗꯨ ꯆꯠꯊꯔꯤ — ꯒ꯭ꯔꯣꯊ ꯑꯣꯇꯣꯃꯦꯁꯅꯁꯤꯡ ꯑꯗꯨ ꯊꯤꯡꯖꯤꯅꯈ꯭ꯔꯦ꯫",
-  "Your password is changed. This device stays signed in; every other one must sign in again.": "Your password is changed. This device stays signed in; every other one must sign in again.",
   "Your plan": "ꯅꯍꯥꯛꯀꯤ ꯊꯧꯔꯥꯡ",
   "Your Plan": "ꯅꯍꯥꯛꯀꯤ ꯄ꯭ꯂꯥꯟ ꯑꯗꯨ꯫",
   "Your QR": "ꯅꯍꯥꯛꯀꯤ QR",
@@ -2505,5 +2504,6 @@
   "yourbusiness@okhdfcbank": "yourbusiness@okhdfcbank ꯗꯥ ꯌꯦꯡꯕꯤꯌꯨ꯫",
   "Zero fees · sweep excess to bank": "ꯖꯤꯔꯣ ꯐꯤ · ꯕꯦꯉ꯭ꯀꯇꯥ ꯑꯍꯦꯅꯕꯥ ꯁꯨꯡꯗꯣꯀꯄꯥ꯫",
   "Zero fees. Count the drawer at the end of every shift and sweep excess cash to the bank.": "ꯖꯤꯔꯣ ꯐꯤꯁꯤꯡ꯫ ꯁꯤꯐꯠ ꯈꯨꯗꯤꯡꯃꯛꯀꯤ ꯑꯔꯣꯏꯕꯗꯥ ꯗ꯭ꯔꯣꯋꯔ ꯑꯗꯨ ꯀꯥꯎꯟꯇ ꯇꯧ ꯑꯃꯁꯨꯡ ꯑꯍꯦꯅꯕꯥ ꯁꯦꯅꯐꯝ ꯑꯗꯨ ꯕꯦꯉ꯭ꯀꯇꯥ ꯁꯨꯡꯗꯣꯀꯎ꯫",
-  "Zero fund custody": "ꯖꯤꯔꯣ ꯐꯟꯗ ꯀꯁ꯭ꯇꯗꯤꯗꯥ ꯂꯩꯕꯥ꯫"
+  "Zero fund custody": "ꯖꯤꯔꯣ ꯐꯟꯗ ꯀꯁ꯭ꯇꯗꯤꯗꯥ ꯂꯩꯕꯥ꯫",
+  "Your password is changed. This device stays signed in.": "Your password is changed. This device stays signed in."
 }
