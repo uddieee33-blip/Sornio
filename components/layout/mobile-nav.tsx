@@ -108,10 +108,10 @@ export function MobileNav({
       >
         <div className="flex items-center justify-between border-b border-stone-200 px-5 py-4">
           <Link href="/home" onClick={onClose} className="flex items-center gap-3">
-            <BrandIcon size={40} className="h-10 w-10 shrink-0 rounded-xl shadow-glow-sm" />
+            <BrandIcon size={40} className="h-10 w-10 shrink-0 rounded-xl shadow-card" />
             <span>
               <span id="mobile-navigation-title" className="block font-display text-sm font-bold text-stone-900">
-                DukaanOS
+                Sornio
               </span>
               <span className="mt-0.5 block text-[10px] font-semibold uppercase tracking-[0.16em] text-portal">
                 {portal.name}
@@ -129,8 +129,8 @@ export function MobileNav({
           </button>
         </div>
 
-        <div className="mx-4 mt-4 flex items-start gap-3 rounded-2xl bg-portal/[0.07] p-3.5 ring-1 ring-inset ring-portal/20">
-          <span className="bg-portal-gradient mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white">
+        <div className="mx-4 mt-4 flex items-start gap-3 rounded-xl bg-stone-50 p-3.5 ring-1 ring-inset ring-stone-200">
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-700">
             <PortalIcon size={17} strokeWidth={2.2} />
           </span>
           <div className="min-w-0">
