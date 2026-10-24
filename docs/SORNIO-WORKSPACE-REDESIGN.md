@@ -63,3 +63,12 @@ remain the separate engineering work described in the master blueprint.
 
 The approved Sornio artwork and ten-theme appearance system are retained.
 New copy has English fallbacks pending native-language review.
+
+## Navigation state regression
+
+Server navigation can supply a newly serialized identity object for the same
+owner. Previously, that object retriggered vault hydration and could replace a
+just-recorded payment with the last saved unpaid snapshot before the write
+debounce completed. Hydration now depends on the user/business storage scope.
+A lifecycle regression test verifies that same-owner navigation preserves the
+payment while a different account still loads its own saved records.
