@@ -605,7 +605,7 @@ export function AppearanceMenu({
             open ? 'ring-stone-300' : ''
           }`}
         >
-          <span className="bg-portal-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-white">
+          <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-stone-100 text-stone-700">
             <Paintbrush size={14} strokeWidth={2.2} />
           </span>
           <span className="min-w-0 flex-1">
