@@ -32,9 +32,10 @@ export function Button({ variant = 'primary', className = '', children, ...props
   return (
     <button
       {...props}
-      className={`touch-manipulation inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-base ease-settle disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
+      className={`ui-button touch-manipulation inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition-all duration-base ease-settle disabled:cursor-not-allowed disabled:opacity-50 ${variants[variant]} ${className}`}
     >
       {children}
     </button>
   );
 }
+

@@ -2,7 +2,7 @@
 
 import { useLocaleRefresh } from '@/lib/i18n';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Archive, ArchiveRestore, Package, PackagePlus, Pencil, Search, Tag, Upload, X } from 'lucide-react';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
@@ -54,6 +54,9 @@ export default function ProductsPage() {
   const [sortKey, setSortKey] = useState<SortKey>('name');
   const [selected, setSelected] = useState<Product | null>(null);
   const [importOpen, setImportOpen] = useState(false);
+  const detailPanelRef = useRef<HTMLDivElement>(null);
+  const detailCloseRef = useRef<HTMLButtonElement>(null);
+  const detailTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const categories = useMemo(() => Array.from(new Set(state.products.map((p) => p.category))).sort(), [state.products]);
 
@@ -78,7 +81,7 @@ export default function ProductsPage() {
   const visible = useMemo(() => {
     const needle = query.trim().toLowerCase();
     const list = state.products.filter((p) => {
-      if (needle && !`${p.name} ${p.category} ${p.sku ?? ''} ${p.supplier ?? ''}`.toLowerCase().includes(needle)) return false;
+      if (needle && !`${p.name} ${p.category} ${p.sku ?? ''} ${p.supplier ?? ''} ${p.barcode ?? ''} ${p.internalCode ?? ''}`.toLowerCase().includes(needle)) return false;
       if (categoryFilter !== 'all' && p.category !== categoryFilter) return false;
       if (statusFilter !== 'all' && p.status !== statusFilter) return false;
       return true;
@@ -164,6 +167,41 @@ export default function ProductsPage() {
     }
   };
 
+  useEffect(() => {
+    if (!selected) return;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    detailCloseRef.current?.focus();
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        setSelected(null);
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const controls = Array.from(detailPanelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []);
+      if (controls.length === 0) return;
+      const first = controls[0];
+      const last = controls[controls.length - 1];
+      if (event.shiftKey && (document.activeElement === first || !detailPanelRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !detailPanelRef.current?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.body.style.overflow = previousOverflow;
+      detailTriggerRef.current?.focus();
+    };
+  }, [selected]);
+
   const selectedStats = selected ? productStats.get(selected.id) : undefined;
 
   return (
@@ -197,30 +235,31 @@ export default function ProductsPage() {
         <Card className="animate-fade-up h-fit">
           <div className="mb-5"><CardTitle icon={<PackagePlus size={17} />}>Add Item</CardTitle></div>
           <div className="grid gap-4 md:grid-cols-2">
-            <div className="md:col-span-2"><span className={labelClass}>Item Name *</span><input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Handmade Soap" /></div>
-            <div><span className={labelClass}>Item Type</span>
-              <select value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })} className={inputClass}>
+            <div className="md:col-span-2"><label className={labelClass} htmlFor="new-item-name">Item Name *</label><input id="new-item-name" required value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className={inputClass} placeholder="e.g. Handmade Soap" /></div>
+            <div><label className={labelClass} htmlFor="new-item-type">Item Type</label>
+              <select id="new-item-type" value={form.itemType} onChange={(e) => setForm({ ...form, itemType: e.target.value })} className={inputClass}>
                 <option value="product">Product</option><option value="service">Service</option>
               </select>
             </div>
-            <div><span className={labelClass}>Category</span><input value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass} placeholder="e.g. Personal Care" /></div>
-            <div className="md:col-span-2"><span className={labelClass}>Description</span><input value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputClass} placeholder="Optional description" /></div>
-            <div><span className={labelClass}>Selling Price (₹)</span><input type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className={inputClass} /></div>
-            <div><span className={labelClass}>Cost Price (₹)</span><input type="number" min={0} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className={inputClass} /></div>
-            <div><span className={labelClass}>Tax % (if applicable)</span><input type="number" min={0} max={100} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })} className={inputClass} /></div>
-            <div><span className={labelClass}>Unit</span><input value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={inputClass} placeholder="pcs / kg / hour" /></div>
+            <div><label className={labelClass} htmlFor="new-item-category">Category</label><input id="new-item-category" value={form.category} onChange={(e) => setForm({ ...form, category: e.target.value })} className={inputClass} placeholder="e.g. Personal Care" /></div>
+            <div className="md:col-span-2"><label className={labelClass} htmlFor="new-item-description">Description</label><input id="new-item-description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className={inputClass} placeholder="Optional description" /></div>
+            <div><label className={labelClass} htmlFor="new-item-price">Selling Price (₹)</label><input id="new-item-price" type="number" min={0} value={form.sellingPrice} onChange={(e) => setForm({ ...form, sellingPrice: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass} htmlFor="new-item-cost">Cost Price (₹)</label><input id="new-item-cost" type="number" min={0} value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass} htmlFor="new-item-tax">Tax % (if applicable)</label><input id="new-item-tax" type="number" min={0} max={100} value={form.taxRate} onChange={(e) => setForm({ ...form, taxRate: e.target.value })} className={inputClass} /></div>
+            <div><label className={labelClass} htmlFor="new-item-unit">Unit</label><input id="new-item-unit" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} className={inputClass} placeholder="pcs / kg / hour" /></div>
             {form.itemType === 'product' ? (
               <>
-                <div><span className={labelClass}>Opening Stock</span><input type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputClass} /></div>
-                <div><span className={labelClass}>Reorder Level</span><input type="number" min={0} value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} className={inputClass} /></div>
+                <div><label className={labelClass} htmlFor="new-item-stock">Opening Stock</label><input id="new-item-stock" type="number" min={0} value={form.stock} onChange={(e) => setForm({ ...form, stock: e.target.value })} className={inputClass} /></div>
+                <div><label className={labelClass} htmlFor="new-item-reorder">Reorder Level</label><input id="new-item-reorder" type="number" min={0} value={form.reorderLevel} onChange={(e) => setForm({ ...form, reorderLevel: e.target.value })} className={inputClass} /></div>
               </>
             ) : null}
-            <div><span className={labelClass}>SKU / Item Code (optional)</span><input value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })} className={inputClass} placeholder="SOAP-001" /></div>
+            <div><label className={labelClass} htmlFor="new-item-sku">SKU / Item Code (optional)</label><input id="new-item-sku" value={form.sku} onChange={(e) => setForm({ ...form, sku: e.target.value.toUpperCase() })} className={inputClass} placeholder="SOAP-001" /></div>
             <div className="md:col-span-2">
-              <span className={labelClass}>Barcode (scan the packet, or type it)</span>
+              <label className={labelClass} htmlFor="new-item-barcode">Barcode (scan the packet, or type it)</label>
               <div className="relative">
                 <Tag size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500" />
                 <input
+                  id="new-item-barcode"
                   value={form.barcode}
                   onChange={(e) => setForm({ ...form, barcode: e.target.value })}
                   className={`${inputClass} pl-9 font-mono`}
@@ -234,23 +273,23 @@ export default function ProductsPage() {
             </div>
             {form.itemType === 'product' ? (
               <div>
-                <span className={labelClass}>Sold loose?</span>
-                <select value={form.looseMode} onChange={(e) => setForm({ ...form, looseMode: e.target.value })} className={inputClass}>
+                <label className={labelClass} htmlFor="new-item-loose">Sold loose?</label>
+                <select id="new-item-loose" value={form.looseMode} onChange={(e) => setForm({ ...form, looseMode: e.target.value })} className={inputClass}>
                   <option value="none">No — packets and pieces</option>
                   <option value="weight">Yes — the scale prints the weight</option>
                   <option value="price">Yes — the scale prints the price</option>
                 </select>
               </div>
             ) : null}
-            <div><span className={labelClass}>Supplier (optional)</span><input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Urban Goods Co." /></div>
-            <div><span className={labelClass}>Status</span>
-              <select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
+            <div><label className={labelClass} htmlFor="new-item-supplier">Supplier (optional)</label><input id="new-item-supplier" value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })} className={inputClass} placeholder="Urban Goods Co." /></div>
+            <div><label className={labelClass} htmlFor="new-item-status">Status</label>
+              <select id="new-item-status" value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })} className={inputClass}>
                 <option value="Active">Active</option><option value="Inactive">Inactive (archived)</option>
               </select>
             </div>
           </div>
           {message ? (
-            <p className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
+            <p role={message.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>{message.text}</p>
           ) : null}
           <div className="mt-5 flex justify-end">
             <Button onClick={handleSubmit}><PackagePlus size={16} /> Save item</Button>
@@ -272,20 +311,20 @@ export default function ProductsPage() {
               </button>
               <div className="relative">
                 <Search size={15} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-600" />
-                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
+                <input type="search" aria-label="Search name, SKU, supplier…" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search name, SKU, supplier…" className="w-56 rounded-xl border border-stone-200 bg-stone-50 py-2 pl-9 pr-3 text-sm text-stone-900 placeholder-stone-500 outline-hidden transition focus:border-portal/50 focus:ring-2 focus:ring-focus" />
               </div>
             </div>
           </div>
 
           <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-            <select value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
+            <select aria-label="Category" value={categoryFilter} onChange={(e) => setCategoryFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
               <option value="all">All categories</option>
               {categories.map((category) => <option key={category} value={category}>{category}</option>)}
             </select>
-            <select value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
+            <select aria-label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
               <option value="all">Any status</option><option value="Active">Active</option><option value="Inactive">Inactive</option>
             </select>
-            <select value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
+            <select aria-label={sortKey === 'name' ? 'Sort: Name' : sortKey === 'sellingPrice' ? 'Sort: Price' : sortKey === 'stock' ? 'Sort: Stock' : 'Sort: Margin'} value={sortKey} onChange={(e) => setSortKey(e.target.value as SortKey)} className="rounded-lg border border-stone-200 bg-stone-50 px-2.5 py-1.5 font-semibold text-stone-700 outline-hidden focus:border-portal/50">
               <option value="name">Sort: Name</option>
               <option value="sellingPrice">Sort: Price</option>
               <option value="stock">Sort: Stock</option>
@@ -324,9 +363,9 @@ export default function ProductsPage() {
                   {visible.map((product) => {
                     const margin = marginPct(product);
                     return (
-                      <tr key={product.id} onClick={() => setSelected(product)} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
+                      <tr key={product.id} onClick={() => { detailTriggerRef.current = null; setSelected(product); }} className="cursor-pointer border-t border-stone-200 transition hover:bg-brand-500/[0.06]">
                         <td className="px-4 py-3">
-                          <p className="font-medium text-stone-800">{product.name}</p>
+                          <button type="button" onClick={(event) => { event.stopPropagation(); detailTriggerRef.current = event.currentTarget; setSelected(product); }} className="min-h-11 w-full rounded-lg text-left font-medium text-stone-800 underline-offset-2 hover:text-brand-700 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500">{product.name}</button>
                           <p className="text-xs text-stone-600">
                             {product.itemType === 'service' ? 'Service' : 'Product'}
                             {product.sku ? ` · ${product.sku}` : ''}
@@ -358,15 +397,15 @@ export default function ProductsPage() {
 
       {/* Product detail drawer */}
       {selected ? (
-        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs" onClick={() => setSelected(null)} role="dialog" aria-modal="true">
-          <div className="h-full w-full max-w-lg overflow-y-auto border-l border-stone-200 bg-panel p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-xs" onClick={() => setSelected(null)} role="dialog" aria-modal="true" aria-label={selected.name}>
+          <div ref={detailPanelRef} className="h-full w-full max-w-lg overflow-y-auto border-l border-stone-200 bg-panel p-6 animate-fade-in" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-start justify-between gap-3">
               <div>
                 <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">Product detail</p>
                 <h2 className="mt-1.5 font-display text-2xl font-bold text-stone-900">{selected.name}</h2>
                 <p className="mt-1 text-sm text-stone-600">{selected.category} · {selected.itemType === 'service' ? 'Service' : 'Product'}{selected.sku ? ` · SKU ${selected.sku}` : ''}{selected.supplier ? ` · ${selected.supplier}` : ''}</p>
               </div>
-              <button onClick={() => setSelected(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900" aria-label="Close"><X size={16} /></button>
+              <button ref={detailCloseRef} onClick={() => setSelected(null)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900" aria-label="Close"><X size={16} /></button>
             </div>
 
             {selected.description ? <p className="mt-3 rounded-xl bg-stone-50 p-3 text-sm text-stone-600">{selected.description}</p> : null}

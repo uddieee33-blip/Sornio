@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useEffectEvent, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { QRCodeCanvas } from 'qrcode.react';
 import {
@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
-import { formatCurrency } from '@/lib/business-data';
+import { formatInvoiceAmount as formatCurrency, invoiceBalance } from '@/lib/invoices';
 import type { Invoice, PaymentMethod } from '@/lib/models/billing';
 import { buildUpiDeepLink, isValidUpiId, maskAccountNumber, paymentReference } from '@/lib/upi';
 import { useDukaanStore } from '@/lib/store';
@@ -131,26 +131,27 @@ function SetupNudge({ what }: { what: string }) {
  * Cash counts tendered vs change. Confirming settles the invoice through the
  * same ledger path as every other payment.
  */
-export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onDone?: () => void }) {
+export function CollectPaymentPanel({
+  invoice,
+  onDone,
+}: {
+  invoice: Invoice;
+  onDone?: () => void;
+}) {
   const { locale } = useI18n();
   const { state, actions } = useDukaanStore();
+  const due = invoiceBalance(invoice, state.paymentRecords);
   const [method, setMethod] = useState<PaymentMethod>(
     DESK_METHODS.includes(invoice.paymentMethod) ? invoice.paymentMethod : 'UPI',
   );
-  const [tendered, setTendered] = useState(String(invoice.totalAmount));
-  const [card, setCard] = useState({
-    name: invoice.customerName,
-    phone: invoice.customerPhone ?? '',
-    network: 'RuPay',
-    last4: '',
-    reference: '',
-  });
+  const [tendered, setTendered] = useState(String(due));
+  const [card, setCard] = useState({ name: invoice.customerName, phone: invoice.customerPhone ?? '', network: 'RuPay', last4: '', reference: '' });
   const [upiRef, setUpiRef] = useState('');
   const [utr, setUtr] = useState('');
   const [showAccount, setShowAccount] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [errorCode, setErrorCode] = useState<string | null>(null);
-  const [settled, setSettled] = useState(false);
+  const [settlement, setSettlement] = useState<{ amount: number; change: number } | null>(null);
   const qrWrapRef = useRef<HTMLDivElement>(null);
 
   const profile = state.profile;
@@ -159,13 +160,6 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
   const bank = profile.bank;
   const bankReady = Boolean(bank?.accountNumber && bank?.ifsc && bank?.bankName);
 
-  const due = Math.max(
-    0,
-    invoice.totalAmount -
-      state.paymentRecords
-        .filter((p) => p.invoiceId === invoice.id && ['paid', 'partial'].includes(p.status))
-        .reduce((sum, p) => sum + p.amount, 0),
-  );
 
   const upiLink = useMemo(() => {
     if (!upiReady || !shopUpi) return '';
@@ -200,9 +194,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
     setErrorCode(null);
     if (method === 'Cash') {
       if (!Number.isFinite(tenderedValue) || tenderedValue < due) {
-        setError(
-          `Cash in hand (₹${tenderedValue.toLocaleString(locale)}) is less than the ₹${due.toLocaleString(locale)} due.`,
-        );
+        setError(`Cash in hand (₹${tenderedValue.toLocaleString(locale)}) is less than the ₹${due.toLocaleString(locale)} due.`);
         return;
       }
     }
@@ -218,9 +210,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
     }
     if (method === 'Bank Transfer') {
       if (utr.trim().length < 6) {
-        setError(
-          'Enter the UTR / transaction reference the customer shows you — that is your proof the transfer left their bank.',
-        );
+        setError('Enter the UTR / transaction reference the customer shows you — that is your proof the transfer left their bank.');
         return;
       }
     }
@@ -228,14 +218,14 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
       reference: method === 'Card' ? card.reference : method === 'Bank Transfer' ? utr : upiRef,
     });
     if (result.ok) {
-      setSettled(true);
+      setSettlement({ amount: result.amount ?? due, change: Math.max(0, tenderedValue - due) });
     } else {
       setError(result.error ?? 'Could not settle this invoice.');
       setErrorCode(result.code ?? null);
     }
   };
 
-  if (settled) {
+  if (settlement) {
     return (
       <div className="animate-collect-pop rounded-2xl border border-emerald-500/25 bg-emerald-500/[0.06] p-8 text-center">
         <span className="animate-collect-success mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-emerald-500 text-white shadow-glow">
@@ -243,8 +233,8 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
         </span>
         <h3 className="mt-4 font-display text-xl font-bold text-stone-900">Payment collected</h3>
         <p className="mt-1.5 text-sm text-stone-600">
-          {formatCurrency(due)} from <strong className="text-stone-800">{invoice.customerName}</strong> via {method} —
-          invoice {invoice.id} is settled and the ledger is updated.
+          {formatCurrency(settlement.amount)} from <strong className="text-stone-800">{invoice.customerName}</strong> via {method} — invoice{' '}
+          {invoice.id} is settled and the ledger is updated.
         </p>
         <div className="mx-auto mt-5 grid max-w-xs gap-2 text-left">
           <div className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 text-sm ring-1 ring-inset ring-stone-200">
@@ -254,9 +244,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
           {method === 'Card' && card.last4 ? (
             <div className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 text-sm ring-1 ring-inset ring-stone-200">
               <span className="text-stone-600">Card</span>
-              <span className="font-semibold text-stone-900 tabular-nums">
-                {card.network} •••• {card.last4}
-              </span>
+              <span className="font-semibold text-stone-900 tabular-nums">{card.network} •••• {card.last4}</span>
             </div>
           ) : null}
           {method === 'Bank Transfer' && utr ? (
@@ -265,10 +253,10 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
               <span className="font-mono text-xs font-semibold text-stone-900">{utr.trim().toUpperCase()}</span>
             </div>
           ) : null}
-          {method === 'Cash' && changeDue > 0 ? (
+          {method === 'Cash' && settlement.change > 0 ? (
             <div className="flex items-center justify-between rounded-xl bg-white px-3.5 py-2.5 text-sm ring-1 ring-inset ring-stone-200">
               <span className="text-stone-600">Change given</span>
-              <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(changeDue)}</span>
+              <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(settlement.change)}</span>
             </div>
           ) : null}
         </div>
@@ -287,12 +275,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
       <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-stone-50 p-4">
         <div className="flex min-w-0 items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-brand-gradient text-sm font-bold text-white shadow-glow-sm">
-            {invoice.customerName
-              .split(' ')
-              .map((part) => part[0])
-              .slice(0, 2)
-              .join('')
-              .toUpperCase()}
+            {invoice.customerName.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}
           </span>
           <div className="min-w-0">
             <p className="truncate font-semibold text-stone-900">{invoice.customerName}</p>
@@ -372,8 +355,8 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
                     <QrCode size={16} className="text-brand-600" /> Show this QR to {invoice.customerName.split(' ')[0]}
                   </p>
                   <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
-                    The QR already carries the exact amount ({formatCurrency(due)}) and the bill reference ({invoice.id}
-                    ). Money lands directly in your bank — DukaanOS never touches it.
+                    The QR already carries the exact amount ({formatCurrency(due)}) and the bill reference ({invoice.id}).
+                    Money lands directly in your bank — DukaanOS never touches it.
                   </p>
                   <div className="mt-3.5 flex flex-wrap gap-2">
                     <CopyButton value={shopUpi ?? ''} label="Copy UPI ID" />
@@ -413,32 +396,17 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
             <div className="mt-4 grid gap-3 md:grid-cols-2">
               <div>
                 <span className={labelClass}>Payer name</span>
-                <input
-                  value={card.name}
-                  onChange={(e) => setCard({ ...card, name: e.target.value })}
-                  className={inputClass}
-                />
+                <input value={card.name} onChange={(e) => setCard({ ...card, name: e.target.value })} className={inputClass} />
               </div>
               <div>
                 <span className={labelClass}>Payer phone</span>
-                <input
-                  value={card.phone}
-                  onChange={(e) => setCard({ ...card, phone: e.target.value })}
-                  placeholder="+91 …"
-                  className={inputClass}
-                />
+                <input value={card.phone} onChange={(e) => setCard({ ...card, phone: e.target.value })} placeholder="+91 …" className={inputClass} />
               </div>
               <div>
                 <span className={labelClass}>Card network</span>
-                <select
-                  value={card.network}
-                  onChange={(e) => setCard({ ...card, network: e.target.value })}
-                  className={inputClass}
-                >
+                <select value={card.network} onChange={(e) => setCard({ ...card, network: e.target.value })} className={inputClass}>
                   {['RuPay', 'Visa', 'Mastercard', 'Amex', 'Other'].map((network) => (
-                    <option key={network} value={network}>
-                      {network}
-                    </option>
+                    <option key={network} value={network}>{network}</option>
                   ))}
                 </select>
               </div>
@@ -446,12 +414,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
                 <span className={labelClass}>Last 4 digits *</span>
                 <input
                   value={card.last4}
-                  onChange={(e) =>
-                    setCard({
-                      ...card,
-                      last4: e.target.value.replace(/\D/g, '').slice(0, 4),
-                    })
-                  }
+                  onChange={(e) => setCard({ ...card, last4: e.target.value.replace(/\D/g, '').slice(0, 4) })}
                   placeholder="••••  ••••  ••••  1234"
                   inputMode="numeric"
                   className={`${inputClass} font-mono tracking-[0.2em]`}
@@ -469,10 +432,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
             </div>
             <p className="mt-3.5 flex items-start gap-2 rounded-xl border border-violet-500/20 bg-white/70 p-3 text-xs leading-relaxed text-violet-900">
               <ShieldCheck size={15} className="mt-0.5 shrink-0" />
-              <span>
-                Never type the full card number, expiry, or CVV here — cards settle through your PoS machine, and
-                DukaanOS only keeps the traceable reference.
-              </span>
+              <span>Never type the full card number, expiry, or CVV here — cards settle through your PoS machine, and DukaanOS only keeps the traceable reference.</span>
             </p>
           </div>
         ) : null}
@@ -485,15 +445,12 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
                   <Landmark size={16} className="text-sky-700" /> Share these account details
                 </p>
                 <p className="mt-1.5 text-xs leading-relaxed text-stone-600">
-                  The customer transfers {formatCurrency(due)} with the note <strong>{invoice.id}</strong> — best for
-                  large bills. Confirm only after the UTR reference checks out.
+                  The customer transfers {formatCurrency(due)} with the note <strong>{invoice.id}</strong> — best for large bills. Confirm only after the UTR reference checks out.
                 </p>
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2">
                   <div className="rounded-xl bg-white p-3 ring-1 ring-inset ring-stone-200">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">Account holder</p>
-                    <p className="mt-1 truncate text-sm font-semibold text-stone-900">
-                      {bank?.accountHolder || profile.name}
-                    </p>
+                    <p className="mt-1 truncate text-sm font-semibold text-stone-900">{bank?.accountHolder || profile.name}</p>
                   </div>
                   <div className="rounded-xl bg-white p-3 ring-1 ring-inset ring-stone-200">
                     <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-stone-500">Bank</p>
@@ -549,12 +506,13 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
               <div>
                 <span className={labelClass}>Cash received</span>
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-600">
-                    ₹
-                  </span>
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-stone-600">₹</span>
                   <input
                     type="number"
+                    aria-label="Cash received"
+                    inputMode="decimal"
                     min={0}
+                    step="0.01"
                     value={tendered}
                     onChange={(e) => setTendered(e.target.value)}
                     className={`${inputClass} pl-8 font-semibold tabular-nums`}
@@ -583,15 +541,11 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
                   <span className="text-stone-600">Received</span>
-                  <span className="font-semibold text-stone-900 tabular-nums">
-                    {formatCurrency(Math.max(tenderedValue, 0))}
-                  </span>
+                  <span className="font-semibold text-stone-900 tabular-nums">{formatCurrency(Math.max(tenderedValue, 0))}</span>
                 </div>
                 <div className="mt-2 flex items-center justify-between border-t border-dashed border-stone-200 pt-2">
                   <span className="text-sm font-semibold text-stone-800">Change to return</span>
-                  <span
-                    className={`font-display text-xl font-bold tabular-nums ${changeDue >= 0 ? 'text-emerald-700' : 'text-red-700'}`}
-                  >
+                  <span className={`font-display text-xl font-bold tabular-nums ${changeDue >= 0 ? 'text-emerald-700' : 'text-red-700'}`}>
                     {formatCurrency(Math.max(changeDue, 0))}
                   </span>
                 </div>
@@ -609,7 +563,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
               <button
                 onClick={() => {
                   setMethod('Cash');
-                  setTendered(String(invoice.totalAmount));
+                  setTendered(String(due));
                   setError(null);
                   setErrorCode(null);
                 }}
@@ -635,7 +589,7 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
           {method === 'Card' && 'Expect ~1–2% MDR · 1–2 day settlement'}
           {method === 'Bank Transfer' && 'NEFT / IMPS · keep the UTR'}
         </Badge>
-        <Button onClick={confirm} className="min-w-52">
+        <Button onClick={confirm} disabled={due <= 0 || !Number.isFinite(due)} className="min-w-52">
           <Check size={16} /> Confirm {formatCurrency(due)} received
         </Button>
       </div>
@@ -645,46 +599,80 @@ export function CollectPaymentPanel({ invoice, onDone }: { invoice: Invoice; onD
 
 /** The same desk flow inside a modal — used from the billing screen. */
 export function CollectPaymentModal({ invoice, onClose }: { invoice: Invoice; onClose: () => void }) {
+  const { state } = useDukaanStore();
+  const due = invoiceBalance(invoice, state.paymentRecords);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const closeFromEffect = useEffectEvent(onClose);
   useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previousOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
+    const frame = requestAnimationFrame(() => closeButtonRef.current?.focus());
+    const handleKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeFromEffect();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const panel = panelRef.current;
+      const focusable = Array.from(panel?.querySelectorAll<HTMLElement>(
+        'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+      ) ?? []).filter((element) => element.getClientRects().length > 0);
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (!first || !last) {
+        event.preventDefault();
+        panel?.focus();
+      } else if (event.shiftKey && (document.activeElement === first || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (document.activeElement === last || !panel?.contains(document.activeElement))) {
+        event.preventDefault();
+        first.focus();
+      }
     };
-  }, [onClose]);
+    document.addEventListener('keydown', handleKey);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener('keydown', handleKey);
+      document.body.style.overflow = previousOverflow;
+      if (previousFocus?.isConnected) previousFocus.focus();
+      else document.getElementById('invoice-preview')?.querySelector<HTMLButtonElement>('button')?.focus();
+    };
+  }, []);
 
   return (
     <div
-      className="animate-fade-in fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
+      className="animate-fade-in fixed inset-0 z-[70] flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
       aria-label={`Collect payment for ${invoice.id}`}
     >
       <div
+        ref={panelRef}
+        tabIndex={-1}
         className="animate-collect-pop relative max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-t-3xl border border-stone-200 bg-panel p-5 shadow-2xl sm:rounded-3xl md:p-6"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="pointer-events-none absolute inset-x-0 top-0 h-1.5 bg-brand-gradient" />
         <button
+          ref={closeButtonRef}
           onClick={onClose}
           aria-label="Close"
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
+          className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900 active:scale-95"
         >
           <X size={17} />
         </button>
         <div className="mb-5">
           <p className="text-[11px] font-bold uppercase tracking-[0.2em] text-brand-600">Desk collection</p>
-          <h2 className="mt-1.5 font-display text-xl font-bold text-stone-900">
-            Collect {formatCurrency(invoice.totalAmount)}
-          </h2>
+          <h2 className="mt-1.5 font-display text-xl font-bold text-stone-900">{invoice.paymentStatus === 'paid' ? 'Payment collected' : <>Collect {formatCurrency(due)}</>}</h2>
         </div>
         <CollectPaymentPanel invoice={invoice} onDone={onClose} />
       </div>
     </div>
   );
 }
+

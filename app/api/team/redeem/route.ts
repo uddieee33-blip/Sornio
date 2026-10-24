@@ -2,15 +2,15 @@
  * Invite redemption — the teammate's side of the handshake.
  *
  * The owner generated a code on the Team screen; the person holding it has
- * signed up with their *own* email and typed the code here. On success three
- * things happen, atomically in effect:
+ * signed up with their *own* email and typed the code here. On success the
+ * membership and single-use code consumption happen in ONE DB transaction:
  *
  *   1. one `business_members` row links their account to the business with the
  *      role the owner baked into the invite — from this moment every device
  *      they sign into resolves that role (`lib/auth/identity.ts`);
  *   2. the invite is burned (single use), so a forwarded code cannot enrol a
  *      second person;
- *   3. their DukaanOS session cookie is re-minted with the tenant and role, so
+ *   3. after the database commits, their DukaanOS session is re-minted, so
  *      the console knows who they are *now*, not after the next sign-in.
  *
  * Anti-enumeration: a wrong code, a used code, a revoked code and an expired
@@ -31,8 +31,9 @@ import {
 } from '@/lib/auth';
 import { sessionSecretConfigError, sessionVerificationSecret } from '@/lib/security/session';
 import { transportForRequest } from '@/lib/security/transport';
-import { getGuardedServerClient } from '@/lib/security/guard';
+import { auditLogsInsertNote } from '@/lib/team/redeem-helpers';
 import { cleanLine } from '@/lib/security/validation';
+import { getServiceRoleClient } from '@/lib/supabase/admin';
 import { inviteCodeHash } from '@/lib/team/codes';
 import { appRoleForMembership } from '@/lib/team/roles';
 import { ROLE_LABELS } from '@/lib/security/rbac';
@@ -69,31 +70,59 @@ export async function POST(request: Request) {
   const hash = await inviteCodeHash(codeText);
   if (!hash) return json({ ok: false, error: BAD_CODE }, 422);
 
+  const admin = getServiceRoleClient();
+  if (!admin) {
+    return json({ ok: false, state: 'local', error: 'Invite codes need sync. This deployment is running device-local, so there is nothing to join yet.' }, 503);
+  }
+
   const user = await getSessionUser();
-  if (!user)
-    return json({ ok: false, error: 'Sign in first — your own email and password — then enter the code.' }, 401);
+  if (!user) return json({ ok: false, error: 'Sign in first — your own email and password — then enter the code.' }, 401);
 
-  const client = await getGuardedServerClient();
-  if (!client) return json({ ok: false, error: 'Sign in required.' }, 401);
-  const { data, error: redeemError } = await client.rpc('redeem_team_invite', {
-    p_hash: hash,
+  // Only the server-side service role can call this RPC. The actor id comes
+  // from Supabase Auth (getSessionUser), never from the submitted request.
+  // The database locks the invite row and consumes it in the same transaction
+  // as membership creation. No browser-accessible direct RPC is granted.
+  const { data: redeemed, error: redeemError } = await admin.rpc('redeem_team_invite_atomic', {
+    p_code_hash: hash,
+    p_user_id: user.id,
   });
-  if (redeemError || !data) return json({ ok: false, error: BAD_CODE }, 409);
-  const live = {
-    business_id: String(data.businessId),
-    role: String(data.role),
-    id: null,
-  };
+  if (redeemError) {
+    return json({ ok: false, error: 'Could not join the business. Please try again.' }, 503);
+  }
 
-  const role = appRoleForMembership(live.role);
-  const businessName = typeof data.businessName === 'string' ? data.businessName : null;
+  const outcome = (redeemed && typeof redeemed === 'object' && !Array.isArray(redeemed)
+    ? redeemed : null) as { status?: unknown; businessId?: unknown; role?: unknown } | null;
 
-  // Fresh cookie, fresh truth: tenant and role come from the row just written,
-  // re-read through the same function every other request will use.
+  if (outcome?.status === 'invalid') return json({ ok: false, error: BAD_CODE }, 404);
+  if (outcome?.status === 'already-member') {
+    return json({ ok: false, error: 'This account is already on that team — just sign in.' }, 409);
+  }
+  if (outcome?.status === 'already-assigned') {
+    return json({ ok: false, error: 'This account already belongs to a business. Leave it (ask that owner to remove you) before joining another.' }, 409);
+  }
+  if (outcome?.status !== 'joined' || typeof outcome.businessId !== 'string' ||
+      typeof outcome.role !== 'string') {
+    return json({ ok: false, error: 'Could not join the business. Please try again.' }, 503);
+  }
+  const businessId = outcome.businessId;
+  const role = appRoleForMembership(outcome.role);
+
+  await auditLogsInsertNote(admin, {
+    tenantId: businessId,
+    actorUserId: user.id,
+    action: 'team.member.joined',
+    details: { role },
+  });
+
+  const { data: business } = await admin.from('businesses').select('name').eq('id', businessId).maybeSingle();
+  const businessName = typeof (business as { name?: unknown } | null)?.name === 'string' ? String((business as { name?: unknown }).name) : null;
+
+  // Re-read the new membership through the signed-in user's provider client.
+  // The atomic RPC result is the trusted fallback if that read is delayed.
   const membership = await resolveMembership(user.id);
   const issued = await sealOwnerSession({
     userId: user.id,
-    tenantId: membership?.tenantId ?? live.business_id,
+    tenantId: membership?.tenantId ?? businessId,
     role: membership?.role ?? role,
     displayName: actorNameFor(user.email),
     remember: true,

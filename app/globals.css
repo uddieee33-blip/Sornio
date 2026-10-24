@@ -202,7 +202,7 @@ body {
   padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
 }
 
-@media (min-width: 768px) {
+@media (min-width: 1024px) {
   .mobile-content-space {
     padding-bottom: 0;
   }
@@ -546,12 +546,22 @@ html[data-privacy='on'][data-away='true'] [data-sensitive] {
 }
 
 @media print {
-  @page { margin: 14mm; }
-  body { background: #ffffff !important; }
+  @page { size: A4; margin: 14mm; background: #ffffff; }
+  :root { color-scheme: light !important; }
+  html, body { min-height: 0 !important; height: auto !important; background: #ffffff !important; }
+  /* Remove non-printing layout boxes so hidden forms cannot add blank pages. */
+  body:has(.print-area, .ca-report) *:not(.print-area, .ca-report):not(.print-area *, .ca-report *):not(:has(.print-area, .ca-report)) {
+    display: none !important;
+  }
+  body *:has(.print-area, .ca-report) { display: contents !important; }
   body * { visibility: hidden; }
   .print-area, .print-area * { visibility: visible; }
   .print-area {
-    position: absolute;
+    position: relative !important;
+    overflow: visible !important;
+    transform: none !important;
+    animation: none !important;
+    opacity: 1 !important;
     left: 0;
     top: 0;
     width: 100%;
@@ -769,4 +779,212 @@ html[data-privacy='on'][data-away='true'] [data-sensitive] {
     border-color calc(280ms * var(--motion-scale)) var(--ease-swift),
     color calc(200ms * var(--motion-scale)) var(--ease-swift),
     box-shadow calc(280ms * var(--motion-scale)) var(--ease-swift);
+}
+
+
+/*
+ * Landing-only spatial treatment: no WebGL, no external scripts, no camera
+ * access and no extra CSP permissions. The billing console remains fast.
+ */
+.landing-depth-grid {
+  perspective: 1050px;
+  perspective-origin: 50% 35%;
+}
+.landing-depth-card {
+  position: relative;
+  transform-style: preserve-3d;
+  will-change: auto;
+  box-shadow: 0 16px 36px rgb(10 21 19 / 0.07), 0 2px 5px rgb(10 21 19 / 0.04);
+  transition: transform calc(400ms * var(--motion-scale)) var(--ease-settle),
+    box-shadow calc(400ms * var(--motion-scale)) var(--ease-settle),
+    border-color calc(400ms * var(--motion-scale)) var(--ease-settle);
+}
+.landing-depth-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  background: linear-gradient(135deg, rgb(255 255 255 / 0.18), transparent 60%);
+}
+@media (hover: hover) and (pointer: fine) {
+  html:not([data-motion='off']) .landing-depth-card:hover {
+    transform: translateY(-8px) rotateX(3deg) rotateY(-3deg);
+    box-shadow: 0 24px 60px rgb(10 21 19 / 0.13), 0 8px 16px rgb(10 21 19 / 0.05);
+  }
+  html:not([data-motion='off']) .landing-depth-card:nth-child(even):hover {
+    transform: translateY(-8px) rotateX(3deg) rotateY(3deg);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-depth-card { transform: none !important; transition: none !important; }
+}
+
+
+/* Marketing-only depth effect: no JS, external assets or extra CSP permissions. */
+.landing-hero-scene { position: absolute; z-index: -1; inset: 0; overflow: hidden; pointer-events: none; contain: paint; }
+.landing-hero-orb {
+  position: absolute; display: block; width: min(32vw, 340px); aspect-ratio: 1;
+  border-radius: 35%; border: 1px solid rgb(var(--c-stone-400) / 0.16);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18), 0 28px 88px rgb(var(--c-shadow) / 0.06);
+  opacity: 0.6;
+}
+.landing-hero-orb-a {
+  left: -10%; top: 5%;
+  background: radial-gradient(circle at 28% 24%, rgb(var(--portal-accent) / 0.12), transparent 65%);
+  transform: rotate(-22deg);
+}
+.landing-hero-orb-b {
+  right: -11%; top: 28%;
+  background: radial-gradient(circle at 68% 35%, rgb(var(--c-stone-400) / 0.13), transparent 68%);
+  transform: rotate(25deg); border-radius: 42%;
+}
+.landing-hero-grid {
+  position: absolute; left: 18%; right: 18%; top: 17%; height: min(60vw, 450px);
+  opacity: 0.14; transform: perspective(800px) rotateX(64deg) translateY(4%);
+  transform-origin: center bottom;
+  background-image: linear-gradient(rgb(var(--c-stone-500) / 0.2) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(var(--c-stone-500) / 0.2) 1px, transparent 1px);
+  background-size: 42px 42px;
+  mask-image: radial-gradient(ellipse at center, black 6%, transparent 73%);
+}
+@media (max-width: 640px) {
+  .landing-hero-orb { width: 38vw; opacity: 0.32; }
+  .landing-hero-grid { left: 0; right: 0; }
+}
+@keyframes landing-orb-a-drift {
+  from { transform: translate3d(0, -18px, 0) rotate(-28deg); }
+  to { transform: translate3d(0, 48px, 0) rotate(-8deg); }
+}
+@keyframes landing-orb-b-drift {
+  from { transform: translate3d(0, 24px, 0) rotate(18deg); }
+  to { transform: translate3d(0, -55px, 0) rotate(39deg); }
+}
+@supports (animation-timeline: scroll(root block)) {
+  @media (prefers-reduced-motion: no-preference) and (min-width: 641px) {
+    html[data-motion='full'] .landing-hero-orb-a {
+      animation: landing-orb-a-drift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 1000px;
+    }
+    html[data-motion='full'] .landing-hero-orb-b {
+      animation: landing-orb-b-drift linear both;
+      animation-timeline: scroll(root block);
+      animation-range: 0px 1000px;
+    }
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .landing-hero-orb, .landing-hero-grid { animation: none !important; }
+}
+html[data-motion='calm'] .landing-hero-orb,
+html[data-motion='off'] .landing-hero-orb { animation: none !important; }
+
+
+/* Accountant print sheet is static CSS, never translated or injected into JSX. */
+@media print {
+  .ca-report, .ca-report * {
+    visibility: visible !important;
+    color: #111111 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+  .ca-report {
+    position: relative !important;
+    transform: none !important;
+    overflow: visible !important;
+    inset: 0 auto auto 0 !important;
+    width: 100% !important;
+    margin: 0 !important;
+    border: 0 !important;
+    padding: 0 !important;
+    background: white !important;
+    color: black !important;
+  }
+  .ca-report table { width: 100%; }
+  .ca-report tr { break-inside: avoid; }
+
+}
+
+
+/* Shared surfaces use each paint's ink and paper, including dark paints. */
+@media screen {
+  .surface-card {
+    border-radius: 1.25rem;
+    box-shadow: 0 1px 2px rgb(var(--c-shadow) / 0.04),
+      0 8px 28px -20px rgb(var(--c-shadow) / var(--shadow-strength));
+  }
+
+  .page-heading h1 { line-height: 1.18; letter-spacing: -0.035em; }
+  .page-heading > div:first-child { max-width: 48rem; }
+  .ui-button { letter-spacing: -0.01em; }
+  .status-badge { line-height: 1.4; font-variant-numeric: tabular-nums; }
+
+  .console-sidebar {
+    background: rgb(var(--c-white));
+    box-shadow: 1px 0 0 rgb(var(--c-stone-200) / 0.35);
+  }
+  .console-sidebar .text-portal, .console-topbar .text-portal {
+    color: rgb(var(--c-brand-600));
+  }
+  .console-sidebar [data-nav-active='true'] {
+    box-shadow: 0 1px 3px rgb(var(--c-shadow) / 0.05);
+  }
+  .console-topbar { background: rgb(var(--c-white)); }
+
+  .auth-page, .setup-page {
+    background: radial-gradient(ellipse at 10% 0%, rgb(var(--c-brand-500) / 0.07), transparent 55%),
+      rgb(var(--c-page));
+  }
+  .auth-page { padding: 1.25rem clamp(1rem, 4vw, 4rem) 3rem; }
+  .auth-tools { min-height: 2.75rem; margin-bottom: 2rem; }
+  .auth-layout { width: 100%; max-width: 68rem; margin: 0 auto; }
+  .auth-intro { text-align: center; margin: 0 auto 2rem; }
+  .auth-wordmark { margin: 0 auto 1rem; }
+  .auth-intro h1 { font-size: clamp(1.75rem, 3.8vw, 3.25rem); line-height: 1.1; }
+  .auth-intro > p { margin-inline: auto; }
+  .auth-features { display: none; }
+  .auth-panel { width: 100%; max-width: 29rem; margin-inline: auto; }
+  .auth-panel > form, .auth-panel > div:first-child {
+    background: rgb(var(--c-white));
+    border-color: rgb(var(--c-stone-200));
+    border-radius: 1.5rem;
+    padding: clamp(1.25rem, 3vw, 2rem);
+    box-shadow: 0 2px 5px rgb(var(--c-shadow) / 0.03),
+      0 24px 64px -36px rgb(var(--c-shadow) / var(--shadow-strength));
+  }
+  .auth-panel input:not([type='checkbox']):not([type='radio']),
+  .setup-page input:not([type='checkbox']):not([type='radio']),
+  .setup-page select, .setup-page textarea {
+    background-color: rgb(var(--c-page));
+    min-height: 2.875rem;
+  }
+  .auth-panel input:focus, .setup-page input:focus,
+  .setup-page select:focus, .setup-page textarea:focus {
+    background-color: rgb(var(--c-white));
+  }
+  .setup-page { padding-top: 6rem; padding-bottom: 3rem; }
+  .setup-page .rounded-3xl.border.shadow-card { background: rgb(var(--c-white)); }
+
+  @media (min-width: 1024px) {
+    .auth-tools { margin-bottom: 0; }
+    .auth-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 29rem);
+      gap: clamp(3rem, 7vw, 7rem);
+      align-items: center;
+      min-height: calc(100svh - 8rem);
+    }
+    .auth-intro { text-align: left; margin: 0; padding-block: 3rem; }
+    .auth-wordmark { margin: 0 0 2rem -1rem; width: 16rem; }
+    .auth-intro > p { margin-inline: 0; }
+    .auth-features { display: flex; flex-wrap: wrap; gap: 0.75rem; margin-top: 2.5rem; }
+    .auth-features > span {
+      display: inline-flex; align-items: center; gap: 0.5rem;
+      padding: 0.65rem 0.85rem; border: 1px solid rgb(var(--c-stone-200));
+      border-radius: 0.75rem; background: rgb(var(--c-white) / 0.65);
+      color: rgb(var(--c-stone-600)); font-size: 0.75rem; font-weight: 500;
+    }
+    .auth-features svg { color: rgb(var(--c-brand-600)); }
+  }
 }

@@ -84,7 +84,7 @@ export function TrustCenter() {
   const [verification, setVerification] = useState<ChainVerification | null>(null);
   const [verifying, setVerifying] = useState(false);
 
-  const storage = useMemo(() => (hydrated ? vaultStatus() : { available: true, encrypted: true, usedBytes: 0 }), [hydrated]);
+  const storage = useMemo(() => (hydrated ? vaultStatus() : { available: false, encrypted: false, usedBytes: 0 }), [hydrated]);
 
   const chainedCount = useMemo(() => state.audit.filter((entry) => entry.hash).length, [state.audit]);
   const legacyCount = state.audit.length - chainedCount;
@@ -149,7 +149,7 @@ export function TrustCenter() {
   }, [state, toast]);
 
   const encryptionPosture: Posture =
-    !hydrated ? 'information' : persistence.mode === 'encrypted' ? 'protected' : persistence.mode === 'plaintext' ? 'attention' : 'attention';
+    !hydrated || persistence.mode === 'loading' ? 'information' : persistence.mode === 'encrypted' ? 'protected' : persistence.mode === 'plaintext' ? 'attention' : 'attention';
 
   const encryptionDetail = (() => {
     if (!hydrated || persistence.mode === 'loading') return 'Checking this device…';
@@ -163,13 +163,13 @@ export function TrustCenter() {
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-3">
         <Card>
-          <CardTitle icon={<ShieldCheck size={15} />}>Data stays here</CardTitle>
+          <CardTitle icon={<ShieldCheck size={15} />}>Your data</CardTitle>
           <p className="mt-3 font-display text-2xl font-bold text-stone-900">
-            {isSupabaseConfigured() ? 'Sync on' : 'On-device'}
+            {syncStatus === 'synced' ? 'Sync on' : isSupabaseConfigured() ? 'unverified' : 'On-device'}
           </p>
           <p className="mt-1 text-xs leading-relaxed text-stone-600">
             {isSupabaseConfigured()
-              ? 'A Supabase project is connected and row-level security scopes every record to your business.'
+              ? 'Cloud sync is configured. Check the persistence status below to confirm whether records have synced.'
               : 'No server is connected. Your ledger lives on this device and works with no internet.'}
           </p>
         </Card>
@@ -202,14 +202,14 @@ export function TrustCenter() {
               title="Encryption at rest"
               detail={encryptionDetail}
               posture={encryptionPosture}
-              aside={storage.encrypted ? <Badge tone="emerald">AES-256</Badge> : <Badge tone="amber">Fallback</Badge>}
+              aside={!hydrated || persistence.mode === 'loading' ? <Badge>Checking…</Badge> : persistence.mode === 'encrypted' ? <Badge tone="emerald">AES-256</Badge> : <Badge tone="amber">Fallback</Badge>}
             />
             <PostureRow
               icon={<Database size={16} />}
               title="Storage footprint"
-              detail={`${Math.max(1, Math.round(storage.usedBytes / 1024))} KB used on this device, with a rollback snapshot kept for the last good write.`}
+              detail={`${Math.round(storage.usedBytes / 1024)} KB used on this device, with a rollback snapshot kept for the last good write.`}
               posture="information"
-              aside={<Badge tone="slate">{Math.max(1, Math.round(storage.usedBytes / 1024))} KB</Badge>}
+              aside={<Badge tone="slate">{hydrated ? `${Math.round(storage.usedBytes / 1024)} KB` : 'Checking…'}</Badge>}
             />
             <PostureRow
               icon={<PortalMark size={16} />}
@@ -230,7 +230,7 @@ export function TrustCenter() {
                   ? `Every module this business type carries is open. The plan's own limits (${usage.allowance === null ? 'unlimited collections' : `${usage.allowance} UPI collections a month`}) are enforced at the edge and again at the moment a collection is recorded — a limit can never corrupt a ledger.`
                   : 'The paid automations are paused and everything already recorded stays readable, exportable and printable. A lapsed plan can hide a module; it can never lock a record, and it can never grant one.'
               }
-              posture={entitlement.state === 'expired' ? 'attention' : 'protected'}
+              posture={!synced ? 'information' : entitlement.state === 'expired' ? 'attention' : 'protected'}
               aside={
                 <Badge tone={!synced ? 'slate' : entitlement.fullAccess ? 'emerald' : entitlement.state === 'expired' ? 'amber' : 'slate'}>
                   {!synced ? 'unverified' : entitlement.state}
@@ -240,16 +240,16 @@ export function TrustCenter() {
             <PostureRow
               icon={<ShieldHalf size={16} />}
               title="Request protection"
-              detail="Every request passes a rate limiter, cross-site forgery checks, and a locked-down content security policy at the edge."
-              posture="protected"
-              aside={<Badge tone="emerald">Edge</Badge>}
+              detail="Request controls vary by deployment. Review the browser checks above for this session’s measured protections."
+              posture="information"
+              aside={<Badge tone="slate">unverified</Badge>}
             />
             <PostureRow
               icon={<Users size={16} />}
               title="Tenant isolation"
-              detail="Each record is stamped with a business id; the schema enforces row-level security so one shop can never read another."
-              posture={isSupabaseConfigured() ? 'protected' : 'information'}
-              aside={<Badge tone={isSupabaseConfigured() ? 'emerald' : 'slate'}>{isSupabaseConfigured() ? 'Enforced' : 'Local'}</Badge>}
+              detail="Cloud configuration alone does not verify tenant isolation. Database access policies must be checked on the server."
+              posture="information"
+              aside={<Badge tone="slate">{isSupabaseConfigured() ? 'unverified' : 'Local'}</Badge>}
             />
             <PostureRow
               icon={<RefreshCw size={16} />}
@@ -275,6 +275,10 @@ export function TrustCenter() {
               Download my data
             </Button>
           </div>
+          <p className="mt-3 flex items-start gap-2 rounded-xl bg-amber-500/[0.07] px-3 py-2.5 text-xs leading-relaxed text-amber-800 ring-1 ring-inset ring-amber-500/20">
+            <AlertTriangle size={15} className="mt-0.5 shrink-0" aria-hidden="true" />
+            This file contains your business records. It is not encrypted — store it somewhere private.
+          </p>
 
           {verification ? (
             <div
@@ -387,3 +391,4 @@ export function TrustCenter() {
     </div>
   );
 }
+

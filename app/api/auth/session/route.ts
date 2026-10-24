@@ -57,7 +57,9 @@ import {
   sealOwnerSession,
   signInFallback,
 } from '@/lib/auth';
+import { PLAN_COOKIE, planCookieOptions, sealPlanRecord, type PlanRecord } from '@/lib/plans';
 import { storedSetupComplete } from '@/lib/sync/profile-server';
+import { hostedSignInDestination } from '@/lib/auth/routes';
 
 /** An email is capped at 254 by RFC 5321; a password longer than this is a bug. */
 const MAX_BODY_BYTES = 8 * 1024;
@@ -87,7 +89,7 @@ function signInMessage(message: string): string {
 /** Sign-up shares the same flat refusal, so a taken address is not an oracle. */
 function signUpMessage(message: string): string {
   if (/already been registered|already exists|user already/i.test(message)) {
-    return 'An account with this email already exists. Try signing in instead.';
+    return 'We could not complete registration with these details. If you already have an account, try signing in or resetting your password.';
   }
   return signInMessage(message);
 }
@@ -216,7 +218,7 @@ async function confirmSession(payload: unknown, requested: unknown, transport: C
       // the sign-in path answers it: the account row says whether this owner has
       // anything left to set up, and an owner who has finished goes to the
       // console rather than back through their own bank details.
-      next: safeNext(requested, signInFallback(await storedSetupComplete(user.id))),
+      next: hostedSignInDestination(requested, await storedSetupComplete(user.id), role),
       scoped: Boolean(tenantId),
       identity: renderable({
         provider: 'supabase',
@@ -229,6 +231,7 @@ async function confirmSession(payload: unknown, requested: unknown, transport: C
       }),
     });
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+
     return response;
   } catch {
     return json({ ok: false, code: 'unreachable', error: 'Could not reach the authentication service. Please try again.' }, 503);
@@ -295,6 +298,11 @@ export async function POST(request: Request) {
   const { email, password, remember } = credentials;
   const client = await getGuardedServerClient();
 
+  // Production must never silently fall back to a simulated local login.
+  if (!client && process.env.NODE_ENV === 'production') {
+    return json({ ok: false, code: 'auth-unavailable', error: 'Account sign-in is unavailable because hosted authentication is not configured. Contact the platform administrator.' }, 503);
+  }
+
   // ---- Local-first: no provider, so the session is the device's own. ----
   if (!client) {
     // A password is checked for *shape* here and nothing more, because there is
@@ -324,6 +332,7 @@ export async function POST(request: Request) {
       }),
     });
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+    response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transport), maxAge: 0 });
     return response;
   }
 
@@ -369,7 +378,7 @@ export async function POST(request: Request) {
     // finished setup is sent to the setup screen. The answer comes from the
     // stored fields themselves, so a row that claims to be complete while
     // missing the UPI id every collection QR needs still gets setup.
-    const fallback = signInFallback(await storedSetupComplete(user.id));
+    const destination = hostedSignInDestination(requested, await storedSetupComplete(user.id), membership?.role);
     const issued = await sealOwnerSession({
       userId: user.id,
       tenantId: membership?.tenantId ?? '',
@@ -383,7 +392,7 @@ export async function POST(request: Request) {
       action,
       mode: 'supabase',
       provider: 'supabase',
-      next: safeNext(requested, fallback),
+      next: destination,
       scoped: Boolean(membership?.tenantId),
       identity: renderable({
         provider: 'supabase',
@@ -396,6 +405,18 @@ export async function POST(request: Request) {
       }),
     });
     response.cookies.set(AUTH_COOKIE, issued.value, ownerSessionCookie(transport, issued.maxAge));
+    response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transport), maxAge: 0 });
+    if (membership) {
+      try {
+        const plan = await client.rpc('read_business_plan');
+        if (!plan.error && plan.data) {
+          const record = { ...plan.data, businessId: membership.tenantId } as PlanRecord;
+          response.cookies.set(PLAN_COOKIE, await sealPlanRecord(record), planCookieOptions(transport));
+        }
+      } catch {
+        // Login remains usable; /api/subscription restores the cache on retry.
+      }
+    }
     return response;
   } catch {
     // No connection, a revoked project, an expired JWT signing key — the owner
@@ -408,6 +429,7 @@ export async function POST(request: Request) {
 export async function DELETE(request: Request) {
   const response = json({ ok: true, signedIn: false, identity: null });
   response.cookies.set(AUTH_COOKIE, '', clearedOwnerSession(transportForRequest(request)));
+  response.cookies.set(PLAN_COOKIE, '', { ...planCookieOptions(transportForRequest(request)), maxAge: 0 });
 
   // The app cookie is cleared unconditionally, before anything else: an owner
   // pressing Sign out must never stay signed in because a network call failed.
@@ -425,3 +447,4 @@ export async function DELETE(request: Request) {
   }
   return response;
 }
+

@@ -56,6 +56,7 @@ export type StoredProfile = {
   ownerName?: string;
   ownerPhone?: string;
   ownerEmail?: string;
+  gstin?: string;
   upiId?: string;
   bank?: ProfileBank;
   /** ISO timestamp of the last local edit — the merge's only tiebreaker. */
@@ -67,6 +68,7 @@ export type ProfileSnapshot = {
   ownerName: string;
   ownerPhone: string;
   ownerEmail: string;
+  gstin?: string;
   businessName: string;
   description: string;
   templateId: string;
@@ -85,6 +87,13 @@ const MAX_LINE = 120;
 const MAX_DESCRIPTION = 600;
 /** An address is capped at 254 by RFC 5321. */
 const MAX_EMAIL = 254;
+
+/** Shape validation only: registry status and checksum are not verified here. */
+export function isValidGstin(value: unknown): boolean {
+  const candidate = String(value ?? '').trim().toUpperCase();
+  return /^\d{2}[A-Z]{5}\d{4}[A-Z][A-Z\d]Z[A-Z\d]$/.test(candidate);
+}
+
 
 /** Strip control characters, collapse whitespace, cap the length. */
 function line(value: unknown, maxLength = MAX_LINE): string {
@@ -149,6 +158,7 @@ export function emptySnapshot(): ProfileSnapshot {
     ownerName: '',
     ownerPhone: '',
     ownerEmail: '',
+    gstin: '',
     businessName: '',
     description: '',
     templateId: '',
@@ -170,6 +180,7 @@ export function snapshotFromProfile(profile: StoredProfile | null | undefined): 
     ownerName: line(profile.ownerName),
     ownerPhone: line(profile.ownerPhone, 32),
     ownerEmail: line(profile.ownerEmail, MAX_EMAIL).toLowerCase(),
+    gstin: isValidGstin(profile.gstin) ? String(profile.gstin).trim().toUpperCase() : '',
     businessName: line(profile.name),
     description: paragraph(profile.description),
     templateId: line(profile.templateId, 60),
@@ -192,14 +203,13 @@ export function snapshotFromProfile(profile: StoredProfile | null | undefined): 
  * that has not actually collected a UPI id. The four things that make a console
  * usable are the ones checked: who owns it, how to reach them, what it is called,
  * and which trade shapes the screens. The UPI id is required too, because
- * without it there is no collection QR and the shop cannot be paid.
+ * payment collection remains inactive until a valid UPI ID is added.
  */
 export function isSetupComplete(snapshot: ProfileSnapshot): boolean {
   if (!snapshot.ownerName) return false;
   if (phoneDigits(snapshot.ownerPhone).length < 10) return false;
   if (!snapshot.businessName) return false;
   if (!snapshot.templateId) return false;
-  if (!isValidUpiId(snapshot.upiId)) return false;
   return true;
 }
 
@@ -214,6 +224,7 @@ export function profileFromSnapshot(snapshot: ProfileSnapshot): StoredProfile {
     ownerName: snapshot.ownerName,
     ownerPhone: snapshot.ownerPhone,
     ownerEmail: snapshot.ownerEmail || undefined,
+    gstin: snapshot.gstin || undefined,
     upiId: snapshot.upiId || undefined,
     bank: { ...snapshot.bank },
     updatedAt: snapshot.updatedAt || undefined,
@@ -244,6 +255,7 @@ export function rowFromSnapshot(snapshot: ProfileSnapshot): Record<string, unkno
     owner_name: snapshot.ownerName,
     owner_phone: snapshot.ownerPhone,
     owner_email: snapshot.ownerEmail,
+    gstin: snapshot.gstin || '',
     business_name: snapshot.businessName,
     description: snapshot.description,
     template_id: snapshot.templateId,
@@ -261,17 +273,21 @@ export function rowFromSnapshot(snapshot: ProfileSnapshot): Record<string, unkno
 export function snapshotFromRow(row: unknown): ProfileSnapshot | null {
   if (!row || typeof row !== 'object') return null;
   const source = row as Record<string, unknown>;
-  const updatedAt = isTimestamp(source.updated_at) ? source.updated_at : '';
+  // PostgREST rows use snake_case; GET /api/profile sends ProfileSnapshot
+  // camelCase JSON. Decode either so returning owners keep their details.
+  const updated = source.updated_at ?? source.updatedAt;
+  const updatedAt = isTimestamp(updated) ? updated : '';
   const snapshot: ProfileSnapshot = {
-    ownerName: line(source.owner_name),
-    ownerPhone: line(source.owner_phone, 32),
-    ownerEmail: line(source.owner_email, MAX_EMAIL).toLowerCase(),
-    businessName: line(source.business_name),
+    ownerName: line(source.owner_name ?? source.ownerName),
+    ownerPhone: line(source.owner_phone ?? source.ownerPhone, 32),
+    ownerEmail: line(source.owner_email ?? source.ownerEmail, MAX_EMAIL).toLowerCase(),
+    gstin: isValidGstin(source.gstin) ? String(source.gstin).trim().toUpperCase() : '',
+    businessName: line(source.business_name ?? source.businessName),
     description: paragraph(source.description),
-    templateId: line(source.template_id, 60),
+    templateId: line(source.template_id ?? source.templateId, 60),
     currency: line(source.currency, 8) || 'INR',
     timezone: line(source.timezone, 40) || 'Asia/Kolkata',
-    upiId: normalizeUpiId(String(source.upi_id ?? '')),
+    upiId: normalizeUpiId(String(source.upi_id ?? source.upiId ?? '')),
     bank: bankFrom(source.bank ?? {}),
     updatedAt,
     setupComplete: false,
@@ -304,6 +320,7 @@ export function parseProfilePayload(
     ownerName: line(body.ownerName),
     ownerPhone: line(body.ownerPhone, 32),
     ownerEmail: line(body.ownerEmail, MAX_EMAIL).toLowerCase(),
+    gstin: String(body.gstin ?? '').trim().toUpperCase(),
     businessName: line(body.businessName),
     description: paragraph(body.description),
     templateId: line(body.templateId, 60),
@@ -317,6 +334,7 @@ export function parseProfilePayload(
     setupComplete: false,
   };
 
+  if (snapshot.gstin && !isValidGstin(snapshot.gstin)) return { ok: false, error: 'Enter a valid 15-character GSTIN or leave it blank.' };
   if (!snapshot.ownerName) return { ok: false, error: 'Your name is required.' };
   if (phoneDigits(snapshot.ownerPhone).length < 10) return { ok: false, error: 'Enter a valid 10-digit phone number.' };
   if (!snapshot.businessName) return { ok: false, error: 'Business name is required.' };

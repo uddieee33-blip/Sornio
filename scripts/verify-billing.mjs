@@ -21,7 +21,7 @@
  */
 
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { createRequire } from 'node:module';
@@ -230,6 +230,21 @@ check('a running trial has everything, and reports its days left', () => {
   assert(routes.checkPlanAccess(entitlement, '/memberships').allowed, 'a trial opens the paid automations');
 });
 
+check('full-trial portal access follows the signed subscription, with an independent plan gate', () => {
+  const proxy = readFileSync(join(root, 'proxy.ts'), 'utf8');
+  const portal = readFileSync(join(root, 'lib/portals/portal-provider.tsx'), 'utf8');
+  const shell = readFileSync(join(root, 'components/layout/console-shell.tsx'), 'utf8');
+  const gate = readFileSync(join(root, 'components/layout/portal-gate.tsx'), 'utf8');
+  const planNotice = readFileSync(join(root, 'components/billing/subscription-view.tsx'), 'utf8');
+  assert(/record\.businessId !== account\?\.tenantId/.test(proxy), 'the signed plan must stay bound to the authenticated tenant');
+  assert(/masterRevealActive\(master\) \|\| planEntitlement\.state === 'trialing'/.test(proxy), 'a running trial must reveal modules on the server');
+  assert(/checkPlanAccess\(planEntitlement, pathname\)/.test(proxy), 'independent plan enforcement must remain on the server');
+  assert(/entitlement\.state === 'trialing'/.test(portal), 'a running trial must reveal modules in the client navigation');
+  assert(shell.indexOf('<PlanProvider>') < shell.indexOf('<PortalProvider'), 'the portal must receive the verified plan from its provider');
+  assert(/!revealAll && Boolean\(needsChoice/.test(gate), 'a trial must not be blocked by the old business type gate');
+  assert(/!entitlementHasModule\(entitlement, requestedLockedModule\)/.test(planNotice), 'a stale locked link must not show a paywall for an unlocked module');
+});
+
 check('a trial that has run out drops to the free plan and says why', () => {
   const record = { planId: 'trial', since: NOW_SECONDS - 5 * DAY, renewsAt: 0, trialEndsAt: NOW_SECONDS - 1, activatedBy: 'self', trialUsedAt: NOW_SECONDS - 5 * DAY };
   const entitlement = lifecycle.resolveEntitlement(record, NOW);
@@ -433,6 +448,12 @@ check('a renewal stacks, an upgrade starts today, and the price lock is real', (
 
   assert(upgraded.priceLockedUntil >= activation.addMonths(NOW_SECONDS, 12), 'the price is locked for at least a year');
   assertEqual(activation.addMonths(Date.UTC(2026, 0, 31) / 1000, 1), Date.UTC(2026, 1, 28) / 1000, 'month arithmetic clamps short months');
+});
+
+await checkAsync('a hosted plan cookie retains its business scope', async () => {
+  const record = { planId: 'starter', since: 1, renewsAt: 0, trialEndsAt: 0, activatedBy: 'self', businessId: 'business-one' };
+  const token = await cookie.sealPlanRecord(record, 'test-secret-that-is-long-enough-to-sign');
+  assertEqual((await cookie.openPlanRecord(token, 'test-secret-that-is-long-enough-to-sign')).businessId, 'business-one', 'business scope survives signing');
 });
 
 check('the plan cookie is httpOnly and can never be rewritten by a script', () => {

@@ -133,7 +133,7 @@ export function ruleForPath(
   }
   // Plans are money: their own bucket, tighter than the portal's, so guessing
   // activation codes or hammering the endpoint costs far more than it is worth.
-  if (pathname.startsWith('/api/subscription')) {
+  if (pathname.startsWith('/api/subscription') || pathname.startsWith('/api/platform/keys')) {
     return { scope: 'plan', rule: table.plan };
   }
   // Everything On is a switch an owner flips twice a year and a script would

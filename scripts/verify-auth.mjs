@@ -403,6 +403,26 @@ check('a requested destination outranks both records', () => {
   assertEqual(gate.signInNextParam(doors), '/audit?locked=1', 'and the endpoint is told the same thing');
 });
 
+check('hosted owner setup outranks bookmarks and stale device destinations', () => {
+  for (const target of [undefined, '/home', '/audit?locked=1', '/subscription?plan=growth&interval=year']) {
+    assertEqual(gate.hostedSignInDestination(target, false), '/onboarding', 'unfinished owners must complete setup');
+  }
+  assertEqual(gate.hostedSignInDestination('/audit?locked=1', true), '/audit?locked=1', 'finished owners retain their destination');
+  assertEqual(gate.hostedSignInDestination(undefined, true), '/home', 'finished owners default to home');
+  assertEqual(gate.hostedSignInDestination('https://evil.example', true), '/home', 'unsafe destinations remain refused');
+  for (const role of ['manager', 'cashier', 'auditor']) {
+    assertEqual(gate.hostedSignInDestination('/home', false, role), '/home', 'invited staff do not create an owner profile');
+  }
+});
+
+check('hosted sign-in ignores device completion and console bookmarks enforce setup', () => {
+  const form = read('components', 'auth', 'auth-form.tsx');
+  assert(/!supabaseReady && hydrated && snapshotFromProfile/.test(form), 'a prior device profile cannot mark a hosted account finished');
+  const layout = read('app', '(console)', 'layout.tsx');
+  assert(/identity\.role === 'owner' && !\(await storedSetupComplete\(identity\.userId\)\)/.test(layout), 'owner bookmarks check the account profile');
+  assert(/redirect\('\/onboarding'\)/.test(layout), 'incomplete owners return to setup');
+});
+
 check('either record saying "finished" sends the door to the console', () => {
   const none = { requested: null, accountSetupComplete: false, deviceSetupComplete: false };
   assertEqual(gate.welcomeDestination({ ...none, accountSetupComplete: true }), gate.CONSOLE_HOME, 'the account row is the only answer a second phone has');
@@ -435,6 +455,37 @@ check('a door into the console is earned, a door into setup is not', () => {
   assertEqual(gate.doorNeedsConfirmation(gate.DEFAULT_NEXT), false, 'setup holds nothing worth guarding yet');
 });
 
+check('hosted sign-in does not trust an earlier account\'s device profile', () => {
+  const form = read('components', 'auth', 'auth-form.tsx');
+  assert(
+    /deviceSetupComplete:\s*!supabaseReady\s*&&\s*deviceSetupComplete/.test(form),
+    'only the local-first build may use a device vault to skip onboarding; a hosted account is decided after authentication',
+  );
+});
+
+
+check('hosted and local sign-in route correctly with a previously completed device profile', () => {
+  // Evaluate the actual input expression used by AuthForm, then the real route
+  // helpers. This catches account switching regressions without copying the
+  // filtering condition into the test.
+  const form = read('components', 'auth', 'auth-form.tsx');
+  const expression = form.match(/const doors = (\{[^;]+\});/);
+  assert(expression, 'AuthForm destination input must be present');
+  const buildDoors = new Function('supabaseReady', 'requested', 'accountSetupComplete', 'deviceSetupComplete', 'return (' + expression[1] + ');');
+  const incomplete = buildDoors(true, null, false, true);
+  assertEqual(gate.welcomeDestination(incomplete), gate.DEFAULT_NEXT, 'cached data must not skip incomplete hosted setup');
+  assertEqual(gate.signInNextParam(incomplete), undefined, 'the server must decide after authenticating the new account');
+  const complete = buildDoors(true, null, true, true);
+  assertEqual(gate.welcomeDestination(complete), gate.CONSOLE_HOME, 'completed hosted accounts retain console access');
+  assertEqual(gate.signInNextParam(complete), undefined, 'even completed accounts are rechecked after credentials');
+  const local = buildDoors(false, null, false, true);
+  assertEqual(gate.welcomeDestination(local), gate.CONSOLE_HOME, 'local builds retain device completion');
+  assertEqual(gate.signInNextParam(local), gate.CONSOLE_HOME, 'local completion is passed to the local endpoint');
+  const review = buildDoors(true, '/onboarding', true, true);
+  assertEqual(gate.welcomeDestination(review), '/onboarding', 'explicit setup review remains available');
+  assertEqual(gate.signInNextParam(review), '/onboarding', 'explicit setup reaches the endpoint');
+});
+
 check('the sign-in screen asks before it opens the console', () => {
   const form = read('components', 'auth', 'auth-form.tsx');
   assert(/doorNeedsConfirmation\(/.test(form), 'the gate comes from the shared rule, not from a literal in the markup');
@@ -461,7 +512,7 @@ check('no landing walks a finished owner back through setup', () => {
   assert(!/safeNext\(params\.next, '\/onboarding'\)/.test(page), "the door's default is decided from the account, not hardcoded");
   assert(/storedSetupComplete\(\)/.test(page), 'the page asks the stored profile before the first paint');
   const callback = read('app', 'api', 'auth', 'callback', 'route.ts');
-  assert(/signInFallback\(await storedSetupComplete\(/.test(callback), 'a recovery or confirmation link lands where the account says the owner belongs');
+  assert(/hostedSignInDestination\(requested, await storedSetupComplete\(/.test(callback), 'a recovery or confirmation link lands where the account says the owner belongs');
   assert(!/get\('next'\), '\/onboarding'\)/.test(callback), 'and the hardcoded setup default is gone from the callback too');
   const setup = read('app', 'onboarding', 'page.tsx');
   assert(/snapshotFromProfile\(profile\)\.setupComplete/.test(setup), 'one definition of "finished", the same one the endpoint derives');
@@ -529,7 +580,7 @@ check('the recovery endpoint cannot tell anybody whether an account exists', () 
 check('the callback redeems the code and never trusts `next` blindly', () => {
   const source = read('app', 'api', 'auth', 'callback', 'route.ts');
   assert(/exchangeCodeForSession\(/.test(source), 'the single-use code is spent on the server');
-  assert(/safeNext\(/.test(source), 'the destination goes through the same validator the gate uses');
+  assert(/hostedSignInDestination\(/.test(source), 'the destination goes through the setup and safe redirect policy');
   assert(!/console\./.test(source), 'nothing is logged from a URL query');
 });
 
@@ -570,3 +621,4 @@ rmSync(outDir, { recursive: true, force: true });
 
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);
+

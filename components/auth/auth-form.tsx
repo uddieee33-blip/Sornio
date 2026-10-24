@@ -143,11 +143,14 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
    * the two answers cannot mean different things.
    */
   const deviceSetupComplete = useMemo(
-    () => hydrated && snapshotFromProfile(state.profile).setupComplete,
-    [hydrated, state.profile],
+    () => !supabaseReady && hydrated && snapshotFromProfile(state.profile).setupComplete,
+    [supabaseReady, hydrated, state.profile],
   );
 
-  const doors = { requested, accountSetupComplete, deviceSetupComplete };
+  // A device vault can belong to a different account that signed in earlier.
+  // On hosted deployments the authenticated account's stored profile decides
+  // whether setup is finished; only local-first mode may trust device state.
+  const doors = { requested, accountSetupComplete, deviceSetupComplete: !supabaseReady && deviceSetupComplete };
   const destination = welcomeDestination(doors);
   /** `undefined` means "you decide" — the endpoint knows the account, this browser only knows the device. */
   const nextParam = signInNextParam(doors);
@@ -881,3 +884,4 @@ export default function AuthForm({ supabaseReady, requested, accountSetupComplet
     </form>
   );
 }
+

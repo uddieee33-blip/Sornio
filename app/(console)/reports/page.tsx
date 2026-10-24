@@ -13,6 +13,7 @@ import { formatCurrency, summarizeFinancials } from '@/lib/business-data';
 import { expenseSeries, expensesByCategory, paymentsByMethod, revenueByCategoryHint, revenueSeries } from '@/lib/chart-data';
 import { useDukaanStore } from '@/lib/store';
 import { ExportButton } from '@/components/export/export-button';
+import { CaSummary } from '@/components/export/ca-summary';
 
 export default function ReportsPage() {
   useLocaleRefresh();
@@ -39,6 +40,8 @@ export default function ReportsPage() {
         subtitle="Financials computed live from the ledger — change a transaction and every number below moves."
         actions={<ExportButton />}
       />
+
+      <CaSummary />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4 animate-fade-up">
         <StatCard index={0} label="Revenue" value={formatCurrency(financials.revenue)} numeric={financials.revenue} format={formatCurrency} sensitive icon={TrendingUp} tone="brand" />

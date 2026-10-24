@@ -91,14 +91,14 @@ const features = [
 
 const steps = [
   { icon: UserRound, title: 'Sign in & tell us about you', desc: 'Your name, phone, and business details — set up in under three minutes.' },
-  { icon: QrCode, title: 'Add your bank & UPI', desc: 'Your collection QR is generated instantly from your own UPI ID and bank account.' },
+  { icon: QrCode, title: 'Add UPI whenever ready', desc: 'Start billing without linking a bank. Add a UPI ID later to generate your own collection QR.' },
   { icon: Banknote, title: 'Get paid directly', desc: 'Customers scan your QR in any UPI app. Money lands straight in your bank — we never touch it.' },
 ];
 
 const heroSteps = [
   { icon: UserRound, title: 'Sign in', desc: 'Your details, your business name, your phone.' },
   { icon: Building2, title: 'Add your business', desc: 'Pick your type — gym, café, salon, shop, anything.' },
-  { icon: QrCode, title: 'Get your QR', desc: 'From your own bank. Collect payments from day one.' },
+  { icon: QrCode, title: 'Payments when ready', desc: 'Start using your shop console first. Add your own UPI ID later.' },
 ];
 
 /**
@@ -346,7 +346,13 @@ export default function LandingPage() {
       </header>
 
       {/* HERO */}
-      <section className="relative mx-auto max-w-7xl px-6 pb-20 pt-32 text-center md:pt-40">
+      <section className="landing-hero relative isolate mx-auto max-w-7xl px-6 pb-20 pt-32 text-center md:pt-40">
+        {/* Decorative CSS-only scroll depth with reduced-motion fallback. */}
+        <div aria-hidden="true" className="landing-hero-scene">
+          <span className="landing-hero-orb landing-hero-orb-a" />
+          <span className="landing-hero-orb landing-hero-orb-b" />
+          <span className="landing-hero-grid" />
+        </div>
         <div className="mx-auto mb-6 inline-flex max-w-2xl items-center gap-2 rounded-full border border-brand-500/25 bg-brand-500/10 px-4 py-1.5 text-xs font-semibold text-brand-600 animate-fade-up">
           <Sparkles size={14} /> {t('hero.badge')}
         </div>
@@ -374,9 +380,9 @@ export default function LandingPage() {
         </div>
 
         {/* how it works — the direct path */}
-        <div className="mx-auto mt-12 grid max-w-4xl gap-3 sm:grid-cols-3 animate-fade-up">
+        <div className="landing-depth-grid mx-auto mt-12 grid max-w-4xl gap-3 sm:grid-cols-3 animate-fade-up">
           {heroSteps.map((step, index) => (
-            <div key={step.title} className="rounded-2xl border border-stone-200 bg-stone-50 p-5 text-left">
+            <div key={step.title} className="landing-depth-card rounded-2xl border border-stone-200 bg-stone-50 p-5 text-left">
               <div className="flex items-center gap-2.5">
                 <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-brand-500/10 text-brand-600 ring-1 ring-inset ring-brand-500/25"><step.icon size={15} /></span>
                 <span className="text-[11px] font-bold uppercase tracking-wide text-stone-600">Step {index + 1}</span>

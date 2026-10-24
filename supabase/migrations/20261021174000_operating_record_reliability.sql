@@ -175,8 +175,9 @@ BEGIN
  INSERT INTO audit_logs(business_id,actor_user_id,entity_type,action,details) VALUES(invite.business_id,auth.uid(),'team','team.member.joined',jsonb_build_object('role',invite.role));
  RETURN jsonb_build_object('businessId',invite.business_id,'role',invite.role,'businessName',(SELECT name FROM businesses WHERE id=invite.business_id));
 END $$;
-REVOKE ALL ON FUNCTION redeem_team_invite(TEXT) FROM PUBLIC,anon;
-GRANT EXECUTE ON FUNCTION redeem_team_invite(TEXT) TO authenticated;
+-- Kept only for compatibility with staging databases that installed the early
+-- reliability draft. Invitations now use the server-only atomic team RPC.
+REVOKE ALL ON FUNCTION redeem_team_invite(TEXT) FROM PUBLIC,anon,authenticated;
 
 -- Once a business upgrades, old snapshot APIs must not keep writing a parallel ledger.
 

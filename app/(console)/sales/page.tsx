@@ -39,7 +39,11 @@ export default function SalesPage() {
 
   const addLine = () => {
     const first = sellableProducts[0];
-    if (!first) return;
+    if (!first) {
+      setMessage({ tone: 'error', text: 'Add an item or service first. Then come back here to record a sale.' });
+      return;
+    }
+    setMessage(null);
     setLines((current) => [...current, { productId: first.id, quantity: 1, rate: first.sellingPrice }]);
   };
 
@@ -132,26 +136,38 @@ export default function SalesPage() {
             {lines.length === 0 ? (
               <div className="rounded-2xl border-2 border-dashed border-stone-200 p-8 text-center">
                 <ShoppingCart size={28} className="mx-auto text-stone-600" />
-                <p className="mt-2 text-sm text-stone-600">No lines yet — add one to start a sale.</p>
+                <p className="mt-2 text-sm text-stone-600">No items on this bill yet. Tap Add line to begin.</p>
+                {sellableProducts.length === 0 ? (
+                  <Link href="/products" className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-portal/10 px-4 text-sm font-semibold text-portal underline-offset-4 hover:underline">Add your first item or service <ArrowRight size={15} className="ml-2" /></Link>
+                ) : null}
               </div>
             ) : null}
             {lines.map((line, index) => {
               const product = state.products.find((item) => item.id === line.productId);
               return (
                 <div key={index} className="rounded-2xl border border-stone-200 bg-stone-50 p-3.5">
-                  <div className="grid gap-3 md:grid-cols-[1.5fr_0.5fr_0.8fr_auto]">
-                    <select value={line.productId} onChange={(e) => handleProductChange(index, e.target.value)} className={inputClass}>
-                      {sellableProducts.map((item) => (
-                        <option key={item.id} value={item.id}>
-                          {item.name}{item.itemType === 'product' ? ` (${item.stock} in stock)` : ''}
-                        </option>
-                      ))}
-                    </select>
-                    <input type="number" min={1} value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
-                    <input type="number" min={0} value={line.rate} onChange={(e) => updateLine(index, { rate: Number(e.target.value || 0) })} className={inputClass} />
+                  <div className="grid gap-3 md:grid-cols-[1.5fr_0.5fr_0.8fr_auto] md:items-end">
+                    <label className="block text-xs font-semibold text-stone-700">
+                      <span className="mb-1.5 block">Item</span>
+                      <select aria-label={`Item ${index + 1}`} value={line.productId} onChange={(e) => handleProductChange(index, e.target.value)} className={inputClass}>
+                        {sellableProducts.map((item) => (
+                          <option key={item.id} value={item.id}>
+                            {item.name}{item.itemType === 'product' ? ` (${item.stock} in stock)` : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="block text-xs font-semibold text-stone-700">
+                      <span className="mb-1.5 block">Quantity</span>
+                      <input aria-label={`Quantity for item ${index + 1}`} type="number" min={1} step="any" value={line.quantity} onChange={(e) => updateLine(index, { quantity: Number(e.target.value || 0) })} className={inputClass} />
+                    </label>
+                    <label className="block text-xs font-semibold text-stone-700">
+                      <span className="mb-1.5 block">Selling price</span>
+                      <input aria-label={`Selling price for item ${index + 1}`} type="number" min={0} step="0.01" value={line.rate} onChange={(e) => updateLine(index, { rate: Number(e.target.value || 0) })} className={inputClass} />
+                    </label>
                     <div className="flex items-center justify-between gap-3 md:justify-end">
                       <span className="font-display text-sm font-bold text-stone-900 tabular-nums">{formatCurrency(line.quantity * line.rate)}</span>
-                      <button onClick={() => removeLine(index)} className="rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
+                      <button type="button" aria-label={`Remove item ${index + 1}`} onClick={() => removeLine(index)} className="rounded-lg p-2 text-stone-600 transition hover:bg-red-500/10 hover:text-red-700"><Trash2 size={16} /></button>
                     </div>
                   </div>
                   {product && product.itemType === 'product' && line.quantity > product.stock ? (
@@ -164,16 +180,19 @@ export default function SalesPage() {
 
           <div className="mt-5 space-y-4 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200">
             <div>
-              <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600">Customer (optional)</span>
-              <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in customer" className={`${inputClass} w-full`} />
+              <label htmlFor="sale-customer" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-stone-600">Customer (optional)</label>
+              <input id="sale-customer" value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Walk-in customer" className={`${inputClass} w-full`} />
             </div>
             <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-              <div className="flex flex-wrap gap-2">
-                {METHODS.map((option) => (
-                  <button key={option} onClick={() => { setMethod(option); setLimitHit(false); }} className={`rounded-full px-3.5 py-2 text-xs font-semibold transition ${method === option ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-900'}`}>
-                    {option}
-                  </button>
-                ))}
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-stone-600">Payment method</p>
+                <div role="group" aria-label="Payment method" className="flex flex-wrap gap-2">
+                  {METHODS.map((option) => (
+                    <button key={option} type="button" aria-pressed={method === option} onClick={() => { setMethod(option); setLimitHit(false); }} className={`min-h-11 rounded-full px-3.5 py-2 text-xs font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-500 ${method === option ? 'bg-brand-gradient text-white shadow-glow-sm' : 'bg-stone-50 text-stone-600 ring-1 ring-inset ring-stone-200 hover:text-stone-900'}`}>
+                      {option}
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="text-right">
                 <p className="text-xs font-medium text-stone-600">Sale total</p>
@@ -183,7 +202,7 @@ export default function SalesPage() {
           </div>
 
           {message ? (
-            <div className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>
+            <div role={message.tone === 'error' ? 'alert' : 'status'} className={`mt-4 rounded-xl px-3 py-2.5 text-sm ${message.tone === 'ok' ? 'bg-emerald-500/10 text-emerald-700 ring-1 ring-inset ring-emerald-500/20' : 'bg-red-500/10 text-red-700 ring-1 ring-inset ring-red-500/20'}`}>
               <p>{message.text}</p>
               {message.tone === 'error' && limitHit && method !== 'Cash' ? (
                 <div className="mt-2.5 flex flex-wrap gap-2">
@@ -208,7 +227,7 @@ export default function SalesPage() {
           ) : null}
 
           <div className="mt-5 flex justify-end">
-            <Button onClick={() => handleRecord()}><Zap size={16} /> Record sale</Button>
+            <Button onClick={() => handleRecord()} disabled={lines.length === 0 || !Number.isFinite(total) || total <= 0}><Zap size={16} /> Record sale</Button>
           </div>
         </Card>
         </div>

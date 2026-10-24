@@ -29,6 +29,7 @@
 
 import fs from 'node:fs';
 import path from 'node:path';
+import ts from 'typescript';
 
 const ROOT = process.cwd();
 const read = (...parts) => fs.readFileSync(path.join(ROOT, ...parts), 'utf8');
@@ -114,6 +115,35 @@ check(
   'buildPostureReport is called without `browserFacts`. The Trust Centre would score every browser check as unknown forever — honest, but useless.',
 );
 
+/* Pending evidence is unknown, and configuration is not verification. */
+const compiledPosture = ts.transpileModule(posture, {
+  compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ES2022 },
+}).outputText;
+const { buildPostureReport } = await import(`data:text/javascript;base64,${Buffer.from(compiledPosture).toString('base64')}`);
+const input = {
+  vaultEncrypted: true, lockEnabled: true, autoLockMinutes: 5, chainIntact: true,
+  unchainedEntries: 0, syncConfigured: true, syncVerified: true,
+  privacyScreen: true, revealAll: false, passkeyEnrolled: true,
+};
+const facts = { secure: true, isolated: true, webauthn: true, localhost: false, authorityCookiesHidden: true };
+const pendingReport = buildPostureReport({ ...input, vaultEncrypted: null, chainIntact: null }, facts);
+for (const id of ['vault', 'audit-chain']) {
+  const pendingCheck = pendingReport.checks.find((item) => item.id === id);
+  check(`${id} stays unknown until evidence arrives`, pendingCheck.state === 'unknown' && !pendingCheck.action,
+    'An unfinished check must neither pass nor accuse the owner of a failure.');
+}
+check('unknown device checks are excluded from the score', pendingReport.score === 100 && pendingReport.unknowns === 2,
+  'Pending evidence must not be awarded pass credit or failure weight.');
+const fallback = buildPostureReport({ ...input, vaultEncrypted: false, chainIntact: false, syncVerified: false }, facts);
+check('plaintext persistence is never advertised as encrypted', fallback.checks.find((item) => item.id === 'vault').state === 'warn',
+  'WebCrypto support alone cannot verify that the latest records were encrypted.');
+check('a broken audit chain still fails after verification', fallback.checks.find((item) => item.id === 'audit-chain').state === 'fail',
+  'Pending and failed verification must remain distinguishable.');
+check('cloud configuration alone cannot earn a backup pass', fallback.checks.find((item) => item.id === 'backup').state === 'unknown',
+  'A URL does not prove that any records reached the server.');
+check('a completed sync verifies an off-device copy', buildPostureReport(input, facts).checks.find((item) => item.id === 'backup').state === 'pass',
+  'Successful sync should replace the unverified state.');
+
 /* --------------------------------- 2. untranslated text keeps its bytes */
 
 check(
@@ -158,3 +188,4 @@ if (failures.length > 0) {
 }
 
 console.log(`\n${passed.length} invariants hold.\n`);
+

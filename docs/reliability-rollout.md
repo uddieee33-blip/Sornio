@@ -18,14 +18,16 @@ Apply `supabase/migrations/20261021174000_operating_record_reliability.sql` to t
 
 Do **not** run the complete `schema.sql` over an arbitrary existing project to repair a mismatch. Confirm the project reference, inspect its schema and migration history, make a recoverable backup, and apply the incremental migration through the normal deployment process. The connected project inspected during this work had only `products`, `invoices`, `invoice_items`, and `shop_settings`, rather than the schema expected by this repository. No live database changes were made.
 
+The reconciliation preserves the current owner/business/bank/GST onboarding, billing composer, trial access, owner plans, and server-only `redeem_team_invite_atomic` team endpoint. The obsolete draft `redeem_team_invite` RPC is revoked from browser roles; reapply the updated reliability migration on staging if that early draft was installed there. Fresh `schema.sql` now contains each recovery increment once and includes the later owner-plan, GST, and team migrations.
+
 The migration has been executed in PGlite with role/RLS checks, idempotency, atomic rollback, revision conflicts, over-collection refusal, reset-generation refusal and single-use invitations. PGlite does not replace a staging test with real Supabase Auth/PostgREST and simultaneous browser sessions.
 
 ## Validation
 
 - ESLint, both TypeScript compilers, and production build.
-- All original verification scripts plus `verify:reliability` (14 operating scenarios) and `verify:operating-database` (55 database assertions including the legacy baseline).
-- Local HTTP checks: sign-in page, CSRF cookie, local sign-in, signed-in session lookup, console response, anonymous sync gate, and fail-closed unconfigured cloud route.
-- Browser automation was attempted, but the available runtime had no Chromium executable and its download failed. Hardware scans, real bank settlement, and hosted browser flows remain staging acceptance checks.
+- All 23 verification suites, including `verify:reliability` (14 operating scenarios), invoice arithmetic/rapid-command regression checks (42 assertions), and `verify:operating-database` (59 database assertions including complete fresh-schema installation and invitation access controls).
+- Previous branch HTTP checks are historical; hosted acceptance must be rerun for the reconciled branch.
+- Hardware scans, real bank settlement, hosted login/onboarding and simultaneous browser flows remain staging acceptance checks.
 
 ## Rollback
 

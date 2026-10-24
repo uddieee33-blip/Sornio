@@ -17,9 +17,8 @@
  *      shape → store shape, and every field is the same at both ends. A field
  *      dropped in the middle is a field the next device asks for.
  *   2. **"Setup is finished" is derived, never trusted.** A row that says
- *      `setup_complete` while holding no UPI id must read back as not complete —
- *      otherwise a stale flag skips the screen that collects the address every
- *      collection QR is built from.
+ *      `setup_complete` while missing required owner/business fields must
+ *      read back as incomplete. UPI activation is deliberately optional.
  *   3. **The newer copy wins, and only the newer copy.** A pull must never undo
  *      what the owner is typing, a clock set to 2099 must not win every merge
  *      forever, and a device that has forgotten must lose to the account.
@@ -162,6 +161,7 @@ const COMPLETE = {
   ownerName: 'Rohit Kapoor',
   ownerPhone: '+91 98123 45678',
   ownerEmail: 'Rohit@CultFitness.com',
+  gstin: '03ABCDE1234F1Z5',
   upiId: 'cultfitness@okhdfcbank',
   bank: {
     upiId: 'cultfitness@okhdfcbank',
@@ -197,6 +197,23 @@ check('every field comes back the same after row → snapshot → row', () => {
   assertEqual(back.setupComplete, true, 'and it still counts as finished setup');
 });
 
+check('API profile JSON restores owner, business and UPI details on a second device', () => {
+  const json = JSON.parse(JSON.stringify(profile.snapshotFromRow(profile.rowFromSnapshot(WIRE))));
+  const received = profile.snapshotFromRow(json);
+  assert(received, 'server camelCase profile JSON must decode');
+  assertEqual(received.ownerName, 'Rohit Kapoor', 'owner');
+  assertEqual(received.ownerPhone, '+91 98123 45678', 'phone');
+  assertEqual(received.ownerEmail, 'rohit@cultfitness.com', 'email');
+  assertEqual(received.businessName, 'Cult Fitness', 'business');
+  assertEqual(received.templateId, 'template-gym', 'business type');
+  assertEqual(received.gstin, '03ABCDE1234F1Z5', 'GSTIN');
+  assertEqual(received.upiId, 'cultfitness@okhdfcbank', 'UPI QR destination');
+  assertEqual(received.bank.accountNumber, '50100123456789', 'account');
+  assertEqual(received.bank.ifsc, 'HDFC0001234', 'IFSC');
+  assertEqual(received.updatedAt, COMPLETE.updatedAt, 'merge timestamp');
+  assertEqual(received.setupComplete, true, 'dashboard redirect status');
+});
+
 check('the email is normalised, so a lookup cannot miss on capitalisation', () => {
   const snapshot = profile.snapshotFromProfile(COMPLETE);
   assertEqual(snapshot.ownerEmail, 'rohit@cultfitness.com', 'the address is folded to lower case');
@@ -221,22 +238,41 @@ check('an empty profile is empty in every field, not partly undefined', () => {
   assertEqual(profile.isSetupComplete(empty), false, 'the predicate agrees');
 });
 
+
+check('GSTIN survives profile snapshot, database row and restoration', () => {
+  const snapshot = profile.snapshotFromProfile(COMPLETE);
+  assertEqual(snapshot.gstin, '03ABCDE1234F1Z5', 'normalized GSTIN in snapshot');
+  const row = profile.rowFromSnapshot(snapshot);
+  assertEqual(row.gstin, '03ABCDE1234F1Z5', 'GSTIN is stored on the owner row');
+  const restored = profile.snapshotFromRow(row);
+  assertEqual(restored.gstin, '03ABCDE1234F1Z5', 'GSTIN round-trips through the database');
+  assertEqual(profile.profileFromSnapshot(restored).gstin, '03ABCDE1234F1Z5', 'GSTIN survives another device');
+});
+
+check('GSTIN is optional, but a malformed value is rejected by the server', () => {
+  assertEqual(profile.parseProfilePayload({ ...WIRE, gstin: '' }).ok, true, 'unregistered shop');
+  const invalid = profile.parseProfilePayload({ ...WIRE, gstin: '03INVALID' });
+  assertEqual(invalid.ok, false, 'invalid GSTIN cannot be persisted');
+  const tooLong = profile.parseProfilePayload({ ...WIRE, gstin: '03ABCDE1234F1Z5EXTRA' });
+  assertEqual(tooLong.ok, false, 'overlong GSTIN cannot be truncated into an accepted identity');
+});
+
 /* ------------------------------------------- 2. setup is derived, not trusted */
 
 console.log('\n2. "Setup is finished" is derived from the fields, never trusted');
 
-check('all four details and a valid UPI id are required', () => {
+check('four business details required and UPI is optional', () => {
   assertEqual(profile.isSetupComplete(profile.snapshotFromProfile(COMPLETE)), true, 'the complete profile is complete');
   for (const [field, why] of [
     ['ownerName', 'a name'],
     ['ownerPhone', 'a phone number'],
     ['name', 'a business name'],
     ['templateId', 'a trade'],
-    ['upiId', 'a UPI id'],
   ]) {
     const partial = profile.snapshotFromProfile({ ...COMPLETE, [field]: '' });
     assertEqual(partial.setupComplete, false, `missing ${why} is not finished setup`);
   }
+  assertEqual(profile.snapshotFromProfile({ ...COMPLETE, upiId: '' }).setupComplete, true, 'payment setup is optional');
 });
 
 check('a phone number too short to dial is not finished setup', () => {
@@ -244,11 +280,11 @@ check('a phone number too short to dial is not finished setup', () => {
   assertEqual(snapshot.setupComplete, false, 'five digits cannot be a phone number');
 });
 
-check('a stored setup_complete flag cannot override the fields', () => {
+check('a stored setup_complete flag cannot override required fields', () => {
   // The exact row a client that wanted to skip setup would write.
-  const row = { ...profile.rowFromSnapshot(profile.snapshotFromProfile(COMPLETE)), setup_complete: true, upi_id: null };
+  const row = { ...profile.rowFromSnapshot(profile.snapshotFromProfile(COMPLETE)), setup_complete: true, owner_name: '' };
   const back = profile.snapshotFromRow(row);
-  assertEqual(back.setupComplete, false, 'a row with no UPI id is not finished, whatever the column says');
+  assertEqual(back.setupComplete, false, 'a row without owner name is not finished, whatever the column says');
 });
 
 check('the sign-in destination follows the same derivation', () => {
@@ -323,7 +359,7 @@ check('unknown keys are dropped on the way to the row', () => {
   assertEqual(row.role, undefined, 'a role cannot ride in on a profile save');
   assertEqual(row.plan_id, undefined, 'nor a plan');
   assertEqual(row.is_admin, undefined, 'nor an admin flag');
-  assertEqual(Object.keys(row).length, 12, 'and the row carries exactly the twelve columns, no more');
+  assertEqual(Object.keys(row).length, 13, 'the row carries exactly thirteen approved columns, including GSTIN');
 });
 
 check('control characters and runaway whitespace are stripped', () => {
@@ -343,7 +379,7 @@ check('an invalid UPI id is emptied rather than stored', () => {
   const parsed = profile.parseProfilePayload({ ...WIRE, upiId: 'not a vpa at all' });
   assert(parsed.ok, 'the rest of the profile is still worth saving');
   assertEqual(parsed.snapshot.upiId, '', 'the address is dropped');
-  assertEqual(parsed.snapshot.setupComplete, false, 'which means setup is not finished');
+  assertEqual(parsed.snapshot.setupComplete, true, 'business setup remains complete without an active UPI ID');
 });
 
 check('bank details that are not bank details are dropped field by field', () => {
@@ -758,7 +794,7 @@ await checkAsync('setup_complete is derived on the server, not copied from the c
   const response = await save({ ...PAYLOAD, upiId: 'not a vpa' });
   assertEqual(response.status, 200, 'the save still succeeds — the rest is worth keeping');
   assertEqual(tables.owner_profiles[0].upi_id, null, 'the unusable address is emptied');
-  assertEqual(tables.owner_profiles[0].setup_complete, false, 'so setup is not finished, whatever the body claimed');
+  assertEqual(tables.owner_profiles[0].setup_complete, true, 'setup remains complete without a valid payment address');
 });
 
 await checkAsync('a second save updates the one row instead of adding another', async () => {

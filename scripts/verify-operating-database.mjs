@@ -212,6 +212,10 @@ console.log('\nApplying the repair migration:');
 await db.exec(migration);
 await db.exec(readFileSync(join(root, 'supabase/migrations/20261021174000_operating_record_reliability.sql'), 'utf8'));
 await db.exec(GRANTS);
+await db.exec('CREATE ROLE service_role NOLOGIN BYPASSRLS');
+await db.exec('GRANT USAGE ON SCHEMA public TO service_role; GRANT SELECT,INSERT,UPDATE,DELETE ON business_members TO service_role');
+await db.exec(readFileSync(join(root, 'supabase/migrations/20261023030000_team_atomic_invitations.sql'), 'utf8'));
+await db.exec('REVOKE ALL ON FUNCTION redeem_team_invite(TEXT) FROM PUBLIC,anon,authenticated');
 await db.exec('REVOKE INSERT,UPDATE,DELETE ON operating_records FROM anon,authenticated');
 check('migration applies on top of the reviewed schema', true);
 
@@ -592,16 +596,40 @@ check('reset keeps the audit history', (await count('audit_logs', `business_id =
   // Single-use invites are consumed in one database transaction.
   const inviteId = uuidFor('single-use');
   await db.query(
-    `INSERT INTO team_invites(id,business_id,code_hash,role,expires_at,created_by) VALUES ($1,$2,'single-use-hash','staff',NOW()+INTERVAL '1 day',$3)`,
+    `INSERT INTO team_invites(id,business_id,code_hash,role,expires_at,created_by) VALUES ($1,$2,'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa','staff',NOW()+INTERVAL '1 day',$3)`,
     [inviteId, BIZ, USERS.owner],
   );
   await db.query('DELETE FROM business_members WHERE user_id=$1', [USERS.attacker]);
-  const inviteFirst = await as(USERS.attacker, `SELECT redeem_team_invite('single-use-hash')`);
-  check('a live invite creates exactly one member', inviteFirst.ok, inviteFirst.error);
+  const redeem = async (user) => {
+    await db.exec('BEGIN');
+    try {
+      await db.exec('SET LOCAL ROLE service_role');
+      const result = await db.query('SELECT redeem_team_invite_atomic($1,$2) AS result', ['aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', user]);
+      await db.exec('COMMIT');
+      return result.rows[0].result;
+    } catch (error) { await db.exec('ROLLBACK'); throw error; }
+  };
+  const inviteFirst = await redeem(USERS.attacker);
+  check('a live invite creates exactly one member', inviteFirst.status === 'joined');
   await db.query('DELETE FROM business_members WHERE user_id=$1', [USERS.staff2]);
-  const inviteSecond = await as(USERS.staff2, `SELECT redeem_team_invite('single-use-hash')`);
-  check('the same invite cannot create a second member', !inviteSecond.ok);
+  const inviteSecond = await redeem(USERS.staff2);
+  check('the same invite cannot create a second member', inviteSecond.status === 'invalid');
 }
 await db.close();
+// Load the entire shipped setup, not only a sliced historical baseline.
+const fresh = new PGlite();
+await fresh.exec(SHIM + '\nCREATE ROLE service_role NOLOGIN BYPASSRLS;');
+await fresh.exec(schema.replace(/CREATE EXTENSION[^;]*;/g, '-- extension skipped (PGlite)'));
+check('the complete schema installs without duplicated or malformed SQL', true);
+const permissions = await fresh.query(`SELECT
+ has_function_privilege('authenticated','redeem_team_invite(text)','EXECUTE') AS legacy_invite,
+ has_function_privilege('authenticated','redeem_team_invite_atomic(text,uuid)','EXECUTE') AS browser_invite,
+ has_function_privilege('service_role','redeem_team_invite_atomic(text,uuid)','EXECUTE') AS server_invite,
+ has_function_privilege('anon','sync_operating_records(bigint,jsonb)','EXECUTE') AS anonymous_sync`);
+check('fresh setup preserves the server-only invitation boundary', !permissions.rows[0].legacy_invite && !permissions.rows[0].browser_invite && permissions.rows[0].server_invite);
+check('fresh setup refuses anonymous sync', !permissions.rows[0].anonymous_sync);
+const gst = await fresh.query("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='owner_profiles' AND column_name='gstin'");
+check('fresh setup includes the newer GST profile migration', gst.rows.length === 1);
+await fresh.close();
 console.log(`\n${passed} passed, ${failed} failed`);
 if (failed > 0) process.exit(1);

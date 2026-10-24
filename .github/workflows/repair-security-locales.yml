@@ -1,0 +1,76 @@
+name: Repair dependency and locale catalogues
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [fix/optional-payments-business-onboarding]
+    paths: [.github/workflows/repair-security-locales.yml]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-security-locales
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    if: github.repository == 'uddieee33-blip/DukaanOS' && github.ref == 'refs/heads/fix/optional-payments-business-onboarding'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - name: Restore locked dependencies
+        run: npm ci
+      - name: Update vulnerable Next.js release and lockfile
+        run: npm install --save-exact next@16.4.2 eslint-config-next@16.4.2
+      - name: Audit patched production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Extract current English UI phrases
+        run: npm run i18n:extract
+      - name: Regenerate available translations
+        run: npm run i18n:generate
+        env:
+          I18N_BATCH_SIZE: '30'
+          I18N_CONCURRENCY: '1'
+      - name: Check available locale completeness
+        run: |
+          node - <<'NODE'
+          const fs = require('fs');
+          const keys = Object.keys(JSON.parse(fs.readFileSync('locales/en.json', 'utf8')));
+          for (const code of ['brx','ks']) {
+            const file = 'public/locales/' + code + '.json';
+            const locale = JSON.parse(fs.readFileSync(file, 'utf8'));
+            const missing = keys.filter(k => !(k in locale));
+            if (missing.length) {
+              console.error(code + ': ' + missing.length + ' new translations still require IndicTrans2 or human review');
+              process.exitCode = 1;
+            }
+          }
+          NODE
+      - name: Commit validated dependency and translations
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json locales/en.json public/locales/
+          if ! git diff --cached --quiet; then
+            git commit -m "fix: patch Next.js and synchronize verified locale catalogues"
+            git push origin HEAD:fix/optional-payments-business-onboarding
+          fi
+      - name: Validate locale coverage
+        run: npm run verify:i18n
+      - name: Confirm type and security tests
+        run: |
+          npm run lint
+          npm run typecheck
+          npm run typecheck:native
+          npm run verify
+          npm run build
+      # Persist repair outputs for inspection even if a subsequent CI job fails.
+      # GitHub's normal CI remains the release authority and cannot be bypassed.
