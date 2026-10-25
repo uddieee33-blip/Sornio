@@ -357,7 +357,7 @@ function AppearanceControls() {
               {systemSelected ? <Check size={13} className="text-portal" /> : null}
             </span>
             <span className="mt-0.5 block text-[11px] leading-snug text-stone-600">
-              Sornio Light by day, Sornio Dark when your device switches over.{' '}
+              Sornio Dawn by day, Sornio Dusk when your device switches over.{' '}
               <span className="font-semibold text-stone-700">
                 Right now your device is asking for {prefersDark ? 'dark' : 'light'}.
               </span>

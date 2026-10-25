@@ -28,15 +28,15 @@
     },
     {
       "id": "monsoon",
-      "name": "Sornio Light",
-      "tagline": "Off-white and blue-gray. A clear workspace.",
+      "name": "Sornio Dawn",
+      "tagline": "Warm ivory. Cobalt energy for a fresh start.",
       "mode": "light",
-      "page": "#fafafb",
-      "surface": "#ffffff",
-      "accent": "#475a72",
-      "ink": "#191a1b",
-      "muted": "#515457",
-      "line": "#e3e6e9"
+      "page": "#f8f6ef",
+      "surface": "#fffefa",
+      "accent": "#3343c2",
+      "ink": "#1b1917",
+      "muted": "#56534d",
+      "line": "#e8e5df"
     },
     {
       "id": "saffron",
@@ -76,15 +76,15 @@
     },
     {
       "id": "graphite",
-      "name": "Sornio Dark",
-      "tagline": "Charcoal and silver. A quieter workspace.",
+      "name": "Sornio Dusk",
+      "tagline": "Deep blue ink. Bright ideas for the late shift.",
       "mode": "dark",
-      "page": "#0d1117",
-      "surface": "#161b22",
-      "accent": "#475a72",
-      "ink": "#ebedef",
-      "muted": "#acafb3",
-      "line": "#343638"
+      "page": "#0e152b",
+      "surface": "#162039",
+      "accent": "#3e4fcd",
+      "ink": "#e9edf4",
+      "muted": "#a8afbc",
+      "line": "#32363e"
     },
     {
       "id": "nightmarket",

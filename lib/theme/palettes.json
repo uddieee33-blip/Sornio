@@ -1,5 +1,5 @@
 {
-  "version": "2026.10.0",
+  "version": "2026.10.1",
   "default": "monsoon",
   "note": "Source of truth for every paint Sornio ships. `scripts/build-themes.mjs` turns this into app/themes.css; lib/theme/palettes.ts types it for the picker. Hues are OKLCH degrees, chroma is OKLCH chroma \u2014 perceptual, so a ramp stays even across hues instead of going muddy in the greens and neon in the blues.",
   "themes": [
@@ -53,34 +53,33 @@
     },
     {
       "id": "monsoon",
-      "name": "Sornio Light",
-      "tagline": "Off-white and blue-gray. A clear workspace.",
+      "name": "Sornio Dawn",
+      "tagline": "Warm ivory. Cobalt energy for a fresh start.",
       "mode": "light",
       "neutral": {
-        "hue": 255,
-        "chroma": 0.007
+        "hue": 85,
+        "chroma": 0.012
       },
       "brand": {
-        "hue": 255,
-        "chroma": 0.045,
-        "fill": "71 90 114"
+        "hue": 270,
+        "chroma": 0.18,
+        "fill": "51 67 194"
       },
       "accent": {
-        "hue": 255,
-        "chroma": 0.045
+        "hue": 265,
+        "chroma": 0.16
       },
       "surface": {
         "page": 0.968,
         "card": 0.995,
         "lift": 1.0,
         "rgb": {
-          "page": "250 250 251",
-          "card": "255 255 255",
+          "page": "248 246 239",
+          "card": "255 254 250",
           "lift": "255 255 255"
         }
       },
-      "contrast": 0,
-      "quiet": true
+      "contrast": 0
     },
     {
       "id": "saffron",
@@ -156,34 +155,33 @@
     },
     {
       "id": "graphite",
-      "name": "Sornio Dark",
-      "tagline": "Charcoal and silver. A quieter workspace.",
+      "name": "Sornio Dusk",
+      "tagline": "Deep blue ink. Bright ideas for the late shift.",
       "mode": "dark",
       "neutral": {
-        "hue": 255,
-        "chroma": 0.007
+        "hue": 265,
+        "chroma": 0.022
       },
       "brand": {
-        "hue": 255,
-        "chroma": 0.045,
-        "fill": "71 90 114"
+        "hue": 270,
+        "chroma": 0.18,
+        "fill": "62 79 205"
       },
       "accent": {
-        "hue": 255,
-        "chroma": 0.045
+        "hue": 265,
+        "chroma": 0.16
       },
       "surface": {
         "page": 0.17,
         "card": 0.218,
         "lift": 0.25,
         "rgb": {
-          "page": "13 17 23",
-          "card": "22 27 34",
-          "lift": "30 36 44"
+          "page": "14 21 43",
+          "card": "22 32 57",
+          "lift": "30 43 73"
         }
       },
-      "contrast": 0,
-      "quiet": true
+      "contrast": 0
     },
     {
       "id": "nightmarket",
