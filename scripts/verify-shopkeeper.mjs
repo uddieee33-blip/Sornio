@@ -107,4 +107,20 @@ check('the service worker Trusted Types policy approves only the fixed local wor
   assert.throws(() => rules.createScriptURL('https://evil.example/sw.js'), /Unexpected/);
   assert.throws(() => rules.createScriptURL('/sw.js?other=1'), /Unexpected/);
 });
+const { newestInvoices } = load('lib/invoices.ts');
+check('recent bills stay chronological after an out-of-order import or sync', () => {
+  const source = [
+    { id: 'INV-1002', createdAt: '2026-10-25T12:00:00Z' },
+    { id: 'INV-1004', createdAt: '2026-10-25T14:00:00Z' },
+    { id: 'INV-1001', createdAt: '2026-10-25T10:00:00Z' },
+    { id: 'INV-1003', createdAt: '2026-10-25T13:00:00Z' },
+    { id: 'INV-1009', createdAt: '2026-10-25T14:00:00Z' },
+    { id: 'INV-BAD', createdAt: 'not a date' },
+  ];
+  const before = JSON.stringify(source);
+  assert.deepEqual(newestInvoices(source, 3).map(invoice => invoice.id), ['INV-1009', 'INV-1004', 'INV-1003']);
+  assert.deepEqual(newestInvoices(source).map(invoice => invoice.id), ['INV-1009', 'INV-1004', 'INV-1003', 'INV-1002', 'INV-1001']);
+  assert.deepEqual(newestInvoices(source, 0), []);
+  assert.equal(JSON.stringify(source), before, 'sorting must not mutate the saved store');
+});
 console.log(`${passed} shopkeeper scenarios passed`);
