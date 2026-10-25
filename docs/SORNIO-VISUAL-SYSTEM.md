@@ -28,3 +28,9 @@ from this repository's dependency mount. Browser visual acceptance is pending;
 a production build and repository checks do not substitute for that review.
 New marketing phrases use explicit English fallbacks in regional catalogues,
 pending translation review. Existing translations are retained.
+
+The existing navigation regression harness now awaits the provider’s real
+ref-held audit promises before asserting a settled render. Twelve event-loop
+turns did not reliably await Web Crypto workers in GitHub CI. The persistence
+debounce remains unflushed, and a negative control still detects the original
+same-owner stale-snapshot reload bug. Production store behavior is unchanged.

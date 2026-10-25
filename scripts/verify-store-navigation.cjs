@@ -71,7 +71,14 @@ function render() {
 async function settle() {
   for (let i = 0; i < 12; i++) {
     if (dirty) render();
+    // Audit hashing runs on Web Crypto's worker pool. Event-loop turns alone
+    // do not guarantee that its queued promise has finished on a CI runner.
+    // Await the provider's real ref-held queues; keep the persistence debounce
+    // pending so the stale-snapshot navigation regression remains meaningful.
+    const queues = slots.map(slot => slot?.current).filter(value => value instanceof Promise);
+    await Promise.all(queues);
     await new Promise(resolve => setImmediate(resolve));
+    if (!dirty && pending.length === 0) return;
   }
   assert.equal(dirty, false, 'provider settles after effects');
 }
