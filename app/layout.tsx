@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     template: '%s',
   },
   description:
-    'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.',
+    'Bring billing, stock, customers and business records together with Sornio. Explore workspaces for eight types of Indian business.',
   applicationName: 'Sornio',
   icons: { icon: '/brand/sornio-app-icon.svg?v=ribbon-1', apple: '/brand/apple-touch-icon.png',
   },
@@ -38,7 +38,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: 'Sornio — Business management made simpler',
     description:
-      'Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses.',
+      'Billing, stock, customers and business records for everyday Indian commerce.',
     type: 'website',
   },
 };

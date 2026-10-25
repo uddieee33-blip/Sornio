@@ -4,7 +4,7 @@ Sornio is the customer-facing name of the former DukaanOS project. Keep legacy p
 
 ## Design principles
 
-- Calm, businesslike and approachable: neutral charcoal, silver/slate, restrained dimensionality only in the icon.
+- Approachable and confident: warm ivory, deep blue ink and cobalt, with mint and amber for purposeful accents. Public storytelling can use dimensional product compositions; everyday controls remain focused and legible.
 - The approved mark is the folded silver-and-blue-gray ribbon in `docs/brand/sornio-approved-reference.jpeg`. Preserve the supplied artwork; do not substitute a conventional curved letter S.
 - Use semantic colour tokens, not hardcoded dark/light colours in individual pages.
 - Prioritize clear balances, bills, readable navigation, 44px touch targets and visible keyboard focus over decorative effects.
@@ -24,7 +24,7 @@ Sornio is the customer-facing name of the former DukaanOS project. Keep legacy p
 | Global navigation | `components/layout/topbar.tsx`, `sidebar.tsx`, `mobile-nav.tsx` |
 | Installation metadata | `lib/pwa/manifest.json`, `app/layout.tsx` |
 
-The default retains the **Monsoon** ID and is named **Sornio Light**, using the approved off-white and blue-gray palette. **Graphite / Sornio Dark** supplies the matching charcoal mode. System matching and the quick light/dark toggle use this same pair. Existing ten paints and the density, typography, motion and privacy settings stay available. Owner selections survive reload; do not replace them merely to force the default.
+The default retains the **Monsoon** ID and is named **Sornio Dawn**, using warm ivory and cobalt. **Graphite / Sornio Dusk** supplies deep blue ink and cobalt. The old Sornio Light/Dark treatments are replaced in place so saved appearance choices resolve to the new colours. System matching and the quick light/dark toggle use this same pair. Existing ten paints and the density, typography, motion and privacy settings stay available. Owner selections survive reload; do not replace them merely to force the default.
 
 ## Rules for extending the app
 

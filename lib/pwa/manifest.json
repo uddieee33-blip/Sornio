@@ -1,14 +1,14 @@
 {
   "name": "Sornio — Business management made simpler",
   "short_name": "Sornio",
-  "description": "Billing, inventory, memberships, UPI QR collections, and AI insights for small Indian businesses. Local-first, encrypted on your device.",
+  "description": "Billing, stock, customers and business records for everyday Indian commerce.",
   "id": "/",
   "start_url": "/home",
   "scope": "/",
   "display": "standalone",
   "lang": "en",
-  "background_color": "#fafafb",
-  "theme_color": "#fafafb",
+  "background_color": "#f8f6ef",
+  "theme_color": "#f8f6ef",
   "categories": [
     "business",
     "finance"

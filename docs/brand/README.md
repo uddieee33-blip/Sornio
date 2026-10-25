@@ -18,7 +18,7 @@ not resolution-independent vector masters for large print. Keep the supplied
 reference and this distinction when making future changes.
 
 The wordmark lettering remains live theme-aware text and inherits the existing
-foreground tokens. The existing Monsoon and Graphite IDs now provide Sornio Light and Sornio Dark,
+foreground tokens. The existing Monsoon and Graphite IDs now provide Sornio Dawn and Sornio Dusk,
 so saved choices continue to resolve. System matching and the quick mode toggle
 use that same pair. Density, motion, text size and privacy preferences remain
 available, together with the other eight palettes.

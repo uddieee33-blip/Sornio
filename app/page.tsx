@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { ArrowDown, ArrowDownToLine, ArrowRight, BarChart3, Boxes, Check, Menu, Monitor, Receipt, Users, X } from 'lucide-react';
+import { BusinessShowcase } from '@/components/brand/business-showcase';
 import { CommerceScene } from '@/components/brand/commerce-scene';
 import { Reveal } from '@/components/motion/reveal';
 import { BrandIcon } from '@/components/ui/BrandLogo';
@@ -12,7 +13,7 @@ import { useI18n } from '@/lib/i18n';
 import { PLAN_CATALOGUE, monthlyEquivalent, type BillingInterval } from '@/lib/plans';
 
 const navigation = [
-  { label: 'The workspace', href: '#workspace' },
+  { label: 'For your business', href: '#businesses' },
   { label: 'Features', href: '#features' },
   { label: 'Plans', href: '#pricing' },
   { label: 'Windows', href: '#windows' },
@@ -71,19 +72,28 @@ export default function LandingPage() {
         </nav> : null}
       </header>
       <main id="main">
-        <section id="overview" className="sornio-container sornio-hero">
-          <Reveal className="sornio-hero-copy">
-            <p className="sornio-eyebrow"><span /> A CLEARER WAY TO DO BUSINESS</p>
-            <h1>Big ambitions.<br /><span>Everyday simplicity.</span></h1>
-          </Reveal>
-          <div className="sornio-hero-aside">
-            <p className="sornio-hero-description">Your counter, stock, customers and money. Brought together in one considered workspace, so you can get on with the business you love.</p>
-            <div className="sornio-hero-actions"><Link href="/auth?mode=signup" className="sornio-button">Start with Sornio <ArrowRight size={17} aria-hidden="true" /></Link><a href="#workspace" className="sornio-text-link">Take a look <ArrowDown size={16} aria-hidden="true" /></a></div>
-            <p className="sornio-hero-note">Start free. No card needed.</p>
+        <section id="overview" className="sornio-hero-wrap">
+          <div className="sornio-container sornio-hero">
+            <Reveal className="sornio-hero-copy">
+              <p className="sornio-eyebrow"><span /> BUILT FOR EVERYDAY COMMERCE</p>
+              <h1>Small business.<br /><span>Big possibilities.</span></h1>
+              <p className="sornio-hero-description">The shop you open every morning deserves a bigger future. Bring your billing, stock, customers and money together with Sornio.</p>
+              <div className="sornio-hero-actions"><Link href="/auth?mode=signup" className="sornio-button">Build your next chapter <ArrowRight size={18} aria-hidden="true" /></Link><a href="#workspace" className="sornio-text-link">Explore the workspace <ArrowDown size={16} aria-hidden="true" /></a></div>
+              <p className="sornio-hero-note">Start free · No card needed · Made for India</p>
+            </Reveal>
+            <div className="sornio-hero-art" aria-label="Illustrative Sornio business records with sample figures">
+              <div className="sornio-orbit sornio-orbit-one" aria-hidden="true" /><div className="sornio-orbit sornio-orbit-two" aria-hidden="true" />
+              <span className="sornio-art-caption">A LITTLE CLARITY. A LOT OF POTENTIAL.</span>
+              <div className="sornio-art-sales"><span><BarChart3 size={16} aria-hidden="true" /> Your day, connected</span><strong>₹24,850<small>Sales today · sample</small></strong><div className="sornio-art-bars" aria-hidden="true">{[30, 48, 40, 63, 54, 76, 95].map((height, index) => <i key={index} style={{ height: `${height}%` }} />)}</div><p>Every entry brings the picture into focus.</p></div>
+              <div className="sornio-art-receipt"><span><BrandIcon size={24} /> Sornio</span><p>THE EVERYDAY STORE</p><div><span>Everyday tote × 2</span><strong>₹1,200</strong></div><div><span>Ceramic mug × 1</span><strong>₹350</strong></div><div className="sornio-art-total"><span>Total</span><strong>₹1,550</strong></div><small>Illustrative bill · sample figures</small></div>
+              <div className="sornio-art-stock"><span><Boxes size={19} aria-hidden="true" /></span><div><strong>Stock. In sight.</strong><small>Your next sale starts here.</small></div><Check size={17} aria-hidden="true" /></div>
+              <span className="sornio-art-bottom">YOUR COUNTER. YOUR AMBITION. YOUR SORNIO.</span>
+            </div>
           </div>
         </section>
-        <section id="workspace" className="sornio-container sornio-workspace-section" aria-label="Explore Sornio"><CommerceScene /></section>
-        <div className="sornio-container sornio-business-strip"><span>FOR THE WAY YOU DO BUSINESS</span><p>Retail shops <i /> Cafés <i /> Salons <i /> Gyms <i /> Growing teams</p></div>
+        <div className="sornio-container sornio-business-strip"><span>SMALL BUSINESS, BIG NUMBERS.</span><p>Built around your day <i /> Ready for your next chapter</p></div>
+        <BusinessShowcase />
+        <section id="workspace" className="sornio-container sornio-workspace-section"><div className="sornio-section-heading"><div><p className="sornio-eyebrow">TAKE IT FOR A SPIN</p><h2>Less explaining.<br /><span>More exploring.</span></h2></div><p>Try a sample bill, adjust a quantity, or explore the stock list. This preview uses sample records.</p></div><CommerceScene /></section>
         <section id="features" className="sornio-container sornio-section">
           <div className="sornio-section-heading"><div><p className="sornio-eyebrow">LESS FRICTION. MORE FLOW.</p><h2>The whole day.<br /><span>In good order.</span></h2></div><p>Open your shop. Make a sale. Know where you stand. The essentials work together, with a clear place for every detail.</p></div>
           <div className="sornio-feature-grid">{features.map((feature, index) => <Reveal as="article" key={feature.title} index={index} className="sornio-feature-card"><div><span className="sornio-feature-index">0{index + 1}</span><feature.icon size={24} strokeWidth={1.5} aria-hidden="true" /></div><h3>{feature.title}</h3><p>{feature.description}</p></Reveal>)}</div>
@@ -113,7 +123,7 @@ export default function LandingPage() {
           <p className="sornio-pricing-note">Message reminders currently prepare drafts for you to send. Automatic WhatsApp and SMS delivery is not yet connected.</p>
         </section>
         <section className="sornio-container sornio-section sornio-faq"><div><p className="sornio-eyebrow">A FEW USEFUL DETAILS</p><h2>Before you begin.</h2></div><div>{questions.map(item => <details key={item.question}><summary>{item.question}<span aria-hidden="true">+</span></summary><p>{item.answer}</p></details>)}</div></section>
-        <section className="sornio-container sornio-final-cta"><p className="sornio-eyebrow">YOUR NEXT CHAPTER</p><h2>Good business.<br /><span>Starts with clarity.</span></h2><p>Make room for a more organised day.</p><Link href="/auth?mode=signup" className="sornio-button">Get started <ArrowRight size={17} aria-hidden="true" /></Link></section>
+        <section className="sornio-container sornio-final-cta"><p className="sornio-eyebrow">YOUR NEXT CHAPTER</p><h2>Your ambition.<br /><span>Now open for business.</span></h2><p>Start with the essentials. Make space for what comes next.</p><Link href="/auth?mode=signup" className="sornio-button">Get started <ArrowRight size={17} aria-hidden="true" /></Link></section>
       </main>
       <footer className="sornio-site-footer"><div className="sornio-container"><Link href="/" className="sornio-brand"><BrandIcon size={30} /><span>Sornio</span></Link><p>Everyday commerce. Thoughtfully connected.</p><nav aria-label="Footer"><Link href="/install">Installation</Link><a href="#pricing">Plans</a><Link href="/auth">Sign in</Link></nav></div></footer>
     </div>
