@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/Button';
 import { calculateInvoice, formatInvoiceAmount, type InvoiceLine } from '@/lib/invoices';
 import { useDukaanStore } from '@/lib/store';
 import type { PaymentMethod } from '@/lib/models/billing';
+import styles from './invoice-composer.module.css';
 
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer'];
 const inputClass = 'min-h-11 w-full min-w-0 rounded-xl border border-stone-200 bg-stone-50 px-3 py-2.5 text-sm text-stone-900 outline-hidden transition focus:border-brand-500 focus:ring-2 focus:ring-focus';
@@ -47,9 +48,9 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
   };
 
   return (
-    <section id="new-invoice" className="scroll-mt-24" aria-labelledby={`${id}-title`}>
-      <Card>
-        <form onSubmit={submit}>
+    <section id="new-invoice" className={`${styles.editor} scroll-mt-24`} aria-labelledby={`${id}-title`}>
+      <form onSubmit={submit} className={styles.layout}>
+        <Card className={styles.items}>
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
             <div id={`${id}-title`}><CardTitle icon={<FilePlus2 size={17} />}>Bill details</CardTitle></div>
             <Button type="button" variant="secondary" onClick={() => {
@@ -69,7 +70,7 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
 
           <div className="mt-5 space-y-3">
             {lines.map((line, index) => (
-              <fieldset key={line.key} className="min-w-0 rounded-2xl border border-stone-200 p-4">
+              <fieldset key={line.key} className={`${styles.line} min-w-0 rounded-2xl border border-stone-200 p-4`}>
                 <legend className="px-1 text-xs font-bold text-stone-600">Item {index + 1}</legend>
                 <div className="mb-3"><label htmlFor={`${id}-product-${line.key}`} className={labelClass}>Choose an item</label>
                   <select id={`${id}-product-${line.key}`} value={line.productId ?? ''} onChange={event => {
@@ -105,8 +106,10 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
               </fieldset>
             ))}
           </div>
-
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
+        </Card>
+        <Card className={styles.summary}>
+          <div className={styles.summaryHeading}><CardTitle>Total</CardTitle></div>
+          <div className={`${styles.paymentFields} grid gap-3 sm:grid-cols-2`}>
             <label className="min-w-0"><span className={labelClass}>Expected payment method</span>
               <select value={form.method} onChange={(e) => setForm({ ...form, method: e.target.value as PaymentMethod })} className={inputClass}>
                 {METHODS.map((method) => <option key={method}>{method}</option>)}
@@ -117,7 +120,7 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
             </label>
           </div>
 
-          <div className="mt-5 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200" aria-live="polite" aria-atomic="true">
+          <div className={`${styles.totals} mt-5 rounded-2xl bg-stone-50 p-4 ring-1 ring-inset ring-stone-200`} aria-live="polite" aria-atomic="true">
             {totals.ok ? (
               <dl className="space-y-2 text-sm">
                 <div className="flex justify-between gap-3 text-stone-600"><dt>Subtotal</dt><dd className="tabular-nums">{formatInvoiceAmount(totals.subtotal)}</dd></div>
@@ -129,8 +132,8 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
           {error ? <p ref={errorRef} tabIndex={-1} role="alert" className="mt-4 rounded-xl bg-red-500/10 p-3 text-sm text-red-700">{error}</p> : null}
           <p className="mt-4 text-xs leading-relaxed text-stone-600">This saves an unpaid bill. Catalogue items update stock when you save; custom items do not change stock. Confirm payment after the money arrives.</p>
           <Button type="submit" disabled={!hydrated} className="mt-4 w-full"><FilePlus2 size={16} /> Save bill</Button>
-        </form>
-      </Card>
+        </Card>
+      </form>
     </section>
   );
 }

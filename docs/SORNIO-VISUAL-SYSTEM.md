@@ -54,3 +54,17 @@ These changes affect presentation and metric grouping only. No record source,
 role/plan gate, route, posting command or authentication flow changes. Console
 and control rules remain screen-only, preserving invoice print layout. Native
 Windows acceptance and authenticated browser visual review remain pending.
+
+## Bill creation workspace
+
+The new-bill route uses the available console width. Customer and item entry stay
+in the first panel; payment method, tax, totals and Save bill share a second panel.
+At 860px of available editor width, the panels sit side by side. Below that width,
+they follow their form order in one column. The summary stays in view on tall
+desktop screens and returns to normal document flow on short windows.
+
+The bill editor uses theme tokens and the shared card/control geometry. Its CSS
+module is screen-only; receipt printing keeps its existing styles. It adds no
+motion or JavaScript layout listeners, and keeps one form, existing field labels,
+the live total announcement and focused validation errors. Saving still creates
+an unpaid bill and uses the existing stock and collection commands.

@@ -1,0 +1,32 @@
+/* Size the bill editor against its available space inside the console. */
+@media screen {
+  .editor { container-type: inline-size; }
+  .layout {
+    display: grid;
+    align-items: start;
+    gap: 20px;
+    min-width: 0;
+  }
+
+  .items, .summary { min-width: 0; }
+  .summaryHeading { margin-bottom: 20px; }
+  .line { background: rgb(var(--c-page) / .55); }
+  .line legend { max-width: 100%; overflow-wrap: anywhere; }
+  .line:focus-within { border-color: rgb(var(--c-brand-500)); }
+  .totals { overflow-wrap: anywhere; }
+  .totals dd { text-align: end; }
+  .totals dl > div:last-child { font-size: 1.25rem; line-height: 1.5; }
+
+  /* A narrow console stays stacked even on a wide monitor. */
+  @container (min-width: 860px) {
+    .layout { grid-template-columns: minmax(0, 1fr) 320px; }
+    .summary {
+      position: sticky;
+      top: 112px;
+    }
+    .paymentFields { grid-template-columns: minmax(0, 1fr); }
+  }
+  @media (max-height: 740px) {
+    .summary { position: static; }
+  }
+}

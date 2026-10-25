@@ -86,6 +86,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   return (
     <html
       lang={lang}
+      data-scroll-behavior="smooth"
       // A concrete paint is always on the element when one was chosen, which is
       // also what makes `color-scheme` correct for native form controls and the
       // scrollbar before any of our CSS loads.
