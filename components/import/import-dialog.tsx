@@ -15,8 +15,9 @@
  * carries is never overwritten), and **error** (skipped, with the reason).
  */
 
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Download, FileSpreadsheet, Loader2, Upload, X } from 'lucide-react';
+import { WorkspaceDialog } from '@/components/ui/WorkspaceDialog';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
 import { downloadText } from '@/lib/export/download';
@@ -60,14 +61,7 @@ export function ImportDialog({ kind, onClose }: { kind: ImportKind; onClose: () 
 
   const isProducts = kind === IMPORT_PRODUCTS;
 
-  // Escape closes, like every other dialog in the console.
-  useEffect(() => {
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
-  }, [onClose]);
+
 
   const readFile = async (file: File) => {
     setFileError(null);
@@ -137,15 +131,9 @@ export function ImportDialog({ kind, onClose }: { kind: ImportKind; onClose: () 
     : [];
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-xs"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="Import CSV"
-    >
+    <WorkspaceDialog label="Import CSV" onClose={onClose}>
       <div
-        className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-panel shadow-float animate-fade-up"
+        className="workspace-dialog-panel flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-stone-200 bg-panel shadow-float animate-fade-up"
         onClick={(event) => event.stopPropagation()}
       >
         {/* Header */}
@@ -158,7 +146,7 @@ export function ImportDialog({ kind, onClose }: { kind: ImportKind; onClose: () 
           </div>
           <button
             onClick={onClose}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900"
+            className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900"
             aria-label="Close"
           >
             <X size={16} />
@@ -293,7 +281,7 @@ export function ImportDialog({ kind, onClose }: { kind: ImportKind; onClose: () 
           </div>
         </div>
       </div>
-    </div>
+    </WorkspaceDialog>
   );
 }
 

@@ -17,7 +17,7 @@ export function PageHeader({ eyebrow, title, subtitle, actions }: PageHeaderProp
         <h1 className="mt-2 font-display text-[1.35rem] font-bold tracking-tight text-stone-900 sm:text-2xl md:text-3xl">{title}</h1>
         {subtitle ? <p className="mt-2 max-w-2xl text-sm leading-relaxed text-stone-600">{subtitle}</p> : null}
       </div>
-      {actions ? <div className="flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto md:shrink-0 md:justify-end">{actions}</div> : null}
+      {actions ? <div className="page-heading-actions flex w-full min-w-0 flex-wrap items-center gap-2 md:w-auto md:shrink-0 md:justify-end">{actions}</div> : null}
     </div>
   );
 }
