@@ -181,7 +181,7 @@ body {
 
 /* Leave room for the fixed mobile tab bar, including iPhone home-indicator space. */
 .mobile-content-space {
-  padding-bottom: calc(3.5rem + env(safe-area-inset-bottom, 0px));
+  padding-bottom: calc(5.25rem + env(safe-area-inset-bottom, 0px));
 }
 
 @media (min-width: 1024px) {
@@ -912,19 +912,6 @@ html[data-motion='off'] .landing-hero-orb { animation: none !important; }
     box-shadow: 0 1px 3px rgb(var(--c-shadow) / 0.05);
   }
   .console-topbar { background: rgb(var(--c-white)); }
-
-  /* The admin uses quiet, consistent surfaces across existing feature pages. */
-  .console-workspace .surface-card {
-    border-radius: 0.75rem;
-    box-shadow: 0 1px 2px rgb(var(--c-shadow) / 0.04);
-  }
-  .console-workspace .page-heading { margin-bottom: 1.5rem; }
-  .console-workspace .page-heading h1 {
-    font-family: "Inter Variable", ui-sans-serif, sans-serif;
-    font-size: 1.5rem;
-    font-weight: 650;
-    letter-spacing: -0.035em;
-  }
 
   .setup-page {
     padding-top:6rem;

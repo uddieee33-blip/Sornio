@@ -31,7 +31,7 @@ The default retains the **Monsoon** ID and is named **Sornio Dawn**, using warm 
 1. Reuse `BrandIcon` and `BrandWordmark` rather than copy-pasting logo SVG into pages.
 2. Reuse `AppearanceMenu`; it already appears in the top bar, desktop sidebar, mobile drawer, sign-in and onboarding.
 3. Use `text-stone-900`, `bg-panel`, `border-stone-200`, `text-portal` and other configured semantic utilities so every paint works without a second stylesheet.
-4. Prefer a subtle active-item background and hairline. Avoid unnecessary shadows and transformations.
+4. Use the shared 24px panel and 14px control geometry. Filled accent navigation identifies the current work area; use semantic foreground tokens and keep depth restrained.
 5. Preserve existing role/plan/module navigation guards when redesigning menus.
 6. Update `locales/en.json` and all 22 `public/locales/*.json` catalogue files whenever changing extracted UI copy; a localized brand name is still Sornio.
 7. Preserve security secrets, persisted keys, WebView2 profile paths and namespaces. Windows output filenames use Sornio; its existing local profile path is retained.

@@ -107,7 +107,7 @@ export function SimpleHome({ onDetails }: { onDetails: () => void }) {
 
       <section aria-labelledby="home-summary-heading" className="home-summary">
         <div className="home-section-label"><h2 id="home-summary-heading">Business snapshot</h2><span>Saved records</span></div>
-        <dl className="home-metrics home-panel">
+        <dl className="home-metrics">
           {metrics.map(item => {
             const Icon = TASK_ICONS[item.icon];
             return <div key={item.label}>
