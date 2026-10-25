@@ -36,8 +36,6 @@ export function CustomerDetailModal({ customer, onClose }: { customer: Customer;
     });
   }, [hasUpi, upiId, customer, amountValue, state.profile]);
 
-
-
   const handleCopy = async () => {
     if (!deepLink) return;
     try {

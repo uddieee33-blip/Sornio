@@ -25,6 +25,18 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       { name: 'dukaan.portal', value: portal, url: origin },
       { name: 'dukaan.look', value: encodeURIComponent(`${theme}|comfortable|off|100|0`), url: origin },
     ]);
+    // Disposable local fixture using the supported legacy snapshot shape. No
+    // production auth/storage path is changed for the acceptance harness.
+    await context.addInitScript(({ portal }) => {
+      const slot = 'dukaanos.vault.dukaanos-store-v5.local_theme_review.local_theme_review';
+      if (!localStorage.getItem(slot)) localStorage.setItem(slot, JSON.stringify({
+        encrypted: false,
+        plain: { products: [], transactions: [], profile: {
+          name: 'Theme review', templateId: `template-${portal === 'kirana' ? 'grocery' : portal}`,
+          description: '', currency: 'INR', timezone: 'Asia/Kolkata',
+        } },
+      }));
+    }, { portal });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
     return { context, page };
@@ -43,6 +55,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
         const { context, page } = await contextFor(theme, portal, width);
         await inspect(page, '/home', `${portal}-${theme}-${width}`);
         assert.equal(await page.locator('.console-workspace').getAttribute('data-portal'), portal);
+        assert.equal(await page.locator('html').getAttribute('data-theme'), theme);
         await context.close();
       }
     }

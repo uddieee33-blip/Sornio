@@ -61,8 +61,6 @@ export function ImportDialog({ kind, onClose }: { kind: ImportKind; onClose: () 
 
   const isProducts = kind === IMPORT_PRODUCTS;
 
-
-
   const readFile = async (file: File) => {
     setFileError(null);
     setFileName(file.name);
