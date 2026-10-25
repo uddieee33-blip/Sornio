@@ -1,10 +1,10 @@
 /* One account surface at every screen size. All colours follow the chosen paint. */
-.sornio-auth-page { min-height:100svh; display:flex; flex-direction:column; background:rgb(var(--c-page)); color:rgb(var(--c-stone-900)); font-family:'Inter Variable',Inter,sans-serif; }
+.sornio-auth-page { min-height:100svh; display:flex; flex-direction:column; background:radial-gradient(ellipse at 15% 10%,rgb(var(--c-brand-100) / .55),transparent 50%),rgb(var(--c-page)); color:rgb(var(--c-stone-900)); font-family:'Inter Variable',Inter,sans-serif; }
 .sornio-auth-header { min-height:88px; padding:20px 40px; display:flex; align-items:center; justify-content:space-between; gap:16px; }
 .sornio-auth-back { display:inline-flex; align-items:center; gap:9px; min-height:44px; font-size:.75rem; color:rgb(var(--c-stone-600)); }
 .sornio-auth-tools { display:flex; gap:8px; align-items:center; }
 .sornio-auth-main { display:grid; place-items:center; flex:1; padding:24px 24px 64px; }
-.sornio-auth-stack { width:100%; max-width:420px; }
+.sornio-auth-stack { width:100%; max-width:480px; padding:34px; border:1px solid rgb(var(--c-stone-200)); border-radius:30px; background:rgb(var(--c-white)); box-shadow:0 14px 45px -30px rgb(var(--c-shadow) / .28); }
 .sornio-auth-brand { display:flex; flex-direction:column; align-items:center; gap:12px; width:fit-content; margin:0 auto 32px; color:inherit; text-decoration:none; }
 .sornio-auth-brand img { border-radius:15px; box-shadow:0 4px 8px -4px rgb(var(--c-shadow) / .3); }
 .sornio-auth-brand > span { font-size:1.65rem; font-weight:650; letter-spacing:-.065em; }
@@ -14,15 +14,15 @@
 .sornio-auth-heading h1, .sornio-auth-title { font-family:inherit; font-size:2rem; line-height:1.2; font-weight:600; letter-spacing:-.055em; color:rgb(var(--c-stone-900)); margin:0; text-wrap:balance; }
 .sornio-auth-title { margin-top:20px; }
 .sornio-auth-heading p { margin:10px 0 0; color:rgb(var(--c-stone-600)); font-size:.8125rem; line-height:1.6; }
-.sornio-auth-modes { display:flex; gap:4px; padding:4px; border:1px solid rgb(var(--c-stone-200)); background:rgb(var(--c-stone-100) / .4); border-radius:12px; margin-bottom:28px; }
-.sornio-auth-modes button { flex:1; min-height:43px; border-radius:8px; color:rgb(var(--c-stone-600)); font-size:.8125rem; font-weight:550; transition:background calc(180ms * var(--motion-scale)),box-shadow calc(180ms * var(--motion-scale)); }
+.sornio-auth-modes { display:flex; gap:4px; padding:4px; border:1px solid rgb(var(--c-stone-200)); background:rgb(var(--c-stone-100) / .4); border-radius:999px; margin-bottom:28px; }
+.sornio-auth-modes button { flex:1; min-height:43px; border-radius:999px; color:rgb(var(--c-stone-600)); font-size:.8125rem; font-weight:550; transition:background calc(180ms * var(--motion-scale)),box-shadow calc(180ms * var(--motion-scale)); }
 .sornio-auth-modes button[aria-pressed='true'] { background:rgb(var(--c-white)); color:rgb(var(--c-stone-900)); box-shadow:0 1px 4px rgb(var(--c-shadow) / .1); }
 .sornio-auth-label { display:block; color:rgb(var(--c-stone-800)); font-size:.75rem; font-weight:550; margin:0 0 9px; }
-.sornio-auth-page .auth-panel input:not([type='checkbox']):not([type='radio']) { min-height:52px; border-radius:9px; border-color:rgb(var(--c-stone-300)); background:rgb(var(--c-white)); font-size:.875rem; }
+.sornio-auth-page .auth-panel input:not([type='checkbox']):not([type='radio']) { min-height:52px; border-radius:14px; border-color:rgb(var(--c-stone-300)); background:rgb(var(--c-white)); font-size:.875rem; }
 .sornio-auth-page .auth-panel input:focus-visible { outline:2px solid rgb(var(--c-brand-500)); outline-offset:2px; box-shadow:none; }
 .sornio-auth-page .auth-panel input[aria-invalid='true'] { border-color:rgb(var(--c-red-500,220 38 38)); }
-.sornio-auth-page .auth-panel button[type='submit'], .sornio-auth-door button.bg-brand-gradient { min-height:52px; border-radius:10px; box-shadow:0 1px 2px rgb(var(--c-shadow) / .12); background:rgb(var(--c-stone-900)); color:rgb(var(--c-white)); font-weight:550; font-size:.8125rem; }
-.sornio-auth-page .auth-panel button[type='submit']:hover { background:rgb(var(--c-stone-800)); }
+.sornio-auth-page .auth-panel button[type='submit'], .sornio-auth-door button.bg-brand-gradient { min-height:52px; border-radius:16px; box-shadow:0 1px 2px rgb(var(--c-shadow) / .12); background:rgb(var(--c-brand-500)); color:rgb(var(--c-onaccent)); font-weight:550; font-size:.8125rem; }
+.sornio-auth-page .auth-panel button[type='submit']:hover { filter:brightness(.94); }
 .sornio-auth-page .auth-panel button[type='submit']:disabled { opacity:.65; }
 .sornio-auth-page .auth-panel input[type='checkbox'] { accent-color:rgb(var(--c-stone-800)); width:16px; height:16px; }
 .sornio-auth-demo { padding:12px 14px; margin-bottom:24px; font-size:.6875rem; line-height:1.7; border:1px solid rgb(var(--c-stone-200)); border-radius:9px; color:rgb(var(--c-stone-600)); }
@@ -33,3 +33,5 @@
 .sornio-auth-page :is(a,button):focus-visible { outline:2px solid rgb(var(--c-brand-500)); outline-offset:4px; }
 @media (max-width:600px) { .sornio-auth-header { min-height:76px; padding:16px 20px; gap:8px; } .sornio-auth-back span { display:none; } .sornio-auth-back { padding-right:12px; } .sornio-auth-main { padding:24px 24px 40px; } .sornio-auth-brand { margin-bottom:26px; } .sornio-auth-heading h1 { font-size:1.8rem; } .sornio-auth-footer { padding:18px 24px; flex-wrap:wrap; } }
 @media (max-height:780px) and (min-width:601px) { .sornio-auth-header { min-height:70px; } .sornio-auth-main { padding-top:12px; padding-bottom:30px; } .sornio-auth-brand { flex-direction:row; margin-bottom:24px; } .sornio-auth-brand img { width:40px; height:40px; border-radius:11px; } }
+
+@media(max-width:600px) { .sornio-auth-stack { padding:28px 22px; border-radius:26px; } .sornio-auth-main { padding-inline:16px; } }

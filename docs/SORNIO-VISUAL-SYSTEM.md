@@ -34,3 +34,23 @@ ref-held audit promises before asserting a settled render. Twelve event-loop
 turns did not reliably await Web Crypto workers in GitHub CI. The persistence
 debounce remains unflushed, and a negative control still detects the original
 same-owner stale-snapshot reload bug. Production store behavior is unchanged.
+
+
+## Workspace shape and hierarchy
+
+Daily work now shares a rounded surface system: 24px working panels (20px on
+small screens), 14px controls, and 28px framing. Desktop navigation and search
+sit in separate curved surfaces. Navigation uses the selected paint rather
+than a permanently dark token override, with filled accent selection and a
+readable submenu. Mobile navigation has a curved drawer and a centred dock
+positioned above the safe-area inset.
+
+Home uses a rounded heading, individual metric cards, tinted task icons and
+consistent working panels. Account and owner setup use the same shape language.
+The old global/console rules that reduced card curvature and duplicated input
+styling are removed; controls own the common surface and form geometry.
+
+These changes affect presentation and metric grouping only. No record source,
+role/plan gate, route, posting command or authentication flow changes. Console
+and control rules remain screen-only, preserving invoice print layout. Native
+Windows acceptance and authenticated browser visual review remain pending.
