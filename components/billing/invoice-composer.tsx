@@ -1,6 +1,6 @@
 'use client';
 
-import { useId, useRef, useState, type FormEvent } from 'react';
+import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { FilePlus2, Plus, Trash2 } from 'lucide-react';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -21,10 +21,23 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
   const id = useId();
   const nextKey = useRef(2);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // Once a cashier adds a line, start at its product picker, not back at the
+  // Add line button. It saves traversing every existing bill item with Tab.
+  const pendingLineFocus = useRef<number | null>(null);
   const [form, setForm] = useState({ customerName: '', customerPhone: '', method: 'Cash' as PaymentMethod, taxRate: '0' });
   const [lines, setLines] = useState<DraftLine[]>([{ ...emptyLine, key: 1 }]);
   const [error, setError] = useState<string | null>(null);
   const totals = calculateInvoice(lines, Number(form.taxRate));
+
+  useEffect(() => {
+    const key = pendingLineFocus.current;
+    if (key === null) return;
+    const picker = document.getElementById(`${id}-product-${key}`);
+    if (picker instanceof HTMLSelectElement) {
+      pendingLineFocus.current = null;
+      picker.focus();
+    }
+  }, [id, lines]);
 
   const updateLine = (key: number, patch: Partial<InvoiceLine>) => {
     setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line));
@@ -55,6 +68,7 @@ export function InvoiceComposer({ onCreated }: { onCreated: (invoiceId: string, 
             <div id={`${id}-title`}><CardTitle icon={<FilePlus2 size={17} />}>Bill details</CardTitle></div>
             <Button type="button" variant="secondary" onClick={() => {
               const key = nextKey.current++;
+              pendingLineFocus.current = key;
               setLines((current) => [...current, { ...emptyLine, key }]);
               setError(null);
             }}><Plus size={15} /> Add line</Button>
