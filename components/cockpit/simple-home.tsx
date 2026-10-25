@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useState } from 'react';
+import { Suspense, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { ArrowRight, ArrowUpRight, Banknote, Boxes, CalendarDays, Check, ChevronDown, Circle, Package, Receipt, Search, SlidersHorizontal, UserCheck, Users, Wallet } from 'lucide-react';
 import { useDukaanStore } from '@/lib/store';
@@ -9,7 +9,7 @@ import { usePortal } from '@/lib/portals/portal-provider';
 import { usePlan } from '@/components/billing/plan-provider';
 import { checkPlanAccess } from '@/lib/plans/routes';
 import { formatCurrency } from '@/lib/business-data';
-import { formatInvoiceAmount } from '@/lib/invoices';
+import { formatInvoiceAmount, newestInvoices } from '@/lib/invoices';
 import { useI18n } from '@/lib/i18n';
 import { dailyWorkspaceSnapshot, type DailyFocus } from '@/lib/portals/daily-workspace';
 import { portalHasModule } from '@/lib/portals/registry';
@@ -44,7 +44,7 @@ export function SimpleHome({ onDetails }: { onDetails: () => void }) {
   const tasks = config.tasks.filter(task => canOpen(task.href) && canUseDailyTask(role, task.href));
   const primary = tasks[0];
   const PrimaryIcon = primary ? TASK_ICONS[primary.icon] : Receipt;
-  const recentBills = [...state.invoices].reverse().slice(0, 5);
+  const recentBills = useMemo(() => newestInvoices(state.invoices, 5), [state.invoices]);
   const billsOpen = portalHasModule(portal.id, 'billing') && canOpen('/billing');
   const focus = snapshot.focus && canOpen(snapshot.focus.href) ? snapshot.focus : null;
   const setupSteps = config.setup.map(step => ({ ...step, complete: state[step.collection].length > 0 })).filter(step => canOpen(step.href) && canUseDailySetup(role, step.collection));
