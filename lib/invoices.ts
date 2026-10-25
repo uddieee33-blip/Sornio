@@ -40,6 +40,23 @@ export function calculateInvoice(lines: readonly InvoiceLine[], taxRate: number)
   return { ok: true, lines: prepared, subtotal: subtotalPaise / 100, tax: taxPaise / 100, total: (subtotalPaise + taxPaise) / 100 };
 }
 
+/** The counter shows the newest saved bills by time, not by array insertion order.
+ * Imports and later synchronization can append an older bill to the collection.
+ * Sorting a copy also keeps the original store and its subscribers untouched.
+ */
+export function newestInvoices<T extends Pick<Invoice, 'id' | 'createdAt'>>(invoices: readonly T[], limit = 5): T[] {
+  const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 5;
+  return invoices
+    .map(invoice => {
+      const stamp = Date.parse(invoice.createdAt);
+      return { invoice, timestamp: Number.isFinite(stamp) ? stamp : 0 };
+    })
+    .sort((a, b) => b.timestamp - a.timestamp ||
+      (a.invoice.id === b.invoice.id ? 0 : a.invoice.id < b.invoice.id ? 1 : -1))
+    .slice(0, count)
+    .map(entry => entry.invoice);
+}
+
 export function nextInvoiceId(invoices: readonly Pick<Invoice, 'id'>[], lastNumber = 1000): string {
   let latest = lastNumber;
   for (const invoice of invoices) {
