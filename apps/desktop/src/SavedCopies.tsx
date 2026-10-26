@@ -8,18 +8,20 @@ export function SavedCopies({ revision, disabled, dirty, onRestore }: {
   dirty: boolean;
   onRestore: (source: number) => void;
 }) {
-  const [copies, setCopies] = useState<SavedCopy[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
+  const [result, setResult] = useState<{
+    revision: number; refresh: number; copies: SavedCopy[]; error: string;
+  } | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const loading = result?.revision !== revision || result.refresh !== refresh;
+  const copies = loading ? [] : result.copies;
+  const error = loading ? '' : result.error;
 
   useEffect(() => {
     let current = true;
-    setLoading(true); setError('');
     invoke<SavedCopy[]>('list_workspace_copies').then((saved) => {
-      if (current) { setCopies(saved); setLoading(false); }
+      if (current) setResult({ revision, refresh, copies: saved, error: '' });
     }).catch(() => {
-      if (current) { setError('Saved copies could not be opened. Your current draft is still here.'); setLoading(false); }
+      if (current) setResult({ revision, refresh, copies: [], error: 'Saved copies could not be opened. Your current draft is still here.' });
     });
     return () => { current = false; };
   }, [revision, refresh]);
