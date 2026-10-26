@@ -4,6 +4,8 @@ import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { PortalId } from '../../../lib/portals/types';
 import { SavedCopies } from './SavedCopies';
+import { AccessGate } from './AccessGate';
+import { errorCode, errorMessage } from './access';
 import type { Draft, Snapshot } from './workspace-types';
 import brandIcon from '../../../public/brand/icon-192.png';
 import './style.css';
@@ -15,7 +17,7 @@ const types = [
   ['boutique', 'Boutique'], ['service', 'Services'],
 ] as const satisfies ReadonlyArray<readonly [PortalId, string]>;
 
-function App() {
+function App({ onLocked }: { onLocked: () => void }) {
   const native = isTauri();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [draft, setDraft] = useState<Draft>(empty);
@@ -23,6 +25,7 @@ function App() {
   const [message, setMessage] = useState(native ? 'Opening your local workspace…' : 'Open the installed Windows app to use the local workspace.');
   const saving = useRef(false);
   const [reopenPrompt, setReopenPrompt] = useState(false);
+  const [lockPrompt, setLockPrompt] = useState(false);
   const dirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
 
   useEffect(() => {
@@ -33,10 +36,13 @@ function App() {
       setSnapshot(saved); setDraft(saved.draft ?? empty); setStatus('ready');
       setMessage(saved.draft ? 'Your saved draft is ready on this PC.' : 'Your local workspace is ready.');
     }).catch((error: unknown) => {
-      if (current) { setStatus('error'); setMessage(typeof error === 'string' ? error : 'The local workspace could not be opened.'); }
+      if (current) {
+        if (errorCode(error) === 'locked') { onLocked(); return; }
+        setStatus('error'); setMessage(errorMessage(error, 'The local workspace could not be opened.'));
+      }
     });
     return () => { current = false; };
-  }, [native]);
+  }, [native, onLocked]);
 
   useEffect(() => {
     const warn = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); };
@@ -52,7 +58,8 @@ function App() {
       const saved = await invoke<Snapshot>('save_workspace', { expectedRevision: snapshot.revision, draft });
       setSnapshot(saved); setDraft(saved.draft ?? empty); setStatus('ready'); setMessage('Saved to this PC. You can close and reopen Sornio.');
     } catch (error: unknown) {
-      setStatus('error'); setMessage(typeof error === 'string' ? error : 'The draft could not be saved. Keep this window open and try again.');
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setStatus('error'); setMessage(errorMessage(error, 'The draft could not be saved. Keep this window open and try again.'));
     } finally { saving.current = false; }
   }
 
@@ -63,7 +70,8 @@ function App() {
       const saved = await invoke<Snapshot>('load_workspace');
       setSnapshot(saved); setDraft(saved.draft ?? empty); setStatus('ready'); setMessage('Reopened the latest saved draft from this PC.');
     } catch (error: unknown) {
-      setStatus('error'); setMessage(typeof error === 'string' ? error : 'The saved draft could not be reopened. Your edits are still in this window.');
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setStatus('error'); setMessage(errorMessage(error, 'The saved draft could not be reopened. Your edits are still in this window.'));
     } finally { saving.current = false; }
   }
 
@@ -75,24 +83,35 @@ function App() {
       setSnapshot(saved); setDraft(saved.draft ?? empty); setStatus('ready');
       setMessage(`Restored saved copy ${sourceRevision} as revision ${saved.revision}.`);
     } catch (error: unknown) {
-      setStatus('error'); setMessage(typeof error === 'string' ? error : 'The saved copy could not be restored. Your current draft has been kept.');
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setStatus('error'); setMessage(errorMessage(error, 'The saved copy could not be restored. Your current draft has been kept.'));
     } finally { saving.current = false; }
   }
 
   const busy = status === 'opening' || status === 'saving';
+
+  async function lock(discard = false) {
+    if (!native || saving.current || busy) return;
+    if (dirty && !discard) { setLockPrompt(true); return; }
+    saving.current = true; setStatus('saving'); setMessage('Locking this workspace…');
+    try { await invoke('lock_workspace'); onLocked(); }
+    catch (error: unknown) { setStatus('error'); setMessage(errorMessage(error, 'The workspace could not be locked. Keep this window open and retry.')); }
+    finally { saving.current = false; }
+  }
 
   return <div className="desktop-shell">
     <aside className="rail">
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
       <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a></nav>
-      <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.1.0</p></div>
+      <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.2.0</p></div>
     </aside>
     <main id="main">
-      <header className="topbar"><span>Workspace / Local review</span><span className="chip"><span className="status-dot"/> On this PC</span></header>
+      <header className="topbar"><span>Workspace / Local review</span><div className="topbar-actions"><span className="chip"><span className="status-dot"/> On this PC</span><button type="button" className="quiet-button" disabled={busy} onClick={() => void lock()}>Lock workspace</button></div></header>
       <div className="page">
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
+        {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace"><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button className="quiet-button" type="button" disabled={busy} onClick={() => setLockPrompt(false)}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
         <div className="workspace-grid">
           <form className="panel" onSubmit={(event) => void save(event)}>
             <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{dirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
@@ -111,13 +130,13 @@ function App() {
               </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (dirty) setReopenPrompt(true); else void reopen(); }}>Reopen saved draft</button>}
             </div> : null}
           </form>
-          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>No public browser workspace</li></ul><p className="footnote">Billing, account setup, device unlock, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
+          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li></ul><p className="footnote">Billing, verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
         </div>
-        {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={dirty} onRestore={(source) => void restore(source)}/> : null}
+        {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={dirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>
   </div>;
 }
 
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById('root')!).render(<AccessGate>{(onLocked) => <App onLocked={onLocked}/>}</AccessGate>);
 

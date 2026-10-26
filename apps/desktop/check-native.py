@@ -17,9 +17,21 @@ OUTPUT = Path("dist/native-review")
 OUTPUT.mkdir(parents=True, exist_ok=True)
 app = None
 window = None
+PASSWORD = "SornioReviewAccess2026"
 
 
-def launch():
+def enter_password(setup=False):
+    password = window.child_window(title="Local password", control_type="Edit")
+    password.wait("exists enabled visible", timeout=45)
+    password.set_focus()
+    send_keys(PASSWORD, pause=0.02)
+    if setup:
+        send_keys("{TAB}", pause=0.1)
+        send_keys(PASSWORD, pause=0.02)
+    send_keys("{TAB}{ENTER}", pause=0.1)
+
+
+def launch(setup=False):
     global app, window
     app = Application(backend="uia").start(str(EXE), timeout=60)
     # Desktop traversal includes the WebView accessibility nodes, whose process
@@ -27,6 +39,16 @@ def launch():
     window = Desktop(backend="uia").window(title_re="Sornio.*Local workspace review")
     window.wait("visible", timeout=60)
     window.set_focus()
+    password = window.child_window(title="Local password", control_type="Edit")
+    password.wait("exists enabled visible", timeout=45)
+    assert not window.child_window(title="Business name", control_type="Edit").exists(), "Draft controls appeared before unlock"
+    if not setup:
+        password.set_focus()
+        send_keys("WrongReviewPassword{TAB}{ENTER}", pause=0.05)
+        wait_until(30, 0.5, lambda: any("That password did not unlock this workspace." in c.window_text()
+                   for c in window.descendants(control_type="Text")))
+        assert not window.child_window(title="Business name", control_type="Edit").exists(), "Wrong password exposed the draft"
+    enter_password(setup=setup)
     field = window.child_window(title="Business name", control_type="Edit")
     field.wait("exists enabled", timeout=45)
     return field.wrapper_object()
@@ -47,7 +69,7 @@ def saved_message_visible():
 
 
 try:
-    field = launch()
+    field = launch(setup=True)
     field.set_edit_text("Sample local store")
     field.set_focus()
     # Keyboard navigation scrolls the browser's focused control into view on
@@ -77,6 +99,15 @@ try:
     wait_until(30, 0.5, lambda: any("Restored saved copy 1 as revision 3." in c.window_text()
                for c in window.descendants(control_type="Text")))
     window.capture_as_image().save(OUTPUT / "windows-local-restored.png")
+
+    # Lock a saved workspace and unlock it through native accessibility controls.
+    note.set_focus()
+    send_keys("+{TAB}+{TAB}+{TAB}{SPACE}", pause=0.1)
+    window.child_window(title="Local password", control_type="Edit").wait("visible enabled", timeout=30)
+    assert not window.child_window(title="Business name", control_type="Edit").exists(), "Lock left draft controls exposed"
+    window.capture_as_image().save(OUTPUT / "windows-local-locked.png")
+    enter_password()
+    window.child_window(title="Business name", control_type="Edit").wait("exists enabled", timeout=30)
     stop()
     field = launch()
     assert field.get_value() == "Sample local store", "Business draft did not survive process termination"
@@ -87,7 +118,7 @@ try:
     assert note.get_value() == "Saved in the native app. Reopen without the website.", "Saved note changed on reopen"
     window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
     window.child_window(title="Restore saved copy 3", control_type="Button").wait("exists", timeout=30)
-    print("Native Windows release: network-blocked startup, two saves, restore, process termination and reopen passed.")
+    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal and unlock/reopen passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:

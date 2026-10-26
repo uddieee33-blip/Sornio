@@ -2,7 +2,7 @@ name: Workspace browser review
 on:
   pull_request:
     branches: [main]
-    paths: ['app/**', 'components/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
+    paths: ['app/**', 'components/**', 'apps/desktop/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -37,6 +37,18 @@ jobs:
             sleep 1
           done
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs
+      - name: Build and review local desktop access UI
+        run: |
+          npm ci --prefix apps/desktop
+          npm run build --prefix apps/desktop
+          npm run dev --prefix apps/desktop > /tmp/sornio-desktop-server.log 2>&1 &
+          desktop_pid=$!
+          trap 'kill "$desktop_pid" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:1420 > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-ui.cjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -44,4 +56,6 @@ jobs:
           path: |
             /tmp/sornio-screenshots/
             /tmp/sornio-server.log
+            /tmp/sornio-desktop-server.log
           retention-days: 7
+
