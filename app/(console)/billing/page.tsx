@@ -12,7 +12,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card } from '@/components/ui/Card';
 import { Badge, type BadgeTone } from '@/components/ui/Badge';
 import { CollectPaymentModal } from '@/components/payments/collect-payment';
-import { formatInvoiceAmount as formatCurrency, invoiceBalance } from '@/lib/invoices';
+import { formatInvoiceAmount as formatCurrency, invoiceBalance, invoicesByCreation } from '@/lib/invoices';
 import { useDukaanStore } from '@/lib/store';
 
 const statusTone: Record<string, BadgeTone> = { paid: 'emerald', pending: 'amber', partial: 'sky', failed: 'red' };
@@ -41,8 +41,10 @@ function BillingWorkspace() {
   const matchingInvoices = [...state.invoices].filter((invoice) => !search ||
     `${invoice.id} ${invoice.customerName} ${invoice.customerPhone ?? ''}`.toLocaleLowerCase().includes(search) ||
     (searchPhone.length > 0 && /^[+\d\s()-]+$/.test(query) && invoice.customerPhone?.replace(/\D/g, '').includes(searchPhone)));
-  const invoices = matchingInvoices.filter(invoice => status === 'all' || (status === 'unpaid' ? invoiceBalance(invoice, state.paymentRecords) > 0 : invoiceBalance(invoice, state.paymentRecords) <= 0))
-    .sort((a, b) => (new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()) * (sort === 'newest' ? 1 : -1));
+  const invoices = invoicesByCreation(
+    matchingInvoices.filter(invoice => status === 'all' || (status === 'unpaid' ? invoiceBalance(invoice, state.paymentRecords) > 0 : invoiceBalance(invoice, state.paymentRecords) <= 0)),
+    sort,
+  );
   const tabs = [
     { id: 'all', label: 'All bills', count: matchingInvoices.length },
     { id: 'unpaid', label: 'Unpaid', count: matchingInvoices.filter(invoice => invoiceBalance(invoice, state.paymentRecords) > 0).length },

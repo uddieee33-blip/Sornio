@@ -40,21 +40,33 @@ export function calculateInvoice(lines: readonly InvoiceLine[], taxRate: number)
   return { ok: true, lines: prepared, subtotal: subtotalPaise / 100, tax: taxPaise / 100, total: (subtotalPaise + taxPaise) / 100 };
 }
 
-/** The counter shows the newest saved bills by time, not by array insertion order.
- * Imports and later synchronization can append an older bill to the collection.
- * Sorting a copy also keeps the original store and its subscribers untouched.
+/** A deterministic, non-mutating bill history, even when sync/import inserts
+ * records out of arrival order. Invalid timestamps always come last; a tie is
+ * ordered by invoice ID so two shop devices agree on the same bill sequence.
  */
+export function invoicesByCreation<T extends Pick<Invoice, 'id' | 'createdAt'>>(
+  invoices: readonly T[],
+  order: 'newest' | 'oldest' = 'newest',
+): T[] {
+  const direction = order === 'newest' ? -1 : 1;
+  return invoices.map(invoice => {
+    const stamp = Date.parse(invoice.createdAt);
+    return { invoice, timestamp: Number.isFinite(stamp) ? stamp : null };
+  }).sort((a, b) => {
+    if (a.timestamp === null && b.timestamp !== null) return 1;
+    if (a.timestamp !== null && b.timestamp === null) return -1;
+    if (a.timestamp !== null && b.timestamp !== null && a.timestamp !== b.timestamp) {
+      return direction * (a.timestamp - b.timestamp);
+    }
+    if (a.invoice.id === b.invoice.id) return 0;
+    return direction * (a.invoice.id < b.invoice.id ? -1 : 1);
+  }).map(entry => entry.invoice);
+}
+
+/** Fast counter summary with the same date semantics as the billing ledger. */
 export function newestInvoices<T extends Pick<Invoice, 'id' | 'createdAt'>>(invoices: readonly T[], limit = 5): T[] {
   const count = Number.isFinite(limit) ? Math.max(0, Math.floor(limit)) : 5;
-  return invoices
-    .map(invoice => {
-      const stamp = Date.parse(invoice.createdAt);
-      return { invoice, timestamp: Number.isFinite(stamp) ? stamp : 0 };
-    })
-    .sort((a, b) => b.timestamp - a.timestamp ||
-      (a.invoice.id === b.invoice.id ? 0 : a.invoice.id < b.invoice.id ? 1 : -1))
-    .slice(0, count)
-    .map(entry => entry.invoice);
+  return invoicesByCreation(invoices, 'newest').slice(0, count);
 }
 
 export function nextInvoiceId(invoices: readonly Pick<Invoice, 'id'>[], lastNumber = 1000): string {
