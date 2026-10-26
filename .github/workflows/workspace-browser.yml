@@ -2,7 +2,7 @@ name: Workspace browser review
 on:
   pull_request:
     branches: [main]
-    paths: ['app/**', 'components/**', 'apps/desktop/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
+    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
   contents: read

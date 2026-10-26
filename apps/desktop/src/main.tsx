@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { PortalId } from '../../../lib/portals/types';
+import type { PortalId } from '../../../packages/business-domain/src/business-types';
+import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { SavedCopies } from './SavedCopies';
 import { AccessGate } from './AccessGate';
 import { errorCode, errorMessage } from './access';
@@ -118,7 +119,8 @@ function App({ onLocked }: { onLocked: () => void }) {
             <p className="muted">Save a sample business and note, then reopen the app without internet to check that it stays here.</p>
             <fieldset disabled={!snapshot || busy}>
               <label htmlFor="business-name">Business name</label><input id="business-name" autoComplete="organization" value={draft.businessName} maxLength={120} required placeholder="Your sample business" onChange={(e) => setDraft({ ...draft, businessName: e.target.value })}/>
-              <label htmlFor="business-type">Business type</label><select id="business-type" value={draft.businessType} onChange={(e) => setDraft({ ...draft, businessType: e.target.value as PortalId })}>{types.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+              <label htmlFor="business-type">Business type</label><select aria-describedby="business-description" id="business-type" value={draft.businessType} onChange={(e) => setDraft({ ...draft, businessType: e.target.value as PortalId })}>{types.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+              <p id="business-description">{dailyWorkspace(draft.businessType).description}</p>
               <label htmlFor="workspace-note">Workspace note</label><textarea id="workspace-note" rows={5} maxLength={2000} placeholder="A note to find when you reopen Sornio…" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })}/>
               <div className="form-footer"><p>{dirty ? 'Changes are not saved yet.' : 'Nothing leaves this PC in this build.'}</p><button type="submit" disabled={!dirty || !draft.businessName.trim()}>{status === 'saving' ? 'Saving…' : 'Save local draft'}<span aria-hidden="true">↗</span></button></div>
             </fieldset>

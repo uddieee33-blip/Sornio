@@ -14,15 +14,8 @@
  * without pulling React, icons, or the store into the request path.
  */
 
-export type PortalId =
-  | 'gym'
-  | 'cafe'
-  | 'kirana'
-  | 'salon'
-  | 'electronics'
-  | 'boutique'
-  | 'service'
-  | 'general';
+import type { PortalId } from '../../packages/business-domain/src/business-types';
+export type { PortalId } from '../../packages/business-domain/src/business-types';
 
 /**
  * Every module DukaanOS can render, keyed by the thing it does — never by the
@@ -260,3 +253,4 @@ export type PortalBlueprint = {
   nav: PortalNavSection[];
   cockpit: PortalCockpit;
 };
+
