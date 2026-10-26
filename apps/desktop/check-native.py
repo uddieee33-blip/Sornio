@@ -91,7 +91,9 @@ try:
     # exposes the copy's revision in the button/list item rather than Text.
     window.child_window(title="Restore saved copy 2", control_type="Button").wait("exists", timeout=30)
     restore = window.child_window(title="Restore saved copy 1", control_type="Button")
-    restore.wait("exists enabled", timeout=30)
+    # Offscreen WebView buttons may report disabled to UIA until keyboard
+    # navigation scrolls them into view. Confirm restore by its committed result.
+    restore.wait("exists", timeout=30)
     # From the saved note, Tab skips the disabled Save/current-copy buttons:
     # Reopen -> Refresh copies -> Restore copy 1. This also scrolls it into view.
     note.set_focus()
@@ -125,7 +127,7 @@ except Exception:
         try:
             window.capture_as_image().save(OUTPUT / "windows-local-failure.png")
             for control in window.descendants()[:100]:
-                print(control.element_info.control_type, repr(control.window_text()))
+                print(control.element_info.control_type, repr(control.window_text()), "enabled=", control.is_enabled(), "visible=", control.is_visible())
         except Exception as capture_error:
             print("Could not capture the failing native window:", type(capture_error).__name__)
     raise
