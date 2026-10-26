@@ -63,7 +63,10 @@ try:
     stop()
     field = launch()
     assert field.get_value() == "Sample local store", "Business draft did not survive process termination"
-    note = window.child_window(title="Workspace note", control_type="Edit").wrapper_object()
+    field.set_focus()
+    send_keys("{TAB}{TAB}", pause=0.1)
+    note = window.child_window(title="Workspace note", control_type="Edit")
+    note.wait("visible enabled", timeout=15)
     assert note.get_value() == "Saved in the native app. Reopen without the website.", "Saved note changed on reopen"
     window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
     print("Native Windows release: network-blocked startup, draft save, process termination and reopen passed.")
