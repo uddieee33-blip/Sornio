@@ -9,6 +9,7 @@ import time
 import traceback
 
 from pywinauto import Application, Desktop
+from pywinauto.keyboard import send_keys
 from pywinauto.timings import wait_until
 
 EXE = Path("apps/desktop/src-tauri/target/release/sornio-desktop.exe").resolve()
@@ -48,15 +49,15 @@ def saved_message_visible():
 try:
     field = launch()
     field.set_edit_text("Sample local store")
+    field.set_focus()
+    # Keyboard navigation scrolls the browser's focused control into view on
+    # small desktops. UIA SetFocus alone does not scroll WebView2 content.
+    send_keys("{TAB}{TAB}", pause=0.1)
     note = window.child_window(title="Workspace note", control_type="Edit")
-    note.wait("exists enabled", timeout=15)
-    note.set_focus()
+    note.wait("visible enabled", timeout=15)
     note.set_edit_text("Saved in the native app. Reopen without the website.")
-    save = window.child_window(title="Save local draft", control_type="Button")
-    # The save control can be below the fold on a small Windows test desktop.
-    # Its native Invoke pattern activates it without relying on screen pixels.
-    save.wait("exists enabled", timeout=15)
-    save.invoke()
+    note.set_focus()
+    send_keys("{TAB}{ENTER}", pause=0.1)
     wait_until(30, 0.5, saved_message_visible)
     window.capture_as_image().save(OUTPUT / "windows-local-saved.png")
     stop()
