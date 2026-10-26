@@ -27,7 +27,7 @@ def launch():
     window.wait("visible", timeout=60)
     window.set_focus()
     field = window.child_window(title="Business name", control_type="Edit")
-    field.wait("visible enabled", timeout=45)
+    field.wait("exists enabled", timeout=45)
     return field.wrapper_object()
 
 
@@ -49,10 +49,13 @@ try:
     field = launch()
     field.set_edit_text("Sample local store")
     note = window.child_window(title="Workspace note", control_type="Edit")
-    note.wait("visible enabled", timeout=15)
+    note.wait("exists enabled", timeout=15)
+    note.set_focus()
     note.set_edit_text("Saved in the native app. Reopen without the website.")
     save = window.child_window(title="Save local draft", control_type="Button")
-    save.wait("visible enabled", timeout=15)
+    # The save control can be below the fold on a small Windows test desktop.
+    # Its native Invoke pattern activates it without relying on screen pixels.
+    save.wait("exists enabled", timeout=15)
     save.invoke()
     wait_until(30, 0.5, saved_message_visible)
     window.capture_as_image().save(OUTPUT / "windows-local-saved.png")
