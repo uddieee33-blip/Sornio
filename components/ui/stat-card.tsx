@@ -104,16 +104,9 @@ export function StatCard({
       data-reveal-item
       data-shown="false"
       style={staggerStyle(index)}
-      // `transition-[transform,box-shadow,border-color]`, never `transition-all`:
-      // `all` animates the ring and background too, which forces paint on a
-      // card that is already hovering a blurred radial gradient.
-      className="group relative overflow-hidden rounded-2xl bg-stone-50 p-5 shadow-card ring-1 ring-stone-200 transition-[transform,box-shadow] duration-slow ease-settle hover:-translate-y-0.5 hover:shadow-card-hover hover:ring-brand-400/30"
+      className="workspace-stat surface-card relative min-w-0 rounded-2xl bg-white p-5 ring-1 ring-stone-200"
     >
-      <div
-        className="pointer-events-none absolute -right-10 -top-10 h-28 w-28 rounded-full opacity-[0.10] blur-2xl transition-opacity duration-slow ease-swift group-hover:opacity-[0.2]"
-        style={{ backgroundColor: sparkTones[tone] }}
-      />
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-[13px] font-medium text-stone-600">{label}</p>
           {countable ? (
@@ -121,12 +114,12 @@ export function StatCard({
               value={numeric}
               format={format}
               sensitive={sensitive}
-              className="mt-2 block truncate font-display text-2xl font-bold tracking-tight text-stone-900 tabular-nums"
+              className="workspace-stat-value mt-2 block text-2xl font-semibold tracking-tight text-stone-900 tabular-nums"
             />
           ) : (
             <p
               data-sensitive={sensitive || undefined}
-              className="mt-2 truncate font-display text-2xl font-bold tracking-tight text-stone-900 tabular-nums"
+              className="workspace-stat-value mt-2 text-2xl font-semibold tracking-tight text-stone-900 tabular-nums"
             >
               {value}
             </p>
@@ -134,7 +127,7 @@ export function StatCard({
         </div>
         {Icon ? (
           <span
-            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${chipTones[tone]}`}
+            className={`workspace-stat-icon flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ring-1 ring-inset ${chipTones[tone]}`}
           >
             <Icon size={19} strokeWidth={2.2} />
           </span>

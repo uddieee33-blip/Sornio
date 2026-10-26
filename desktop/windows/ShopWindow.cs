@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Drawing;
+using static DukaanOS.Windows.NavigationPolicy;
 using Microsoft.Web.WebView2.Core;
 using Microsoft.Web.WebView2.WinForms;
 
@@ -11,7 +12,6 @@ namespace DukaanOS.Windows;
 /// </summary>
 public sealed class ShopWindow : Form
 {
-    private static readonly Uri Home = new("https://dukaan-os-six.vercel.app/home");
     private readonly WebView2 view = new() { Dock = DockStyle.Fill };
     private readonly Label status = new()
     {
@@ -30,10 +30,15 @@ public sealed class ShopWindow : Form
         WrapContents = false
     };
     private bool ready;
+    private bool connecting;
+    private Uri lastAppUri = Home;
 
     public ShopWindow()
     {
         Text = "Sornio";
+        AutoScaleMode = AutoScaleMode.Dpi;
+        Font = new Font("Segoe UI", 10);
+        BackColor = Color.FromArgb(246, 245, 241);
         MinimumSize = new Size(800, 580);
         Size = new Size(1200, 800);
         StartPosition = FormStartPosition.CenterScreen;
@@ -41,7 +46,8 @@ public sealed class ShopWindow : Form
         var toolbar = new FlowLayoutPanel
         {
             Dock = DockStyle.Top,
-            Height = 48,
+            Height = 56,
+            BackColor = Color.FromArgb(246, 245, 241),
             Padding = new Padding(10, 6, 10, 4),
             WrapContents = false,
             AutoScroll = true
@@ -51,8 +57,17 @@ public sealed class ShopWindow : Form
         var reload = new Button { Text = "Refresh", AutoSize = true };
         home.Click += (_, _) => Navigate(Home);
         back.Click += (_, _) => { if (ready && view.CanGoBack) view.GoBack(); };
-        reload.Click += (_, _) => { if (ready) view.Reload(); else _ = ConnectAsync(); };
+        reload.Click += (_, _) => _ = ConnectAsync();
         browser.Click += (_, _) => OpenOutside(ready && IsAppOrigin(view.Source) ? view.Source : Home);
+        foreach (var button in new[] { home, back, reload, browser, retry })
+        {
+            button.FlatStyle = FlatStyle.Flat;
+            button.FlatAppearance.BorderSize = 0;
+            button.BackColor = Color.FromArgb(235, 237, 241);
+            button.ForeColor = Color.FromArgb(31, 37, 53);
+            button.Padding = new Padding(10, 4, 10, 4);
+            button.Margin = new Padding(0, 0, 8, 0);
+        }
         toolbar.Controls.AddRange([home, back, reload, browser]);
 
         status.Width = 650;
@@ -72,12 +87,14 @@ public sealed class ShopWindow : Form
 
     private async Task ConnectAsync()
     {
+        if (connecting || IsDisposed) return;
         if (ready)
         {
-            view.Reload();
+            Navigate(lastAppUri);
             return;
         }
 
+        connecting = true;
         retry.Enabled = false;
         status.Text = "Connecting to your business…";
         try
@@ -96,7 +113,12 @@ public sealed class ShopWindow : Form
             core.Settings.IsWebMessageEnabled = false;
             core.NavigationStarting += (_, args) =>
             {
-                if (IsAppOrigin(args.Uri)) return;
+                if (IsAppOrigin(args.Uri))
+                {
+                    lastAppUri = new Uri(args.Uri);
+                    status.Text = "Connecting to your business…";
+                    return;
+                }
                 args.Cancel = true;
                 OpenOutside(args.Uri);
             };
@@ -131,7 +153,8 @@ public sealed class ShopWindow : Form
         }
         finally
         {
-            retry.Enabled = true;
+            connecting = false;
+            if (!IsDisposed) retry.Enabled = true;
         }
     }
 
@@ -140,13 +163,6 @@ public sealed class ShopWindow : Form
         if (ready && IsAppOrigin(destination)) view.Source = destination;
     }
 
-    private static bool IsAppOrigin(string? raw) =>
-        Uri.TryCreate(raw, UriKind.Absolute, out var uri) && IsAppOrigin(uri);
-
-    private static bool IsAppOrigin(Uri? uri) =>
-        uri is not null && uri.Scheme == Uri.UriSchemeHttps && uri.Port == 443 &&
-        uri.UserInfo.Length == 0 && uri.Host.Equals(Home.Host, StringComparison.OrdinalIgnoreCase);
-
     private static void OpenOutside(string? raw)
     {
         if (Uri.TryCreate(raw, UriKind.Absolute, out var uri)) OpenOutside(uri);
@@ -154,10 +170,10 @@ public sealed class ShopWindow : Form
 
     private static void OpenOutside(Uri? uri)
     {
-        if (uri is null || !new[] { "https", "mailto", "tel", "sms" }.Contains(uri.Scheme)) return;
+        if (!CanOpenOutside(uri)) return;
         try
         {
-            Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(uri!.AbsoluteUri) { UseShellExecute = true });
         }
         catch (Exception)
         {

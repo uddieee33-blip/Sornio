@@ -37,3 +37,7 @@ Thumbs.db
 
 # Supabase CLI workspace metadata
 supabase/.temp/
+
+# Native build artifacts
+desktop/**/bin/
+desktop/**/obj/

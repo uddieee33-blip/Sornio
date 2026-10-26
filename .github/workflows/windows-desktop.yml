@@ -5,6 +5,7 @@ on:
     branches: [main]
     paths:
       - 'desktop/windows/**'
+      - 'desktop/tests/**'
       - '.github/workflows/windows-desktop.yml'
   workflow_dispatch:
 
@@ -21,6 +22,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '8.0.x'
+      - name: Verify navigation boundary
+        run: dotnet run --project desktop/tests/NavigationTests.csproj -c Release
       - name: Compile Windows target
         run: dotnet publish desktop/windows/DukaanOS.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist/windows
       - name: Check package contents
@@ -39,3 +42,49 @@ jobs:
           path: dist/Sornio-Windows-x64.zip
           if-no-files-found: error
           retention-days: 3
+
+  installer:
+    name: Build Windows setup and verify installation
+    needs: package
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: Sornio-Windows-x64
+          path: dist
+      - name: Prepare installer payload
+        shell: pwsh
+        run: Expand-Archive -LiteralPath dist/Sornio-Windows-x64.zip -DestinationPath dist/windows
+      - name: Compile setup
+        shell: pwsh
+        run: |
+          $compiler = Get-ChildItem "${env:ProgramFiles(x86)}\Inno Setup*\ISCC.exe" | Select-Object -Last 1
+          if (-not $compiler) { throw 'Inno Setup compiler is unavailable on this runner.' }
+          & $compiler.FullName desktop/windows/setup.iss
+          if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
+          Get-FileHash dist/installer/Sornio-Setup-x64.exe -Algorithm SHA256 | Format-List
+      - name: Verify install and uninstall preserve owner data
+        shell: pwsh
+        run: |
+          $target = Join-Path $env:RUNNER_TEMP 'sornio-install-check'
+          $profile = Join-Path $env:LOCALAPPDATA 'DukaanOS\WebView2'
+          New-Item -ItemType Directory -Force -Path $profile | Out-Null
+          $marker = Join-Path $profile 'installer-preservation-check.txt'
+          Set-Content $marker 'preserve-owner-profile'
+          $setup = Start-Process dist/installer/Sornio-Setup-x64.exe -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $target + '"')) -Wait -PassThru
+          if ($setup.ExitCode -ne 0) { throw "Setup failed: $($setup.ExitCode)" }
+          if (-not (Test-Path (Join-Path $target 'Sornio.exe'))) { throw 'Installed EXE is missing.' }
+          if (-not (Get-ChildItem $target -Recurse -Filter WebView2Loader.dll)) { throw 'WebView2 runtime files are missing.' }
+          $uninstall = Start-Process (Join-Path $target 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
+          if ($uninstall.ExitCode -ne 0) { throw "Uninstall failed: $($uninstall.ExitCode)" }
+          if (Test-Path (Join-Path $target 'Sornio.exe')) { throw 'Uninstall left the application EXE behind.' }
+          if ((Get-Content $marker) -ne 'preserve-owner-profile') { throw 'Uninstall modified owner data.' }
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Sornio-Windows-Setup-x64
+          path: dist/installer/Sornio-Setup-x64.exe
+          if-no-files-found: error
+          retention-days: 7
+

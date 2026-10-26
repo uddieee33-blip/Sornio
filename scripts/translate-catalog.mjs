@@ -59,6 +59,7 @@ const TARGETS = {
 // Product names, payment rails, standards, and template slots are data, not
 // prose. Stable tokens stop the translation service from transliterating them.
 const PROTECTED_TERMS = [
+  'Sornio',
   'DukaanOS',
   'WhatsApp',
   'Supabase',

@@ -26,6 +26,7 @@ MODEL_REPOSITORY = "remiai3/TRANSLATION_MODELS"
 MODEL_SUBDIRECTORY = "indictrans2-en-indic-dist-200M-ONNX-int8"
 TARGETS = {"brx": "brx_Deva", "ks": "kas_Arab"}
 PROTECTED_TERMS = [
+    "Sornio",
     "DukaanOS",
     "WhatsApp",
     "Supabase",

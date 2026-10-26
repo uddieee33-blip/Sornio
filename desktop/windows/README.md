@@ -20,7 +20,20 @@ does not work if copied out of that folder on its own. The repository's
 "Windows desktop package" GitHub Action builds a ZIP on review branches and
 can also be started manually. Download the ZIP from the workflow run's
 Artifacts section, extract it, and run the EXE. This is an unsigned test
-package, not a signed installer or Store distribution.
+package. The workflow also creates `Sornio-Windows-Setup-x64`, containing an
+unsigned `Sornio-Setup-x64.exe` preview installer. It installs all runtime files
+per user, adds a Start menu entry, offers a desktop shortcut and registers an
+uninstaller. CI checks silent install/uninstall and preservation of the owner's
+WebView profile. This is not a signed production release or Store distribution.
+
+To build the installer locally, publish the folder above and compile
+`desktop/windows/setup.iss` with Inno Setup 6.3 or newer on Windows.
+
+After reviewing and hosting a real installer on a public HTTPS URL ending in
+`.exe`, set the server-side `SORNIO_WINDOWS_DOWNLOAD_URL` for the website. The
+public `/install` page then offers the native setup separately from browser-app
+installation. Leave the variable empty until the release exists. Private GitHub
+Actions artifact URLs require an account and are not public customer downloads.
 
 Microsoft Edge WebView2 Evergreen Runtime must be present. Windows 11 normally
 includes it; if missing, the app displays a clear message. Install it from

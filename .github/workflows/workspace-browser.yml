@@ -1,0 +1,47 @@
+name: Workspace browser review
+on:
+  pull_request:
+    branches: [main]
+    paths: ['app/**', 'components/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
+      # Isolated CI-only identity, never used by a hosted deployment.
+      DUKAANOS_SESSION_SECRET: sornio-local-browser-review-only-2026
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - name: Install isolated browser tooling
+        run: |
+          npm install --prefix "$RUNNER_TEMP/sornio-browser" --no-package-lock playwright@1.62.1
+          node "$RUNNER_TEMP/sornio-browser/node_modules/playwright/cli.js" install --with-deps chromium
+      - name: Run browser acceptance
+        run: |
+          npm run start > /tmp/sornio-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" || true' EXIT
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then break; fi
+            sleep 1
+          done
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Sornio-workspace-review
+          path: |
+            /tmp/sornio-screenshots/
+            /tmp/sornio-server.log
+          retention-days: 7

@@ -45,6 +45,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { Card, CardTitle } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { Button } from '@/components/ui/Button';
+import { WorkspaceDialog } from '@/components/ui/WorkspaceDialog';
 import { usePlan } from '@/components/billing/plan-provider';
 import { useDukaanStore } from '@/lib/store';
 import { usePortal } from '@/lib/portals/portal-provider';
@@ -92,13 +93,18 @@ function periodLabel(interval: BillingInterval) {
   }
 }
 
-export function SubscriptionView({ lockedModule, businessId = null, operator = false, checkoutReady = false }: { lockedModule?: string | null; businessId?: string | null; operator?: boolean; checkoutReady?: boolean }) {
+export function SubscriptionView({ lockedModule, businessId = null, operator = false, checkoutReady = false, initialPlan, initialInterval }: { lockedModule?: string | null; businessId?: string | null; operator?: boolean; checkoutReady?: boolean; initialPlan?: string | null; initialInterval?: string | null }) {
   useLocaleRefresh();
   const { entitlement, statusLine, usage, busy, notice, dismissNotice, payment, loading, synced, startTrial, choosePlan, requestActivation, activate, refresh } = usePlan();
   const { state } = useDukaanStore();
   const { portal, nav } = usePortal();
-  const [intervals, setIntervals] = useState<Record<string, number>>({ growth: 0, scale: 0 });
+  const [intervals, setIntervals] = useState<Record<string, number>>(() => {
+    const plan = PLAN_CATALOGUE.find((item) => item.id === initialPlan && item.id !== 'trial');
+    const index = plan?.prices.findIndex((price) => price.interval === initialInterval) ?? -1;
+    return plan && index >= 0 ? { [plan.id]: index } : {};
+  });
   const [code, setCode] = useState('');
+  const [downgradeOpen, setDowngradeOpen] = useState(false);
   const [copied, setCopied] = useState<string | null>(null);
   useEffect(() => { if (payment) document.getElementById('checkout')?.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, [payment]);
 
@@ -274,9 +280,15 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
                 <div className="flex items-center gap-2">
                   <Clock size={13} className="text-stone-500" />
                   <span>
-                    {entitlement.state === 'grace' ? 'Grace ends' : 'Renews on'} <strong className="text-stone-800">{formatDate(entitlement.graceEndsAt || entitlement.renewsAt)}</strong>
+                    Paid access ends <strong className="text-stone-800">{formatDate(entitlement.renewsAt)}</strong>
                   </span>
                 </div>
+              ) : null}
+              {entitlement.graceEndsAt ? (
+                <div className="flex items-center gap-2"><Clock size={13} className="text-stone-500" /><span>Grace access ends <strong className="text-stone-800">{formatDate(entitlement.graceEndsAt)}</strong></span></div>
+              ) : null}
+              {entitlement.state === 'trialing' ? (
+                <div className="flex items-center gap-2"><Clock size={13} className="text-stone-500" /><span>Trial ends <strong className="text-stone-800">{formatDate(entitlement.trialEndsAt)}</strong></span></div>
               ) : null}
               {entitlement.priceLockedUntil ? (
                 <div className="flex items-center gap-2">
@@ -302,7 +314,7 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
             {entitlement.state === 'free' || entitlement.state === 'expired' ? (
               trialUsed ? (
                 <p className="rounded-xl bg-stone-50 px-3 py-2.5 text-xs text-stone-600 ring-1 ring-inset ring-stone-200">
-                  The full trial has already been used on this device — you experienced every module and every feature. A paid plan is the only way to keep them all — and the first one starts the day you pay.
+                  This business has already used its full trial. Choose a paid plan to keep the paid tools, or continue with Starter.
                 </p>
               ) : (
                 <Button className="w-full" onClick={() => void startTrial()} disabled={busy}>
@@ -319,7 +331,7 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
               </Link>
             ) : null}
             {entitlement.state !== 'free' ? (
-              <Button variant="ghost" className="w-full" onClick={() => void choosePlan('starter')} disabled={busy}>
+              <Button variant="ghost" className="w-full" onClick={() => setDowngradeOpen(true)} disabled={busy || loading}>
                 Move to the free plan
               </Button>
             ) : null}
@@ -546,6 +558,8 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
                     <button
                       key={price.interval}
                       type="button"
+                      aria-pressed={index === selected}
+                      aria-label={`${plan.name} ${price.interval}`}
                       onClick={() => setIntervals((current) => ({ ...current, [plan.id]: index }))}
                       className={`rounded-lg px-2.5 py-1.5 text-[11px] font-bold ring-1 ring-inset transition ${
                         index === selected ? 'bg-brand-500/15 text-brand-700 ring-brand-400/30' : 'bg-stone-50 text-stone-600 ring-stone-200 hover:bg-stone-100'
@@ -584,7 +598,7 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
                         You are on this
                       </Button>
                     ) : (
-                      <Button variant="secondary" className="w-full" onClick={() => void choosePlan('starter')} disabled={busy}>
+                      <Button variant="secondary" className="w-full" onClick={() => setDowngradeOpen(true)} disabled={busy || loading}>
                         Move to the free plan
                       </Button>
                     )
@@ -630,6 +644,21 @@ export function SubscriptionView({ lockedModule, businessId = null, operator = f
           Paid by UPI and need it activated right now? Send the reference to support — activation is a human on our side, and it is recorded in your audit history when it happens. Questions before paying? Every claim on this page can be checked in <Link href="/security" className="font-semibold text-brand-600 underline decoration-dotted">Trust Centre</Link>.
         </p>
       </Card>
+      {downgradeOpen ? (
+        <WorkspaceDialog label="Move to Starter" onClose={() => { if (!busy) setDowngradeOpen(false); }}>
+          <section className="workspace-dialog-panel w-full max-w-lg rounded-3xl border border-stone-200 bg-panel p-6 shadow-float">
+            <h2 className="font-display text-xl font-bold text-stone-900">Move to Starter?</h2>
+            <p className="mt-3 text-sm leading-relaxed text-stone-600">This changes your business to the free plan immediately. Paid tools pause now, including any remaining trial or paid access. Your bills, stock, customers and ledger stay saved.</p>
+            <p className="mt-3 text-sm leading-relaxed text-stone-600">To keep your remaining access, stay on your current plan and let its period finish. Plans currently renew only when you pay again.</p>
+            {notice?.tone === 'error' ? <p role="alert" className="mt-4 text-sm text-red-700">{notice.text}</p> : null}
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-end">
+              <Button variant="secondary" disabled={busy} onClick={() => setDowngradeOpen(false)}>Keep current plan</Button>
+              <Button disabled={busy || loading} onClick={async () => { if (await choosePlan('starter')) setDowngradeOpen(false); }}>{busy ? 'Changing plan…' : 'Confirm move to Starter'}</Button>
+            </div>
+          </section>
+        </WorkspaceDialog>
+      ) : null}
     </div>
   );
 }
+

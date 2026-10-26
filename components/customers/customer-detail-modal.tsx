@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { QRCodeCanvas } from 'qrcode.react';
 import { Banknote, Building2, Check, Copy, Download, Landmark, QrCode, Wallet, X } from 'lucide-react';
+import { WorkspaceDialog } from '@/components/ui/WorkspaceDialog';
 import { Badge } from '@/components/ui/Badge';
 import { buildUpiDeepLink, isValidUpiId, maskAccountNumber, paymentReference, upiAccentColor } from '@/lib/upi';
 import { useDukaanStore, type Customer } from '@/lib/store';
@@ -35,18 +36,6 @@ export function CustomerDetailModal({ customer, onClose }: { customer: Customer;
     });
   }, [hasUpi, upiId, customer, amountValue, state.profile]);
 
-  useEffect(() => {
-    const handleKey = (event: KeyboardEvent) => {
-      if (event.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', handleKey);
-    document.body.style.overflow = 'hidden';
-    return () => {
-      window.removeEventListener('keydown', handleKey);
-      document.body.style.overflow = '';
-    };
-  }, [onClose]);
-
   const handleCopy = async () => {
     if (!deepLink) return;
     try {
@@ -73,14 +62,9 @@ export function CustomerDetailModal({ customer, onClose }: { customer: Customer;
   };
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-end justify-center overflow-y-auto bg-black/70 p-0 backdrop-blur-xs sm:items-center sm:p-6"
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-    >
+    <WorkspaceDialog label={customer.name} onClose={onClose}>
       <div
-        className="relative w-full max-w-2xl overflow-hidden rounded-t-3xl border border-stone-200 bg-panel shadow-2xl animate-fade-up sm:rounded-3xl"
+        className="workspace-dialog-panel relative w-full max-w-2xl overflow-hidden rounded-t-3xl border border-stone-200 bg-panel shadow-2xl animate-fade-up sm:rounded-3xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div
@@ -91,7 +75,7 @@ export function CustomerDetailModal({ customer, onClose }: { customer: Customer;
         />
         <button
           onClick={onClose}
-          className="absolute right-4 top-4 z-10 flex h-9 w-9 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900"
+          className="absolute right-4 top-4 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-stone-100 text-stone-600 transition hover:bg-stone-200 hover:text-stone-900"
           aria-label="Close"
         >
           <X size={17} />
@@ -267,6 +251,6 @@ export function CustomerDetailModal({ customer, onClose }: { customer: Customer;
           </div>
         </div>
       </div>
-    </div>
+    </WorkspaceDialog>
   );
 }
