@@ -30,7 +30,7 @@ jobs:
       - name: Build bundled frontend
         run: npm run build --prefix apps/desktop
       - name: Test encrypted storage and restart behavior
-        run: cargo test --locked --manifest-path packages/local-store/Cargo.toml
+        run: cargo test --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target
       - name: Test Windows Credential Manager failure handling
         run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
       - name: Build independent Windows installer

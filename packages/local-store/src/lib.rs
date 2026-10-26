@@ -103,14 +103,14 @@ impl Store {
     /// Return success only after SQLite commits; stale windows cannot overwrite.
     pub fn save(&mut self, expected_revision: i64, draft: Draft) -> Result<Snapshot, StoreError> {
         const TYPES: &[&str] = &[
-            "grocery",
-            "retail",
-            "cafe",
-            "restaurant",
             "gym",
+            "cafe",
+            "kirana",
             "salon",
-            "services",
-            "wholesale",
+            "electronics",
+            "boutique",
+            "service",
+            "general",
         ];
         if expected_revision < 0
             || draft.business_name.trim().is_empty()
@@ -154,7 +154,7 @@ mod tests {
     fn draft() -> Draft {
         Draft {
             business_name: "Private sample shop".into(),
-            business_type: "grocery".into(),
+            business_type: "kirana".into(),
             note: "Restart without a network".into(),
         }
     }

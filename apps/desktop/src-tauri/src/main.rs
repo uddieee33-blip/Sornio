@@ -117,7 +117,7 @@ mod tests {
                     0,
                     Draft {
                         business_name: "Vault test".into(),
-                        business_type: "retail".into(),
+                        business_type: "general".into(),
                         note: "Saved offline".into(),
                     },
                 )
