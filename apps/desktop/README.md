@@ -64,3 +64,6 @@ wrong keys, stale writers, validation, failed writes and newer-schema refusal.
 On Windows this also includes a Credential Manager test using a temporary,
 separate vault entry; missing credentials must never cause key replacement.
 The Windows workflow also produces a review setup and native-screen captures.
+It uses Windows accessibility automation on the normal release binary with
+outbound firewall rules for the app and WebView. It does not enable a debugging
+port or use a browser-only substitute for native acceptance.
