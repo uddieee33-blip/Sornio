@@ -37,7 +37,7 @@ jobs:
             sleep 1
           done
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: Sornio-workspace-review

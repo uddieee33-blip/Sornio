@@ -36,7 +36,7 @@ jobs:
           cd dist/windows
           zip -q -r ../Sornio-Windows-x64.zip .
       - name: Upload review package
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: Sornio-Windows-x64
           path: dist/Sornio-Windows-x64.zip
@@ -81,7 +81,7 @@ jobs:
           if ($uninstall.ExitCode -ne 0) { throw "Uninstall failed: $($uninstall.ExitCode)" }
           if (Test-Path (Join-Path $target 'Sornio.exe')) { throw 'Uninstall left the application EXE behind.' }
           if ((Get-Content $marker) -ne 'preserve-owner-profile') { throw 'Uninstall modified owner data.' }
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: Sornio-Windows-Setup-x64
           path: dist/installer/Sornio-Setup-x64.exe
