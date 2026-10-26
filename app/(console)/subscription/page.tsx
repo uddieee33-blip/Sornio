@@ -23,6 +23,9 @@ export default async function SubscriptionPage({
   const client = user ? await getGuardedServerClient() : null;
   const membership = client && user ? await client.from('business_members').select('business_id').eq('user_id', user.id).limit(1).maybeSingle() : null;
   return <SubscriptionView lockedModule={locked} businessId={membership?.data?.business_id ?? null}
+    initialPlan={typeof params.plan === 'string' ? params.plan : null}
+    initialInterval={typeof params.interval === 'string' ? params.interval : null}
     operator={isPlatformOperator(user?.id, process.env.DUKAANOS_PLATFORM_ADMIN_IDS ?? '')}
     checkoutReady={isValidUpiId((process.env.NEXT_PUBLIC_PLANS_UPI_ID ?? '').trim())} />;
 }
+

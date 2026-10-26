@@ -17,7 +17,7 @@
  * provider is a view of the answer, not the answer.
  */
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useDukaanStore } from '@/lib/store';
 import {
   TRIAL_DAYS,
@@ -65,6 +65,7 @@ export function PlanProvider({ children }: { children: ReactNode }) {
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<PlanNotice>(null);
   const [payment, setPayment] = useState<PaymentInstructions | null>(null);
+  const pending = useRef(false);
 
   // The wall clock is external mutable state: it is read through a ticking
   // store (never during render), so render stays pure and hydration is stable.
@@ -106,21 +107,31 @@ export function PlanProvider({ children }: { children: ReactNode }) {
       work: () => Promise<{ ok: boolean; error?: string; record?: PlanRecord | null; payment?: PaymentInstructions; }>,
       successText: (record: PlanRecord | null) => string,
     ): Promise<boolean> => {
+      if (pending.current) return false;
+      pending.current = true;
       setBusy(true);
       setNotice(null);
-      const result = await work();
-      setBusy(false);
-      if (!result.ok) {
-        setNotice({ tone: 'error', text: result.error ?? 'That did not work. Try again.' });
+      try {
+        const result = await work();
+        if (!result.ok) {
+          setNotice({ tone: 'error', text: result.error ?? 'That did not work. Try again.' });
+          return false;
+        }
+        if (result.record !== undefined) {
+          setRecord(result.record ?? null);
+          setSynced(true);
+          if (!result.payment) setPayment(null);
+        }
+        if (result.payment) setPayment(result.payment);
+        setNotice({ tone: 'ok', text: successText(result.record ?? null) });
+        return true;
+      } catch {
+        setNotice({ tone: 'error', text: 'Could not update your plan. Check your connection and try again.' });
         return false;
+      } finally {
+        pending.current = false;
+        setBusy(false);
       }
-      if (result.record !== undefined) {
-        setRecord(result.record ?? null);
-        setSynced(true);
-      }
-      if (result.payment) setPayment(result.payment);
-      setNotice({ tone: 'ok', text: successText(result.record ?? null) });
-      return true;
     },
     [],
   );
@@ -231,3 +242,4 @@ export function usePlan(): PlanContextValue {
   if (!context) throw new Error('usePlan must be used inside PlanProvider');
   return context;
 }
+

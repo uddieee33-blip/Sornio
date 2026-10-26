@@ -1,6 +1,13 @@
 # Windows, Android and shopkeeper workflow
 
-The first delivery is an installable web app. `/install` gives Windows and Android instructions and uses the browser installation prompt when available. A Windows WebView2 desktop project now builds an unsigned EXE and supporting files as a review ZIP through the `Windows desktop package` workflow. A native Android connected review project now exists in `mobile/android`; its workflow builds a debug APK for device review. An MSIX, signed Android release and Play Store listing are not yet produced. The existing product name is preserved.
+The public landing page is `/`, the business workspace starts at `/home`, and
+`/install` separates native Windows setup from browser installation. The Windows
+workflow builds a complete review ZIP and a per-user preview setup EXE, with
+automated install/uninstall and profile-preservation checks. A real public HTTPS
+installer URL must be configured before the public download button appears.
+Both Windows packages remain unsigned and connected. The Android project in
+`mobile/android` builds a debug APK for review. A signed Android App Bundle and
+Play Store listing remain future work; see `docs/google-play-release.md`.
 
 ## Included
 
@@ -14,7 +21,13 @@ The first delivery is an installable web app. `/install` gives Windows and Andro
 ## Still required before claiming native or automated delivery
 
 1. Run real installation acceptance on Windows Edge/Chrome and Android Chrome, including uninstall/reinstall, taskbar/home-screen launch and authenticated sessions. Browser UI emulation cannot establish actual OS installation.
-2. Build and inspect the Windows review ZIP, then test the EXE on Windows 10/11 with actual scanner/printer hardware. The app requires WebView2 Evergreen and connectivity for cold launch. A fully offline Windows build requires the local runtime, durable encrypted database, operation sync and signed offline entitlement described in `docs/windows-offline-architecture.md`. The ZIP is unsigned and is not yet a production installer. Android connected review packaging is in `mobile/android`; native device acceptance and release signing remain outstanding. Code signing/distribution decisions are required before a production Windows release.
+2. Build and inspect the Windows review ZIP and setup EXE, then test installation
+   and the application on Windows 10/11 with actual scanner/printer hardware.
+   WebView2 Evergreen and connectivity are required for cold launch. A fully
+   offline Windows build needs the local runtime, encrypted database, operation
+   sync and signed offline entitlement in `docs/windows-offline-architecture.md`.
+   The preview installer does not implement that architecture. Code signing and
+   public distribution remain required before a production Windows release.
 3. Verify hosted signup → confirmation → owner details → business details → optional payment setup → home, then logout and second-device login against staging. Existing local/compiler/database checks do not prove hosted auth or two-device sync.
 4. Connect an official messaging provider before enabling automatic sends. For the user's free-for-now constraint, no billable resource is provisioned in this patch. Validate the provider account, sender number, templates, recipient permissions and actual cost first. India domestic SMS setup depends on the provider's DLT registration process.
 5. Implement durable tenant-scoped schedules/outbox, idempotency, retries, delivery-status webhooks and cancellation after payment before unattended sending. Browser timers and `wa.me`/`sms:` links are not automatic delivery. Do not store provider secrets in browser state or mark a message delivered merely because a provider accepted a request.

@@ -29,6 +29,26 @@ export function WorkspaceDialog({ children, label, onClose, className = '' }: {
       ref={ref}
       aria-label={label}
       className={`workspace-dialog ${className}`}
+      onKeyDown={(event) => {
+        // Native modality makes the background inert, but Chromium can still
+        // send Tab to browser chrome at the last control. Wrap both directions
+        // using the live controls, including after a dialog changes steps.
+        if (event.key !== 'Tab' || event.target instanceof Element && event.target.closest('dialog') !== event.currentTarget) return;
+        const dialog = event.currentTarget;
+        const controls = Array.from(dialog.querySelectorAll<HTMLElement>(
+          'a[href], button, input, select, textarea, [tabindex], [contenteditable="true"]',
+        )).filter((node) => node.tabIndex >= 0 && !node.matches(':disabled') &&
+          !node.closest('[inert]') && node.getClientRects().length > 0 && getComputedStyle(node).visibility !== 'hidden');
+        const first = controls[0];
+        const last = controls[controls.length - 1];
+        if (!first || !last) { event.preventDefault(); return; }
+        const active = document.activeElement;
+        if (event.shiftKey && (active === first || active === dialog || !dialog.contains(active))) {
+          event.preventDefault(); last.focus();
+        } else if (!event.shiftKey && (active === last || active === dialog || !dialog.contains(active))) {
+          event.preventDefault(); first.focus();
+        }
+      }}
       onCancel={(event) => { event.preventDefault(); onClose(); }}
       onClick={(event) => { if (event.target === event.currentTarget) onClose(); }}
     >
@@ -36,3 +56,4 @@ export function WorkspaceDialog({ children, label, onClose, className = '' }: {
     </dialog>
   );
 }
+
