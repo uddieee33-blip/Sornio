@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import type { PortalId } from '../../../lib/portals/types';
+import brandIcon from '../../../public/brand/icon-192.png';
 import './style.css';
 
 type Draft = { businessName: string; businessType: PortalId; note: string };
@@ -56,7 +57,7 @@ function App() {
 
   return <div className="desktop-shell">
     <aside className="rail">
-      <a className="wordmark" href="#main" aria-label="Sornio workspace"><span className="brand-mark" aria-hidden="true">s</span>Sornio</a>
+      <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
       <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a></nav>
       <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.1.0</p></div>
@@ -65,7 +66,7 @@ function App() {
       <header className="topbar"><span>Workspace / Local review</span><span className="chip"><span className="status-dot"/> On this PC</span></header>
       <div className="page">
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
-        <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
+        <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         <div className="workspace-grid">
           <form className="panel" onSubmit={(event) => void save(event)}>
             <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{dirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>

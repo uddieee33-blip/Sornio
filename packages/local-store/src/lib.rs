@@ -5,6 +5,9 @@ use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 use thiserror::Error;
 
+#[cfg(windows)]
+pub mod device;
+
 #[derive(Debug, Error)]
 pub enum StoreError {
     #[error("The local database could not be opened or saved. Keep the original files and retry.")]

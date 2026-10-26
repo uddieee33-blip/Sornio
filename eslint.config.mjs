@@ -24,6 +24,11 @@ const config = [
   ...coreWebVitals,
   ...typescript,
   {
+    // This package bundles React assets in Tauri; it has no Next.js image loader.
+    files: ['apps/desktop/**/*.{ts,tsx}'],
+    rules: { '@next/next/no-img-element': 'off', '@next/next/no-html-link-for-pages': 'off' },
+  },
+  {
     // The preset scopes its rules by glob; make sure our source extensions are
     // actually linted when ESLint is invoked as `eslint .`.
     files: ['**/*.{ts,tsx,js,jsx,mjs}'],

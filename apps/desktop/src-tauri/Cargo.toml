@@ -11,12 +11,3 @@ tauri-build = { version = "2", features = [] }
 tauri = { version = "2", features = [] }
 sornio-local-store = { path = "../../../packages/local-store" }
 serde = { version = "1", features = ["derive"] }
-fs2 = "0.4"
-getrandom = "0.3"
-zeroize = "1"
-
-[target.'cfg(windows)'.dependencies]
-keyring = { version = "3", features = ["windows-native"] }
-
-[dev-dependencies]
-tempfile = "3"

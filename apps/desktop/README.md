@@ -56,12 +56,11 @@ foundation, not a completed port of the eight business consoles.
 
 ```sh
 cargo test --locked --manifest-path ../../packages/local-store/Cargo.toml
-cargo test --locked --manifest-path src-tauri/Cargo.toml
 npm run build
 ```
 
 The first command tests real SQLCipher storage and survives process close/reopen,
 wrong keys, stale writers, validation, failed writes and newer-schema refusal.
-The second includes a Windows-only Credential Manager test using a temporary,
+On Windows this also includes a Credential Manager test using a temporary,
 separate vault entry; missing credentials must never cause key replacement.
 The Windows workflow also produces a review setup and native-screen captures.
