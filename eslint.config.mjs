@@ -16,13 +16,18 @@ import typescript from 'eslint-config-next/typescript';
 
 /** Build output and dependencies are generated, never authored. */
 const ignores = {
-  ignores: ['.next/**', '.cache/**', 'out/**', 'build/**', 'dist/**', 'coverage/**', 'node_modules/**', 'next-env.d.ts'],
+  ignores: ['.next/**', '.cache/**', 'out/**', 'build/**', 'dist/**', 'coverage/**', '**/node_modules/**', '**/dist/**', '**/target/**', 'next-env.d.ts'],
 };
 
 const config = [
   ignores,
   ...coreWebVitals,
   ...typescript,
+  {
+    // This package bundles React assets in Tauri; it has no Next.js image loader.
+    files: ['apps/desktop/**/*.{ts,tsx}'],
+    rules: { '@next/next/no-img-element': 'off', '@next/next/no-html-link-for-pages': 'off' },
+  },
   {
     // The preset scopes its rules by glob; make sure our source extensions are
     // actually linted when ESLint is invoked as `eslint .`.
@@ -41,3 +46,4 @@ const config = [
 ];
 
 export default config;
+

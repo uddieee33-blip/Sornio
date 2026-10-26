@@ -1,0 +1,76 @@
+name: Windows local workspace
+on:
+  pull_request:
+    branches: [main]
+    paths: ['apps/desktop/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            packages/local-store
+            apps/desktop/src-tauri
+      - name: Install desktop dependencies
+        run: npm ci --prefix apps/desktop
+      - name: Build bundled frontend
+        run: npm run build --prefix apps/desktop
+      - name: Test encrypted storage, Windows vault and restart behavior
+        run: cargo test --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target
+      - name: Build independent Windows installer
+        run: npm run desktop:build --prefix apps/desktop
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install native accessibility review tooling
+        run: python -m pip install pywinauto==0.6.9 Pillow==12.0.0
+      - name: Verify native offline save, restore and reopen
+        shell: pwsh
+        run: |
+          $prefix = 'Sornio-local-review-' + [guid]::NewGuid().ToString()
+          $app = (Resolve-Path 'apps/desktop/src-tauri/target/release/sornio-desktop.exe').Path
+          $runtimes = @(Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" -ErrorAction SilentlyContinue)
+          if ($runtimes.Count -eq 0) { throw 'Could not locate WebView2 to enforce the offline test.' }
+          $programs = @($app) + @($runtimes | ForEach-Object { $_.FullName })
+          $code = 1
+          try {
+            for ($index = 0; $index -lt $programs.Count; $index++) {
+              New-NetFirewallRule -Name "$prefix-$index" -DisplayName "$prefix-$index" -Direction Outbound -Program $programs[$index] -Action Block | Out-Null
+            }
+            python apps/desktop/check-native.py
+            $code = $LASTEXITCODE
+          } finally {
+            Get-NetFirewallRule -Name "$prefix-*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
+          }
+          if ($code -ne 0) { exit $code }
+      - name: Upload engineering installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sornio-Local-Workspace-Review
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload actual native screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sornio-Local-Native-Captures
+          path: dist/native-review/
+          if-no-files-found: ignore
+          retention-days: 7
+

@@ -1,0 +1,5 @@
+[[permission]]
+identifier = "workspace-drafts"
+description = "Read, save and restore bounded review draft copies; no filesystem, SQL, shell or remote privileges."
+commands.allow = ["load_workspace", "save_workspace", "list_workspace_copies", "restore_workspace"]
+
