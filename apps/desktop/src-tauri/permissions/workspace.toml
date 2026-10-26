@@ -1,0 +1,4 @@
+[[permission]]
+identifier = "workspace-drafts"
+description = "Read and save the review workspace draft; no filesystem, SQL, shell or remote privileges."
+commands.allow = ["load_workspace", "save_workspace"]

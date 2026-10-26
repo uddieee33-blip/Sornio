@@ -1,0 +1,59 @@
+name: Windows local workspace
+on:
+  pull_request:
+    branches: [main]
+    paths: ['apps/desktop/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  local-windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      CARGO_TERM_COLOR: always
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: |
+            packages/local-store
+            apps/desktop/src-tauri
+      - name: Install desktop dependencies
+        run: npm ci --prefix apps/desktop
+      - name: Build bundled frontend
+        run: npm run build --prefix apps/desktop
+      - name: Test encrypted storage and restart behavior
+        run: cargo test --locked --manifest-path packages/local-store/Cargo.toml
+      - name: Test Windows Credential Manager failure handling
+        run: cargo test --locked --manifest-path apps/desktop/src-tauri/Cargo.toml
+      - name: Build independent Windows installer
+        run: npm run desktop:build --prefix apps/desktop
+      - name: Install isolated native review tooling
+        run: npm install --prefix "$env:RUNNER_TEMP/sornio-native-review" --no-package-lock playwright@1.62.1
+      - name: Verify native offline save and reopen
+        shell: pwsh
+        run: |
+          $env:NODE_PATH = "$env:RUNNER_TEMP/sornio-native-review/node_modules"
+          node apps/desktop/check-native.cjs
+      - name: Upload engineering installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sornio-Local-Workspace-Review
+          path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload actual native screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Sornio-Local-Native-Captures
+          path: dist/native-review/
+          if-no-files-found: ignore
+          retention-days: 7

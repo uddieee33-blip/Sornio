@@ -41,3 +41,8 @@ supabase/.temp/
 # Native build artifacts
 desktop/**/bin/
 desktop/**/obj/
+
+# Rust / independent desktop package
+target/
+apps/desktop/src-tauri/gen/
+

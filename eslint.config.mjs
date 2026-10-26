@@ -16,7 +16,7 @@ import typescript from 'eslint-config-next/typescript';
 
 /** Build output and dependencies are generated, never authored. */
 const ignores = {
-  ignores: ['.next/**', '.cache/**', 'out/**', 'build/**', 'dist/**', 'coverage/**', 'node_modules/**', 'next-env.d.ts'],
+  ignores: ['.next/**', '.cache/**', 'out/**', 'build/**', 'dist/**', 'coverage/**', '**/node_modules/**', '**/dist/**', '**/target/**', 'next-env.d.ts'],
 };
 
 const config = [
@@ -41,3 +41,4 @@ const config = [
 ];
 
 export default config;
+
