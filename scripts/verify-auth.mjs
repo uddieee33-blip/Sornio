@@ -121,7 +121,7 @@ writeFileSync(
         esModuleInterop: true,
         strict: true,
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       // Entry points only — TypeScript follows the imports from here.
@@ -140,7 +140,7 @@ writeFileSync(
 // packages ship a `tsc`, so the one on PATH is whichever npm linked last.
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 /** See `verify-billing.mjs`: `paths` is a type-checking map, not an emit map. */
@@ -151,16 +151,16 @@ const nodeModule = require('node:module');
 const resolveFilename = nodeModule._resolveFilename;
 nodeModule._resolveFilename = function aliased(request, ...rest) {
   if (typeof request === 'string' && request.startsWith('@/')) {
-    const mapped = request.slice(2).replace(/^lib\//, '');
+    const mapped = request.slice(2);
     return resolveFilename.call(this, join(outDir, mapped), ...rest);
   }
   return resolveFilename.call(this, request, ...rest);
 };
 
-const gate = require(join(outDir, 'auth/routes.js'));
-const cookie = require(join(outDir, 'auth/cookie.js'));
-const origin = require(join(outDir, 'auth/origin.js'));
-const session = require(join(outDir, 'security/session.js'));
+const gate = require(join(outDir, 'lib/auth/routes.js'));
+const cookie = require(join(outDir, 'lib/auth/cookie.js'));
+const origin = require(join(outDir, 'lib/auth/origin.js'));
+const session = require(join(outDir, 'lib/security/session.js'));
 
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8');
 const exists = (...parts) => fs.existsSync(path.join(root, ...parts));

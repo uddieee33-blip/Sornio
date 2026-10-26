@@ -66,7 +66,7 @@ writeFileSync(
         esModuleInterop: true,
         strict: true,
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       files: [join(root, 'lib/business-data.ts'), join(root, 'lib/security/session.ts')],
@@ -78,7 +78,7 @@ writeFileSync(
 
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 const require = createRequire(import.meta.url);
@@ -86,14 +86,14 @@ const nodeModule = require('node:module');
 const resolveFilename = nodeModule._resolveFilename;
 nodeModule._resolveFilename = function aliased(request, ...rest) {
   if (typeof request === 'string' && request.startsWith('@/')) {
-    const mapped = request.slice(2).replace(/^lib\//, '');
+    const mapped = request.slice(2);
     return resolveFilename.call(this, join(outDir, mapped), ...rest);
   }
   return resolveFilename.call(this, request, ...rest);
 };
 
-const money = require(join(outDir, 'business-data.js'));
-const session = require(join(outDir, 'security/session.js'));
+const money = require(join(outDir, 'lib/business-data.js'));
+const session = require(join(outDir, 'lib/security/session.js'));
 
 // ---------------------------------------------------------------- financials
 const sale = (amount, account = 'revenue', paymentMethod = 'Cash') => ({

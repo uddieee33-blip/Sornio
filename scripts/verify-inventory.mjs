@@ -68,7 +68,7 @@ writeFileSync(
         esModuleInterop: true,
         strict: true,
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       files: [join(root, 'lib/inventory/index.ts')],
@@ -82,11 +82,11 @@ writeFileSync(
 // packages ship a `tsc`, so the one on PATH is whichever npm linked last.
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 const require = createRequire(import.meta.url);
-const I = require(join(outDir, 'inventory/index.js'));
+const I = require(join(outDir, 'lib/inventory/index.js'));
 
 /** A tiny clock so the test reads like the shop's day, not like a machine. */
 let tick = 0;

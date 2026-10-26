@@ -73,7 +73,7 @@ writeFileSync(
         strict: true,
         lib: ['es2022', 'dom'],
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       files: [join(root, 'lib/security/lock.ts')],
@@ -87,11 +87,11 @@ writeFileSync(
 // packages ship a `tsc`, so the one on PATH is whichever npm linked last.
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 const require = createRequire(import.meta.url);
-const L = require(join(outDir, 'security/lock.js'));
+const L = require(join(outDir, 'lib/security/lock.js'));
 
 /** A localStorage that behaves like the real one, faults included. */
 function fakeStorage({ fail = false, seed = null } = {}) {
