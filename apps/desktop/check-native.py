@@ -46,7 +46,7 @@ def launch(setup=False):
         password.set_focus()
         send_keys("WrongReviewPassword{TAB}{ENTER}", pause=0.05)
         wait_until(30, 0.5, lambda: any("That password did not unlock this workspace." in c.window_text()
-                   for c in window.descendants(control_type="Text")))
+                   for c in window.descendants()))
         assert not window.child_window(title="Business name", control_type="Edit").exists(), "Wrong password exposed the draft"
     enter_password(setup=setup)
     field = window.child_window(title="Business name", control_type="Edit")
@@ -103,10 +103,13 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-local-restored.png")
 
     # Lock a saved workspace and unlock it through native accessibility controls.
-    # Restore leaves focus in the history list. Scroll the document to its
-    # header before resolving the Lock button; offscreen UIA lookups default
-    # to visible controls and cannot resolve the note at this scroll position.
-    send_keys("^{HOME}", pause=0.1)
+    # Move from the visible history header via the real tab order. Ctrl+Home
+    # does not reliably scroll the containing WebView document on Windows.
+    # Reverse Tab: Reopen -> Note -> Business type -> Business name -> Lock.
+    refresh_button = window.child_window(title="Refresh copies", control_type="Button")
+    refresh_button.wait("visible enabled", timeout=30)
+    refresh_button.set_focus()
+    send_keys("+{TAB}" * 5, pause=0.1)
     lock_button = window.child_window(title="Lock workspace", control_type="Button")
     lock_button.wait("visible enabled", timeout=30)
     lock_button.set_focus()
