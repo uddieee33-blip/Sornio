@@ -65,12 +65,15 @@ try:
     note.set_edit_text("A second saved draft to undo.")
     note.set_focus()
     send_keys("{TAB}{ENTER}", pause=0.1)
-    wait_until(30, 0.5, lambda: any("Revision 2" in c.window_text()
-               for c in window.descendants(control_type="Text")))
+    # At the runner's window width the top revision label is hidden. Chromium
+    # exposes the copy's revision in the button/list item rather than Text.
+    window.child_window(title="Restore saved copy 2", control_type="Button").wait("exists", timeout=30)
     restore = window.child_window(title="Restore saved copy 1", control_type="Button")
     restore.wait("exists enabled", timeout=30)
-    restore.set_focus()
-    send_keys("{SPACE}", pause=0.1)
+    # From the saved note, Tab skips the disabled Save/current-copy buttons:
+    # Reopen -> Refresh copies -> Restore copy 1. This also scrolls it into view.
+    note.set_focus()
+    send_keys("{TAB}{TAB}{TAB}{SPACE}", pause=0.1)
     wait_until(30, 0.5, lambda: any("Restored saved copy 1 as revision 3." in c.window_text()
                for c in window.descendants(control_type="Text")))
     window.capture_as_image().save(OUTPUT / "windows-local-restored.png")
@@ -83,7 +86,7 @@ try:
     note.wait("visible enabled", timeout=15)
     assert note.get_value() == "Saved in the native app. Reopen without the website.", "Saved note changed on reopen"
     window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
-    assert any("Revision 3" in c.window_text() for c in window.descendants(control_type="Text")), "Restore revision did not survive termination"
+    window.child_window(title="Restore saved copy 3", control_type="Button").wait("exists", timeout=30)
     print("Native Windows release: network-blocked startup, two saves, restore, process termination and reopen passed.")
 except Exception:
     traceback.print_exc()
