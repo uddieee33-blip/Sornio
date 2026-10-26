@@ -28,7 +28,8 @@ not create a verified business account or authorize a paid plan.
   Locking one process does not revoke a separately unlocked process.
 - The UI asks before discarding unsaved edits when locking. A failed lock leaves
   fields intact. Password form values clear after an authentication attempt, and
-  native password buffers are zeroized. Ordinary browsers show only an installed
+  the native command's owned password string is zeroized. This does not guarantee
+  wiping all IPC/runtime copies. Ordinary browsers show only an installed
   app message, with no local-storage/IndexedDB fallback.
 
 ## Validation and limits

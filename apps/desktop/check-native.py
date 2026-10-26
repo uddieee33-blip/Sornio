@@ -103,8 +103,14 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-local-restored.png")
 
     # Lock a saved workspace and unlock it through native accessibility controls.
-    note.set_focus()
-    send_keys("+{TAB}+{TAB}+{TAB}{SPACE}", pause=0.1)
+    # Restore leaves focus in the history list. Scroll the document to its
+    # header before resolving the Lock button; offscreen UIA lookups default
+    # to visible controls and cannot resolve the note at this scroll position.
+    send_keys("^{HOME}", pause=0.1)
+    lock_button = window.child_window(title="Lock workspace", control_type="Button")
+    lock_button.wait("visible enabled", timeout=30)
+    lock_button.set_focus()
+    send_keys("{SPACE}", pause=0.1)
     window.child_window(title="Local password", control_type="Edit").wait("visible enabled", timeout=30)
     assert not window.child_window(title="Business name", control_type="Edit").exists(), "Lock left draft controls exposed"
     window.capture_as_image().save(OUTPUT / "windows-local-locked.png")
