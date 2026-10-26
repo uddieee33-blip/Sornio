@@ -1,5 +1,5 @@
 //! First offline slice: encrypted, versioned local workspace drafts.
-//! No cloud client, financial commands, account provisioning or sync yet.
+//! Bounded encrypted draft history; no financial commands or account provisioning.
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
@@ -20,6 +20,8 @@ pub enum StoreError {
     NewerSchema,
     #[error("Another window changed this draft. Reopen it before saving again.")]
     Conflict,
+    #[error("That saved copy is no longer available. Refresh saved copies and try again.")]
+    MissingRevision,
     #[error("Choose a business type and keep the draft within its size limits.")]
     InvalidDraft,
     #[error("The saved draft could not be read. Keep the original files for recovery.")]
@@ -39,6 +41,16 @@ pub struct Snapshot {
     pub revision: i64,
     pub draft: Option<Draft>,
 }
+
+/// Includes the current copy. Restoring creates a new revision, never rewinds it.
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
+pub struct SavedCopy {
+    pub revision: i64,
+    pub draft: Draft,
+}
+
+const SCHEMA_VERSION: i64 = 2;
+const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection);
 
@@ -61,22 +73,41 @@ impl Store {
         // This reads an encrypted page before any migration. Wrong/missing keys
         // must fail closed, never replace an unreadable database with a new one.
         let version: i64 = db.pragma_query_value(None, "user_version", |row| row.get(0))?;
-        if version > 1 {
+        if version > SCHEMA_VERSION {
             return Err(StoreError::NewerSchema);
         }
         db.pragma_update(None, "journal_mode", "WAL")?;
         db.pragma_update(None, "synchronous", "FULL")?;
         db.pragma_update(None, "foreign_keys", "ON")?;
         db.pragma_update(None, "cipher_memory_security", "ON")?;
-        if version == 0 {
+        if version < SCHEMA_VERSION {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
-            tx.execute_batch(
-                "CREATE TABLE workspace_draft (
+            // Re-read after acquiring the write lock: another process may have
+            // migrated while this connection waited for the transaction.
+            let locked_version: i64 = tx.pragma_query_value(None, "user_version", |r| r.get(0))?;
+            if locked_version > SCHEMA_VERSION {
+                return Err(StoreError::NewerSchema);
+            }
+            if locked_version == 0 {
+                tx.execute_batch(
+                    "CREATE TABLE workspace_draft (
                 singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
                 revision INTEGER NOT NULL CHECK (revision > 0),
                 payload TEXT NOT NULL
-            ); PRAGMA user_version = 1;",
-            )?;
+                );",
+                )?;
+            }
+            if locked_version < 2 {
+                tx.execute_batch(
+                    "CREATE TABLE workspace_history (
+                    revision INTEGER PRIMARY KEY CHECK (revision > 0),
+                    payload TEXT NOT NULL
+                );
+                INSERT INTO workspace_history(revision, payload)
+                    SELECT revision, payload FROM workspace_draft;
+                PRAGMA user_version = 2;",
+                )?;
+            }
             tx.commit()?;
         }
         Ok(Self(db))
@@ -105,6 +136,58 @@ impl Store {
 
     /// Return success only after SQLite commits; stale windows cannot overwrite.
     pub fn save(&mut self, expected_revision: i64, draft: Draft) -> Result<Snapshot, StoreError> {
+        Self::validate(expected_revision, &draft)?;
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        Self::commit_draft(tx, expected_revision, draft)
+    }
+
+    pub fn saved_copies(&self) -> Result<Vec<SavedCopy>, StoreError> {
+        let mut statement = self.0.prepare(
+            "SELECT revision, payload FROM workspace_history ORDER BY revision DESC LIMIT ?1",
+        )?;
+        let rows = statement.query_map([HISTORY_LIMIT], |r| {
+            Ok((r.get::<_, i64>(0)?, r.get::<_, String>(1)?))
+        })?;
+        let mut copies = Vec::new();
+        for row in rows {
+            let (revision, payload) = row?;
+            copies.push(SavedCopy {
+                revision,
+                draft: serde_json::from_str(&payload)?,
+            });
+        }
+        Ok(copies)
+    }
+
+    /// Fetch and restore under one write lock. Stale writers or pruned copies
+    /// must leave the current draft and history untouched.
+    pub fn restore(
+        &mut self,
+        expected_revision: i64,
+        source_revision: i64,
+    ) -> Result<Snapshot, StoreError> {
+        if expected_revision < 0 || source_revision <= 0 {
+            return Err(StoreError::MissingRevision);
+        }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let payload: String = tx
+            .query_row(
+                "SELECT payload FROM workspace_history WHERE revision = ?1",
+                [source_revision],
+                |r| r.get(0),
+            )
+            .optional()?
+            .ok_or(StoreError::MissingRevision)?;
+        let draft: Draft = serde_json::from_str(&payload)?;
+        Self::validate(expected_revision, &draft)?;
+        Self::commit_draft(tx, expected_revision, draft)
+    }
+
+    fn validate(expected_revision: i64, draft: &Draft) -> Result<(), StoreError> {
         const TYPES: &[&str] = &[
             "gym",
             "cafe",
@@ -123,10 +206,15 @@ impl Store {
         {
             return Err(StoreError::InvalidDraft);
         }
+        Ok(())
+    }
+
+    fn commit_draft(
+        tx: rusqlite::Transaction<'_>,
+        expected_revision: i64,
+        draft: Draft,
+    ) -> Result<Snapshot, StoreError> {
         let payload = serde_json::to_string(&draft)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let revision: i64 = tx
             .query_row(
                 "SELECT revision FROM workspace_draft WHERE singleton = 1",
@@ -142,6 +230,16 @@ impl Store {
         tx.execute("INSERT INTO workspace_draft(singleton, revision, payload) VALUES(1, ?1, ?2)
             ON CONFLICT(singleton) DO UPDATE SET revision = excluded.revision, payload = excluded.payload",
             params![next, payload])?;
+        tx.execute(
+            "INSERT INTO workspace_history(revision, payload) VALUES (?1, ?2)",
+            params![next, payload],
+        )?;
+        tx.execute(
+            "DELETE FROM workspace_history WHERE revision NOT IN (
+            SELECT revision FROM workspace_history ORDER BY revision DESC LIMIT ?1
+        )",
+            [HISTORY_LIMIT],
+        )?;
         tx.commit()?;
         Ok(Snapshot {
             revision: next,
@@ -240,11 +338,137 @@ mod tests {
             Err(StoreError::InvalidKey)
         ));
         let store = Store::open(&path, KEY).unwrap();
-        store.0.pragma_update(None, "user_version", 2).unwrap();
+        store
+            .0
+            .pragma_update(None, "user_version", SCHEMA_VERSION + 1)
+            .unwrap();
         drop(store);
         assert!(matches!(
             Store::open(&path, KEY),
             Err(StoreError::NewerSchema)
         ));
+    }
+
+    #[test]
+    fn version_one_migration_preserves_draft_and_seeds_history() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.db");
+        {
+            let mut old = Store::open(&path, KEY).unwrap();
+            old.save(0, draft()).unwrap();
+            old.0
+                .execute_batch("DROP TABLE workspace_history; PRAGMA user_version = 1;")
+                .unwrap();
+        }
+        let migrated = Store::open(&path, KEY).unwrap();
+        assert_eq!(migrated.load().unwrap().draft, Some(draft()));
+        assert_eq!(
+            migrated.saved_copies().unwrap(),
+            vec![SavedCopy {
+                revision: 1,
+                draft: draft()
+            }]
+        );
+        drop(migrated);
+        assert_eq!(
+            Store::open(&path, KEY)
+                .unwrap()
+                .saved_copies()
+                .unwrap()
+                .len(),
+            1
+        );
+    }
+
+    #[test]
+    fn restoring_creates_a_new_revision_and_survives_reopen() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.db");
+        let mut store = Store::open(&path, KEY).unwrap();
+        store.save(0, draft()).unwrap();
+        let mut changed = draft();
+        changed.note = "A different note".into();
+        store.save(1, changed.clone()).unwrap();
+        assert_eq!(
+            store.restore(2, 1).unwrap(),
+            Snapshot {
+                revision: 3,
+                draft: Some(draft())
+            }
+        );
+        drop(store);
+        let reopened = Store::open(&path, KEY).unwrap();
+        assert_eq!(reopened.load().unwrap().revision, 3);
+        let history = reopened.saved_copies().unwrap();
+        assert_eq!(
+            history.iter().map(|c| c.revision).collect::<Vec<_>>(),
+            vec![3, 2, 1]
+        );
+        assert_eq!(history[1].draft, changed);
+        assert_eq!(history[0].draft, draft());
+    }
+
+    #[test]
+    fn stale_restore_and_missing_copy_cannot_replace_newer_work() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.db");
+        let mut a = Store::open(&path, KEY).unwrap();
+        let mut b = Store::open(&path, KEY).unwrap();
+        a.save(0, draft()).unwrap();
+        let mut newest = draft();
+        newest.note = "Newer committed work".into();
+        a.save(1, newest.clone()).unwrap();
+        assert!(matches!(b.restore(1, 1), Err(StoreError::Conflict)));
+        assert!(matches!(
+            b.restore(2, 999),
+            Err(StoreError::MissingRevision)
+        ));
+        assert!(matches!(b.restore(2, -1), Err(StoreError::MissingRevision)));
+        assert_eq!(a.load().unwrap().draft, Some(newest));
+        assert_eq!(a.saved_copies().unwrap().len(), 2);
+    }
+
+    #[test]
+    fn retention_is_bounded_and_pruned_revisions_cannot_be_restored() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(&dir.path().join("store.db"), KEY).unwrap();
+        for revision in 0..25 {
+            store.save(revision, draft()).unwrap();
+        }
+        let history = store.saved_copies().unwrap();
+        assert_eq!(history.len(), HISTORY_LIMIT as usize);
+        assert_eq!(history.first().unwrap().revision, 25);
+        assert_eq!(history.last().unwrap().revision, 6);
+        assert!(matches!(
+            store.restore(25, 1),
+            Err(StoreError::MissingRevision)
+        ));
+        assert_eq!(store.load().unwrap().revision, 25);
+    }
+
+    #[test]
+    fn history_write_failure_rolls_back_both_save_and_restore() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = Store::open(&dir.path().join("store.db"), KEY).unwrap();
+        store.save(0, draft()).unwrap();
+        let mut changed = draft();
+        changed.note = "Must never be committed".into();
+        store
+            .0
+            .execute_batch(
+                "CREATE TRIGGER fail_history BEFORE INSERT ON workspace_history
+            BEGIN SELECT RAISE(ABORT, 'Simulated storage failure'); END;",
+            )
+            .unwrap();
+        assert!(store.save(1, changed).is_err());
+        assert!(store.restore(1, 1).is_err());
+        assert_eq!(
+            store.load().unwrap(),
+            Snapshot {
+                revision: 1,
+                draft: Some(draft())
+            }
+        );
+        assert_eq!(store.saved_copies().unwrap().len(), 1);
     }
 }

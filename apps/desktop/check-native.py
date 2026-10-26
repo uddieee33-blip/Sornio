@@ -60,6 +60,20 @@ try:
     send_keys("{TAB}{ENTER}", pause=0.1)
     wait_until(30, 0.5, saved_message_visible)
     window.capture_as_image().save(OUTPUT / "windows-local-saved.png")
+
+    # Commit a second copy, then restore the first through the normal UI.
+    note.set_edit_text("A second saved draft to undo.")
+    note.set_focus()
+    send_keys("{TAB}{ENTER}", pause=0.1)
+    wait_until(30, 0.5, lambda: any("Revision 2" in c.window_text()
+               for c in window.descendants(control_type="Text")))
+    restore = window.child_window(title="Restore saved copy 1", control_type="Button")
+    restore.wait("exists enabled", timeout=30)
+    restore.set_focus()
+    send_keys("{SPACE}", pause=0.1)
+    wait_until(30, 0.5, lambda: any("Restored saved copy 1 as revision 3." in c.window_text()
+               for c in window.descendants(control_type="Text")))
+    window.capture_as_image().save(OUTPUT / "windows-local-restored.png")
     stop()
     field = launch()
     assert field.get_value() == "Sample local store", "Business draft did not survive process termination"
@@ -69,7 +83,8 @@ try:
     note.wait("visible enabled", timeout=15)
     assert note.get_value() == "Saved in the native app. Reopen without the website.", "Saved note changed on reopen"
     window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
-    print("Native Windows release: network-blocked startup, draft save, process termination and reopen passed.")
+    assert any("Revision 3" in c.window_text() for c in window.descendants(control_type="Text")), "Restore revision did not survive termination"
+    print("Native Windows release: network-blocked startup, two saves, restore, process termination and reopen passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:
@@ -82,3 +97,4 @@ except Exception:
     raise
 finally:
     stop()
+

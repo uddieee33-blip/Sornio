@@ -33,6 +33,11 @@ Production assets are embedded in the Windows binary, not loaded from Vercel.
 - Serialize first-use key provisioning; refuse missing keys, unreadable stores,
   newer schemas and failed writes without deleting/resetting records.
 - Use committed revisions to reject stale writes from a second window/process.
+- Keep the latest 20 saved draft copies in the same encrypted database. Restore
+  an earlier copy as a new revision; both the current draft and history commit
+  together. Version-one drafts migrate without losing their original content.
+- Reopen the latest committed draft after a conflict, with an explicit discard
+  step when the window has unsaved edits. Failed reopen keeps those edits.
 
 Commands accept a bounded draft and expected revision, never SQL, filenames,
 keys, URLs or an arbitrary tenant. Native permissions belong only to the bundled
@@ -42,7 +47,9 @@ main window. No filesystem, shell, HTTP or SQL plugin is exposed to the UI.
 
 Test data only. This does not import or replace the existing account database.
 It has no business identity verification, PIN/device unlock, roles, production
-onboarding, billing, signed entitlements, sync, backup/recovery or printing.
+onboarding, billing, signed entitlements, sync, device-loss backup/key recovery or printing.
+Saved copies protect against unwanted draft edits; they share the database and
+are not a backup for database corruption or a lost device.
 Encryption currently protects one review workspace per Windows user; it does
 not yet implement per-business/staff separation. Software executing as that
 Windows user may access its Credential Manager. Losing that Windows profile
@@ -61,9 +68,12 @@ npm run build
 
 The first command tests real SQLCipher storage and survives process close/reopen,
 wrong keys, stale writers, validation, failed writes and newer-schema refusal.
+Recovery tests cover v1 migration, restore/reopen, stale restore rejection,
+retention and rollback of both the draft and history when a history write fails.
 On Windows this also includes a Credential Manager test using a temporary,
 separate vault entry; missing credentials must never cause key replacement.
 The Windows workflow also produces a review setup and native-screen captures.
 It uses Windows accessibility automation on the normal release binary with
 outbound firewall rules for the app and WebView. It does not enable a debugging
 port or use a browser-only substitute for native acceptance.
+

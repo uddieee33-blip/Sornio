@@ -16,6 +16,26 @@ product, not generated depictions of dashboards. Remove public demo/workspace
 entry points from that final marketing site. Plans and downloads stay public;
 private business operations belong in the installed app.
 
+## Product decisions carried forward
+
+- The name is **Sornio**, without “OS”. Keep a restrained, curved, premium
+  interface for long counter shifts, with light/dark treatment and fast operation
+  on ordinary shop PCs. Heavy scroll/parallax belongs to the public landing page;
+  respect reduced motion and keep billing interactions responsive.
+- Preserve all eight business-specific consoles. Memberships belong to gyms;
+  Udhar Khata belongs to grocery/kiryana. Do not replace these with one generic
+  workspace as native features are ported.
+- Plans are **Basic, Growth and Team**. Confirm their capability limits and
+  prices before advertising or enforcing them. Owner/manager purchase controls,
+  verified payments and scoped offline entitlements are part of implementation;
+  selecting a plan in the UI cannot unlock a paid entitlement by itself.
+- Platform sequence: **Windows → Android phones/tablets → iOS → iPadOS → macOS**.
+  Build shared rules and sync boundaries now; each platform still needs its own
+  native acceptance and release gates. Windows remains the current delivery focus.
+- Keep owner → business → bank/GST → plan/payment onboarding in the migration
+  scope, alongside offline billing, stock, receipt language/CA exports, roles and
+  eventual UPI reconciliation. Draft storage is not that onboarding or billing.
+
 ## Repository boundaries
 
 | Location | Responsibility | Status |
@@ -36,6 +56,8 @@ for hosted APIs versus local native commands.
 1. **Bundled startup and local storage.** Independent local UI, encrypted SQLite,
    versioned migrations, fail-closed native key provisioning, restart checks and
    a Windows review installer. The first slice stores only sample workspace drafts.
+   Draft recovery now retains the latest 20 encrypted copies and restores into
+   a new revision. This is local edit recovery, not database/device-loss backup.
 2. **Identity and domain parity.** Provision a verified business online, import its
    initial data, add offline unlock/roles and separate business/staff keys. Share
    the existing portal mapping, money calculations and validation. Do not duplicate
@@ -79,3 +101,4 @@ Windows workflow must compile/test native Credential Manager integration, build
 the installer and verify the native window save/reopen flow. Browser-only screenshots
 or mocked IPC do not establish Windows acceptance. Signing, full desktop parity,
 multi-account separation and two-PC tests remain required before customer release.
+

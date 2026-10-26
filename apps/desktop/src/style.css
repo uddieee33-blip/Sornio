@@ -3,3 +3,17 @@
 @media(max-width:1100px){.workspace-grid{grid-template-columns:1fr}.side-panel{display:none}.page{padding:28px}.topbar{padding:0 28px}.desktop-shell{grid-template-columns:200px 1fr}.rail{padding:30px 16px}.revision{display:none}}
 @media(max-width:680px){.desktop-shell{display:block}.rail{border-right:0;border-bottom:1px solid var(--line);padding:18px 22px}.rail .workspace-name,.rail nav,.rail-bottom{display:none}.topbar{height:54px}.page{padding:24px 18px}.heading{align-items:start}h1{font-size:37px}.review-label{font-size:9px;margin-top:13px}.panel{padding:21px}.form-footer{align-items:stretch;flex-direction:column;gap:5px}.status-panel{padding:18px}.status-icon{display:none}}
 @media(prefers-color-scheme:dark){:root{color:#e2e8f1;background:#161d27;--panel:#1e2733;--muted:#9aa9ba;--line:#323e4d;--accent:#a7bfdf;color-scheme:dark}.selected{background:#2d3c50;color:#d1e2f7}.status-panel{background:linear-gradient(115deg,#253347,#212c3a);border-color:#38485a}.side-panel{background:#222f40}.divider{background:#3a485a}input,textarea,select{background:#1b2532}button{background:#8eadd2;color:#142135}}
+.quiet-button{background:var(--panel);color:var(--accent);border:1px solid var(--line)}
+.reopen-actions{border-top:1px solid var(--line);margin-top:20px;padding-top:18px}
+.reopen-prompt{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.reopen-prompt p{flex-basis:100%;font-size:12px;line-height:1.7;color:var(--muted);margin:0 0 6px}
+.recovery-panel{margin-top:24px}
+.recovery-panel .muted{margin-bottom:12px}
+.history-notice{font-size:11px;line-height:1.7;color:var(--muted);margin:0 0 20px}
+.saved-copies{list-style:none;margin:0;padding:0;max-height:480px;overflow:auto;scrollbar-gutter:stable}
+.saved-copies li{display:flex;gap:20px;justify-content:space-between;align-items:center;padding:18px 4px;border-top:1px solid var(--line)}
+.saved-copies li>div{min-width:0}
+.saved-copies strong{display:block;font-size:13px;overflow-wrap:anywhere}
+.copy-note{font-size:12px;line-height:1.6;color:var(--muted);margin:6px 0;white-space:pre-wrap;overflow-wrap:anywhere;display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:2;overflow:hidden}
+@media(max-width:680px){.saved-copies li{align-items:start;flex-direction:column;gap:10px}.recovery-panel .panel-heading{align-items:start;flex-wrap:wrap}}
+
