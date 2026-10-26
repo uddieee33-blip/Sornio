@@ -5,6 +5,8 @@ use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 use thiserror::Error;
 
+pub mod access;
+
 #[cfg(windows)]
 pub mod device;
 
@@ -22,6 +24,20 @@ pub enum StoreError {
     Conflict,
     #[error("That saved copy is no longer available. Refresh saved copies and try again.")]
     MissingRevision,
+    #[error("Unlock this workspace to continue.")]
+    Locked,
+    #[error("Local access is already configured. Unlock with the existing password.")]
+    AccessConfigured,
+    #[error("Set up local access before unlocking this workspace.")]
+    AccessNotConfigured,
+    #[error("Use a password of 10–128 characters, with at least one non-space character.")]
+    InvalidPassword,
+    #[error("That password did not unlock this workspace.")]
+    IncorrectPassword,
+    #[error("Too many attempts. Wait 60 seconds before trying again.")]
+    RateLimited,
+    #[error("Local access could not be checked. Keep the original database and Windows profile.")]
+    AccessUnavailable,
     #[error("Choose a business type and keep the draft within its size limits.")]
     InvalidDraft,
     #[error("The saved draft could not be read. Keep the original files for recovery.")]
@@ -49,7 +65,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 2;
+const SCHEMA_VERSION: i64 = 3;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection);
@@ -107,6 +123,16 @@ impl Store {
                     SELECT revision, payload FROM workspace_draft;
                 PRAGMA user_version = 2;",
                 )?;
+            }
+            if locked_version < 3 {
+                tx.execute_batch("CREATE TABLE workspace_access (
+                    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                    password_hash TEXT,
+                    failed_attempts INTEGER NOT NULL DEFAULT 0 CHECK (failed_attempts BETWEEN 0 AND 5),
+                    retry_after INTEGER NOT NULL DEFAULT 0 CHECK (retry_after >= 0)
+                );
+                INSERT INTO workspace_access(singleton) VALUES (1);
+                PRAGMA user_version = 3;")?;
             }
             tx.commit()?;
         }
@@ -357,7 +383,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE workspace_history; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

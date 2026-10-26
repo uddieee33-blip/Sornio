@@ -62,6 +62,10 @@ for hosted APIs versus local native commands.
    initial data, add offline unlock/roles and separate business/staff keys. Share
    the existing portal mapping, money calculations and validation. Do not duplicate
    financial rules or rely on a frontend role flag.
+   Local review 0.2.0 adds password setup, explicit lock/unlock and restart
+   locking at the native command boundary. This is a prerequisite only: it does
+   not provision a verified business, assign owner/staff roles, or implement
+   per-business keys, password recovery or idle/session revocation policies.
 3. **Atomic offline operation.** Commit bills, stock, cash/dues, audit and immutable
    outbox together with stable operation IDs. Success follows durable commit.
    Prove restart, full disk, failed writes and power interruption. Support receipts,

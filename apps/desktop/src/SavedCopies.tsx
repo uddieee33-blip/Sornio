@@ -1,11 +1,13 @@
 import { useEffect, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
 import type { SavedCopy } from './workspace-types';
+import { errorCode } from './access';
 
-export function SavedCopies({ revision, disabled, dirty, onRestore }: {
+export function SavedCopies({ revision, disabled, dirty, onLocked, onRestore }: {
   revision: number;
   disabled: boolean;
   dirty: boolean;
+  onLocked: () => void;
   onRestore: (source: number) => void;
 }) {
   const [result, setResult] = useState<{
@@ -20,11 +22,12 @@ export function SavedCopies({ revision, disabled, dirty, onRestore }: {
     let current = true;
     invoke<SavedCopy[]>('list_workspace_copies').then((saved) => {
       if (current) setResult({ revision, refresh, copies: saved, error: '' });
-    }).catch(() => {
+    }).catch((error: unknown) => {
+      if (current && errorCode(error) === 'locked') { onLocked(); return; }
       if (current) setResult({ revision, refresh, copies: [], error: 'Saved copies could not be opened. Your current draft is still here.' });
     });
     return () => { current = false; };
-  }, [revision, refresh]);
+  }, [revision, refresh, onLocked]);
 
   return <section className="panel recovery-panel" aria-labelledby="saved-copies-title" aria-busy={loading}>
     <div className="panel-heading"><div><p className="eyebrow">ON THIS PC</p><h2 id="saved-copies-title">Saved copies</h2></div>
