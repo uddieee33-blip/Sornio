@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use sornio_local_store::customers as crate_types;
 #[cfg(windows)]
 use sornio_local_store::device::initialize;
 use sornio_local_store::{
@@ -33,6 +34,13 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::InvalidCustomer => "invalid_customer",
+            StoreError::CustomerMissing => "customer_missing",
+            StoreError::InvalidCredit => "invalid_credit",
+            StoreError::CreditConflict => "credit_conflict",
+            StoreError::Overpayment => "overpayment",
+            StoreError::CreditLimit => "credit_limit",
+            StoreError::CreditAlreadyCollected => "credit_collected",
             StoreError::Forbidden => "forbidden",
             StoreError::WorkspaceMismatch => "workspace_mismatch",
             StoreError::InvalidIdentity => "invalid_identity",
@@ -295,6 +303,100 @@ async fn read_identity_audit(
     with_scoped_workspace(state, scope, move |w| w.identity_audit(after)).await
 }
 
+#[tauri::command]
+async fn save_local_customer(
+    scope: Scope,
+    r: crate_types::SaveCustomer,
+    state: tauri::State<'_, LocalState>,
+) -> Result<crate_types::Customer, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.save_customer(r)).await
+}
+
+#[tauri::command]
+async fn find_local_customers(
+    scope: Scope,
+    search: String,
+    overdue_only: bool,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<crate_types::Customer>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.find_customers(&search, overdue_only)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn prepare_local_credit(
+    scope: Scope,
+    r: crate_types::CreditRequest,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.prepare_credit(r)).await
+}
+
+#[tauri::command]
+async fn post_local_credit(
+    scope: Scope,
+    r: crate_types::CreditRequest,
+    state: tauri::State<'_, LocalState>,
+) -> Result<crate_types::CreditReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_credit(r)).await
+}
+
+#[tauri::command]
+async fn pending_local_credit(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Option<crate_types::PendingCredit>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.pending_credit()).await
+}
+
+#[tauri::command]
+async fn clear_local_credit(
+    scope: Scope,
+    operation_id: String,
+    saved: bool,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.clear_credit(&operation_id, saved)).await
+}
+
+#[tauri::command]
+async fn link_local_credit(
+    scope: Scope,
+    r: crate_types::LinkCredit,
+    state: tauri::State<'_, LocalState>,
+) -> Result<crate_types::CreditReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.link_credit(r)).await
+}
+
+#[tauri::command]
+async fn read_customer_statement(
+    scope: Scope,
+    customer_id: String,
+    after: i64,
+    through: Option<i64>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<crate_types::Statement, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.customer_statement(&customer_id, after, through)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn render_customer_statement(
+    scope: Scope,
+    customer_id: String,
+    through: Option<i64>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<String, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.print_customer_statement(&customer_id, through)
+    })
+    .await
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -308,6 +410,15 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            save_local_customer,
+            find_local_customers,
+            prepare_local_credit,
+            post_local_credit,
+            pending_local_credit,
+            clear_local_credit,
+            link_local_credit,
+            read_customer_statement,
+            render_customer_statement,
             workspace_access_status,
             read_local_session,
             list_local_staff,

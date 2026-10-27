@@ -434,6 +434,76 @@ impl Workspace {
     pub fn unlock(&mut self, password: &str) -> Result<AccessStatus, StoreError> {
         self.login("owner", password)
     }
+    pub fn save_customer(
+        &mut self,
+        r: crate::customers::SaveCustomer,
+    ) -> Result<crate::customers::Customer, StoreError> {
+        self.require(Permission::ManageCustomers)?;
+        self.store.save_customer(r)
+    }
+    pub fn find_customers(
+        &self,
+        search: &str,
+        overdue_only: bool,
+    ) -> Result<Vec<crate::customers::Customer>, StoreError> {
+        self.require(if overdue_only {
+            Permission::Reports
+        } else {
+            Permission::CustomerRead
+        })?;
+        self.store.find_customers(search, overdue_only)
+    }
+    pub fn prepare_credit(&mut self, r: crate::customers::CreditRequest) -> Result<(), StoreError> {
+        self.require(if r.kind == crate::customers::CreditKind::Repayment {
+            Permission::CollectCredit
+        } else {
+            Permission::CorrectCredit
+        })?;
+        self.store.prepare_credit(r)
+    }
+    pub fn post_credit(
+        &mut self,
+        r: crate::customers::CreditRequest,
+    ) -> Result<crate::customers::CreditReceipt, StoreError> {
+        self.require(if r.kind == crate::customers::CreditKind::Repayment {
+            Permission::CollectCredit
+        } else {
+            Permission::CorrectCredit
+        })?;
+        self.store.post_credit(r, true)
+    }
+    pub fn pending_credit(&self) -> Result<Option<crate::customers::PendingCredit>, StoreError> {
+        self.require(Permission::CollectCredit)?;
+        self.store.pending_credit()
+    }
+    pub fn clear_credit(&mut self, id: &str, saved: bool) -> Result<(), StoreError> {
+        self.require(Permission::CollectCredit)?;
+        self.store.clear_credit(id, saved)
+    }
+    pub fn link_credit(
+        &mut self,
+        r: crate::customers::LinkCredit,
+    ) -> Result<crate::customers::CreditReceipt, StoreError> {
+        self.require(Permission::CorrectCredit)?;
+        self.store.link_credit(r)
+    }
+    pub fn customer_statement(
+        &self,
+        id: &str,
+        after: i64,
+        through: Option<i64>,
+    ) -> Result<crate::customers::Statement, StoreError> {
+        self.require(Permission::CustomerRead)?;
+        self.store.customer_statement(id, after, through)
+    }
+    pub fn print_customer_statement(
+        &self,
+        id: &str,
+        through: Option<i64>,
+    ) -> Result<String, StoreError> {
+        self.require(Permission::CustomerRead)?;
+        self.store.print_customer_statement(id, through)
+    }
     pub fn prepare_checkout(
         &mut self,
         request: crate::billing::PostInvoice,

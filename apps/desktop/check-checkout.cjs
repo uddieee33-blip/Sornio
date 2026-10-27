@@ -82,6 +82,7 @@ async function stopBridge() {
     await label('Local password').fill(password); await label('Confirm password').fill(password);
     await button('Set up local access').click();
     nativeScope = (await native('read_local_session')).scope;
+    await native('save_local_customer', { r: { operationId: 'profile-customer-1', id: 'customer-1', name: 'Customer One', phone: null, creditLimitPaise: null, creditDays: 30, expectedRevision: null } });
     await label('Item name').fill('Review rice'); await label('Item code (optional)').fill('RICE');
     await label('Stock unit').selectOption('kg'); await label('Unit price (₹)').fill('42.50'); await label('Opening stock').fill('10');
     await page.getByText('Checkout is ready. Totals are previews until the sale is saved.', { exact: true }).waitFor();

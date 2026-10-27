@@ -601,7 +601,7 @@ fn frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency() {
             .0
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        7
+        8
     );
     assert_eq!(rows(&migrated.0, &tables), before);
     assert_eq!(migrated.add_product(item()).unwrap(), added);

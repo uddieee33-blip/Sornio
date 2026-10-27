@@ -6,14 +6,15 @@ import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-d
 import { errorCode, errorMessage } from './access';
 import { money, quantity } from './billing-types';
 import type { CashierState, Invoice, Product } from './billing-types';
+import { CustomerLookup } from './CustomerLookup';
 import { SavedInvoice } from './SavedInvoice';
 
 type CartLine = { productId: string; typedQuantity: string };
 const emptyBalances = { cashPaise: '0', creditPaise: '0' };
-const refusedCodes = new Set(['invalid_invoice', 'invalid_product', 'stock_conflict']);
+const refusedCodes = new Set(['invalid_invoice', 'invalid_product', 'stock_conflict', 'customer_missing', 'credit_limit', 'credit_conflict']);
 
-export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange, onBusyChange, onPosted }: {
-  disabled: boolean; refreshToken: number; onLocked: () => void;
+export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, onLocked, onDirtyChange, onBusyChange, onPosted }: {
+  disabled: boolean; refreshToken: number; customerRefreshToken: number; onLocked: () => void;
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; onPosted: () => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
@@ -212,7 +213,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
         })}</ul>
         <div className="checkout-options"><div><label htmlFor="sale-tax">Tax (%)</label><input id="sale-tax" inputMode="decimal" maxLength={8} value={tax} onChange={event => setTax(event.target.value)}/></div>
           <div><label htmlFor="sale-tender">Transaction type</label><select id="sale-tender" value={tender} onChange={event => setTender(event.target.value as 'cash' | 'credit')}><option value="cash">Cash</option><option value="credit">Credit</option></select></div>
-          {tender === 'credit' ? <div><label htmlFor="sale-customer">Credit customer reference</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference.</small></div> : null}
+          {tender === 'credit' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">Credit customer reference</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference.</small></div> : null}
         </div>
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>

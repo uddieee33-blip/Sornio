@@ -15,6 +15,11 @@ pub enum Role {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Permission {
     View,
+    CustomerRead,
+    ManageCustomers,
+    CollectCredit,
+    CreditPolicy,
+    CorrectCredit,
     Sell,
     AddItem,
     CorrectStock,
@@ -30,9 +35,22 @@ impl Role {
         use Permission::*;
         match self {
             Self::Owner => true,
-            Self::Manager => matches!(permission, View | Sell | AddItem | CorrectStock | Reports),
-            Self::AssistantManager => matches!(permission, View | Sell | AddItem),
-            Self::Cashier => matches!(permission, View | Sell),
+            Self::Manager => matches!(
+                permission,
+                View | Sell
+                    | AddItem
+                    | CorrectStock
+                    | Reports
+                    | CustomerRead
+                    | ManageCustomers
+                    | CollectCredit
+                    | CreditPolicy
+            ),
+            Self::AssistantManager => matches!(
+                permission,
+                View | Sell | AddItem | CustomerRead | ManageCustomers | CollectCredit
+            ),
+            Self::Cashier => matches!(permission, View | Sell | CustomerRead | CollectCredit),
         }
     }
     pub(crate) fn key(&self) -> &'static str {

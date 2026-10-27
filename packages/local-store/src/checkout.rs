@@ -213,7 +213,7 @@ impl Store {
         let mut cash = 0i128;
         let mut credit = 0i128;
         {
-            let mut statement = tx.prepare("SELECT account,amount_paise FROM local_billing_ledger WHERE account IN ('cash','receivables')")?;
+            let mut statement = tx.prepare("SELECT account,amount_paise FROM local_billing_ledger WHERE account IN ('cash','receivables') UNION ALL SELECT account,amount_paise FROM local_customer_journal WHERE account IN ('cash','receivables')")?;
             let rows =
                 statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
             for row in rows {
@@ -396,7 +396,7 @@ mod tests {
         let mut s = seed(&path);
         let invoice = s.post_invoice(request()).unwrap();
         s.0.execute_batch(
-            "DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; PRAGMA user_version=5;",
+            "DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; PRAGMA user_version=5;",
         )
         .unwrap();
         drop(s);

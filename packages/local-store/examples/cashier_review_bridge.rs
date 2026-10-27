@@ -6,6 +6,7 @@ use sornio_local_store::{
     access::Workspace,
     billing::PostInvoice,
     catalog::{AddProduct, AdjustStock},
+    customers::{CreditRequest, LinkCredit, SaveCustomer},
     identity::{OwnerSetup, Scope, StaffChange, StaffDetails},
     Draft, Store, StoreError,
 };
@@ -38,6 +39,40 @@ fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
 fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
+        "save_local_customer" => {
+            serde_json::to_value(w.save_customer(argument::<SaveCustomer>(a, "r")?)?)?
+        }
+        "find_local_customers" => serde_json::to_value(w.find_customers(
+            &argument::<String>(a, "search")?,
+            argument(a, "overdueOnly")?,
+        )?)?,
+        "prepare_local_credit" => {
+            w.prepare_credit(argument::<CreditRequest>(a, "r")?)?;
+            Value::Null
+        }
+        "post_local_credit" => {
+            serde_json::to_value(w.post_credit(argument::<CreditRequest>(a, "r")?)?)?
+        }
+        "pending_local_credit" => serde_json::to_value(w.pending_credit()?)?,
+        "clear_local_credit" => {
+            w.clear_credit(
+                &argument::<String>(a, "operationId")?,
+                argument(a, "saved")?,
+            )?;
+            Value::Null
+        }
+        "link_local_credit" => {
+            serde_json::to_value(w.link_credit(argument::<LinkCredit>(a, "r")?)?)?
+        }
+        "read_customer_statement" => serde_json::to_value(w.customer_statement(
+            &argument::<String>(a, "customerId")?,
+            argument(a, "after")?,
+            argument(a, "through")?,
+        )?)?,
+        "render_customer_statement" => serde_json::to_value(w.print_customer_statement(
+            &argument::<String>(a, "customerId")?,
+            argument(a, "through")?,
+        )?)?,
         "read_local_session" => serde_json::to_value(w.local_session()?)?,
         "list_local_staff" => serde_json::to_value(w.list_staff()?)?,
         "create_local_staff" => serde_json::to_value(w.create_staff(
@@ -115,6 +150,13 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::InvalidCustomer => "invalid_customer",
+                    StoreError::CustomerMissing => "customer_missing",
+                    StoreError::InvalidCredit => "invalid_credit",
+                    StoreError::CreditConflict => "credit_conflict",
+                    StoreError::Overpayment => "overpayment",
+                    StoreError::CreditLimit => "credit_limit",
+                    StoreError::CreditAlreadyCollected => "credit_collected",
                     StoreError::Forbidden => "forbidden",
                     StoreError::WorkspaceMismatch => "workspace_mismatch",
                     StoreError::IncorrectPassword => "incorrect_password",

@@ -35,7 +35,7 @@ def focus_control(title, control_type):
     target = window.child_window(title=title, control_type=control_type, visible_only=False)
     target.wait("exists", timeout=45)
     window.set_focus()
-    for _ in range(80):
+    for _ in range(160):
         control = target.wrapper_object()
         if control.is_visible() and control.is_enabled() and control.has_keyboard_focus():
             return control
@@ -205,7 +205,14 @@ try:
     activate("Refresh checkout")
     assert_balances("53.13", "0.00", "2.75")
     assert_no_receipt()
-    fill("Credit customer reference", "native-customer-1")
+    fill("Customer ID", "native-customer-1")
+    fill("Customer name", "Native credit customer")
+    fill("Customer phone (optional)", "+91 98765 43210")
+    fill("Credit limit (₹, blank for no limit)", "50.00")
+    activate("Save customer")
+    wait_until(30, 0.5, lambda: message_visible("Customer saved."))
+    fill("Find credit customer", "9876543210")
+    activate("Use customer native-customer-1")
     activate("Review sale")
     activate("Confirm sale")
     wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
@@ -244,6 +251,34 @@ try:
     ).exists(timeout=0.1), "Acknowledged checkout returned after restart"
     assert_balances("53.13", "31.88", "2")
     window.capture_as_image().save(OUTPUT / "windows-local-next-sale-reopened.png")
+    # Native customer cash collections: partial repayment, forced restart,
+    # exact saved receipt recovery, acknowledgement, full settlement and print.
+    activate("Open customer native-customer-1")
+    fill("Credit entry amount (₹)", "10.00")
+    activate("Review credit entry")
+    activate("Cancel credit review")
+    assert_balances("53.13", "31.88", "2")
+    activate("Review credit entry")
+    activate("Confirm credit entry")
+    payment_id = focus_control("Saved credit entry ID", "Edit").get_value()
+    assert str(UUID(payment_id)) == payment_id
+    assert_balances("63.13", "21.88", "2")
+    stop()
+    launch()
+    assert focus_control("Saved credit entry ID", "Edit").get_value() == payment_id
+    assert_balances("63.13", "21.88", "2")
+    activate("Start next credit entry")
+    fill("Credit entry amount (₹)", "21.88")
+    activate("Review credit entry")
+    activate("Confirm credit entry")
+    second_payment = focus_control("Saved credit entry ID", "Edit").get_value()
+    assert second_payment != payment_id
+    assert_balances("85.01", "0.00", "2")
+    activate("Start next credit entry")
+    activate("Prepare full customer statement")
+    window.child_window(title="Print customer statement", control_type="Button", visible_only=False).wait("exists", timeout=30)
+    wait_until(30, 0.5, lambda: message_visible("Customer statement"))
+    window.capture_as_image().save(OUTPUT / "windows-customer-ledger.png")
     # Owner provisions a real staff account, then native access is tested under
     # that account. This uses only keyboard/UIA on the packaged release binary.
     fill("Staff name", "Native cashier")
@@ -255,7 +290,7 @@ try:
     assert_locked()
     enter_password(account="native-cashier")
     focus_control("Search items for sale", "Edit")
-    for title in ("Business name", "Staff password", "Quantity change", "Item name"):
+    for title in ("Business name", "Staff password", "Quantity change", "Item name", "Customer name", "Existing credit invoice ID"):
         assert not window.child_window(title=title, control_type="Edit", visible_only=False).exists(timeout=0.1), title
     assert not message_visible("Cash recorded:"), "Cashier received aggregate reports"
     fill("Search items for sale", "NATIVE-RICE")
@@ -269,7 +304,7 @@ try:
     activate("Lock workspace")
     assert_locked()
     enter_password()
-    assert_balances("63.76", "31.88", "1.75")
+    assert_balances("95.64", "0.00", "1.75")
     focus_control("Role for native-cashier", "ComboBox")
     send_keys("{HOME}{ENTER}", pause=0.2)
     activate("Save role for native-cashier")
@@ -277,7 +312,7 @@ try:
     activate("Lock workspace")
     enter_password(account="native-cashier")
     focus_control("Quantity change", "Edit")
-    assert_balances("63.76", "31.88", "1.75")
+    assert_balances("95.64", "0.00", "1.75")
     activate("Lock workspace")
     enter_password()
     activate("Disable native-cashier")
@@ -287,7 +322,7 @@ try:
     wait_until(30, 0.5, lambda: message_visible("That password did not unlock this workspace."))
     assert_locked()
     window.capture_as_image().save(OUTPUT / "windows-staff-disabled.png")
-    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes and disabled-account refusal passed.")
+    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:

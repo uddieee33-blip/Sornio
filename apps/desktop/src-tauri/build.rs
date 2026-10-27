@@ -1,6 +1,15 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "save_local_customer",
+            "find_local_customers",
+            "prepare_local_credit",
+            "post_local_credit",
+            "pending_local_credit",
+            "clear_local_credit",
+            "link_local_credit",
+            "read_customer_statement",
+            "render_customer_statement",
             "workspace_access_status",
             "read_local_session",
             "list_local_staff",

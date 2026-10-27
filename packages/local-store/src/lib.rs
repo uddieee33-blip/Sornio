@@ -9,6 +9,7 @@ pub mod access;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
+pub mod customers;
 pub mod identity;
 
 #[cfg(windows)]
@@ -54,6 +55,24 @@ pub enum StoreError {
     InvalidDraft,
     #[error("Check the item name, unit, price and stock quantity.")]
     InvalidProduct,
+    #[error("Check the customer identifier, name, phone and credit settings.")]
+    InvalidCustomer,
+    #[error("Choose an existing customer account before recording credit.")]
+    CustomerMissing,
+    #[error("Check the amount, date and correction reason.")]
+    InvalidCredit,
+    #[error("This customer's account changed. Refresh its balance before continuing.")]
+    CreditConflict,
+    #[error("The repayment or correction exceeds this customer's outstanding balance.")]
+    Overpayment,
+    #[error("This sale would exceed the customer's credit limit.")]
+    CreditLimit,
+    #[error("A credit account with collections or adjustments cannot be relinked. Preserve its history and use an authorized correction.")]
+    CreditAlreadyCollected,
+    #[error(
+        "The credit entry could not be saved or read. Keep its operation ID and retry safely."
+    )]
+    CreditUnavailable,
     #[error("Check invoice items, tax rate and cash/credit customer reference.")]
     InvalidInvoice,
     #[error(
@@ -97,7 +116,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 7;
+const SCHEMA_VERSION: i64 = 8;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -181,6 +200,9 @@ impl Store {
             }
             if locked_version < 7 {
                 identity::migrate(&tx)?;
+            }
+            if locked_version < 8 {
+                customers::migrate(&tx)?;
             }
             tx.commit()?;
         }
@@ -449,7 +471,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

@@ -19,7 +19,8 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
    globalThis.__TAURI_INTERNALS__={invoke:async(command,args={})=>{
     await new Promise(r=>setTimeout(r,20)); const s=globalThis.review; s.calls.push(command);
     if(command==='read_local_session')return {scope:{businessId:'review-business',workspaceId:'review-workspace'},businessName:'Review store',principal:{id:'owner',username:'owner',displayName:'Owner',role:'owner',enabled:true,revision:1}};
-    if(command==='list_local_staff')return [];
+    if(command==='list_local_staff'||command==='find_local_customers')return [];
+    if(command==='pending_local_credit')return null;
     if(command==='workspace_access_status')return structuredClone(s.access);
     if(command==='setup_local_access'){
      if(s.access.configured)throw {code:'already_configured',message:'Local access is already configured.'};
