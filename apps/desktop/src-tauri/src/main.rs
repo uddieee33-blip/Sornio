@@ -37,6 +37,7 @@ impl From<StoreError> for CommandError {
             StoreError::AccessConfigured => "already_configured",
             StoreError::AccessNotConfigured => "not_configured",
             StoreError::StockConflict => "stock_conflict",
+            StoreError::InvalidInvoice => "invalid_invoice",
             StoreError::OperationConflict => "operation_conflict",
             StoreError::DuplicateSku => "duplicate_sku",
             StoreError::InvalidProduct
