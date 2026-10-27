@@ -3,3 +3,8 @@ identifier = "workspace-drafts"
 description = "Set up/unlock local review access and operate bounded drafts through native authorization; no filesystem, SQL, shell or remote privileges."
 commands.allow = ["workspace_access_status", "setup_local_access", "unlock_workspace", "lock_workspace", "load_workspace", "save_workspace", "list_workspace_copies", "restore_workspace"]
 
+[[permission]]
+identifier = "local-stock"
+description = "Read and mutate bounded review stock through native authorization. No SQL, path, filesystem or network access."
+commands.allow = ["list_local_products", "add_local_product", "adjust_local_stock"]
+

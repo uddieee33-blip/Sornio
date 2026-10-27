@@ -6,7 +6,7 @@
  * a ledger the app writes, checked against the figure the owner sees.
  */
 import { readFileSync, mkdtempSync, mkdirSync, writeFileSync, existsSync, statSync } from 'node:fs';
-import { join, dirname, resolve } from 'node:path';
+import { join, dirname, resolve, relative, sep } from 'node:path';
 import { tmpdir } from 'node:os';
 import { createRequire } from 'node:module';
 
@@ -37,7 +37,7 @@ function compile(file) {
     const resolved = resolveModule(file, spec);
     if (!resolved) return match;
     const dep = compile(resolved);
-    let rel = dep.slice(dirname(target).length + 1);
+    let rel = relative(dirname(target), dep).split(sep).join('/');
     if (!rel.startsWith('.')) rel = `./${rel}`;
     return `${lead}${quote}${rel}${quote}`;
   });

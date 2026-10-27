@@ -109,6 +109,22 @@ try:
     wait_until(30, 0.5, lambda: message_visible("Restored saved copy 1 as revision 3."))
     window.capture_as_image().save(OUTPUT / "windows-local-restored.png")
 
+    fill("Item name", "Sample native rice")
+    fill("Item code (optional)", "NATIVE-RICE")
+    fill("Unit price (₹)", "42.50")
+    fill("Opening stock", "1.250")
+    activate("Save item on this PC")
+    wait_until(30, 0.5, lambda: message_visible("Saved item changes to this PC."))
+    wait_until(30, 0.5, lambda: message_visible("1.25 pcs"))
+    # Select the first saved item using native keyboard input on the actual combo.
+    focus_control("Item to adjust", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Quantity change", "2.750")
+    fill("Reason for stock change", "Counted delivery")
+    activate("Save stock change")
+    wait_until(30, 0.5, lambda: message_visible("4 pcs"))
+    window.capture_as_image().save(OUTPUT / "windows-local-stock.png")
+
     activate("Lock workspace")
     assert_locked()
     window.capture_as_image().save(OUTPUT / "windows-local-locked.png")
@@ -122,7 +138,8 @@ try:
     assert note.get_value() == ORIGINAL_NOTE, "Restored note changed after unlock/reopen"
     window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
     window.child_window(title="Restore saved copy 3", control_type="Button", visible_only=False).wait("exists", timeout=30)
-    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal and unlock/reopen passed.")
+    wait_until(30, 0.5, lambda: message_visible("4 pcs"))
+    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves and stock retained after unlock/reopen passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:

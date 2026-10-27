@@ -9,6 +9,9 @@ fn main() {
             "save_workspace",
             "list_workspace_copies",
             "restore_workspace",
+            "list_local_products",
+            "add_local_product",
+            "adjust_local_stock",
         ]),
     ))
     .expect("Tauri build configuration failed");

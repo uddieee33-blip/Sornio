@@ -18,6 +18,13 @@ private business operations belong in the installed app.
 
 ## Product decisions carried forward
 
+**27 October update:** finish Windows first (ten-day working target around
+6 November), then theme/public landing, then Android. The owner is now considering
+three or four subscription plans; the count and capabilities remain provisional.
+A restaurant iPad order-to-counter/kitchen-to-bill companion, with restaurant-
+selected digital or physical receipt delivery, is an idea for later review.
+See `docs/reviews/2026-10-27-windows-stock.md`. It does not reprioritize iPad work.
+
 - The name is **Sornio**, without “OS”. Keep a restrained, curved, premium
   interface for long counter shifts, with light/dark treatment and fast operation
   on ordinary shop PCs. Heavy scroll/parallax belongs to the public landing page;

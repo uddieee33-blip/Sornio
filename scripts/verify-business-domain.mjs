@@ -10,10 +10,18 @@ try {
   execFileSync(process.execPath, [require.resolve('typescript/lib/tsc.js'),
     'packages/business-domain/src/invoice-calculation.ts',
     'packages/business-domain/src/daily-workspace.ts',
+    'packages/business-domain/src/fixed-decimal.ts',
     '--outDir', out, '--module', 'commonjs', '--target', 'es2022',
     '--strict', '--skipLibCheck', '--ignoreConfig'], { stdio: 'inherit' });
   const { calculateInvoice } = require(join(out, 'invoice-calculation.js'));
   const { DAILY_WORKSPACES, dailyWorkspace } = require(join(out, 'daily-workspace.js'));
+  const { parseFixedDecimal } = require(join(out, 'fixed-decimal.js'));
+  assert.equal(parseFixedDecimal('42.50', 2), 4250);
+  assert.equal(parseFixedDecimal('1.250', 3), 1250);
+  assert.equal(parseFixedDecimal('-2.750', 3, true), -2750);
+  assert.equal(parseFixedDecimal('9000000000.000', 3), 9000000000000);
+  for (const value of ['', '-1', '1e3', 'Infinity', '1.001', '90000000000.01', '0x10']) assert.equal(parseFixedDecimal(value, 2), null);
+  assert.equal(parseFixedDecimal('0', 2), 0);
   const line = { name: ' Rice ', category: '', quantity: 1.25, unitPrice: 42.50 };
   const result = calculateInvoice([line], 5);
   assert.deepEqual(result, { ok: true, lines: [{ ...line, name: 'Rice', category: 'General', total: 53.13 }], subtotal: 53.13, tax: 2.66, total: 55.79 });
