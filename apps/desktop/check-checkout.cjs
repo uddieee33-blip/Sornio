@@ -42,15 +42,16 @@ async function stopBridge() {
     page.setDefaultTimeout(15000);
     const errors = [], calls = [];
     page.on('pageerror', error => errors.push(error.message));
-    let holdPost, releasePost, losePost = false, losePrepare = false, failRead = false, failAfterPost = false;
+    let holdPost, releasePost, losePost = false, losePrepare = false, failRead = false, failAfterPost = false, failInventoryRead = false;
     await page.exposeFunction('nativeReviewInvoke', async (command, args) => {
       calls.push({ command, args: structuredClone(args) });
       if (command === 'post_local_invoice' && holdPost) await holdPost;
+      if (command === 'list_local_products' && failInventoryRead) { failInventoryRead = false; return { ok: false, error: { code: 'unavailable', message: 'Injected inventory read interruption.' } }; }
       if (command === 'read_cashier_state' && failRead) { failRead = false; return { ok: false, error: { code: 'unavailable', message: 'Injected read interruption.' } }; }
       const reply = await rpc(command, args);
       if (command === 'prepare_local_checkout' && losePrepare) { losePrepare = false; return { ok: false, error: { code: 'unavailable', message: 'Prepare reply was lost. Retry the same sale.' } }; }
       if (command === 'post_local_invoice' && reply.ok) {
-        if (failAfterPost) { failAfterPost = false; failRead = true; }
+        if (failAfterPost) { failAfterPost = false; failRead = true; failInventoryRead = true; }
         if (losePost) { losePost = false; return { ok: false, error: { code: 'unavailable', message: 'Posting reply was lost. Retry the same sale.' } }; }
       }
       return reply;
@@ -171,11 +172,15 @@ async function stopBridge() {
     await add('Review widget','pcs','0.125'); failAfterPost = true;
     await button('Review sale').click(); await button('Confirm sale').click();
     await alert('Sale was saved.').waitFor(); await saved().waitFor();
+    await alert('Injected inventory read interruption.').waitFor();
+    assert.equal(await button('Save item on this PC').isDisabled(),true);
     assert.equal(await button('Start next sale').isDisabled(),true);
     assert.equal(await button('Retry same sale').count(),0);
     const finalId = await label('Saved invoice ID').inputValue();
     await button('Refresh checkout').click();
     await page.getByText('Cash recorded: ₹191.04',{exact:true}).waitFor();
+    await page.getByRole('list',{name:'Saved local items'}).getByText('1.875 pcs',{exact:true}).waitFor();
+    assert.equal(await button('Save item on this PC').isDisabled(),false);
     assert.equal(await label('Saved invoice ID').inputValue(),finalId);
     assert.equal((await native('list_local_invoices',{after:0})).length,5);
     assert.equal((await native('read_cashier_state')).products.find(p=>p.id==='widget').stockMilli,1875);

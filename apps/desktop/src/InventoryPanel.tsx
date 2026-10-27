@@ -22,6 +22,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
   const [reason, setReason] = useState('');
   const [search, setSearch] = useState('');
   const [ready, setReady] = useState(false);
+  const [openedToken, setOpenedToken] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const [message, setMessage] = useState('Opening items on this PC…');
@@ -36,7 +37,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
     current.current = true;
     let active = true;
     invoke<Product[]>('list_local_products').then(items => {
-      if (active) { setProducts(items); setReady(true); setMessage('Items and counts are saved only on this PC.'); }
+      if (active) { setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false); setMessage('Items and counts are saved only on this PC.'); }
     }).catch((error: unknown) => {
       if (!active) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
@@ -51,7 +52,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
     try {
       const items = await invoke<Product[]>('list_local_products');
       if (!current.current) return;
-      setProducts(items); setReady(true); setFailed(false);
+      setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false);
       setMessage('Reopened the latest item counts from this PC.');
     } catch (error: unknown) {
       if (!current.current) return;
@@ -77,7 +78,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
       try {
         const items = await invoke<Product[]>('list_local_products');
         if (!current.current) return;
-        setProducts(items); setReady(true); setMessage('Saved item changes to this PC.');
+        setProducts(items); setReady(true); setOpenedToken(refreshToken); setMessage('Saved item changes to this PC.');
       } catch (readError: unknown) {
         if (!current.current) return;
         if (errorCode(readError) === 'locked') { onLocked(); return; }
@@ -114,10 +115,10 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
     void submit({ command: 'adjust_local_stock', request: { operationId: crypto.randomUUID(), productId: item.id, expectedRevision: item.revision, deltaMilli: amount, reason } });
   }
 
-  const blocked = disabled || busy || !ready;
+  const blocked = disabled || busy || !ready || openedToken !== refreshToken;
   const matching = products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
   const shown = matching.slice(0, 100);
-  return <section className="panel inventory-panel" aria-labelledby="inventory-heading">
+  return <section className="panel inventory-panel" aria-labelledby="inventory-heading" aria-busy={busy}>
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
     <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
