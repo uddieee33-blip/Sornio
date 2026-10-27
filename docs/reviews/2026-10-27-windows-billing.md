@@ -18,6 +18,10 @@ stable customer reference. This is a reference, not verified customer onboarding
 Names, units and prices are read from native catalogue records; renderer prices,
 totals, arbitrary SQL and paths are not accepted. Maximum 100 lines; quantities
 use thousandths, prices integer paise, tax whole basis points (0–10000).
+Revisions are positive JavaScript-safe integers. Shared request fixtures cover
+IDs, required fields, cash/credit customer rules, unknown fields and numeric
+limits in both TypeScript preflight and native validation. Native validation
+always runs again; renderer preflight has no write authority.
 
 Native authority uses positive half-up integer arithmetic with i128 intermediate
 products, checked totals capped at 9,000,000,000,000 paise. The shared TypeScript
@@ -44,6 +48,8 @@ before verified business/device scoping and authentication are implemented.
 
 Schema v5 migrates v4 without clearing catalogue, password or drafts. All posted
 billing tables reject updates/deletes. A draft restore cannot rewind invoices.
+Every store connection enables recursive triggers so `INSERT OR REPLACE` also
+fires the delete guard and cannot bypass append-only records.
 Corrections/refunds will require new reversing operations, not edits to bills.
 
 ## Verification
@@ -53,7 +59,10 @@ restart and retry, changed operation IDs, duplicate-line overselling, stale
 connections, rollback at each invoice/stock/ledger/audit/outbox write boundary,
 actual SQLITE_FULL, subprocess death before commit, locked reads/writes,
 immutability and preservation through the v4 migration. Shared-domain tests
-exercise TypeScript against the same money vectors and invalid/overflow inputs.
+exercise TypeScript against the same request and money vectors and invalid/overflow
+inputs. Additional tests cover multi-line rounding, simultaneous exact retries,
+failure after earlier product deductions or a ledger debit, successful retry after
+rollback, and replace/update/delete rejection after reopening the database.
 CI separately compiles the native Windows command and capability manifest and
 runs release SQLCipher/Credential Manager tests.
 

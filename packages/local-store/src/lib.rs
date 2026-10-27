@@ -113,6 +113,10 @@ impl Store {
         db.pragma_update(None, "journal_mode", "WAL")?;
         db.pragma_update(None, "synchronous", "FULL")?;
         db.pragma_update(None, "foreign_keys", "ON")?;
+        // REPLACE deletes conflicting rows internally. Its delete triggers only
+        // fire with recursive triggers enabled; otherwise append-only history
+        // could be replaced despite the UPDATE/DELETE guards.
+        db.pragma_update(None, "recursive_triggers", "ON")?;
         db.pragma_update(None, "cipher_memory_security", "ON")?;
         if version < SCHEMA_VERSION {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;

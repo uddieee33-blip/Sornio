@@ -8,11 +8,14 @@ No React, browser storage, hosted services, native commands or user credentials.
   tasks belong to gyms; the udhaar focus belongs to kirana.
 - `src/invoice-calculation.ts`: the existing invoice validation and integer-paise
   calculation, extracted without changing its behavior.
+- `src/native-invoice.ts`: strict native cash/credit request validation and bounded
+  integer-paise/thousandths calculations. JSON request and money fixtures are
+  consumed by both TypeScript checks and the authoritative Rust posting tests.
 
 The hosted import paths re-export these definitions for compatibility. The desktop
-uses the shared business type and description. Native billing persistence is still
-pending: a calculated preview cannot authorize or commit a financial transaction.
-Native billing must validate and commit through its own authorized command boundary.
+uses the shared business type and description. Native billing validates again at
+the password-gated command boundary and sources catalogue prices from encrypted
+storage. A renderer calculation cannot authorize or commit a financial transaction.
 
 Run `npm run verify:business-domain` from the repository root. Both the Windows and
 browser workflows watch this package so future shared changes receive acceptance.

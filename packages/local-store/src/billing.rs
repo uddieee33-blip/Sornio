@@ -26,6 +26,29 @@ pub struct PostInvoice {
     pub tender: Tender,
     pub customer_id: Option<String>,
 }
+impl PostInvoice {
+    /// Keep the IPC contract aligned with business-domain's shared validation fixtures.
+    fn validate(&self) -> Result<(), StoreError> {
+        if !valid_id(&self.operation_id)
+            || self.lines.is_empty()
+            || self.lines.len() > 100
+            || !(0..=10000).contains(&self.tax_basis_points)
+            || self.customer_id.as_ref().is_some_and(|s| !valid_id(s))
+            || (self.tender == Tender::Credit && self.customer_id.is_none())
+        {
+            return Err(StoreError::InvalidInvoice);
+        }
+        for line in &self.lines {
+            if !valid_id(&line.product_id)
+                || !(1..=9_007_199_254_740_991).contains(&line.expected_revision)
+                || !(1..=MAX_VALUE).contains(&line.quantity_milli)
+            {
+                return Err(StoreError::InvalidInvoice);
+            }
+        }
+        Ok(())
+    }
+}
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct PostedLine {
@@ -103,23 +126,7 @@ pub(crate) fn migrate(tx: &rusqlite::Transaction<'_>) -> Result<(), StoreError> 
 }
 impl Store {
     pub fn post_invoice(&mut self, request: PostInvoice) -> Result<Invoice, StoreError> {
-        if !valid_id(&request.operation_id)
-            || request.lines.is_empty()
-            || request.lines.len() > 100
-            || !(0..=10000).contains(&request.tax_basis_points)
-            || request.customer_id.as_ref().is_some_and(|s| !valid_id(s))
-            || (request.tender == Tender::Credit && request.customer_id.is_none())
-        {
-            return Err(StoreError::InvalidInvoice);
-        }
-        for l in &request.lines {
-            if !valid_id(&l.product_id)
-                || l.expected_revision <= 0
-                || !(1..=MAX_VALUE).contains(&l.quantity_milli)
-            {
-                return Err(StoreError::InvalidInvoice);
-            }
-        }
+        request.validate()?;
         let raw = serde_json::to_string(&request)?;
         let tx = self
             .0
@@ -296,6 +303,192 @@ mod tests {
     fn count(s: &Store, table: &str) -> i64 {
         s.0.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
             .unwrap()
+    }
+    #[test]
+    fn shared_request_validation_contract() {
+        let fixtures: serde_json::Value = serde_json::from_str(include_str!(
+            "../../business-domain/fixtures/native-invoice-contract.json"
+        ))
+        .unwrap();
+        for fixture in fixtures["requests"].as_array().unwrap() {
+            let accepted = serde_json::from_value::<PostInvoice>(fixture["input"].clone())
+                .is_ok_and(|request| request.validate().is_ok());
+            assert_eq!(
+                accepted,
+                fixture["valid"].as_bool().unwrap(),
+                "{}",
+                fixture["name"]
+            );
+        }
+        let mut request = bill();
+        request.lines = vec![request.lines[0].clone(); 100];
+        assert!(request.validate().is_ok());
+        request.lines.push(request.lines[0].clone());
+        assert!(request.validate().is_err());
+    }
+    #[test]
+    fn shared_multi_line_money_contract_posts_authoritative_totals() {
+        let fixtures: serde_json::Value = serde_json::from_str(include_str!(
+            "../../business-domain/fixtures/native-invoice-contract.json"
+        ))
+        .unwrap();
+        for fixture in fixtures["calculations"].as_array().unwrap() {
+            let directory = tempfile::tempdir().unwrap();
+            let mut store = Store::open(&directory.path().join("s.db"), KEY).unwrap();
+            let mut request = bill();
+            request.lines.clear();
+            request.tax_basis_points = fixture["taxBasisPoints"].as_i64().unwrap();
+            for (index, line) in fixture["lines"].as_array().unwrap().iter().enumerate() {
+                let mut item = product();
+                item.operation_id = format!("item-{index}");
+                item.sku = format!("SKU-{index}");
+                item.unit_price_paise = line["unitPricePaise"].as_i64().unwrap();
+                item.opening_stock_milli = MAX_VALUE;
+                store.add_product(item.clone()).unwrap();
+                request.lines.push(BillLine {
+                    product_id: item.operation_id,
+                    expected_revision: 1,
+                    quantity_milli: line["quantityMilli"].as_i64().unwrap(),
+                });
+            }
+            let before = store.list_products().unwrap();
+            let result = store.post_invoice(request);
+            if let Some(expected) = fixture.get("result") {
+                let invoice = result.unwrap();
+                assert_eq!(
+                    serde_json::json!({
+                        "lineTotalsPaise": invoice.lines.iter().map(|line| line.total_paise).collect::<Vec<_>>(),
+                        "subtotalPaise": invoice.subtotal_paise,
+                        "taxPaise": invoice.tax_paise,
+                        "totalPaise": invoice.total_paise,
+                    }),
+                    *expected,
+                    "{}",
+                    fixture["name"]
+                );
+            } else {
+                assert!(
+                    matches!(result, Err(StoreError::InvalidInvoice)),
+                    "{}",
+                    fixture["name"]
+                );
+                assert_eq!(store.list_products().unwrap(), before);
+                assert_eq!(count(&store, "local_invoices"), 0);
+                assert_eq!(count(&store, "local_billing_outbox"), 0);
+            }
+        }
+    }
+    #[test]
+    fn later_product_or_ledger_failure_rolls_back_and_operation_can_retry() {
+        let directory = tempfile::tempdir().unwrap();
+        let mut store = Store::open(&directory.path().join("s.db"), KEY).unwrap();
+        store.add_product(product()).unwrap();
+        let mut beans = product();
+        beans.operation_id = "beans".into();
+        beans.sku = "BEANS".into();
+        store.add_product(beans).unwrap();
+        let before = store.list_products().unwrap();
+        let mut request = bill();
+        request.lines[0].quantity_milli = 11000;
+        request.lines.push(BillLine {
+            product_id: "beans".into(),
+            expected_revision: 1,
+            quantity_milli: 1000,
+        });
+        // Deduction uses sorted IDs: beans is already written when rice oversells.
+        assert!(matches!(
+            store.post_invoice(request.clone()),
+            Err(StoreError::InvalidStock)
+        ));
+        assert_eq!(store.list_products().unwrap(), before);
+        request.lines[0].quantity_milli = 1000;
+        // Fail on the second ledger row, after both stock rows and the debit exist.
+        store.0.execute_batch("CREATE TRIGGER fail_revenue BEFORE INSERT ON local_billing_ledger WHEN NEW.account='revenue' BEGIN SELECT RAISE(ABORT,'write failure'); END;").unwrap();
+        assert!(store.post_invoice(request.clone()).is_err());
+        assert_eq!(store.list_products().unwrap(), before);
+        for table in [
+            "local_invoices",
+            "local_invoice_stock",
+            "local_billing_ledger",
+            "local_billing_audit",
+            "local_billing_outbox",
+        ] {
+            assert_eq!(count(&store, table), 0);
+        }
+        store.0.execute_batch("DROP TRIGGER fail_revenue").unwrap();
+        store.post_invoice(request).unwrap();
+        assert_eq!(count(&store, "local_invoices"), 1);
+        assert_eq!(count(&store, "local_billing_outbox"), 1);
+        assert!(store
+            .list_products()
+            .unwrap()
+            .iter()
+            .all(|item| item.stock_milli == 9000 && item.revision == 2));
+    }
+    #[test]
+    fn posted_records_reject_replace_update_and_delete_after_reopen() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("s.db");
+        let mut store = Store::open(&path, KEY).unwrap();
+        store.add_product(product()).unwrap();
+        let invoice = store.post_invoice(bill()).unwrap();
+        drop(store);
+        let store = Store::open(&path, KEY).unwrap();
+        for table in [
+            "local_invoices",
+            "local_invoice_stock",
+            "local_billing_ledger",
+            "local_billing_audit",
+            "local_billing_outbox",
+        ] {
+            assert!(
+                store
+                    .0
+                    .execute(
+                        &format!("INSERT OR REPLACE INTO {table} SELECT * FROM {table}"),
+                        []
+                    )
+                    .is_err(),
+                "replacement must fail: {table}"
+            );
+            assert!(store
+                .0
+                .execute(&format!("UPDATE {table} SET rowid=rowid"), [])
+                .is_err());
+            assert!(store
+                .0
+                .execute(&format!("DELETE FROM {table}"), [])
+                .is_err());
+        }
+        assert_eq!(store.list_invoices(0).unwrap()[0].invoice, invoice);
+        assert_eq!(store.billing_outbox(0).unwrap().len(), 1);
+    }
+    #[test]
+    fn simultaneous_exact_retries_post_once() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("s.db");
+        let mut first = Store::open(&path, KEY).unwrap();
+        first.add_product(product()).unwrap();
+        let mut second = Store::open(&path, KEY).unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let other = barrier.clone();
+        let thread = std::thread::spawn(move || {
+            other.wait();
+            first.post_invoice(bill()).unwrap()
+        });
+        barrier.wait();
+        let invoice = second.post_invoice(bill()).unwrap();
+        assert_eq!(thread.join().unwrap(), invoice);
+        assert_eq!(second.list_products().unwrap()[0].stock_milli, 8750);
+        for table in [
+            "local_invoices",
+            "local_invoice_stock",
+            "local_billing_audit",
+            "local_billing_outbox",
+        ] {
+            assert_eq!(count(&second, table), 1);
+        }
+        assert_eq!(count(&second, "local_billing_ledger"), 3);
     }
     #[test]
     fn shared_rounding_vectors() {
