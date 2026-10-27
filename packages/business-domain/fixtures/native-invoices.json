@@ -1,0 +1,7 @@
+[
+ {"quantity":1250,"price":4250,"bps":500,"line":5313,"tax":266,"total":5579},
+ {"quantity":1005,"price":100,"bps":0,"line":101,"tax":0,"total":101},
+ {"quantity":125,"price":1999,"bps":1800,"line":250,"tax":45,"total":295},
+ {"quantity":1000,"price":1,"bps":5000,"line":1,"tax":1,"total":2},
+ {"quantity":3000,"price":10,"bps":10000,"line":30,"tax":30,"total":60}
+]

@@ -175,6 +175,27 @@ async fn adjust_local_stock(
     with_workspace(state, move |w| w.adjust_stock(request)).await
 }
 
+#[tauri::command]
+async fn post_local_invoice(
+    request: sornio_local_store::billing::PostInvoice,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::billing::Invoice, CommandError> {
+    with_workspace(state, move |w| w.post_invoice(request)).await
+}
+#[tauri::command]
+async fn list_local_invoices(
+    after: i64,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<sornio_local_store::billing::InvoiceRecord>, CommandError> {
+    with_workspace(state, move |w| w.list_invoices(after)).await
+}
+#[tauri::command]
+async fn read_billing_outbox(
+    after: i64,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<sornio_local_store::billing::OutboxRecord>, CommandError> {
+    with_workspace(state, move |w| w.billing_outbox(after)).await
+}
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -198,7 +219,10 @@ fn main() {
             restore_workspace,
             list_local_products,
             add_local_product,
-            adjust_local_stock
+            adjust_local_stock,
+            post_local_invoice,
+            list_local_invoices,
+            read_billing_outbox
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");

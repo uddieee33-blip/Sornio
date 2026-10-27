@@ -28,6 +28,28 @@ pub struct Workspace {
 }
 
 impl Workspace {
+    pub fn post_invoice(
+        &mut self,
+        request: crate::billing::PostInvoice,
+    ) -> Result<crate::billing::Invoice, StoreError> {
+        self.require_unlock()?;
+        self.store.post_invoice(request)
+    }
+    pub fn list_invoices(
+        &self,
+        after: i64,
+    ) -> Result<Vec<crate::billing::InvoiceRecord>, StoreError> {
+        self.require_unlock()?;
+        self.store.list_invoices(after)
+    }
+    pub fn billing_outbox(
+        &self,
+        after: i64,
+    ) -> Result<Vec<crate::billing::OutboxRecord>, StoreError> {
+        self.require_unlock()?;
+        self.store.billing_outbox(after)
+    }
+
     pub fn new(store: Store) -> Self {
         Self {
             store,
@@ -396,7 +418,7 @@ mod tests {
         legacy.save(0, sample()).unwrap();
         legacy
             .0
-            .execute_batch("DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_access; PRAGMA user_version = 2;")
+            .execute_batch("DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_access; PRAGMA user_version = 2;")
             .unwrap();
         drop(legacy);
         let mut migrated = Workspace::new(Store::open(&path, KEY).unwrap());
