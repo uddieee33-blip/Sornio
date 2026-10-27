@@ -39,7 +39,6 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   const mounted = useRef(false);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { onDirtyChange(cart.length > 0 && pending === null); }, [cart.length, pending, onDirtyChange]);
-  useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
 
   const apply = useCallback((state: CashierState) => {
     setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
@@ -70,7 +69,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
 
   async function refresh() {
     if (submitting.current) return;
-    submitting.current = true; setBusy(true);
+    submitting.current = true; setBusy(true); onBusyChange(true);
     try {
       const state = await invoke<CashierState>('read_cashier_state');
       if (!mounted.current) return;
@@ -80,12 +79,12 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       if (!mounted.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setReady(false); setFailed(true); setMessage(errorMessage(error, 'Checkout could not be refreshed.'));
-    } finally { submitting.current = false; if (mounted.current) setBusy(false); }
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
   }
 
   async function confirm(request: NativeInvoiceRequest) {
     if (submitting.current || disabled) return;
-    submitting.current = true; setBusy(true); remember(request); setReview(false); setRefused(false); setFailed(false);
+    submitting.current = true; setBusy(true); onBusyChange(true); remember(request); setReview(false); setRefused(false); setFailed(false);
     setMessage('Confirming sale on this PC…');
     try {
       // Persist the exact request before invoking posting. Never create a new ID
@@ -111,12 +110,12 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       if (code === 'locked') { onLocked(); return; }
       setRefused(refusedCodes.has(code ?? '')); setFailed(true);
       setMessage(errorMessage(error, 'The sale result is uncertain. Retry the same sale; do not enter it again.'));
-    } finally { submitting.current = false; if (mounted.current) setBusy(false); }
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
   }
 
   async function release(saved: boolean) {
     if (!pending || submitting.current || disabled || (saved && !ready)) return;
-    submitting.current = true; setBusy(true);
+    submitting.current = true; setBusy(true); onBusyChange(true);
     try {
       // Native code compares this expected result under its writer lock. A late
       // confirmation cannot race cancellation and post an abandoned request.
@@ -130,7 +129,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       if (!mounted.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setReady(false); setFailed(true); setMessage(errorMessage(error, 'Reload checkout before continuing.'));
-    } finally { submitting.current = false; if (mounted.current) setBusy(false); }
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
   }
 
   const productMap = useMemo(() => new Map(products.map(product => [product.id, product])), [products]);

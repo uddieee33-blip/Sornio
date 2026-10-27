@@ -31,7 +31,6 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
   const current = useRef(true);
   const dirty = form.name !== '' || form.sku !== '' || form.price !== '' || form.quantity !== '' || delta !== '' || reason !== '' || pending !== null;
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
-  useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
 
   useEffect(() => {
     current.current = true;
@@ -48,7 +47,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
 
   async function reload() {
     if (submitting.current) return;
-    submitting.current = true; setBusy(true);
+    submitting.current = true; setBusy(true); onBusyChange(true);
     try {
       const items = await invoke<Product[]>('list_local_products');
       if (!current.current) return;
@@ -58,12 +57,12 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
       if (!current.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setFailed(true); setMessage(errorMessage(error, 'Items could not be reopened.'));
-    } finally { submitting.current = false; if (current.current) setBusy(false); }
+    } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
   }
 
   async function submit(operation: Pending) {
     if (submitting.current) return;
-    submitting.current = true; setBusy(true); setPending(operation); setFailed(false); setMessage('Saving item changes to this PC…');
+    submitting.current = true; setBusy(true); onBusyChange(true); setPending(operation); setFailed(false); setMessage('Saving item changes to this PC…');
     try {
       const saved = await invoke<Product>(operation.command, { request: operation.request });
       if (!current.current) return;
@@ -92,7 +91,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
       // transport/database error retains the exact ID and payload for safe retry.
       if (['invalid_product', 'duplicate_sku', 'stock_conflict', 'operation_conflict'].includes(code ?? '')) setPending(null);
       setFailed(true); setMessage(errorMessage(error, 'Save could not be confirmed. Retry this same save before editing.'));
-    } finally { submitting.current = false; if (current.current) setBusy(false); }
+    } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
   }
 
   function add(event: FormEvent<HTMLFormElement>) {
