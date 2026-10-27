@@ -43,12 +43,18 @@ async function stopBridge() {
     const errors = [], calls = [];
     page.on('pageerror', error => errors.push(error.message));
     let holdPost, releasePost, losePost = false, losePrepare = false, failRead = false, failAfterPost = false, failInventoryRead = false;
+    let holdNextRead = false, releaseRead, readHeld;
+    const heldRead = new Promise(resolve => { releaseRead = resolve; });
+    const readReady = new Promise(resolve => { readHeld = resolve; });
     await page.exposeFunction('nativeReviewInvoke', async (command, args) => {
       calls.push({ command, args: structuredClone(args) });
       if (command === 'post_local_invoice' && holdPost) await holdPost;
       if (command === 'list_local_products' && failInventoryRead) { failInventoryRead = false; return { ok: false, error: { code: 'unavailable', message: 'Injected inventory read interruption.' } }; }
       if (command === 'read_cashier_state' && failRead) { failRead = false; return { ok: false, error: { code: 'unavailable', message: 'Injected read interruption.' } }; }
       const reply = await rpc(command, args);
+      if (command === 'read_cashier_state' && holdNextRead) {
+        holdNextRead = false; readHeld(); await heldRead;
+      }
       if (command === 'prepare_local_checkout' && losePrepare) { losePrepare = false; return { ok: false, error: { code: 'unavailable', message: 'Prepare reply was lost. Retry the same sale.' } }; }
       if (command === 'post_local_invoice' && reply.ok) {
         if (failAfterPost) { failAfterPost = false; failRead = true; failInventoryRead = true; }
@@ -60,6 +66,7 @@ async function stopBridge() {
       globalThis.isTauri = true;
       globalThis.__TAURI_INTERNALS__ = { invoke: async (command, args = {}) => {
         const result = await globalThis.nativeReviewInvoke(command, args);
+        if (command === 'read_cashier_state') globalThis.reviewCashierReads = (globalThis.reviewCashierReads || 0) + 1;
         if (!result.ok) throw result.error;
         return result.value;
       } };
@@ -74,13 +81,22 @@ async function stopBridge() {
     await button('Set up local access').click();
     await label('Item name').fill('Review rice'); await label('Item code (optional)').fill('RICE');
     await label('Stock unit').selectOption('kg'); await label('Unit price (₹)').fill('42.50'); await label('Opening stock').fill('10');
+    await page.getByText('Checkout is ready. Totals are previews until the sale is saved.', { exact: true }).waitFor();
+    holdNextRead = true;
     await button('Save item on this PC').click();
     await page.getByText('Saved item changes to this PC.', { exact: true }).waitFor();
+    await readReady;
     for (const [id, name, unit, price, stock] of [['oil','Review oil','litre',10000,5000],['cloth','Review cloth','metre',1999,3000],['widget','Review widget','pcs',199,2000]]) {
       await native('add_local_product', { request: { operationId: id, name, sku: id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });
     }
     await button('Refresh checkout').click();
     await page.getByText('Cash recorded: ₹0.00', { exact: true }).waitFor();
+    await button('Add Review oil to sale').waitFor();
+    const readsBeforeRelease = await page.evaluate(() => globalThis.reviewCashierReads);
+    releaseRead();
+    await page.waitForFunction(before => globalThis.reviewCashierReads > before, readsBeforeRelease);
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    assert.equal(await button('Add Review oil to sale').count(), 1, 'An old background read replaced the newer explicit checkout snapshot');
     async function add(name, unit, quantity) {
       await label('Search items for sale').fill(name);
       await button(`Add ${name} to sale`).click();
@@ -199,6 +215,6 @@ async function stopBridge() {
     assert.equal(await saved().count(),0); assert.equal(await label('Saved invoice ID').count(),0);
     assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
     assert.deepEqual(errors,[]);
-    console.log('Checkout integration passed: real SQLCipher/Workspace; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI.');
+    console.log('Checkout integration passed: real SQLCipher/Workspace; stale background read fencing; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI.');
   } finally { await browser.close(); await stopBridge(); rmSync(directory,{recursive:true,force:true}); }
 })().catch(error=>{console.error(error,stderr);process.exit(1);});

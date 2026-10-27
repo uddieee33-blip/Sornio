@@ -32,6 +32,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   const [failed, setFailed] = useState(false);
   const [message, setMessage] = useState('Opening checkout…');
   const submitting = useRef(false);
+  const readGeneration = useRef(0);
   const pendingRef = useRef<NativeInvoiceRequest | null>(null);
   const remember = useCallback((request: NativeInvoiceRequest | null) => {
     pendingRef.current = request; setPending(request);
@@ -59,8 +60,9 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
 
   useEffect(() => {
     let current = true;
-    invoke<CashierState>('read_cashier_state').then(state => { if (current) { apply(state); setFailed(false); } }).catch((error: unknown) => {
-      if (!current) return;
+    const generation = ++readGeneration.current;
+    invoke<CashierState>('read_cashier_state').then(state => { if (current && generation === readGeneration.current) { apply(state); setFailed(false); } }).catch((error: unknown) => {
+      if (!current || generation !== readGeneration.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setReady(false); setFailed(true); setMessage(errorMessage(error, 'Checkout could not be opened. Refresh checkout to retry.'));
     });
@@ -69,6 +71,8 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
 
   async function refresh() {
     if (submitting.current) return;
+    // A delayed background read must not replace newer explicit recovery state.
+    readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true);
     try {
       const state = await invoke<CashierState>('read_cashier_state');
@@ -84,6 +88,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
 
   async function confirm(request: NativeInvoiceRequest) {
     if (submitting.current || disabled) return;
+    readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true); remember(request); setReview(false); setRefused(false); setFailed(false);
     setMessage('Confirming sale on this PC…');
     try {
@@ -115,6 +120,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
 
   async function release(saved: boolean) {
     if (!pending || submitting.current || disabled || (saved && !ready)) return;
+    readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true);
     try {
       // Native code compares this expected result under its writer lock. A late
