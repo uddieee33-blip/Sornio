@@ -4,6 +4,10 @@ use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
+#[cfg(test)]
+#[path = "billing_reliability_tests.rs"]
+mod reliability_tests;
+
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct BillLine {
@@ -95,6 +99,17 @@ fn amount(n: i128) -> Result<i64, StoreError> {
         return Err(StoreError::InvalidInvoice);
     }
     Ok(n as i64)
+}
+fn insert_one(
+    tx: &rusqlite::Transaction<'_>,
+    sql: &str,
+    values: impl rusqlite::Params,
+) -> Result<(), StoreError> {
+    let changed = tx.execute(sql, values)?;
+    if changed != 1 {
+        return Err(rusqlite::Error::StatementChangedRows(changed).into());
+    }
+    Ok(())
 }
 /// Positive half-up arithmetic; same fixed-unit contract and fixtures as business-domain.
 pub fn line_total(quantity: i64, price: i64) -> Result<i64, StoreError> {
@@ -196,7 +211,8 @@ impl Store {
             customer_id: request.customer_id,
         };
         let payload = serde_json::to_string(&invoice)?;
-        tx.execute(
+        insert_one(
+            &tx,
             "INSERT INTO local_invoices(id,request,payload) VALUES(?1,?2,?3)",
             params![invoice.id, raw, payload],
         )?;
@@ -210,28 +226,33 @@ impl Store {
                 return Err(StoreError::InvalidStock);
             }
             let next_revision = revision.checked_add(1).ok_or(StoreError::InvalidInvoice)?;
-            tx.execute(
+            let changed = tx.execute(
                 "UPDATE local_products SET stock_milli=?1,revision=?2 WHERE id=?3 AND revision=?4",
                 params![before - quantity, next_revision, id, revision],
             )?;
-            tx.execute("INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?3,?4,?5)",params![invoice.id,id,quantity,before,before-quantity])?;
+            if changed != 1 {
+                return Err(StoreError::StockConflict);
+            }
+            insert_one(&tx,"INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?3,?4,?5)",params![invoice.id,id,quantity,before,before-quantity])?;
         }
         let account = if invoice.tender == Tender::Cash {
             "cash"
         } else {
             "receivables"
         };
-        tx.execute("INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invoice.id,account,invoice.customer_id,total])?;
-        tx.execute("INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'revenue',?2)",params![invoice.id,-subtotal])?;
+        insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invoice.id,account,invoice.customer_id,total])?;
+        insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'revenue',?2)",params![invoice.id,-subtotal])?;
         if tax > 0 {
-            tx.execute("INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoice.id,-tax])?;
+            insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoice.id,-tax])?;
         }
         let event=serde_json::json!({"version":1,"kind":"invoice.posted","operationId":invoice.id,"invoice":invoice}).to_string();
-        tx.execute(
+        insert_one(
+            &tx,
             "INSERT INTO local_billing_audit(invoice_id,payload) VALUES(?1,?2)",
             params![invoice.id, event],
         )?;
-        tx.execute(
+        insert_one(
+            &tx,
             "INSERT INTO local_billing_outbox(invoice_id,payload) VALUES(?1,?2)",
             params![invoice.id, event],
         )?;

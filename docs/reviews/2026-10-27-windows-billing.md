@@ -75,3 +75,51 @@ backup/key recovery, LAN transport, cloud acknowledgement and signed distributio
 remain separate milestones. The existing native UI smoke test exercises draft
 and stock workflows; it is not a claim of end-to-end cashier billing acceptance.
 Use synthetic data in this single-profile engineering review.
+
+## Reliability review
+
+The review found one additional posting defect: SQLite can report a successful
+statement with zero changed rows (for example, a trigger using `RAISE(IGNORE)`).
+The stock update and billing inserts previously ignored that count. A regression
+reproduced successful posting without the required stock change. Posting now
+requires one affected product per stock update and one inserted row for every
+invoice, movement, ledger, audit and outbox write; an omitted write aborts the
+transaction. The previously fixed `INSERT OR REPLACE` bypass remains covered.
+
+Tests in `packages/local-store/src/billing_reliability_tests.rs` use real encrypted
+SQLite files and exact before/after row snapshots, including existing sales and
+SQLite sequence state. They supplement the existing billing tests:
+
+| Scenario | Automated evidence |
+| --- | --- |
+| Complete atomic sale | Multi-product sale with repeated product lines checks exact aggregated movements, per-invoice ledger, invoice snapshot and matching audit/outbox payloads; reopening preserves all rows. |
+| Write failure | Abort each invoice, product, movement, ledger, audit and outbox write after an earlier committed sale; every financial row remains unchanged, including after reopen. |
+| Failure at commit | A deferred foreign-key violation allows all posting inserts but fails `COMMIT`; every effect rolls back and the operation can retry. |
+| Silently omitted write | `RAISE(IGNORE)` at each required write must return failure and preserve the complete pre-sale state. |
+| Exact retry | Repeated and simultaneous identical requests preserve all rows and return the original invoice, including after process restart. |
+| Changed retry | Changes to quantity, revision, product, tax, customer or tender under the same successful operation ID are rejected without side effects. |
+| Insufficient stock | Existing repeated-line oversell and new distinct-sale race tests reject overselling and preserve state. |
+| Process restart | A child posts through the password-gated Workspace API and exits without destructors; a new Workspace locks, unlocks, recovers the committed sale and safely retries. |
+| Cash/credit accounting | Exact debit/credit rows are checked separately per invoice, including customer attribution and zero-tax posting. |
+| Unverified UPI | Valid-shaped requests with UPI tender/references, paid/status fields or renderer verification claims are rejected by both TypeScript and native deserialization. Credit remains receivables. |
+| Concurrent/stale operations | Two different sale IDs race for the same revision/stock; exactly one commits, the other conflicts. Existing stale-connection tests remain. |
+| PR #120 migration | An independent frozen v4 schema preserves every draft, saved copy, access row, product and inventory event; legacy operation retries, password unlock and subsequent billing still work. |
+| Audit/outbox failure | Both erroring and silently skipped inserts abort the financial transaction, preserving prior committed history. |
+
+The v4 fixture is copied from the schema statements in merged PR #120
+(`fc57404cec4ded352a1d8fcef8efd8a5a53ccfec`); its source files were checked against
+that GitHub commit. It does not create a v5 database and then remove its tables.
+All fixture identities, passwords, keys and transactions are synthetic.
+
+The process restart regression exercises the native store and Workspace used by
+the desktop commands. It is not an automated cashier-screen interaction. The
+existing Windows GUI smoke still covers stock/drafts, since a cashier UI has not
+been implemented. Power removal, disk/controller faults, LAN delivery and
+production customer data have not been tested by this suite.
+
+Local execution for this review: all 50 native Rust tests passed in both debug
+and release profiles on Linux. Full repository verification passed, including 45
+shared request-validation fixtures and 13 money cases. Repository lint, both
+TypeScript compilers, the desktop production frontend build, Rust formatting and
+`git diff --check` passed. Updated-commit Windows results must be read from PR
+#121 checks; these local results do not certify a Windows installer or cashier UI.
