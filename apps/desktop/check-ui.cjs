@@ -15,7 +15,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
   await page.addInitScript(()=>{
    globalThis.isTauri=true;
-   globalThis.review={access:{configured:false,unlocked:false},password:'',snapshot:{revision:0,draft:null},copies:[],calls:[],failLock:false,rateLimited:false};
+   globalThis.review={access:{configured:false,unlocked:false},password:'',snapshot:{revision:0,draft:null},copies:[],products:[],stockOps:{},stockRequests:[],calls:[],failLock:false,rateLimited:false};
    globalThis.__TAURI_INTERNALS__={invoke:async(command,args={})=>{
     await new Promise(r=>setTimeout(r,20)); const s=globalThis.review; s.calls.push(command);
     if(command==='workspace_access_status')return structuredClone(s.access);
@@ -35,6 +35,28 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
     if(!s.access.unlocked)throw {code:'locked',message:'Unlock this workspace to continue.'};
     if(command==='load_workspace')return structuredClone(s.snapshot);
     if(command==='list_workspace_copies')return structuredClone(s.copies);
+    if(command==='list_local_products'){
+     if(s.failStockRead){s.failStockRead=false;throw {code:'unavailable',message:'Stock read failed.'};}
+     return structuredClone(s.products);
+    }
+    if(command==='add_local_product'||command==='adjust_local_stock'){
+     const r=args.request;s.stockRequests.push(structuredClone(r));
+     if(s.stockOps[r.operationId])return structuredClone(s.stockOps[r.operationId]);
+     let product;
+     if(command==='add_local_product'){
+      product={id:r.operationId,name:r.name.trim(),sku:r.sku.trim().toUpperCase(),unit:r.unit,unitPricePaise:r.unitPricePaise,stockMilli:r.openingStockMilli,revision:1};
+      s.products.push(product);
+     }else{
+      const index=s.products.findIndex(p=>p.id===r.productId),old=s.products[index];
+      if(!old||old.revision!==r.expectedRevision)throw {code:'stock_conflict',message:'Another window changed this stock. Reload items before adjusting it.'};
+      if(old.stockMilli+r.deltaMilli<0)throw {code:'invalid_product',message:'The stock change would leave an invalid quantity. Check the count.'};
+      product={...old,stockMilli:old.stockMilli+r.deltaMilli,revision:old.revision+1};s.products[index]=product;
+     }
+     s.stockOps[r.operationId]=structuredClone(product);
+     if(s.failStockReply){s.failStockReply=false;throw {code:'unavailable',message:'Save could not be confirmed. Retry this same save before editing.'};}
+     if(s.failReadAfterSave){s.failReadAfterSave=false;s.failStockRead=true;}
+     return structuredClone(product);
+    }
     if(args.expectedRevision!==s.snapshot.revision)throw {code:'workspace_error',message:'Another window changed this draft. Reopen it before saving again.'};
     const draft=command==='restore_workspace'?s.copies.find(c=>c.revision===args.sourceRevision)?.draft:args.draft;
     if(!draft)throw {code:'workspace_error',message:'Saved copy not available.'};
@@ -63,6 +85,9 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   await page.getByLabel('Confirm password',{exact:true}).fill('Review password 2026');
   await button('Set up local access').click();
   const name=page.getByLabel('Business name',{exact:true}),note=page.getByLabel('Workspace note',{exact:true});
+  await page.getByLabel('Business type',{exact:true}).selectOption('gym');
+  await page.getByText('Members, check-ins and upcoming renewals.',{exact:true}).waitFor();
+  await page.getByLabel('Business type',{exact:true}).selectOption('kirana');
   await name.fill('Sample local store');await note.fill('Original committed note');await button('Save local draft').click();
   await page.getByText('Revision 1 · Current draft',{exact:true}).waitFor();
   await note.fill('Second committed note');await button('Save local draft').click();
@@ -83,7 +108,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   await page.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();
   assert.equal(await name.count(),0);
   assert.equal(await page.getByRole('heading',{name:'Saved copies',exact:true}).count(),0);
-  assert.deepEqual(await page.evaluate(()=>Promise.all(['load_workspace','save_workspace','list_workspace_copies','restore_workspace'].map(c=>globalThis.__TAURI_INTERNALS__.invoke(c).then(()=>'allowed',e=>e.code)))),['locked','locked','locked','locked']);
+  assert.deepEqual(await page.evaluate(()=>Promise.all(['load_workspace','save_workspace','list_workspace_copies','restore_workspace','list_local_products','add_local_product','adjust_local_stock'].map(c=>globalThis.__TAURI_INTERNALS__.invoke(c).then(()=>'allowed',e=>e.code)))),['locked','locked','locked','locked','locked','locked','locked']);
   await password().fill('Wrong password');await button('Unlock workspace').click();
   await page.getByRole('alert').filter({hasText:'That password did not unlock'}).waitFor();
   assert.equal(await name.count(),0);assert.equal(await password().inputValue(),'');
@@ -100,6 +125,52 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   await button('Reopen saved draft').click();await button('Discard edits and reopen').click();
   await page.getByText('Reopened the latest saved draft from this PC.',{exact:true}).waitFor();
   assert.equal(await name.inputValue(),'Other window');
+  await page.getByLabel('Item name',{exact:true}).fill('Sample rice');
+  await page.getByLabel('Item code (optional)',{exact:true}).fill('rice-1');
+  await page.getByLabel('Stock unit',{exact:true}).selectOption('kg');
+  await page.getByLabel('Unit price (₹)',{exact:true}).fill('42.501');
+  await page.getByLabel('Opening stock',{exact:true}).fill('1.250');
+  await button('Save item on this PC').click();
+  await page.getByRole('alert').filter({hasText:'Enter a name, a price'}).waitFor();
+  assert.equal(await page.evaluate(()=>globalThis.review.stockRequests.length),0);
+  await page.getByLabel('Unit price (₹)',{exact:true}).fill('42.50');
+  await page.evaluate(()=>{globalThis.review.failStockReply=true;});
+  await button('Save item on this PC').click();
+  await button('Retry item save').waitFor();
+  assert.equal(await page.getByLabel('Item name',{exact:true}).isDisabled(),true);
+  await button('Retry item save').click();
+  await page.getByText('Saved item changes to this PC.',{exact:true}).waitFor();
+  const itemList=page.getByRole('list',{name:'Saved local items',exact:true});
+  await itemList.getByText('1.25 kg',{exact:true}).waitFor();
+  assert.equal(await page.evaluate(()=>globalThis.review.products.length),1);
+  const requests=await page.evaluate(()=>globalThis.review.stockRequests);
+  assert.deepEqual(requests[0],requests[1]);
+  await page.getByLabel('Item to adjust',{exact:true}).selectOption(await page.evaluate(()=>globalThis.review.products[0].id));
+  await page.getByLabel('Quantity change',{exact:true}).fill('2.750');
+  await page.getByLabel('Reason for stock change',{exact:true}).fill('Counted delivery');
+  await button('Save stock change').click();await itemList.getByText('4 kg',{exact:true}).waitFor();
+  await page.getByLabel('Quantity change',{exact:true}).fill('-4.001');
+  await page.getByLabel('Reason for stock change',{exact:true}).fill('Wrong count');
+  await button('Save stock change').click();
+  await page.getByRole('alert').filter({hasText:'invalid quantity'}).waitFor();
+  assert.equal(await page.evaluate(()=>globalThis.review.products[0].stockMilli),4000);
+  await page.getByLabel('Quantity change',{exact:true}).fill('-1.000');
+  await page.getByLabel('Reason for stock change',{exact:true}).fill('Damaged packet');
+  await page.evaluate(()=>{globalThis.review.products[0].revision++;});
+  await button('Save stock change').click();
+  await page.getByRole('alert').filter({hasText:'Another window changed this stock'}).waitFor();
+  await button('Reload item counts').click();
+  await page.getByText('Reopened the latest item counts from this PC.',{exact:true}).waitFor();
+  await page.evaluate(()=>{globalThis.review.failReadAfterSave=true;});
+  await button('Save stock change').click();
+  await page.getByRole('alert').filter({hasText:'Item changes were saved.'}).waitFor();
+  assert.equal(await button('Retry item save').count(),0);
+  assert.equal(await button('Save stock change').isDisabled(),true);
+  await button('Reload item counts').click();await itemList.getByText('3 kg',{exact:true}).waitFor();
+  await page.getByLabel('Find an item',{exact:true}).fill('missing');
+  await page.getByText('No matching items.',{exact:true}).waitFor();
+  await page.getByLabel('Find an item',{exact:true}).fill('rice-1');
+  await itemList.getByText('Sample rice',{exact:true}).waitFor();
   await page.setViewportSize({width:760,height:800});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false);
   await button('Lock workspace').click();await page.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();
@@ -107,7 +178,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   await password().fill('Review password 2026');await button('Unlock workspace').click();
   await page.getByRole('alert').filter({hasText:'Too many attempts.'}).waitFor();
   assert.equal(await name.count(),0);assert.deepEqual(errors,[]);
-  console.log('Desktop mocked-IPC UI checks passed: browser guard, setup, mismatch, save/restore, dirty lock guard, failed lock, lock/unlock, wrong password, stale-save recovery, attempt-limit error and responsive light/dark access. Native acceptance remains separate.');
+  console.log('Desktop mocked-IPC UI checks passed: browser guard, setup, mismatch, save/restore, dirty lock guard, failed lock, lock/unlock, wrong password, stale-save recovery, attempt-limit error, fractional stock, retry deduplication, negative/stale stock refusal, committed-write/read-failure handling and responsive light/dark access. Native acceptance remains separate.');
  } finally {await browser.close();}
 })().catch(e=>{console.error(e);process.exit(1);});
 

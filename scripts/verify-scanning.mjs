@@ -74,7 +74,7 @@ writeFileSync(
         esModuleInterop: true,
         strict: true,
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       files: [
@@ -94,16 +94,16 @@ writeFileSync(
 // packages ship a `tsc`, so the one on PATH is whichever npm linked last.
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 const require = createRequire(import.meta.url);
-const B = require(join(outDir, 'scanning/barcodes.js'));
-const E = require(join(outDir, 'scanning/encoder.js'));
-const M = require(join(outDir, 'scanning/match.js'));
-const C = require(join(outDir, 'scanning/counter.js'));
-const D = require(join(outDir, 'scanning/device.js'));
-const { demoProducts } = require(join(outDir, 'business-data.js'));
+const B = require(join(outDir, 'lib/scanning/barcodes.js'));
+const E = require(join(outDir, 'lib/scanning/encoder.js'));
+const M = require(join(outDir, 'lib/scanning/match.js'));
+const C = require(join(outDir, 'lib/scanning/counter.js'));
+const D = require(join(outDir, 'lib/scanning/device.js'));
+const { demoProducts } = require(join(outDir, 'lib/business-data.js'));
 
 // --- Published GTIN check digits -------------------------------------------
 check('GTIN check digits match published retail codes', () => {

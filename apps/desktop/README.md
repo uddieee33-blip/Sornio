@@ -99,3 +99,17 @@ check interaction/error handling; it cannot establish native authorization.
 
 Password API reference: [RustCrypto Argon2 0.5.3](https://docs.rs/argon2/0.5.3/argon2/).
 
+# Local stock review 0.3.0
+
+The bundled app now supports sample items and counted stock in encrypted local
+tables. Add prices in paise and counts in thousandths; record deliveries or
+corrections with a reason. Native unlock is required for all commands. Mutation
+and append-only history commit together; stable operation IDs deduplicate exact
+retries, while revision checks reject stale stock adjustments. A draft restore
+does not rewind inventory. This remains one test workspace per Windows profile.
+
+This is not production billing, verified owner onboarding, staff roles, business
+isolation, backup or sync. See `docs/reviews/2026-10-27-windows-stock.md` for scope
+and validation. Native acceptance adds fractional item/stock save and count
+retention after forced termination/unlock.
+

@@ -83,7 +83,7 @@ writeFileSync(
         esModuleInterop: true,
         strict: true,
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       // Entry points only — TypeScript follows the imports from here.
@@ -98,7 +98,7 @@ writeFileSync(
 // packages ship a `tsc`, so the one on PATH is whichever npm linked last.
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 /**
@@ -114,19 +114,19 @@ const nodeModule = require('node:module');
 const resolveFilename = nodeModule._resolveFilename;
 nodeModule._resolveFilename = function aliased(request, ...rest) {
   if (typeof request === 'string' && request.startsWith('@/')) {
-    const mapped = request.slice(2).replace(/^lib\//, '');
+    const mapped = request.slice(2);
     return resolveFilename.call(this, join(outDir, mapped), ...rest);
   }
   return resolveFilename.call(this, request, ...rest);
 };
 
-const plans = require(join(outDir, 'plans/index.js'));
-const lifecycle = require(join(outDir, 'plans/lifecycle.js'));
-const routes = require(join(outDir, 'plans/routes.js'));
-const usage = require(join(outDir, 'plans/usage.js'));
-const cookie = require(join(outDir, 'plans/cookie.js'));
-const activation = require(join(outDir, 'plans/activation.js'));
-const portalCatalogue = require(join(outDir, 'portals/catalogue.js'));
+const plans = require(join(outDir, 'lib/plans/index.js'));
+const lifecycle = require(join(outDir, 'lib/plans/lifecycle.js'));
+const routes = require(join(outDir, 'lib/plans/routes.js'));
+const usage = require(join(outDir, 'lib/plans/usage.js'));
+const cookie = require(join(outDir, 'lib/plans/cookie.js'));
+const activation = require(join(outDir, 'lib/plans/activation.js'));
+const portalCatalogue = require(join(outDir, 'lib/portals/catalogue.js'));
 
 const DAY = 86_400;
 const NOW = Date.UTC(2026, 9, 6, 9, 0, 0); // 6 Oct 2026, 09:00 UTC

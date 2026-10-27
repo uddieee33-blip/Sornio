@@ -1,5 +1,6 @@
 //! One review workspace per Windows profile. This is local app access, not a
 //! verified business identity, staff role or password-derived encryption key.
+use crate::catalog::{AddProduct, AdjustStock, Product};
 use crate::{Draft, SavedCopy, Snapshot, Store, StoreError};
 use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString},
@@ -194,6 +195,21 @@ impl Workspace {
         self.store.saved_copies()
     }
 
+    pub fn list_products(&self) -> Result<Vec<Product>, StoreError> {
+        self.require_unlock()?;
+        self.store.list_products()
+    }
+
+    pub fn add_product(&mut self, request: AddProduct) -> Result<Product, StoreError> {
+        self.require_unlock()?;
+        self.store.add_product(request)
+    }
+
+    pub fn adjust_stock(&mut self, request: AdjustStock) -> Result<Product, StoreError> {
+        self.require_unlock()?;
+        self.store.adjust_stock(request)
+    }
+
     pub fn restore(
         &mut self,
         expected_revision: i64,
@@ -230,6 +246,28 @@ mod tests {
         ));
         assert!(matches!(workspace.saved_copies(), Err(StoreError::Locked)));
         assert!(matches!(workspace.restore(1, 1), Err(StoreError::Locked)));
+        assert!(matches!(workspace.list_products(), Err(StoreError::Locked)));
+        assert!(matches!(
+            workspace.add_product(AddProduct {
+                operation_id: "locked-product".into(),
+                name: "Sample".into(),
+                sku: "".into(),
+                unit: "pcs".into(),
+                unit_price_paise: 100,
+                opening_stock_milli: 1000,
+            }),
+            Err(StoreError::Locked)
+        ));
+        assert!(matches!(
+            workspace.adjust_stock(AdjustStock {
+                operation_id: "locked-adjust".into(),
+                product_id: "locked-product".into(),
+                expected_revision: 1,
+                delta_milli: 1000,
+                reason: "Count".into(),
+            }),
+            Err(StoreError::Locked)
+        ));
     }
 
     #[test]
@@ -358,7 +396,7 @@ mod tests {
         legacy.save(0, sample()).unwrap();
         legacy
             .0
-            .execute_batch("DROP TABLE workspace_access; PRAGMA user_version = 2;")
+            .execute_batch("DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_access; PRAGMA user_version = 2;")
             .unwrap();
         drop(legacy);
         let mut migrated = Workspace::new(Store::open(&path, KEY).unwrap());

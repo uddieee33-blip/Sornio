@@ -6,6 +6,7 @@ use std::{path::Path, time::Duration};
 use thiserror::Error;
 
 pub mod access;
+pub mod catalog;
 
 #[cfg(windows)]
 pub mod device;
@@ -40,6 +41,20 @@ pub enum StoreError {
     AccessUnavailable,
     #[error("Choose a business type and keep the draft within its size limits.")]
     InvalidDraft,
+    #[error("Check the item name, unit, price and stock quantity.")]
+    InvalidProduct,
+    #[error("That item code is already in use. Choose another code.")]
+    DuplicateSku,
+    #[error("Another window changed this stock. Reload items before adjusting it.")]
+    StockConflict,
+    #[error("This save ID already belongs to different input. Reload items before continuing.")]
+    OperationConflict,
+    #[error("The item could not be found. Reload items before continuing.")]
+    ProductMissing,
+    #[error("The stock change would leave an invalid quantity. Check the count.")]
+    InvalidStock,
+    #[error("This review supports up to 5,000 items.")]
+    CatalogFull,
     #[error("The saved draft could not be read. Keep the original files for recovery.")]
     InvalidData(#[from] serde_json::Error),
 }
@@ -65,7 +80,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 3;
+const SCHEMA_VERSION: i64 = 4;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection);
@@ -133,6 +148,9 @@ impl Store {
                 );
                 INSERT INTO workspace_access(singleton) VALUES (1);
                 PRAGMA user_version = 3;")?;
+            }
+            if locked_version < 4 {
+                catalog::migrate(&tx)?;
             }
             tx.commit()?;
         }
@@ -383,7 +401,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

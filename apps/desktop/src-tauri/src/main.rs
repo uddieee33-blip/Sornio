@@ -4,6 +4,7 @@
 use sornio_local_store::device::initialize;
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
+    catalog::{AddProduct, AdjustStock, Product},
     Draft, SavedCopy, Snapshot, Store, StoreError,
 };
 use std::sync::{Arc, Mutex};
@@ -35,6 +36,13 @@ impl From<StoreError> for CommandError {
             StoreError::RateLimited => "rate_limited",
             StoreError::AccessConfigured => "already_configured",
             StoreError::AccessNotConfigured => "not_configured",
+            StoreError::StockConflict => "stock_conflict",
+            StoreError::OperationConflict => "operation_conflict",
+            StoreError::DuplicateSku => "duplicate_sku",
+            StoreError::InvalidProduct
+            | StoreError::InvalidStock
+            | StoreError::ProductMissing
+            | StoreError::CatalogFull => "invalid_product",
             _ => "workspace_error",
         };
         Self {
@@ -144,6 +152,29 @@ async fn restore_workspace(
     .await
 }
 
+#[tauri::command]
+async fn list_local_products(
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<Product>, CommandError> {
+    with_workspace(state, |w| w.list_products()).await
+}
+
+#[tauri::command]
+async fn add_local_product(
+    request: AddProduct,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Product, CommandError> {
+    with_workspace(state, move |w| w.add_product(request)).await
+}
+
+#[tauri::command]
+async fn adjust_local_stock(
+    request: AdjustStock,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Product, CommandError> {
+    with_workspace(state, move |w| w.adjust_stock(request)).await
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -164,7 +195,10 @@ fn main() {
             load_workspace,
             save_workspace,
             list_workspace_copies,
-            restore_workspace
+            restore_workspace,
+            list_local_products,
+            add_local_product,
+            adjust_local_stock
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");

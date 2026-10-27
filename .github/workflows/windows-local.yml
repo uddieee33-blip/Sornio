@@ -2,7 +2,7 @@ name: Windows local workspace
 on:
   pull_request:
     branches: [main]
-    paths: ['apps/desktop/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
+    paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
   workflow_dispatch:
 permissions:
   contents: read

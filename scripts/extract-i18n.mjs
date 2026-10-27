@@ -33,7 +33,7 @@ if (typeof ts.createSourceFile !== 'function' || !ts.ScriptTarget) {
 }
 
 const ROOT = process.cwd();
-const SOURCE_ROOTS = ['app', 'components', 'lib'];
+const SOURCE_ROOTS = ['app', 'components', 'lib', 'packages/business-domain/src'];
 const OUTPUT = path.join(ROOT, 'locales', 'en.json');
 
 const ATTRIBUTE_NAMES = new Set([

@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
-import type { PortalId } from '../../../lib/portals/types';
+import type { PortalId } from '../../../packages/business-domain/src/business-types';
+import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { SavedCopies } from './SavedCopies';
+import { InventoryPanel } from './InventoryPanel';
 import { AccessGate } from './AccessGate';
 import { errorCode, errorMessage } from './access';
 import type { Draft, Snapshot } from './workspace-types';
@@ -26,7 +28,10 @@ function App({ onLocked }: { onLocked: () => void }) {
   const saving = useRef(false);
   const [reopenPrompt, setReopenPrompt] = useState(false);
   const [lockPrompt, setLockPrompt] = useState(false);
-  const dirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
+  const [catalogDirty, setCatalogDirty] = useState(false);
+  const [catalogBusy, setCatalogBusy] = useState(false);
+  const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
+  const dirty = catalogDirty || draftDirty;
 
   useEffect(() => {
     if (!native) return;
@@ -52,7 +57,7 @@ function App({ onLocked }: { onLocked: () => void }) {
 
   async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!native || !snapshot || saving.current) return;
+    if (!native || !snapshot || saving.current || !draftDirty) return;
     saving.current = true; setStatus('saving'); setMessage('Saving to this PC…');
     try {
       const saved = await invoke<Snapshot>('save_workspace', { expectedRevision: snapshot.revision, draft });
@@ -76,7 +81,7 @@ function App({ onLocked }: { onLocked: () => void }) {
   }
 
   async function restore(sourceRevision: number) {
-    if (!native || !snapshot || saving.current || dirty) return;
+    if (!native || !snapshot || saving.current || draftDirty) return;
     saving.current = true; setStatus('saving'); setMessage('Restoring your saved copy…');
     try {
       const saved = await invoke<Snapshot>('restore_workspace', { expectedRevision: snapshot.revision, sourceRevision });
@@ -88,7 +93,7 @@ function App({ onLocked }: { onLocked: () => void }) {
     } finally { saving.current = false; }
   }
 
-  const busy = status === 'opening' || status === 'saving';
+  const busy = catalogBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -104,7 +109,7 @@ function App({ onLocked }: { onLocked: () => void }) {
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
       <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a></nav>
-      <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.2.0</p></div>
+      <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.3.0</p></div>
     </aside>
     <main id="main">
       <header className="topbar"><span>Workspace / Local review</span><div className="topbar-actions"><span className="chip"><span className="status-dot"/> On this PC</span><button type="button" className="quiet-button" disabled={busy} onClick={() => void lock()}>Lock workspace</button></div></header>
@@ -114,25 +119,27 @@ function App({ onLocked }: { onLocked: () => void }) {
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace"><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button className="quiet-button" type="button" disabled={busy} onClick={() => setLockPrompt(false)}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
         <div className="workspace-grid">
           <form className="panel" onSubmit={(event) => void save(event)}>
-            <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{dirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
+            <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
             <p className="muted">Save a sample business and note, then reopen the app without internet to check that it stays here.</p>
             <fieldset disabled={!snapshot || busy}>
               <label htmlFor="business-name">Business name</label><input id="business-name" autoComplete="organization" value={draft.businessName} maxLength={120} required placeholder="Your sample business" onChange={(e) => setDraft({ ...draft, businessName: e.target.value })}/>
-              <label htmlFor="business-type">Business type</label><select id="business-type" value={draft.businessType} onChange={(e) => setDraft({ ...draft, businessType: e.target.value as PortalId })}>{types.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+              <label htmlFor="business-type">Business type</label><select aria-describedby="business-description" id="business-type" value={draft.businessType} onChange={(e) => setDraft({ ...draft, businessType: e.target.value as PortalId })}>{types.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
+              <p id="business-description">{dailyWorkspace(draft.businessType).description}</p>
               <label htmlFor="workspace-note">Workspace note</label><textarea id="workspace-note" rows={5} maxLength={2000} placeholder="A note to find when you reopen Sornio…" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })}/>
-              <div className="form-footer"><p>{dirty ? 'Changes are not saved yet.' : 'Nothing leaves this PC in this build.'}</p><button type="submit" disabled={!dirty || !draft.businessName.trim()}>{status === 'saving' ? 'Saving…' : 'Save local draft'}<span aria-hidden="true">↗</span></button></div>
+              <div className="form-footer"><p>{draftDirty ? 'Changes are not saved yet.' : 'Nothing leaves this PC in this build.'}</p><button type="submit" disabled={!draftDirty || !draft.businessName.trim()}>{status === 'saving' ? 'Saving…' : 'Save local draft'}<span aria-hidden="true">↗</span></button></div>
             </fieldset>
             {native ? <div className="reopen-actions">
               {reopenPrompt ? <div className="reopen-prompt" role="group" aria-label="Reopen saved draft">
                 <p>Your unsaved edits will be replaced by the latest saved draft.</p>
                 <button type="button" className="quiet-button" disabled={busy} onClick={() => setReopenPrompt(false)}>Keep editing</button>
                 <button type="button" disabled={busy} onClick={() => void reopen()}>Discard edits and reopen</button>
-              </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (dirty) setReopenPrompt(true); else void reopen(); }}>Reopen saved draft</button>}
+              </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) setReopenPrompt(true); else void reopen(); }}>Reopen saved draft</button>}
             </div> : null}
           </form>
-          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li></ul><p className="footnote">Billing, verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
+          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li></ul><p className="footnote">Billing, verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
         </div>
-        {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={dirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
+        {native && snapshot ? <InventoryPanel disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
+        {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>
   </div>;

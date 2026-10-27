@@ -72,7 +72,7 @@ writeFileSync(
         esModuleInterop: true,
         strict: true,
         outDir,
-        rootDir: join(root, 'lib'),
+        rootDir: root,
         paths: { '@/*': [`${relative(outDir, root)}/*`] },
       },
       files: [join(root, 'lib/import/products.ts'), join(root, 'lib/import/customers.ts'), join(root, 'lib/export/headers.ts')],
@@ -84,14 +84,14 @@ writeFileSync(
 
 execFileSync(process.execPath, [compiler('api', root).file, '-p', tsconfig], {
   cwd: root,
-  stdio: ['ignore', 'ignore', 'inherit'],
+  stdio: ['ignore', 'inherit', 'inherit'],
 });
 
 const require = createRequire(import.meta.url);
-const P = require(join(outDir, 'import/products.js'));
-const C = require(join(outDir, 'import/customers.js'));
-const CSV = require(join(outDir, 'import/csv.js'));
-const H = require(join(outDir, 'export/headers.js'));
+const P = require(join(outDir, 'lib/import/products.js'));
+const C = require(join(outDir, 'lib/import/customers.js'));
+const CSV = require(join(outDir, 'lib/import/csv.js'));
+const H = require(join(outDir, 'lib/export/headers.js'));
 
 // ---------------------------------------------------------------- parser ----
 
