@@ -12,6 +12,12 @@ fn main() {
             "list_local_products",
             "add_local_product",
             "adjust_local_stock",
+            "read_cashier_state",
+            "prepare_local_checkout",
+            "clear_local_checkout",
+            "post_local_invoice",
+            "list_local_invoices",
+            "read_billing_outbox",
         ]),
     ))
     .expect("Tauri build configuration failed");

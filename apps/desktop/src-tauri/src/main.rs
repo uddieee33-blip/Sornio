@@ -37,6 +37,8 @@ impl From<StoreError> for CommandError {
             StoreError::AccessConfigured => "already_configured",
             StoreError::AccessNotConfigured => "not_configured",
             StoreError::StockConflict => "stock_conflict",
+            StoreError::InvalidInvoice => "invalid_invoice",
+            StoreError::CheckoutActive => "checkout_active",
             StoreError::OperationConflict => "operation_conflict",
             StoreError::DuplicateSku => "duplicate_sku",
             StoreError::InvalidProduct
@@ -175,6 +177,48 @@ async fn adjust_local_stock(
     with_workspace(state, move |w| w.adjust_stock(request)).await
 }
 
+#[tauri::command]
+async fn read_cashier_state(
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::checkout::CashierState, CommandError> {
+    with_workspace(state, |w| w.cashier_state()).await
+}
+#[tauri::command]
+async fn prepare_local_checkout(
+    request: sornio_local_store::billing::PostInvoice,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_workspace(state, move |w| w.prepare_checkout(request)).await
+}
+#[tauri::command]
+async fn clear_local_checkout(
+    operation_id: String,
+    saved: bool,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_workspace(state, move |w| w.clear_checkout(&operation_id, saved)).await
+}
+#[tauri::command]
+async fn post_local_invoice(
+    request: sornio_local_store::billing::PostInvoice,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::billing::Invoice, CommandError> {
+    with_workspace(state, move |w| w.post_prepared_invoice(request)).await
+}
+#[tauri::command]
+async fn list_local_invoices(
+    after: i64,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<sornio_local_store::billing::InvoiceRecord>, CommandError> {
+    with_workspace(state, move |w| w.list_invoices(after)).await
+}
+#[tauri::command]
+async fn read_billing_outbox(
+    after: i64,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<sornio_local_store::billing::OutboxRecord>, CommandError> {
+    with_workspace(state, move |w| w.billing_outbox(after)).await
+}
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -198,7 +242,13 @@ fn main() {
             restore_workspace,
             list_local_products,
             add_local_product,
-            adjust_local_stock
+            adjust_local_stock,
+            read_cashier_state,
+            prepare_local_checkout,
+            clear_local_checkout,
+            post_local_invoice,
+            list_local_invoices,
+            read_billing_outbox
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");

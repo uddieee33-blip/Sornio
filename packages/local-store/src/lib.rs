@@ -1,12 +1,14 @@
-//! First offline slice: encrypted, versioned local workspace drafts.
-//! Bounded encrypted draft history; no financial commands or account provisioning.
+//! Encrypted drafts, catalogue and atomic cash/credit invoice posting.
+//! One review workspace; verified business identity and sync transport remain separate.
 use rusqlite::{params, Connection, OptionalExtension, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 use std::{path::Path, time::Duration};
 use thiserror::Error;
 
 pub mod access;
+pub mod billing;
 pub mod catalog;
+pub mod checkout;
 
 #[cfg(windows)]
 pub mod device;
@@ -43,6 +45,12 @@ pub enum StoreError {
     InvalidDraft,
     #[error("Check the item name, unit, price and stock quantity.")]
     InvalidProduct,
+    #[error("Check invoice items, tax rate and cash/credit customer reference.")]
+    InvalidInvoice,
+    #[error(
+        "Another checkout is active or its result changed. Reload checkout before continuing."
+    )]
+    CheckoutActive,
     #[error("That item code is already in use. Choose another code.")]
     DuplicateSku,
     #[error("Another window changed this stock. Reload items before adjusting it.")]
@@ -80,7 +88,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 4;
+const SCHEMA_VERSION: i64 = 6;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection);
@@ -110,6 +118,10 @@ impl Store {
         db.pragma_update(None, "journal_mode", "WAL")?;
         db.pragma_update(None, "synchronous", "FULL")?;
         db.pragma_update(None, "foreign_keys", "ON")?;
+        // REPLACE deletes conflicting rows internally. Its delete triggers only
+        // fire with recursive triggers enabled; otherwise append-only history
+        // could be replaced despite the UPDATE/DELETE guards.
+        db.pragma_update(None, "recursive_triggers", "ON")?;
         db.pragma_update(None, "cipher_memory_security", "ON")?;
         if version < SCHEMA_VERSION {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
@@ -151,6 +163,12 @@ impl Store {
             }
             if locked_version < 4 {
                 catalog::migrate(&tx)?;
+            }
+            if locked_version < 5 {
+                billing::migrate(&tx)?;
+            }
+            if locked_version < 6 {
+                checkout::migrate(&tx)?;
             }
             tx.commit()?;
         }
@@ -401,7 +419,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

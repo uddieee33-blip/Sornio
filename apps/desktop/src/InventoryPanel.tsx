@@ -12,8 +12,8 @@ const empty = { name: '', sku: '', unit: 'pcs', price: '', quantity: '' };
 const quantity = (value: number) => (value / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const money = (value: number) => (value / 100).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
 
-export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange }: {
-  disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
+export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange, refreshToken, onSaved }: {
+  refreshToken: number; onSaved: () => void; disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState(empty);
@@ -22,6 +22,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
   const [reason, setReason] = useState('');
   const [search, setSearch] = useState('');
   const [ready, setReady] = useState(false);
+  const [openedToken, setOpenedToken] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
   const [message, setMessage] = useState('Opening items on this PC…');
@@ -30,45 +31,45 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
   const current = useRef(true);
   const dirty = form.name !== '' || form.sku !== '' || form.price !== '' || form.quantity !== '' || delta !== '' || reason !== '' || pending !== null;
   useEffect(() => { onDirtyChange(dirty); }, [dirty, onDirtyChange]);
-  useEffect(() => { onBusyChange(busy); }, [busy, onBusyChange]);
 
   useEffect(() => {
     current.current = true;
+    let active = true;
     invoke<Product[]>('list_local_products').then(items => {
-      if (current.current) { setProducts(items); setReady(true); setMessage('Items and counts are saved only on this PC.'); }
+      if (active) { setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false); setMessage('Items and counts are saved only on this PC.'); }
     }).catch((error: unknown) => {
-      if (!current.current) return;
+      if (!active) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setFailed(true); setMessage(errorMessage(error, 'Items could not be opened. Retry loading your items.'));
     });
-    return () => { current.current = false; };
-  }, [onLocked]);
+    return () => { active = false; current.current = false; };
+  }, [onLocked, refreshToken]);
 
   async function reload() {
     if (submitting.current) return;
-    submitting.current = true; setBusy(true);
+    submitting.current = true; setBusy(true); onBusyChange(true);
     try {
       const items = await invoke<Product[]>('list_local_products');
       if (!current.current) return;
-      setProducts(items); setReady(true); setFailed(false);
+      setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false);
       setMessage('Reopened the latest item counts from this PC.');
     } catch (error: unknown) {
       if (!current.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setFailed(true); setMessage(errorMessage(error, 'Items could not be reopened.'));
-    } finally { submitting.current = false; if (current.current) setBusy(false); }
+    } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
   }
 
   async function submit(operation: Pending) {
     if (submitting.current) return;
-    submitting.current = true; setBusy(true); setPending(operation); setFailed(false); setMessage('Saving item changes to this PC…');
+    submitting.current = true; setBusy(true); onBusyChange(true); setPending(operation); setFailed(false); setMessage('Saving item changes to this PC…');
     try {
       const saved = await invoke<Product>(operation.command, { request: operation.request });
       if (!current.current) return;
       // Show the durable response immediately. A subsequent reload is explicit;
       // a failed read must never turn a committed write into a failed save.
       setProducts(items => [...items.filter(item => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
-      setPending(null);
+      setPending(null); onSaved();
       if (operation.command === 'add_local_product') setForm(empty);
       else { setDelta(''); setReason(''); }
       setReady(false);
@@ -76,7 +77,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
       try {
         const items = await invoke<Product[]>('list_local_products');
         if (!current.current) return;
-        setProducts(items); setReady(true); setMessage('Saved item changes to this PC.');
+        setProducts(items); setReady(true); setOpenedToken(refreshToken); setMessage('Saved item changes to this PC.');
       } catch (readError: unknown) {
         if (!current.current) return;
         if (errorCode(readError) === 'locked') { onLocked(); return; }
@@ -90,7 +91,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
       // transport/database error retains the exact ID and payload for safe retry.
       if (['invalid_product', 'duplicate_sku', 'stock_conflict', 'operation_conflict'].includes(code ?? '')) setPending(null);
       setFailed(true); setMessage(errorMessage(error, 'Save could not be confirmed. Retry this same save before editing.'));
-    } finally { submitting.current = false; if (current.current) setBusy(false); }
+    } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
   }
 
   function add(event: FormEvent<HTMLFormElement>) {
@@ -113,12 +114,12 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
     void submit({ command: 'adjust_local_stock', request: { operationId: crypto.randomUUID(), productId: item.id, expectedRevision: item.revision, deltaMilli: amount, reason } });
   }
 
-  const blocked = disabled || busy || !ready;
+  const blocked = disabled || busy || !ready || openedToken !== refreshToken;
   const matching = products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
   const shown = matching.slice(0, 100);
-  return <section className="panel inventory-panel" aria-labelledby="inventory-heading">
+  return <section className="panel inventory-panel" aria-labelledby="inventory-heading" aria-busy={busy}>
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
-    <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Billing and account migration are still in progress.</p>
+    <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {pending ? <div className="pending-stock"><p>This save is waiting for confirmation. Retry uses the same save ID and values.</p><button type="button" disabled={busy || disabled} onClick={() => void submit(pending)}>Retry item save</button></div> : null}
     <div className="inventory-forms">

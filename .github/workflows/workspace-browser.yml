@@ -2,14 +2,14 @@ name: Workspace browser review
 on:
   pull_request:
     branches: [main]
-    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
+    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   browser:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       NEXT_TELEMETRY_DISABLED: '1'
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
@@ -21,6 +21,20 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: packages/local-store
+      - name: Check native Rust formatting
+        run: |
+          cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+      - name: Test native billing and inventory in debug and release
+        run: |
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml
+          cargo test --release --locked --manifest-path packages/local-store/Cargo.toml
+      - name: Build native cashier integration fixture
+        run: cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge
       - run: npm ci
       - run: npm run build
       - name: Install isolated browser tooling
@@ -49,6 +63,7 @@ jobs:
             sleep 1
           done
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-checkout.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
       - uses: actions/upload-artifact@v7
         if: always()
         with:
