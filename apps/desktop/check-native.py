@@ -5,6 +5,7 @@ uses verified native keyboard focus, not debugging, injected JS or mocked IPC.
 """
 from pathlib import Path
 import subprocess
+import sys
 import time
 import traceback
 
@@ -17,6 +18,8 @@ OUTPUT = Path("dist/native-review")
 OUTPUT.mkdir(parents=True, exist_ok=True)
 PASSWORD = "SornioReviewAccess2026"
 ORIGINAL_NOTE = "Saved in the native app. Reopen without the website."
+sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
+sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 app = None
 window = None
 

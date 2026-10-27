@@ -180,7 +180,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
-    <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>Cash recorded: {money(balances.cashPaise)}</p><p>Credit receivable: {money(balances.creditPaise)}</p>{!ready ? <p>Balances need refresh.</p> : null}</div>
+    <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {invoice ? <><SavedInvoice invoice={invoice}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it.</p>
