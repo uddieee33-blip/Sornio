@@ -32,7 +32,7 @@ pub struct PostInvoice {
 }
 impl PostInvoice {
     /// Keep the IPC contract aligned with business-domain's shared validation fixtures.
-    fn validate(&self) -> Result<(), StoreError> {
+    pub(crate) fn validate(&self) -> Result<(), StoreError> {
         if !valid_id(&self.operation_id)
             || self.lines.is_empty()
             || self.lines.len() > 100
@@ -89,7 +89,7 @@ pub struct OutboxRecord {
     pub invoice_id: String,
     pub payload: String,
 }
-fn valid_id(s: &str) -> bool {
+pub(crate) fn valid_id(s: &str) -> bool {
     (1..=80).contains(&s.len())
         && s.bytes()
             .all(|b| b.is_ascii_alphanumeric() || b == b'-' || b == b'_')
@@ -141,6 +141,19 @@ pub(crate) fn migrate(tx: &rusqlite::Transaction<'_>) -> Result<(), StoreError> 
 }
 impl Store {
     pub fn post_invoice(&mut self, request: PostInvoice) -> Result<Invoice, StoreError> {
+        self.post_invoice_inner(request, false)
+    }
+    pub(crate) fn post_prepared_invoice(
+        &mut self,
+        request: PostInvoice,
+    ) -> Result<Invoice, StoreError> {
+        self.post_invoice_inner(request, true)
+    }
+    fn post_invoice_inner(
+        &mut self,
+        request: PostInvoice,
+        prepared: bool,
+    ) -> Result<Invoice, StoreError> {
         request.validate()?;
         let raw = serde_json::to_string(&request)?;
         let tx = self
@@ -158,6 +171,26 @@ impl Store {
                 return Err(StoreError::OperationConflict);
             }
             return Ok(serde_json::from_str(&payload)?);
+        }
+        let canceled: bool = tx.query_row(
+            "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
+            [&request.operation_id],
+            |r| r.get(0),
+        )?;
+        if canceled {
+            return Err(StoreError::CheckoutActive);
+        }
+        if prepared {
+            let checkpoint: Option<String> = tx
+                .query_row(
+                    "SELECT request FROM local_checkout WHERE singleton=1",
+                    [],
+                    |r| r.get(0),
+                )
+                .optional()?;
+            if checkpoint.as_deref() != Some(raw.as_str()) {
+                return Err(StoreError::CheckoutActive);
+            }
         }
         let mut quantities: BTreeMap<String, (i64, i64)> = BTreeMap::new();
         let mut lines = Vec::new();
@@ -684,7 +717,7 @@ mod tests {
         let path = d.path().join("s.db");
         let mut s = Store::open(&path, KEY).unwrap();
         s.add_product(product()).unwrap();
-        s.0.execute_batch("DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
+        s.0.execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
         let mut w = Workspace::new(s);
         w.setup("Existing billing password").unwrap();
         drop(w);

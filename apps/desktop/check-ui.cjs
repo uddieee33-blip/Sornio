@@ -33,6 +33,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
      s.access.unlocked=false;return null;
     }
     if(!s.access.unlocked)throw {code:'locked',message:'Unlock this workspace to continue.'};
+    if(command==='read_cashier_state')return {products:structuredClone(s.products),checkout:null,balances:{cashPaise:'0',creditPaise:'0'}};
     if(command==='load_workspace')return structuredClone(s.snapshot);
     if(command==='list_workspace_copies')return structuredClone(s.copies);
     if(command==='list_local_products'){

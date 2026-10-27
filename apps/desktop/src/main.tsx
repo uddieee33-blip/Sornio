@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
 import { invoke, isTauri } from '@tauri-apps/api/core';
@@ -6,6 +6,7 @@ import type { PortalId } from '../../../packages/business-domain/src/business-ty
 import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
+import { CheckoutPanel } from './CheckoutPanel';
 import { AccessGate } from './AccessGate';
 import { errorCode, errorMessage } from './access';
 import type { Draft, Snapshot } from './workspace-types';
@@ -30,8 +31,14 @@ function App({ onLocked }: { onLocked: () => void }) {
   const [lockPrompt, setLockPrompt] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
+  const [checkoutDirty, setCheckoutDirty] = useState(false);
+  const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [inventoryRefresh, setInventoryRefresh] = useState(0);
+  const [checkoutRefresh, setCheckoutRefresh] = useState(0);
+  const refreshInventory = useCallback(() => setInventoryRefresh(value => value + 1), []);
+  const refreshCheckout = useCallback(() => setCheckoutRefresh(value => value + 1), []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const dirty = catalogDirty || draftDirty;
+  const dirty = catalogDirty || draftDirty || checkoutDirty;
 
   useEffect(() => {
     if (!native) return;
@@ -93,7 +100,7 @@ function App({ onLocked }: { onLocked: () => void }) {
     } finally { saving.current = false; }
   }
 
-  const busy = catalogBusy || status === 'opening' || status === 'saving';
+  const busy = checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -108,7 +115,7 @@ function App({ onLocked }: { onLocked: () => void }) {
     <aside className="rail">
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
-      <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a></nav>
+      <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a><a href="#checkout">Checkout</a><a href="#inventory-heading">Items &amp; stock</a></nav>
       <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.3.0</p></div>
     </aside>
     <main id="main">
@@ -117,6 +124,7 @@ function App({ onLocked }: { onLocked: () => void }) {
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace"><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button className="quiet-button" type="button" disabled={busy} onClick={() => setLockPrompt(false)}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
+        {native && snapshot ? <CheckoutPanel disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
         <div className="workspace-grid">
           <form className="panel" onSubmit={(event) => void save(event)}>
             <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
@@ -136,9 +144,9 @@ function App({ onLocked }: { onLocked: () => void }) {
               </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) setReopenPrompt(true); else void reopen(); }}>Reopen saved draft</button>}
             </div> : null}
           </form>
-          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li></ul><p className="footnote">Billing, verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
+          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
         </div>
-        {native && snapshot ? <InventoryPanel disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
+        {native && snapshot ? <InventoryPanel refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
         {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>

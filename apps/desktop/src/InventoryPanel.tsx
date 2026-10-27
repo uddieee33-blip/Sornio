@@ -12,8 +12,8 @@ const empty = { name: '', sku: '', unit: 'pcs', price: '', quantity: '' };
 const quantity = (value: number) => (value / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const money = (value: number) => (value / 100).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
 
-export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange }: {
-  disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
+export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange, refreshToken, onSaved }: {
+  refreshToken: number; onSaved: () => void; disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState(empty);
@@ -34,15 +34,16 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
 
   useEffect(() => {
     current.current = true;
+    let active = true;
     invoke<Product[]>('list_local_products').then(items => {
-      if (current.current) { setProducts(items); setReady(true); setMessage('Items and counts are saved only on this PC.'); }
+      if (active) { setProducts(items); setReady(true); setMessage('Items and counts are saved only on this PC.'); }
     }).catch((error: unknown) => {
-      if (!current.current) return;
+      if (!active) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setFailed(true); setMessage(errorMessage(error, 'Items could not be opened. Retry loading your items.'));
     });
-    return () => { current.current = false; };
-  }, [onLocked]);
+    return () => { active = false; current.current = false; };
+  }, [onLocked, refreshToken]);
 
   async function reload() {
     if (submitting.current) return;
@@ -68,7 +69,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
       // Show the durable response immediately. A subsequent reload is explicit;
       // a failed read must never turn a committed write into a failed save.
       setProducts(items => [...items.filter(item => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
-      setPending(null);
+      setPending(null); onSaved();
       if (operation.command === 'add_local_product') setForm(empty);
       else { setDelta(''); setReason(''); }
       setReady(false);
@@ -118,7 +119,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
   const shown = matching.slice(0, 100);
   return <section className="panel inventory-panel" aria-labelledby="inventory-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
-    <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Billing and account migration are still in progress.</p>
+    <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {pending ? <div className="pending-stock"><p>This save is waiting for confirmation. Retry uses the same save ID and values.</p><button type="button" disabled={busy || disabled} onClick={() => void submit(pending)}>Retry item save</button></div> : null}
     <div className="inventory-forms">

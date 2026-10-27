@@ -8,6 +8,7 @@ use thiserror::Error;
 pub mod access;
 pub mod billing;
 pub mod catalog;
+pub mod checkout;
 
 #[cfg(windows)]
 pub mod device;
@@ -46,6 +47,10 @@ pub enum StoreError {
     InvalidProduct,
     #[error("Check invoice items, tax rate and cash/credit customer reference.")]
     InvalidInvoice,
+    #[error(
+        "Another checkout is active or its result changed. Reload checkout before continuing."
+    )]
+    CheckoutActive,
     #[error("That item code is already in use. Choose another code.")]
     DuplicateSku,
     #[error("Another window changed this stock. Reload items before adjusting it.")]
@@ -83,7 +88,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 5;
+const SCHEMA_VERSION: i64 = 6;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection);
@@ -161,6 +166,9 @@ impl Store {
             }
             if locked_version < 5 {
                 billing::migrate(&tx)?;
+            }
+            if locked_version < 6 {
+                checkout::migrate(&tx)?;
             }
             tx.commit()?;
         }
@@ -411,7 +419,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

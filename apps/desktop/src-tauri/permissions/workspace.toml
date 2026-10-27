@@ -12,4 +12,4 @@ commands.allow = ["list_local_products", "add_local_product", "adjust_local_stoc
 [[permission]]
 identifier = "local-billing"
 description = "Post bounded cash/credit invoices and read local records through native unlock. No network or outbox acknowledgement."
-commands.allow = ["post_local_invoice", "list_local_invoices", "read_billing_outbox"]
+commands.allow = ["read_cashier_state", "prepare_local_checkout", "clear_local_checkout", "post_local_invoice", "list_local_invoices", "read_billing_outbox"]

@@ -11,6 +11,11 @@ operation ID is refused. Invoice IDs are scoped to invoice posting.
 
 ## IPC contract
 
+The bundled cashier first calls `prepare_local_checkout({request})`, then
+`post_local_invoice` with the same request. A matching durable checkpoint is
+required for new UI posts. See `2026-10-27-windows-checkout.md` for recovery,
+ledger snapshot reads and acknowledgement commands.
+
 `post_local_invoice({ request: { operationId, lines, taxBasisPoints, tender,
 customerId } })`, where each line is `{ productId, expectedRevision,
 quantityMilli }`. Tender is exactly `cash` or `credit`. Credit requires a bounded
@@ -46,7 +51,7 @@ there is no renderer mutation/acknowledgement API, network sender, or completed
 sync protocol. Do not transmit these review events as production business data
 before verified business/device scoping and authentication are implemented.
 
-Schema v5 migrates v4 without clearing catalogue, password or drafts. All posted
+Schema v6 migrates v4/v5 without clearing catalogue, password, drafts or invoices. All posted
 billing tables reject updates/deletes. A draft restore cannot rewind invoices.
 Every store connection enables recursive triggers so `INSERT OR REPLACE` also
 fires the delete guard and cannot bypass append-only records.
@@ -68,12 +73,12 @@ runs release SQLCipher/Credential Manager tests.
 
 ## Scope
 
-This PR implements the native posting API and durable records. A cashier bill
-editor, receipt printing, customer master/dues collection, returns, GST-compliant
+This PR implements native posting, durable records and a bundled cashier bill
+editor (see `2026-10-27-windows-checkout.md`). Receipt printing, customer master/dues collection, returns, GST-compliant
 invoice numbering and split taxes, business identity/isolation, staff roles,
 backup/key recovery, LAN transport, cloud acknowledgement and signed distribution
-remain separate milestones. The existing native UI smoke test exercises draft
-and stock workflows; it is not a claim of end-to-end cashier billing acceptance.
+remain separate milestones. The native UI smoke test now also exercises cash/credit checkout and receipt
+recovery; current execution results are recorded separately in PR #121.
 Use synthetic data in this single-profile engineering review.
 
 ## Reliability review
@@ -113,8 +118,8 @@ All fixture identities, passwords, keys and transactions are synthetic.
 
 The process restart regression exercises the native store and Workspace used by
 the desktop commands. It is not an automated cashier-screen interaction. The
-existing Windows GUI smoke still covers stock/drafts, since a cashier UI has not
-been implemented. Power removal, disk/controller faults, LAN delivery and
+Windows GUI smoke now covers stock/drafts plus real cash/credit cashier checkout
+and receipt recovery; its execution is separate from the backend test suite. Power removal, disk/controller faults, LAN delivery and
 production customer data have not been tested by this suite.
 
 Local execution for this review: all 50 native Rust tests passed in both debug

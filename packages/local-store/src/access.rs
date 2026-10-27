@@ -28,6 +28,28 @@ pub struct Workspace {
 }
 
 impl Workspace {
+    pub fn prepare_checkout(
+        &mut self,
+        request: crate::billing::PostInvoice,
+    ) -> Result<(), StoreError> {
+        self.require_unlock()?;
+        self.store.prepare_checkout(request)
+    }
+    pub fn clear_checkout(&mut self, operation_id: &str, saved: bool) -> Result<(), StoreError> {
+        self.require_unlock()?;
+        self.store.clear_checkout(operation_id, saved)
+    }
+    pub fn cashier_state(&self) -> Result<crate::checkout::CashierState, StoreError> {
+        self.require_unlock()?;
+        self.store.cashier_state()
+    }
+    pub fn post_prepared_invoice(
+        &mut self,
+        request: crate::billing::PostInvoice,
+    ) -> Result<crate::billing::Invoice, StoreError> {
+        self.require_unlock()?;
+        self.store.post_prepared_invoice(request)
+    }
     pub fn post_invoice(
         &mut self,
         request: crate::billing::PostInvoice,
@@ -418,7 +440,7 @@ mod tests {
         legacy.save(0, sample()).unwrap();
         legacy
             .0
-            .execute_batch("DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_access; PRAGMA user_version = 2;")
+            .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_access; PRAGMA user_version = 2;")
             .unwrap();
         drop(legacy);
         let mut migrated = Workspace::new(Store::open(&path, KEY).unwrap());

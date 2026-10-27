@@ -125,6 +125,33 @@ try:
     wait_until(30, 0.5, lambda: message_visible("4 pcs"))
     window.capture_as_image().save(OUTPUT / "windows-local-stock.png")
 
+    # Actual bundled cashier -> authorized native posting -> encrypted SQLite.
+    fill("Search items for sale", "NATIVE-RICE")
+    activate("Add Sample native rice to sale")
+    fill("Quantity for Sample native rice (pcs)", "1.250")
+    activate("Review sale")
+    activate("Confirm sale")
+    wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
+    cash_id = focus_control("Saved invoice ID", "Edit").get_value()
+    assert len(cash_id) == 36, "Cash invoice did not return its stable ID"
+    wait_until(30, 0.5, lambda: message_visible("Cash recorded: ₹53.13"))
+    wait_until(30, 0.5, lambda: message_visible("2.75 pcs"))
+    activate("Start next sale")
+    fill("Search items for sale", "NATIVE-RICE")
+    activate("Add Sample native rice to sale")
+    fill("Quantity for Sample native rice (pcs)", "0.750")
+    focus_control("Transaction type", "ComboBox")
+    send_keys("{END}{ENTER}", pause=0.2)
+    fill("Credit customer reference", "native-customer-1")
+    activate("Review sale")
+    activate("Confirm sale")
+    wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
+    credit_id = focus_control("Saved invoice ID", "Edit").get_value()
+    assert len(credit_id) == 36 and credit_id != cash_id, "Credit invoice ID is invalid"
+    wait_until(30, 0.5, lambda: message_visible("Credit receivable: ₹31.88"))
+    wait_until(30, 0.5, lambda: message_visible("2 pcs"))
+    window.capture_as_image().save(OUTPUT / "windows-local-checkout.png")
+
     activate("Lock workspace")
     assert_locked()
     window.capture_as_image().save(OUTPUT / "windows-local-locked.png")
@@ -138,8 +165,11 @@ try:
     assert note.get_value() == ORIGINAL_NOTE, "Restored note changed after unlock/reopen"
     window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
     window.child_window(title="Restore saved copy 3", control_type="Button", visible_only=False).wait("exists", timeout=30)
-    wait_until(30, 0.5, lambda: message_visible("4 pcs"))
-    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves and stock retained after unlock/reopen passed.")
+    wait_until(30, 0.5, lambda: message_visible("2 pcs"))
+    assert focus_control("Saved invoice ID", "Edit").get_value() == credit_id, "Saved invoice changed after restart"
+    wait_until(30, 0.5, lambda: message_visible("Cash recorded: ₹53.13"))
+    wait_until(30, 0.5, lambda: message_visible("Credit receivable: ₹31.88"))
+    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, real cash/credit checkout, committed receipt IDs, ledger balances, deductions and receipt retained after unlock/reopen passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:

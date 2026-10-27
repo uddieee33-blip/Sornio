@@ -414,7 +414,7 @@ mod tests {
             note: "Keep this".into(),
         };
         s.save(0, draft.clone()).unwrap();
-        s.0.execute_batch("DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; PRAGMA user_version = 3;").unwrap();
+        s.0.execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; PRAGMA user_version = 3;").unwrap();
         let mut w = Workspace::new(s);
         w.setup("Existing local password").unwrap();
         drop(w);
