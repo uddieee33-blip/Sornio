@@ -8,6 +8,7 @@ import subprocess
 import sys
 import time
 import traceback
+from uuid import UUID
 
 from pywinauto import Application, Desktop
 from pywinauto.keyboard import send_keys
@@ -60,9 +61,38 @@ def message_visible(text):
 
 def assert_locked():
     window.child_window(title="Local password", control_type="Edit").wait("visible enabled", timeout=30)
+    for title in ("Business name", "Search items for sale", "Saved invoice ID"):
+        wait_until(15, 0.2, lambda title=title: not window.child_window(
+            title=title, control_type="Edit", visible_only=False
+        ).exists(timeout=0.1))
+
+
+def assert_balances(cash, credit, stock):
+    wait_until(30, 0.5, lambda: message_visible(f"Cash recorded: ₹{cash}"))
+    wait_until(30, 0.5, lambda: message_visible(f"Credit receivable: ₹{credit}"))
+    wait_until(30, 0.5, lambda: message_visible(f"{stock} pcs"))
+
+
+def assert_no_receipt():
     wait_until(15, 0.2, lambda: not window.child_window(
-        title="Business name", control_type="Edit", visible_only=False
+        title="Saved invoice ID", control_type="Edit", visible_only=False
     ).exists(timeout=0.1))
+
+
+def assert_review_blocked(reason):
+    review = window.child_window(title="Review sale", control_type="Button", visible_only=False)
+    wait_until(15, 0.2, lambda: not review.wrapper_object().is_enabled())
+    wait_until(15, 0.2, lambda: message_visible(reason))
+    assert_no_receipt()
+    assert not window.child_window(
+        title="Confirm sale", control_type="Button", visible_only=False
+    ).exists(timeout=0.1), "Invalid checkout reached confirmation"
+
+
+def saved_invoice_id():
+    value = focus_control("Saved invoice ID", "Edit").get_value()
+    assert str(UUID(value)) == value, "Saved invoice did not return its stable UUID"
+    return value
 
 
 def enter_password(setup=False):
@@ -131,28 +161,43 @@ try:
     # Actual bundled cashier -> authorized native posting -> encrypted SQLite.
     fill("Search items for sale", "NATIVE-RICE")
     activate("Add Sample native rice to sale")
+    fill("Quantity for Sample native rice (pcs)", "4.001")
+    assert_review_blocked("Check quantities against available stock.")
+    activate("Refresh checkout")
+    assert_balances("0.00", "0.00", "4")
+    assert_no_receipt()
     fill("Quantity for Sample native rice (pcs)", "1.250")
+    activate("Review sale")
+    # Leaving the review is not a sale and must not change durable balances.
+    activate("Edit sale")
+    activate("Refresh checkout")
+    assert_balances("0.00", "0.00", "4")
+    assert_no_receipt()
     activate("Review sale")
     activate("Confirm sale")
     wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
-    cash_id = focus_control("Saved invoice ID", "Edit").get_value()
-    assert len(cash_id) == 36, "Cash invoice did not return its stable ID"
-    wait_until(30, 0.5, lambda: message_visible("Cash recorded: ₹53.13"))
-    wait_until(30, 0.5, lambda: message_visible("2.75 pcs"))
+    cash_id = saved_invoice_id()
+    wait_until(30, 0.5, lambda: message_visible("Saved total: ₹53.13"))
+    assert_balances("53.13", "0.00", "2.75")
+    window.capture_as_image().save(OUTPUT / "windows-local-cash-receipt.png")
     activate("Start next sale")
     fill("Search items for sale", "NATIVE-RICE")
     activate("Add Sample native rice to sale")
     fill("Quantity for Sample native rice (pcs)", "0.750")
     focus_control("Transaction type", "ComboBox")
     send_keys("{END}{ENTER}", pause=0.2)
+    assert_review_blocked("Enter a customer reference for credit")
+    activate("Refresh checkout")
+    assert_balances("53.13", "0.00", "2.75")
+    assert_no_receipt()
     fill("Credit customer reference", "native-customer-1")
     activate("Review sale")
     activate("Confirm sale")
     wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
-    credit_id = focus_control("Saved invoice ID", "Edit").get_value()
-    assert len(credit_id) == 36 and credit_id != cash_id, "Credit invoice ID is invalid"
-    wait_until(30, 0.5, lambda: message_visible("Credit receivable: ₹31.88"))
-    wait_until(30, 0.5, lambda: message_visible("2 pcs"))
+    credit_id = saved_invoice_id()
+    assert credit_id != cash_id, "Distinct sales returned the same invoice ID"
+    wait_until(30, 0.5, lambda: message_visible("Saved total: ₹31.88"))
+    assert_balances("53.13", "31.88", "2")
     window.capture_as_image().save(OUTPUT / "windows-local-checkout.png")
 
     activate("Lock workspace")
@@ -166,13 +211,25 @@ try:
     assert field.get_value() == "Sample local store", "Business draft changed after termination"
     note = focus_control("Workspace note", "Edit")
     assert note.get_value() == ORIGINAL_NOTE, "Restored note changed after unlock/reopen"
-    window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
     window.child_window(title="Restore saved copy 3", control_type="Button", visible_only=False).wait("exists", timeout=30)
-    wait_until(30, 0.5, lambda: message_visible("2 pcs"))
-    assert focus_control("Saved invoice ID", "Edit").get_value() == credit_id, "Saved invoice changed after restart"
-    wait_until(30, 0.5, lambda: message_visible("Cash recorded: ₹53.13"))
-    wait_until(30, 0.5, lambda: message_visible("Credit receivable: ₹31.88"))
-    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, real cash/credit checkout, committed receipt IDs, ledger balances, deductions and receipt retained after unlock/reopen passed.")
+    assert saved_invoice_id() == credit_id, "Saved invoice changed after restart"
+    assert_balances("53.13", "31.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-local-reopened.png")
+
+    # Acknowledgement clears the checkpoint, not the committed financial data.
+    activate("Start next sale")
+    assert_no_receipt()
+    assert_balances("53.13", "31.88", "2")
+    stop()
+    launch()
+    focus_control("Search items for sale", "Edit")
+    assert_no_receipt()
+    assert not window.child_window(
+        title="Retry same sale", control_type="Button", visible_only=False
+    ).exists(timeout=0.1), "Acknowledged checkout returned after restart"
+    assert_balances("53.13", "31.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-local-next-sale-reopened.png")
+    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery and durable acknowledgement passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:

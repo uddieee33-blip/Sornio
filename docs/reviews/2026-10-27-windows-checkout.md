@@ -80,10 +80,35 @@ catalogue lookups/search results; it adds no UI framework or runtime dependency.
   unmodified Windows release through accessibility controls, checks receipt IDs,
   balances and stock, then force-terminates and verifies the recovered receipt.
   The Windows workflow blocks outbound traffic for the app and WebView runtime.
+  It also checks that an overstock quantity and credit without a customer cannot
+  reach confirmation, leaving a review creates no receipt, cash/credit receipt
+  IDs are distinct UUIDs and their totals match, and acknowledging a recovered
+  receipt stays cleared after another forced restart while balances/stock persist.
+  Locked accessibility trees must omit draft, checkout and receipt controls.
 - Shared-domain request/money fixtures, exact display formatting, repository
   verification/lint/typechecks and the bundled frontend production build remain
   required checks. The browser workflow also builds/runs the Rust-backed cashier
   integration fixture. Current execution results are recorded in PR #121.
+
+## Windows acceptance checkpoint — 27 October 2026
+
+At code commit `4cae7e5b835df91cab5e373857d1e52d84d00730`, all three workflows
+passed: [core CI](https://github.com/uddieee33-blip/DukaanOS/actions/runs/40437511608),
+[browser/real-native integration](https://github.com/uddieee33-blip/DukaanOS/actions/runs/40437511544),
+and [native Windows](https://github.com/uddieee33-blip/DukaanOS/actions/runs/40437511446).
+Windows ran 57 release tests, including Windows Credential Manager, built the
+0.3.0 NSIS engineering installer, and passed cash/credit posting and forced-restart
+receipt recovery in the release app with outbound traffic blocked.
+
+The native capture archive (artifact `12705420272`) was downloaded and its SHA-256
+matched `acba4ee3cfb8005692e6c79efbbf2d786768e7bf4374d7db77634f5fa3b821c0`.
+The checkout, locked and reopened captures were visually inspected. The installer
+is [artifact `12705460315`](https://github.com/uddieee33-blip/DukaanOS/actions/runs/40437511446/artifacts/12705460315),
+with archive SHA-256 `aef22b898b6f7c6ae706898a9562f6eddbd54f8363acd0b942593260143e2ee4`.
+These seven-day artifacts are engineering review builds, not public releases.
+
+The additional native guard/acknowledgement checks described above require a
+fresh Windows run; the baseline run does not establish those added checks.
 
 ## Remaining scope
 
