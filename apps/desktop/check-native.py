@@ -95,6 +95,17 @@ def saved_invoice_id():
     return value
 
 
+def assert_saved_total(value):
+    # WebView exposes the label and interpolated amount as separate UIA nodes.
+    # Scope to this receipt so matching a ledger or line amount cannot pass.
+    receipt = window.child_window(
+        title="Sale saved on this PC", control_type="Group", visible_only=False
+    )
+    wait_until(30, 0.5, lambda: f"Saved total: ₹{value}" in "".join(
+        control.window_text() for control in receipt.descendants(control_type="Text")
+    ))
+
+
 def enter_password(setup=False):
     fill("Local password", PASSWORD)
     if setup:
@@ -177,7 +188,7 @@ try:
     activate("Confirm sale")
     wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
     cash_id = saved_invoice_id()
-    wait_until(30, 0.5, lambda: message_visible("Saved total: ₹53.13"))
+    assert_saved_total("53.13")
     assert_balances("53.13", "0.00", "2.75")
     window.capture_as_image().save(OUTPUT / "windows-local-cash-receipt.png")
     activate("Start next sale")
@@ -196,7 +207,7 @@ try:
     wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
     credit_id = saved_invoice_id()
     assert credit_id != cash_id, "Distinct sales returned the same invoice ID"
-    wait_until(30, 0.5, lambda: message_visible("Saved total: ₹31.88"))
+    assert_saved_total("31.88")
     assert_balances("53.13", "31.88", "2")
     window.capture_as_image().save(OUTPUT / "windows-local-checkout.png")
 
