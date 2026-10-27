@@ -13,6 +13,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
 const binary = resolve(process.env.SORNIO_REVIEW_BRIDGE || 'packages/local-store/target/debug/examples/cashier_review_bridge');
 const directory = mkdtempSync(join(tmpdir(), 'sornio-checkout-ui-'));
 const database = join(directory, 'synthetic.db');
+let nativeScope;
 let child, queue = [], stderr = '';
 function startBridge() {
   child = spawn(binary, [database], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -28,7 +29,7 @@ function rpc(command, args = {}) {
   return new Promise((resolve, reject) => { queue.push({ resolve, reject }); child.stdin.write(`${JSON.stringify({ command, args })}\n`); });
 }
 async function native(command, args = {}) {
-  const reply = await rpc(command, args); if (!reply.ok) throw new Error(JSON.stringify(reply.error)); return reply.value;
+  const reply = await rpc(command, { ...args, scope: nativeScope }); if (!reply.ok) throw new Error(JSON.stringify(reply.error)); return reply.value;
 }
 async function stopBridge() {
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -77,8 +78,10 @@ async function stopBridge() {
     const alert = text => page.getByRole('alert').filter({ hasText: text });
     const password = 'Review checkout password';
     await page.goto(baseUrl);
+    await label('Business name for setup').fill('Checkout review'); await label('Owner name').fill('Review owner');
     await label('Local password').fill(password); await label('Confirm password').fill(password);
     await button('Set up local access').click();
+    nativeScope = (await native('read_local_session')).scope;
     await label('Item name').fill('Review rice'); await label('Item code (optional)').fill('RICE');
     await label('Stock unit').selectOption('kg'); await label('Unit price (₹)').fill('42.50'); await label('Opening stock').fill('10');
     await page.getByText('Checkout is ready. Totals are previews until the sale is saved.', { exact: true }).waitFor();
@@ -165,7 +168,7 @@ async function stopBridge() {
     await stopBridge(); startBridge(); await page.reload();
     await page.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();
     assert.equal(await label('Saved invoice ID').count(),0);
-    assert.equal((await rpc('read_cashier_state')).error.code,'locked');
+    assert.equal((await rpc('read_cashier_state', {scope: nativeScope})).error.code,'locked');
     await label('Local password').fill(password); await button('Unlock workspace').click();
     await button('Retry same sale').waitFor();
     await button('Retry same sale').click(); await saved().waitFor();

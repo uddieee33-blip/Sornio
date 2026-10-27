@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './native';
 import { calculateNativeInvoice, validateNativeInvoiceRequest } from '../../../packages/business-domain/src/native-invoice';
 import type { NativeInvoiceRequest } from '../../../packages/business-domain/src/native-invoice';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
@@ -17,6 +17,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; onPosted: () => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [reportsAllowed, setReportsAllowed] = useState(false);
   const [balances, setBalances] = useState(emptyBalances);
   const [cart, setCart] = useState<CartLine[]>([]);
   const [search, setSearch] = useState('');
@@ -42,7 +43,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   useEffect(() => { onDirtyChange(cart.length > 0 && pending === null); }, [cart.length, pending, onDirtyChange]);
 
   const apply = useCallback((state: CashierState) => {
-    setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
+    setReportsAllowed(state.reportsAllowed); setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
     if (state.checkout) {
       const { request, invoice: saved } = state.checkout;
       remember(request); setInvoice(saved); setRefused(false); setReview(false);
@@ -101,7 +102,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       try {
         const state = await invoke<CashierState>('read_cashier_state');
         if (!mounted.current) return;
-        setProducts(state.products); setBalances(state.balances); setReady(true);
+        setReportsAllowed(state.reportsAllowed); setProducts(state.products); setBalances(state.balances); setReady(true);
         setMessage('Sale saved on this PC. Stock and balances are up to date.');
       } catch (error: unknown) {
         if (!mounted.current) return;
@@ -185,7 +186,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
-    <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div>
+    {reportsAllowed ? <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div> : null}
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {invoice ? <><SavedInvoice invoice={invoice}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it.</p>

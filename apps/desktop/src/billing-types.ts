@@ -9,6 +9,7 @@ export type Invoice = {
 export type CashierState = {
   products: Product[];
   checkout: { request: NativeInvoiceRequest; invoice: Invoice | null } | null;
+  reportsAllowed: boolean;
   balances: { cashPaise: string; creditPaise: string };
 };
 export const quantity = (milli: number) => (milli / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3, useGrouping: false });

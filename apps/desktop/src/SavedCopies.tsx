@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './native';
 import type { SavedCopy } from './workspace-types';
 import { errorCode } from './access';
 

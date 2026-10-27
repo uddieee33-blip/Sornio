@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
-import { invoke } from '@tauri-apps/api/core';
+import { invoke } from './native';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import { errorCode, errorMessage } from './access';
 
@@ -12,8 +12,8 @@ const empty = { name: '', sku: '', unit: 'pcs', price: '', quantity: '' };
 const quantity = (value: number) => (value / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 });
 const money = (value: number) => (value / 100).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
 
-export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange, refreshToken, onSaved }: {
-  refreshToken: number; onSaved: () => void; disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
+export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirtyChange, onBusyChange, refreshToken, onSaved }: {
+  canAdd: boolean; canCorrect: boolean; refreshToken: number; onSaved: () => void; disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [form, setForm] = useState(empty);
@@ -123,7 +123,7 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {pending ? <div className="pending-stock"><p>This save is waiting for confirmation. Retry uses the same save ID and values.</p><button type="button" disabled={busy || disabled} onClick={() => void submit(pending)}>Retry item save</button></div> : null}
     <div className="inventory-forms">
-      <form onSubmit={add} aria-label="Add local item"><fieldset disabled={blocked || pending !== null}>
+      {canAdd ? <form onSubmit={add} aria-label="Add local item"><fieldset disabled={blocked || pending !== null}>
         <legend>Add an item</legend>
         <label htmlFor="item-name">Item name</label><input id="item-name" maxLength={120} required value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/>
         <label htmlFor="item-sku">Item code (optional)</label><input id="item-sku" maxLength={80} value={form.sku} onChange={e => setForm({ ...form, sku: e.target.value })}/>
@@ -131,15 +131,15 @@ export function InventoryPanel({ disabled, onLocked, onDirtyChange, onBusyChange
         <label htmlFor="item-price">Unit price (₹)</label><input id="item-price" inputMode="decimal" maxLength={24} required value={form.price} onChange={e => setForm({ ...form, price: e.target.value })}/>
         <label htmlFor="item-stock">Opening stock</label><input id="item-stock" inputMode="decimal" maxLength={24} required value={form.quantity} onChange={e => setForm({ ...form, quantity: e.target.value })}/>
         <button type="submit">Save item on this PC</button>
-      </fieldset></form>
-      <form onSubmit={adjust} aria-label="Adjust local stock"><fieldset disabled={blocked || pending !== null || products.length === 0}>
+      </fieldset></form> : null}
+      {canCorrect ? <form onSubmit={adjust} aria-label="Adjust local stock"><fieldset disabled={blocked || pending !== null || products.length === 0}>
         <legend>Record a stock change</legend>
         <label htmlFor="stock-item">Item to adjust</label><select id="stock-item" required value={selection} onChange={e => setSelection(e.target.value)}><option value="">Choose an item</option>{products.map(item => <option key={item.id} value={item.id}>{item.name} ({quantity(item.stockMilli)} {item.unit})</option>)}</select>
         <label htmlFor="stock-change">Quantity change</label><input id="stock-change" inputMode="text" maxLength={24} required aria-describedby="stock-change-help" value={delta} onChange={e => setDelta(e.target.value)}/>
         <p id="stock-change-help" className="muted">Use a positive count for a delivery or a negative count for damage or a correction. Up to 3 decimals.</p>
         <label htmlFor="stock-reason">Reason for stock change</label><input id="stock-reason" maxLength={200} required value={reason} onChange={e => setReason(e.target.value)}/>
         <button type="submit">Save stock change</button>
-      </fieldset></form>
+      </fieldset></form> : null}
     </div>
     <div className="inventory-list"><label htmlFor="item-search">Find an item</label><input id="item-search" type="search" value={search} onChange={e => setSearch(e.target.value)}/>
       <button className="quiet-button" type="button" disabled={busy || disabled || pending !== null} onClick={() => void reload()}>Reload item counts</button>

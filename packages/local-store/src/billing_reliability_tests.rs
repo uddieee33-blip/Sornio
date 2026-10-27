@@ -15,9 +15,11 @@ const BILLING_TABLES: &[&str] = &[
     "local_inventory_events",
     "local_invoices",
     "local_invoice_stock",
+    "local_invoice_actors",
     "local_billing_ledger",
     "local_billing_audit",
     "local_billing_outbox",
+    // Authentication appends its own audit records; financial sequences must not change.
     "sqlite_sequence",
 ];
 type TableRows = Vec<(String, Vec<Vec<Value>>)>;
@@ -27,7 +29,14 @@ fn rows(db: &Connection, tables: &[&str]) -> TableRows {
         .iter()
         .map(|table| {
             let mut statement = db
-                .prepare(&format!("SELECT * FROM {table} ORDER BY rowid"))
+                .prepare(&format!(
+                    "SELECT * FROM {table} {} ORDER BY rowid",
+                    if *table == "sqlite_sequence" {
+                        "WHERE name<>'local_identity_audit'"
+                    } else {
+                        ""
+                    }
+                ))
                 .unwrap();
             let columns = statement.column_count();
             let values = statement
@@ -592,7 +601,7 @@ fn frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency() {
             .0
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        6
+        7
     );
     assert_eq!(rows(&migrated.0, &tables), before);
     assert_eq!(migrated.add_product(item()).unwrap(), added);

@@ -2,6 +2,11 @@ fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
             "workspace_access_status",
+            "read_local_session",
+            "list_local_staff",
+            "create_local_staff",
+            "change_local_staff",
+            "read_identity_audit",
             "setup_local_access",
             "unlock_workspace",
             "lock_workspace",

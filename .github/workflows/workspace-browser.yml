@@ -64,6 +64,7 @@ jobs:
           done
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-ui.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-checkout.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-authorization.cjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:

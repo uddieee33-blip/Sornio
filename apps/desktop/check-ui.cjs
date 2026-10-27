@@ -18,6 +18,8 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
    globalThis.review={access:{configured:false,unlocked:false},password:'',snapshot:{revision:0,draft:null},copies:[],products:[],stockOps:{},stockRequests:[],calls:[],failLock:false,rateLimited:false};
    globalThis.__TAURI_INTERNALS__={invoke:async(command,args={})=>{
     await new Promise(r=>setTimeout(r,20)); const s=globalThis.review; s.calls.push(command);
+    if(command==='read_local_session')return {scope:{businessId:'review-business',workspaceId:'review-workspace'},businessName:'Review store',principal:{id:'owner',username:'owner',displayName:'Owner',role:'owner',enabled:true,revision:1}};
+    if(command==='list_local_staff')return [];
     if(command==='workspace_access_status')return structuredClone(s.access);
     if(command==='setup_local_access'){
      if(s.access.configured)throw {code:'already_configured',message:'Local access is already configured.'};
@@ -33,7 +35,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
      s.access.unlocked=false;return null;
     }
     if(!s.access.unlocked)throw {code:'locked',message:'Unlock this workspace to continue.'};
-    if(command==='read_cashier_state')return {products:structuredClone(s.products),checkout:null,balances:{cashPaise:'0',creditPaise:'0'}};
+    if(command==='read_cashier_state')return {products:structuredClone(s.products),checkout:null,reportsAllowed:true,balances:{cashPaise:'0',creditPaise:'0'}};
     if(command==='load_workspace')return structuredClone(s.snapshot);
     if(command==='list_workspace_copies')return structuredClone(s.copies);
     if(command==='list_local_products'){
@@ -78,6 +80,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   }
   assert.equal(await page.getByLabel('Business name',{exact:true}).count(),0);
   assert.deepEqual(await page.evaluate(()=>globalThis.review.calls.filter(c=>c!=='workspace_access_status')),[]);
+  await page.getByLabel('Business name for setup',{exact:true}).fill('Review store');await page.getByLabel('Owner name',{exact:true}).fill('Owner');
   await password().fill('Review password 2026');
   await page.getByLabel('Confirm password',{exact:true}).fill('Different password');
   await button('Set up local access').click();

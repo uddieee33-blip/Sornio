@@ -5,6 +5,7 @@ use sornio_local_store::device::initialize;
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
     catalog::{AddProduct, AdjustStock, Product},
+    identity::{AuditEntry, LocalSession, OwnerSetup, Principal, Scope, StaffChange, StaffDetails},
     Draft, SavedCopy, Snapshot, Store, StoreError,
 };
 use std::sync::{Arc, Mutex};
@@ -32,6 +33,10 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::Forbidden => "forbidden",
+            StoreError::WorkspaceMismatch => "workspace_mismatch",
+            StoreError::InvalidIdentity => "invalid_identity",
+            StoreError::AccountExists => "account_exists",
             StoreError::IncorrectPassword => "incorrect_password",
             StoreError::RateLimited => "rate_limited",
             StoreError::AccessConfigured => "already_configured",
@@ -96,20 +101,22 @@ async fn workspace_access_status(
 
 #[tauri::command]
 async fn setup_local_access(
+    setup: OwnerSetup,
     password: String,
     state: tauri::State<'_, LocalState>,
 ) -> Result<AccessStatus, CommandError> {
     let password = Zeroizing::new(password);
-    with_workspace(state, move |w| w.setup(&password)).await
+    with_workspace(state, move |w| w.provision_owner(setup, &password)).await
 }
 
 #[tauri::command]
 async fn unlock_workspace(
+    username: String,
     password: String,
     state: tauri::State<'_, LocalState>,
 ) -> Result<AccessStatus, CommandError> {
     let password = Zeroizing::new(password);
-    with_workspace(state, move |w| w.unlock(&password)).await
+    with_workspace(state, move |w| w.login(&username, &password)).await
 }
 
 #[tauri::command]
@@ -122,33 +129,39 @@ async fn lock_workspace(state: tauri::State<'_, LocalState>) -> Result<(), Comma
 }
 
 #[tauri::command]
-async fn load_workspace(state: tauri::State<'_, LocalState>) -> Result<Snapshot, CommandError> {
-    with_workspace(state, |w| w.load()).await
+async fn load_workspace(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Snapshot, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.load()).await
 }
 
 #[tauri::command]
 async fn save_workspace(
     expected_revision: i64,
     draft: Draft,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Snapshot, CommandError> {
-    with_workspace(state, move |w| w.save(expected_revision, draft)).await
+    with_scoped_workspace(state, scope, move |w| w.save(expected_revision, draft)).await
 }
 
 #[tauri::command]
 async fn list_workspace_copies(
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Vec<SavedCopy>, CommandError> {
-    with_workspace(state, |w| w.saved_copies()).await
+    with_scoped_workspace(state, scope, |w| w.saved_copies()).await
 }
 
 #[tauri::command]
 async fn restore_workspace(
     expected_revision: i64,
     source_revision: i64,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Snapshot, CommandError> {
-    with_workspace(state, move |w| {
+    with_scoped_workspace(state, scope, move |w| {
         w.restore(expected_revision, source_revision)
     })
     .await
@@ -156,69 +169,132 @@ async fn restore_workspace(
 
 #[tauri::command]
 async fn list_local_products(
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Vec<Product>, CommandError> {
-    with_workspace(state, |w| w.list_products()).await
+    with_scoped_workspace(state, scope, |w| w.list_products()).await
 }
 
 #[tauri::command]
 async fn add_local_product(
     request: AddProduct,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Product, CommandError> {
-    with_workspace(state, move |w| w.add_product(request)).await
+    with_scoped_workspace(state, scope, move |w| w.add_product(request)).await
 }
 
 #[tauri::command]
 async fn adjust_local_stock(
     request: AdjustStock,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Product, CommandError> {
-    with_workspace(state, move |w| w.adjust_stock(request)).await
+    with_scoped_workspace(state, scope, move |w| w.adjust_stock(request)).await
 }
 
 #[tauri::command]
 async fn read_cashier_state(
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<sornio_local_store::checkout::CashierState, CommandError> {
-    with_workspace(state, |w| w.cashier_state()).await
+    with_scoped_workspace(state, scope, |w| w.cashier_state()).await
 }
 #[tauri::command]
 async fn prepare_local_checkout(
     request: sornio_local_store::billing::PostInvoice,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<(), CommandError> {
-    with_workspace(state, move |w| w.prepare_checkout(request)).await
+    with_scoped_workspace(state, scope, move |w| w.prepare_checkout(request)).await
 }
 #[tauri::command]
 async fn clear_local_checkout(
     operation_id: String,
     saved: bool,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<(), CommandError> {
-    with_workspace(state, move |w| w.clear_checkout(&operation_id, saved)).await
+    with_scoped_workspace(state, scope, move |w| {
+        w.clear_checkout(&operation_id, saved)
+    })
+    .await
 }
 #[tauri::command]
 async fn post_local_invoice(
     request: sornio_local_store::billing::PostInvoice,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<sornio_local_store::billing::Invoice, CommandError> {
-    with_workspace(state, move |w| w.post_prepared_invoice(request)).await
+    with_scoped_workspace(state, scope, move |w| w.post_prepared_invoice(request)).await
 }
 #[tauri::command]
 async fn list_local_invoices(
     after: i64,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Vec<sornio_local_store::billing::InvoiceRecord>, CommandError> {
-    with_workspace(state, move |w| w.list_invoices(after)).await
+    with_scoped_workspace(state, scope, move |w| w.list_invoices(after)).await
 }
 #[tauri::command]
 async fn read_billing_outbox(
     after: i64,
+    scope: Scope,
     state: tauri::State<'_, LocalState>,
 ) -> Result<Vec<sornio_local_store::billing::OutboxRecord>, CommandError> {
-    with_workspace(state, move |w| w.billing_outbox(after)).await
+    with_scoped_workspace(state, scope, move |w| w.billing_outbox(after)).await
 }
+async fn with_scoped_workspace<T, F>(
+    state: tauri::State<'_, LocalState>,
+    scope: Scope,
+    operation: F,
+) -> Result<T, CommandError>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut Workspace) -> Result<T, StoreError> + Send + 'static,
+{
+    with_workspace(state, move |w| w.run_scoped(&scope, operation)).await
+}
+#[tauri::command]
+async fn read_local_session(
+    state: tauri::State<'_, LocalState>,
+) -> Result<LocalSession, CommandError> {
+    with_workspace(state, |w| w.local_session()).await
+}
+#[tauri::command]
+async fn list_local_staff(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<Principal>, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.list_staff()).await
+}
+#[tauri::command]
+async fn create_local_staff(
+    scope: Scope,
+    details: StaffDetails,
+    password: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Principal, CommandError> {
+    let password = Zeroizing::new(password);
+    with_scoped_workspace(state, scope, move |w| w.create_staff(details, &password)).await
+}
+#[tauri::command]
+async fn change_local_staff(
+    scope: Scope,
+    change: StaffChange,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Principal, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.change_staff(change)).await
+}
+#[tauri::command]
+async fn read_identity_audit(
+    scope: Scope,
+    after: i64,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<AuditEntry>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.identity_audit(after)).await
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -233,6 +309,11 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             workspace_access_status,
+            read_local_session,
+            list_local_staff,
+            create_local_staff,
+            change_local_staff,
+            read_identity_audit,
             setup_local_access,
             unlock_workspace,
             lock_workspace,

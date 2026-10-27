@@ -26,6 +26,7 @@ pub struct CashierState {
     pub products: Vec<Product>,
     pub checkout: Option<PreparedCheckout>,
     pub balances: LedgerBalances,
+    pub reports_allowed: bool,
 }
 
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
@@ -45,12 +46,20 @@ pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
     Ok(())
 }
 impl Store {
-    pub fn prepare_checkout(&mut self, request: PostInvoice) -> Result<(), StoreError> {
+    pub(crate) fn prepare_checkout(&mut self, request: PostInvoice) -> Result<(), StoreError> {
         request.validate()?;
         let raw = serde_json::to_string(&request)?;
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Sell,
+            "checkout.prepared",
+            Some(&request.operation_id),
+        )?;
+        crate::identity::checkout_actor(&tx, &self.1)?;
         let canceled: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
             [&request.operation_id],
@@ -67,6 +76,7 @@ impl Store {
             )
             .optional()?;
         if let Some(posted) = posted {
+            crate::identity::invoice_reader(&tx, &self.1, &request.operation_id)?;
             return if posted == raw {
                 Ok(())
             } else {
@@ -88,8 +98,8 @@ impl Store {
             };
         }
         let inserted = tx.execute(
-            "INSERT INTO local_checkout(singleton,operation_id,request) VALUES(1,?1,?2)",
-            params![request.operation_id, raw],
+            "INSERT INTO local_checkout(singleton,operation_id,request,actor_id) VALUES(1,?1,?2,?3)",
+            params![request.operation_id, raw, self.1.as_ref().map(|s|s.actor_id.as_str())],
         )?;
         if inserted != 1 {
             return Err(StoreError::CheckoutActive);
@@ -99,13 +109,25 @@ impl Store {
     }
     /// Compare the caller's expected result while holding the same writer lock
     /// used by posting. A discarded checkpoint fences any late UI confirmation.
-    pub fn clear_checkout(&mut self, operation_id: &str, saved: bool) -> Result<(), StoreError> {
+    pub(crate) fn clear_checkout(
+        &mut self,
+        operation_id: &str,
+        saved: bool,
+    ) -> Result<(), StoreError> {
         if !crate::billing::valid_id(operation_id) {
             return Err(StoreError::InvalidInvoice);
         }
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Sell,
+            "checkout.cleared",
+            Some(operation_id),
+        )?;
+        crate::identity::checkout_actor(&tx, &self.1)?;
         let current: Option<String> = tx
             .query_row(
                 "SELECT operation_id FROM local_checkout WHERE singleton=1",
@@ -118,6 +140,9 @@ impl Store {
             [operation_id],
             |r| r.get(0),
         )?;
+        if committed {
+            crate::identity::invoice_reader(&tx, &self.1, operation_id)?;
+        }
         if current.is_none() {
             let canceled: bool = tx.query_row(
                 "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
@@ -149,9 +174,17 @@ impl Store {
         tx.commit()?;
         Ok(())
     }
-    pub fn cashier_state(&self) -> Result<CashierState, StoreError> {
+    pub(crate) fn cashier_state(&self) -> Result<CashierState, StoreError> {
         // All three reads share one SQLite snapshot, including across processes.
         let tx = self.0.unchecked_transaction()?;
+        let reports_allowed = if let Some(s) = &self.1 {
+            crate::identity::verify(&tx, s, crate::identity::Permission::Sell)?
+                .role
+                .allows(crate::identity::Permission::Reports)
+        } else {
+            true
+        };
+        crate::identity::checkout_actor(&tx, &self.1)?;
         let products = self.list_products()?;
         let pending: Option<String> = tx
             .query_row(
@@ -200,9 +233,18 @@ impl Store {
             products,
             checkout,
             balances: LedgerBalances {
-                cash_paise: cash.to_string(),
-                credit_paise: credit.to_string(),
+                cash_paise: if reports_allowed {
+                    cash.to_string()
+                } else {
+                    "0".into()
+                },
+                credit_paise: if reports_allowed {
+                    credit.to_string()
+                } else {
+                    "0".into()
+                },
             },
+            reports_allowed,
         })
     }
 }
@@ -354,7 +396,7 @@ mod tests {
         let mut s = seed(&path);
         let invoice = s.post_invoice(request()).unwrap();
         s.0.execute_batch(
-            "DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; PRAGMA user_version=5;",
+            "DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; PRAGMA user_version=5;",
         )
         .unwrap();
         drop(s);

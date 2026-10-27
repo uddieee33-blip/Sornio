@@ -9,6 +9,7 @@ pub mod access;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
+pub mod identity;
 
 #[cfg(windows)]
 pub mod device;
@@ -27,6 +28,14 @@ pub enum StoreError {
     Conflict,
     #[error("That saved copy is no longer available. Refresh saved copies and try again.")]
     MissingRevision,
+    #[error("This account does not have permission for that action.")]
+    Forbidden,
+    #[error("This request belongs to another business or workspace.")]
+    WorkspaceMismatch,
+    #[error("That account name already exists. Reload staff to confirm before retrying.")]
+    AccountExists,
+    #[error("Check the business, account name and role.")]
+    InvalidIdentity,
     #[error("Unlock this workspace to continue.")]
     Locked,
     #[error("Local access is already configured. Unlock with the existing password.")]
@@ -88,10 +97,10 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 7;
 const HISTORY_LIMIT: i64 = 20;
 
-pub struct Store(Connection);
+pub struct Store(Connection, Option<identity::Session>);
 
 impl Store {
     /// A random 256-bit hex secret comes from the native credential vault.
@@ -170,12 +179,15 @@ impl Store {
             if locked_version < 6 {
                 checkout::migrate(&tx)?;
             }
+            if locked_version < 7 {
+                identity::migrate(&tx)?;
+            }
             tx.commit()?;
         }
-        Ok(Self(db))
+        Ok(Self(db, None))
     }
 
-    pub fn load(&self) -> Result<Snapshot, StoreError> {
+    pub(crate) fn load(&self) -> Result<Snapshot, StoreError> {
         let raw: Option<(i64, String)> = self
             .0
             .query_row(
@@ -197,15 +209,26 @@ impl Store {
     }
 
     /// Return success only after SQLite commits; stale windows cannot overwrite.
-    pub fn save(&mut self, expected_revision: i64, draft: Draft) -> Result<Snapshot, StoreError> {
+    pub(crate) fn save(
+        &mut self,
+        expected_revision: i64,
+        draft: Draft,
+    ) -> Result<Snapshot, StoreError> {
         Self::validate(expected_revision, &draft)?;
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Settings,
+            "settings.saved",
+            None,
+        )?;
         Self::commit_draft(tx, expected_revision, draft)
     }
 
-    pub fn saved_copies(&self) -> Result<Vec<SavedCopy>, StoreError> {
+    pub(crate) fn saved_copies(&self) -> Result<Vec<SavedCopy>, StoreError> {
         let mut statement = self.0.prepare(
             "SELECT revision, payload FROM workspace_history ORDER BY revision DESC LIMIT ?1",
         )?;
@@ -225,7 +248,7 @@ impl Store {
 
     /// Fetch and restore under one write lock. Stale writers or pruned copies
     /// must leave the current draft and history untouched.
-    pub fn restore(
+    pub(crate) fn restore(
         &mut self,
         expected_revision: i64,
         source_revision: i64,
@@ -236,6 +259,13 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Settings,
+            "settings.restored",
+            None,
+        )?;
         let payload: String = tx
             .query_row(
                 "SELECT payload FROM workspace_history WHERE revision = ?1",
@@ -419,7 +449,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

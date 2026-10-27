@@ -139,7 +139,7 @@ fn record(
 }
 
 impl Store {
-    pub fn list_products(&self) -> Result<Vec<Product>, StoreError> {
+    pub(crate) fn list_products(&self) -> Result<Vec<Product>, StoreError> {
         let mut query = self.0.prepare(
             "SELECT id, name, sku, unit, unit_price_paise, stock_milli, revision
             FROM local_products ORDER BY name COLLATE NOCASE, id LIMIT 5001",
@@ -153,7 +153,7 @@ impl Store {
         Ok(products)
     }
 
-    pub fn add_product(&mut self, request: AddProduct) -> Result<Product, StoreError> {
+    pub(crate) fn add_product(&mut self, request: AddProduct) -> Result<Product, StoreError> {
         if !valid_id(&request.operation_id)
             || !text_valid(&request.name, 120, false)
             || !text_valid(&request.sku, 80, true)
@@ -169,6 +169,13 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::AddItem,
+            "inventory.item_created",
+            Some(&request.operation_id),
+        )?;
         if let Some(product) = replay(&tx, &request.operation_id, "product_added", &payload)? {
             return Ok(product);
         }
@@ -209,7 +216,7 @@ impl Store {
         Ok(product)
     }
 
-    pub fn adjust_stock(&mut self, request: AdjustStock) -> Result<Product, StoreError> {
+    pub(crate) fn adjust_stock(&mut self, request: AdjustStock) -> Result<Product, StoreError> {
         if !valid_id(&request.operation_id)
             || !valid_id(&request.product_id)
             || request.expected_revision <= 0
@@ -223,6 +230,13 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::CorrectStock,
+            "inventory.corrected",
+            Some(&request.operation_id),
+        )?;
         if let Some(product) = replay(&tx, &request.operation_id, "stock_adjusted", &payload)? {
             return Ok(product);
         }
@@ -414,10 +428,13 @@ mod tests {
             note: "Keep this".into(),
         };
         s.save(0, draft.clone()).unwrap();
-        s.0.execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; PRAGMA user_version = 3;").unwrap();
-        let mut w = Workspace::new(s);
-        w.setup("Existing local password").unwrap();
-        drop(w);
+        s.0.execute(
+            "UPDATE workspace_access SET password_hash=?1",
+            [crate::access::hash_password("Existing local password").unwrap()],
+        )
+        .unwrap();
+        s.0.execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; PRAGMA user_version = 3;").unwrap();
+        drop(s);
         let s = Store::open(&path, KEY).unwrap();
         assert_eq!(s.load().unwrap().draft, Some(draft));
         assert!(s.list_products().unwrap().is_empty());

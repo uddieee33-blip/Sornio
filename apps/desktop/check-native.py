@@ -106,7 +106,11 @@ def assert_saved_total(value):
     ))
 
 
-def enter_password(setup=False):
+def enter_password(setup=False, account="owner"):
+    if setup:
+        fill("Business name for setup", "Sample local store")
+        fill("Owner name", "Review owner")
+    fill("Account name", account)
     fill("Local password", PASSWORD)
     if setup:
         fill("Confirm password", PASSWORD)
@@ -240,7 +244,50 @@ try:
     ).exists(timeout=0.1), "Acknowledged checkout returned after restart"
     assert_balances("53.13", "31.88", "2")
     window.capture_as_image().save(OUTPUT / "windows-local-next-sale-reopened.png")
-    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery and durable acknowledgement passed.")
+    # Owner provisions a real staff account, then native access is tested under
+    # that account. This uses only keyboard/UIA on the packaged release binary.
+    fill("Staff name", "Native cashier")
+    fill("Staff account name", "native-cashier")
+    fill("Staff password", PASSWORD)
+    activate("Create staff account")
+    window.child_window(title="Disable native-cashier", control_type="Button", visible_only=False).wait("exists", timeout=30)
+    activate("Lock workspace")
+    assert_locked()
+    enter_password(account="native-cashier")
+    focus_control("Search items for sale", "Edit")
+    for title in ("Business name", "Staff password", "Quantity change", "Item name"):
+        assert not window.child_window(title=title, control_type="Edit", visible_only=False).exists(timeout=0.1), title
+    assert not message_visible("Cash recorded:"), "Cashier received aggregate reports"
+    fill("Search items for sale", "NATIVE-RICE")
+    activate("Add Sample native rice to sale")
+    fill("Quantity for Sample native rice (pcs)", "0.250")
+    activate("Review sale")
+    activate("Confirm sale")
+    saved_invoice_id()
+    assert_saved_total("10.63")
+    activate("Start next sale")
+    activate("Lock workspace")
+    assert_locked()
+    enter_password()
+    assert_balances("63.76", "31.88", "1.75")
+    focus_control("Role for native-cashier", "ComboBox")
+    send_keys("{HOME}{ENTER}", pause=0.2)
+    activate("Save role for native-cashier")
+    wait_until(30, 0.5, lambda: message_visible("Staff updated."))
+    activate("Lock workspace")
+    enter_password(account="native-cashier")
+    focus_control("Quantity change", "Edit")
+    assert_balances("63.76", "31.88", "1.75")
+    activate("Lock workspace")
+    enter_password()
+    activate("Disable native-cashier")
+    window.child_window(title="Enable native-cashier", control_type="Button", visible_only=False).wait("exists", timeout=30)
+    activate("Lock workspace")
+    enter_password(account="native-cashier")
+    wait_until(30, 0.5, lambda: message_visible("That password did not unlock this workspace."))
+    assert_locked()
+    window.capture_as_image().save(OUTPUT / "windows-staff-disabled.png")
+    print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes and disabled-account refusal passed.")
 except Exception:
     traceback.print_exc()
     if window is not None:

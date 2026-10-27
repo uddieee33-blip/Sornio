@@ -6,7 +6,8 @@ use sornio_local_store::{
     access::Workspace,
     billing::PostInvoice,
     catalog::{AddProduct, AdjustStock},
-    Store, StoreError,
+    identity::{OwnerSetup, Scope, StaffChange, StaffDetails},
+    Draft, Store, StoreError,
 };
 use std::io::{self, BufRead, Write};
 
@@ -20,17 +21,55 @@ fn argument<T: serde::de::DeserializeOwned>(args: &Value, key: &str) -> Result<T
     Ok(serde_json::from_value(args[key].clone())?)
 }
 fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+    if ![
+        "workspace_access_status",
+        "read_local_session",
+        "setup_local_access",
+        "unlock_workspace",
+        "lock_workspace",
+    ]
+    .contains(&c.command.as_str())
+    {
+        let scope = argument::<Scope>(&c.args, "scope")?;
+        return w.run_scoped(&scope, move |w| dispatch(w, c));
+    }
+    dispatch(w, c)
+}
+fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
-        "workspace_access_status" => serde_json::to_value(w.status()?)?,
-        "setup_local_access" => {
-            serde_json::to_value(w.setup(&argument::<String>(a, "password")?)?)?
+        "read_local_session" => serde_json::to_value(w.local_session()?)?,
+        "list_local_staff" => serde_json::to_value(w.list_staff()?)?,
+        "create_local_staff" => serde_json::to_value(w.create_staff(
+            argument::<StaffDetails>(a, "details")?,
+            &argument::<String>(a, "password")?,
+        )?)?,
+        "change_local_staff" => {
+            serde_json::to_value(w.change_staff(argument::<StaffChange>(a, "change")?)?)?
         }
-        "unlock_workspace" => serde_json::to_value(w.unlock(&argument::<String>(a, "password")?)?)?,
+        "read_identity_audit" => serde_json::to_value(w.identity_audit(argument(a, "after")?)?)?,
+        "workspace_access_status" => serde_json::to_value(w.status()?)?,
+        "setup_local_access" => serde_json::to_value(w.provision_owner(
+            argument::<OwnerSetup>(a, "setup")?,
+            &argument::<String>(a, "password")?,
+        )?)?,
+        "unlock_workspace" => serde_json::to_value(w.login(
+            &argument::<String>(a, "username")?,
+            &argument::<String>(a, "password")?,
+        )?)?,
         "lock_workspace" => {
             w.lock();
             Value::Null
         }
+        "save_workspace" => serde_json::to_value(w.save(
+            argument(a, "expectedRevision")?,
+            argument::<Draft>(a, "draft")?,
+        )?)?,
+        "restore_workspace" => serde_json::to_value(w.restore(
+            argument(a, "expectedRevision")?,
+            argument(a, "sourceRevision")?,
+        )?)?,
+        "read_billing_outbox" => serde_json::to_value(w.billing_outbox(argument(a, "after")?)?)?,
         "load_workspace" => serde_json::to_value(w.load()?)?,
         "list_workspace_copies" => serde_json::to_value(w.saved_copies()?)?,
         "list_local_products" => serde_json::to_value(w.list_products()?)?,
@@ -76,6 +115,10 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::Forbidden => "forbidden",
+                    StoreError::WorkspaceMismatch => "workspace_mismatch",
+                    StoreError::IncorrectPassword => "incorrect_password",
+                    StoreError::InvalidIdentity => "invalid_identity",
                     StoreError::StockConflict => "stock_conflict",
                     StoreError::CheckoutActive => "checkout_active",
                     StoreError::InvalidInvoice => "invalid_invoice",

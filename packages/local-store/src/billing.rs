@@ -140,7 +140,7 @@ pub(crate) fn migrate(tx: &rusqlite::Transaction<'_>) -> Result<(), StoreError> 
     Ok(())
 }
 impl Store {
-    pub fn post_invoice(&mut self, request: PostInvoice) -> Result<Invoice, StoreError> {
+    pub(crate) fn post_invoice(&mut self, request: PostInvoice) -> Result<Invoice, StoreError> {
         self.post_invoice_inner(request, false)
     }
     pub(crate) fn post_prepared_invoice(
@@ -159,6 +159,14 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Sell,
+            "sale.posted",
+            Some(&request.operation_id),
+        )?;
+        crate::identity::checkout_actor(&tx, &self.1)?;
         let previous: Option<(String, String)> = tx
             .query_row(
                 "SELECT request,payload FROM local_invoices WHERE id=?1",
@@ -167,6 +175,7 @@ impl Store {
             )
             .optional()?;
         if let Some((old, payload)) = previous {
+            crate::identity::invoice_reader(&tx, &self.1, &request.operation_id)?;
             if old != raw {
                 return Err(StoreError::OperationConflict);
             }
@@ -249,6 +258,11 @@ impl Store {
             "INSERT INTO local_invoices(id,request,payload) VALUES(?1,?2,?3)",
             params![invoice.id, raw, payload],
         )?;
+        insert_one(
+            &tx,
+            "INSERT INTO local_invoice_actors(invoice_id,actor_id) VALUES(?1,?2)",
+            params![invoice.id, self.1.as_ref().map(|s| s.actor_id.as_str())],
+        )?;
         for (id, (quantity, revision)) in quantities {
             let before: i64 = tx.query_row(
                 "SELECT stock_milli FROM local_products WHERE id=?1",
@@ -292,7 +306,7 @@ impl Store {
         tx.commit()?;
         Ok(invoice)
     }
-    pub fn list_invoices(&self, after: i64) -> Result<Vec<InvoiceRecord>, StoreError> {
+    pub(crate) fn list_invoices(&self, after: i64) -> Result<Vec<InvoiceRecord>, StoreError> {
         if after < 0 {
             return Err(StoreError::InvalidInvoice);
         }
@@ -310,7 +324,7 @@ impl Store {
         }
         Ok(out)
     }
-    pub fn billing_outbox(&self, after: i64) -> Result<Vec<OutboxRecord>, StoreError> {
+    pub(crate) fn billing_outbox(&self, after: i64) -> Result<Vec<OutboxRecord>, StoreError> {
         if after < 0 {
             return Err(StoreError::InvalidInvoice);
         }
@@ -717,10 +731,13 @@ mod tests {
         let path = d.path().join("s.db");
         let mut s = Store::open(&path, KEY).unwrap();
         s.add_product(product()).unwrap();
-        s.0.execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
-        let mut w = Workspace::new(s);
-        w.setup("Existing billing password").unwrap();
-        drop(w);
+        s.0.execute(
+            "UPDATE workspace_access SET password_hash=?1",
+            [crate::access::hash_password("Existing billing password").unwrap()],
+        )
+        .unwrap();
+        s.0.execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
+        drop(s);
         let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
         w.unlock("Existing billing password").unwrap();
         assert_eq!(w.list_products().unwrap()[0].stock_milli, 10000);
