@@ -1,0 +1,1005 @@
+use super::*;
+use crate::{
+    access::Workspace,
+    billing::BillLine,
+    catalog::AddProduct,
+    customers::{CreditKind, CreditRequest, SaveCustomer},
+    identity::{Role, StaffDetails},
+};
+use rusqlite::types::Value as SqlValue;
+const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const PASSWORD: &str = "Synthetic retail password 2026";
+fn authenticated(path: &std::path::Path) -> Store {
+    let mut w = Workspace::new(Store::open(path, KEY).unwrap());
+    if !w.status().unwrap().configured {
+        w.setup(PASSWORD).unwrap();
+    } else {
+        w.unlock(PASSWORD).unwrap();
+    }
+    let l = w.local_session().unwrap();
+    drop(w);
+    let mut s = Store::open(path, KEY).unwrap();
+    s.1 = Some(Session {
+        scope: l.scope,
+        actor_id: l.principal.id,
+        revision: l.principal.revision,
+        expires: std::time::Instant::now() + std::time::Duration::from_secs(3600),
+    });
+    s
+}
+fn seed(path: &std::path::Path) -> Store {
+    let mut s = authenticated(path);
+    s.add_product(AddProduct {
+        operation_id: "rice".into(),
+        name: "Rice".into(),
+        sku: "RICE".into(),
+        unit: "kg".into(),
+        unit_price_paise: 10000,
+        opening_stock_milli: 100000,
+    })
+    .unwrap();
+    s
+}
+fn req(id: &str, action: Action) -> Request {
+    Request {
+        operation_id: id.into(),
+        action,
+    }
+}
+fn perform(s: &mut Store, r: Request) -> Receipt {
+    s.prepare_retail(r.clone()).unwrap();
+    let out = s.post_retail(r.clone()).unwrap();
+    s.clear_retail(&r.operation_id, true).unwrap();
+    out
+}
+fn sale_req(s: &Store, id: &str, parts: &[(&str, i64)]) -> Request {
+    req(
+        id,
+        Action::Sale {
+            invoice: PostInvoice {
+                operation_id: id.into(),
+                lines: vec![BillLine {
+                    product_id: "rice".into(),
+                    expected_revision: s.list_products().unwrap()[0].revision,
+                    quantity_milli: 1000,
+                }],
+                tax_basis_points: 0,
+                tender: Tender::Retail,
+                customer_id: None,
+            },
+            payments: parts
+                .iter()
+                .enumerate()
+                .map(|(i, (method, amount))| PaymentPart {
+                    id: format!("{id}-p-{i}"),
+                    method: (*method).into(),
+                    amount_paise: *amount,
+                    reference: String::new(),
+                })
+                .collect(),
+        },
+    )
+}
+fn match_req(s: &Store, id: &str, payment: &str, reference: &str) -> Request {
+    let p = state(&s.0, payment).unwrap();
+    req(
+        id,
+        Action::Match {
+            payment_id: payment.into(),
+            expected_revision: p.revision,
+            reference: reference.into(),
+            statement_amount_paise: p.refundable_paise,
+            evidence: "Matched bank statement manually".into(),
+        },
+    )
+}
+fn return_req(s: &Store, id: &str, invoice: &str, qty: i64) -> Request {
+    let lines = vec![ReturnLine {
+        line_index: 0,
+        quantity_milli: qty,
+    }];
+    let q = quote(&s.0, invoice, &lines).unwrap();
+    req(
+        id,
+        Action::Return {
+            invoice_id: invoice.into(),
+            expected_revision: q.revision,
+            lines,
+            refunds: q.suggested_refunds,
+            reason: "Returned goods checked at counter".into(),
+        },
+    )
+}
+fn snapshots(s: &Store) -> Vec<Vec<Vec<SqlValue>>> {
+    [
+        "local_invoices",
+        "local_products",
+        "local_invoice_stock",
+        "local_billing_ledger",
+        "local_billing_audit",
+        "local_billing_outbox",
+        "local_customers",
+        "local_credit_entries",
+        "local_customer_journal",
+        "local_identity_audit",
+        "local_retail_ops",
+        "local_retail_payments",
+        "local_retail_events",
+        "local_retail_journal",
+        "local_retail_activity",
+        "local_retail_returns",
+        "local_retail_return_items",
+        "local_retail_return_parts",
+        "local_retail_refunds",
+        "local_retail_pending",
+        "local_retail_canceled",
+        "local_retail_outbox",
+        "local_retail_closings",
+        "local_retail_floats",
+        "local_retail_float_corrections",
+    ]
+    .iter()
+    .map(|t| {
+        let mut q =
+            s.0.prepare(&format!("SELECT * FROM {t} ORDER BY rowid"))
+                .unwrap();
+        let n = q.column_count();
+        q.query_map([], |r| {
+            (0..n)
+                .map(|i| r.get(i))
+                .collect::<Result<Vec<SqlValue>, _>>()
+        })
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+    })
+    .collect()
+}
+fn journals_balance(s: &Store) {
+    let mut q = s
+        .0
+        .prepare("SELECT operation_id,SUM(amount) FROM local_retail_journal GROUP BY operation_id")
+        .unwrap();
+    for n in q.query_map([], |r| r.get::<_, i64>(1)).unwrap() {
+        assert_eq!(n.unwrap(), 0);
+    }
+}
+#[test]
+fn split_sale_uses_original_invoice_and_never_verifies_digital_payments() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "sale", &[("cash", 3000), ("upi", 5000), ("card", 2000)]);
+    let out = perform(&mut s, r.clone());
+    assert_eq!(out.data["invoice"]["totalPaise"], 10000);
+    assert_eq!(s.list_invoices(0).unwrap().len(), 1);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    let p = invoice_payments(&s.0, "sale").unwrap();
+    assert_eq!(p[0].status, "recorded");
+    assert_eq!(p[1].status, "pending");
+    assert!(!p.iter().any(|p| p.externally_verified));
+    let cash = s.cashier_state().unwrap().balances;
+    assert_eq!(cash.cash_paise, "3000");
+    assert_eq!(cash.credit_paise, "0");
+    assert_eq!(pending_digital(&s.0).unwrap(), 7000);
+    assert_eq!(s.post_retail(r).unwrap(), out);
+    journals_balance(&s);
+}
+#[test]
+fn changed_or_unbalanced_splits_and_forged_verification_are_refused_atomically() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "bad", &[("cash", 3000), ("upi", 6000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    let before = snapshots(&s);
+    assert!(matches!(
+        s.post_retail(r.clone()),
+        Err(StoreError::InvalidPayment)
+    ));
+    assert_eq!(snapshots(&s), before);
+    let mut value = serde_json::to_value(&r).unwrap();
+    value["action"]["payments"][0]["externallyVerified"] = json!(true);
+    assert!(serde_json::from_value::<Request>(value).is_err());
+    s.clear_retail("bad", false).unwrap();
+    assert!(matches!(
+        s.post_retail(r),
+        Err(StoreError::OperationConflict)
+    ));
+}
+#[test]
+fn manual_match_checks_amount_reference_and_reversal_retains_history() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let sale = sale_req(&s, "sale", &[("upi", 10000)]);
+    perform(&mut s, sale);
+    let mut r = match_req(&s, "match", "sale-p-0", "123456789012");
+    if let Action::Match {
+        statement_amount_paise,
+        ..
+    } = &mut r.action
+    {
+        *statement_amount_paise = 9999;
+    }
+    s.prepare_retail(r.clone()).unwrap();
+    let before = snapshots(&s);
+    assert!(s.post_retail(r).is_err());
+    assert_eq!(snapshots(&s), before);
+    s.clear_retail("match", false).unwrap();
+    let r = match_req(&s, "correct", "sale-p-0", "123456789012");
+    let receipt = perform(&mut s, r.clone());
+    assert_eq!(receipt.data["payment"]["status"], "manually_reconciled");
+    assert_eq!(receipt.data["payment"]["externallyVerified"], false);
+    assert_eq!(pending_digital(&s.0).unwrap(), 0);
+    assert_eq!(s.post_retail(r).unwrap(), receipt);
+    let r = req(
+        "reverse",
+        Action::ReverseMatch {
+            payment_id: "sale-p-0".into(),
+            expected_revision: 1,
+            reason: "Reference was entered against the wrong invoice".into(),
+        },
+    );
+    perform(&mut s, r);
+    assert_eq!(state(&s.0, "sale-p-0").unwrap().status, "pending");
+    assert_eq!(pending_digital(&s.0).unwrap(), 10000);
+    journals_balance(&s);
+}
+#[test]
+fn duplicate_bank_reference_cannot_settle_two_payments_even_with_spacing() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "sale", &[("upi", 5000), ("upi", 5000)]);
+    perform(&mut s, r);
+    let r = match_req(&s, "one", "sale-p-0", "abc123456");
+    perform(&mut s, r);
+    let r = match_req(&s, "two", "sale-p-1", " ABC 123456 ");
+    s.prepare_retail(r.clone()).unwrap();
+    let before = snapshots(&s);
+    assert!(matches!(
+        s.post_retail(r),
+        Err(StoreError::DuplicateSettlement)
+    ));
+    assert_eq!(snapshots(&s), before);
+}
+#[test]
+fn partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    s.0.execute("UPDATE local_products SET unit_price_paise=101", [])
+        .unwrap();
+    let mut r = sale_req(&s, "sale", &[("cash", 106)]);
+    if let Action::Sale { invoice, .. } = &mut r.action {
+        invoice.tax_basis_points = 500;
+    }
+    perform(&mut s, r);
+    let mut sub = 0;
+    let mut tax = 0;
+    for (id, qty) in [("r1", 333), ("r2", 333), ("r3", 334)] {
+        let r = return_req(&s, id, "sale", qty);
+        let result = perform(&mut s, r.clone());
+        sub += result.data["subtotalPaise"].as_i64().unwrap();
+        tax += result.data["taxPaise"].as_i64().unwrap();
+        let before = snapshots(&s);
+        assert_eq!(s.post_retail(r).unwrap(), result);
+        assert_eq!(snapshots(&s), before);
+    }
+    assert_eq!((sub, tax), (101, 5));
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+    assert!(quote(
+        &s.0,
+        "sale",
+        &[ReturnLine {
+            line_index: 0,
+            quantity_milli: 1
+        }]
+    )
+    .is_err());
+    journals_balance(&s);
+}
+#[test]
+fn pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "sale", &[("upi", 10000)]);
+    perform(&mut s, r);
+    let r = return_req(&s, "half", "sale", 500);
+    let q = quote(
+        &s.0,
+        "sale",
+        &[ReturnLine {
+            line_index: 0,
+            quantity_milli: 500,
+        }],
+    )
+    .unwrap();
+    assert_eq!(q.canceled_digital_paise, 5000);
+    assert_eq!(q.cash_out_paise, 0);
+    perform(&mut s, r);
+    assert_eq!(pending_digital(&s.0).unwrap(), 5000);
+    let r = match_req(&s, "match", "sale-p-0", "123456789012");
+    perform(&mut s, r);
+    let r = return_req(&s, "rest", "sale", 500);
+    let out = perform(&mut s, r);
+    let id = out.data["pendingRefundIds"][0].as_str().unwrap();
+    assert_eq!(refund(&s.0, id).unwrap().status, "pending");
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+    assert_eq!(
+        summary(&s.0, &s.1, &today(&s.0).unwrap(), "owner")
+            .unwrap()
+            .manually_matched_paise,
+        "5000"
+    );
+    let r = req(
+        "refund-bank",
+        Action::MatchRefund {
+            refund_id: id.into(),
+            expected_revision: 0,
+            reference: "REFUND123456".into(),
+            statement_amount_paise: 5000,
+            evidence: "Manually checked outgoing bank statement".into(),
+        },
+    );
+    perform(&mut s, r);
+    assert!(!refund(&s.0, id).unwrap().externally_verified);
+    assert_eq!(
+        state(&s.0, "sale-p-0").unwrap().status,
+        "refund_manually_reconciled"
+    );
+    journals_balance(&s);
+}
+#[test]
+fn every_return_write_and_audit_failure_roll_back_stock_journals_and_retry() {
+    for table in [
+        "local_products",
+        "local_retail_returns",
+        "local_retail_return_items",
+        "local_retail_return_parts",
+        "local_retail_journal",
+        "local_retail_activity",
+        "local_retail_ops",
+        "local_retail_outbox",
+        "local_identity_audit",
+    ] {
+        for mode in ["ABORT,'injected'", "IGNORE"] {
+            let d = tempfile::tempdir().unwrap();
+            let path = d.path().join("s.db");
+            let mut s = seed(&path);
+            s.post_invoice(PostInvoice {
+                operation_id: "cash-sale".into(),
+                lines: vec![BillLine {
+                    product_id: "rice".into(),
+                    expected_revision: 1,
+                    quantity_milli: 1000,
+                }],
+                tax_basis_points: 0,
+                tender: Tender::Cash,
+                customer_id: None,
+            })
+            .unwrap();
+            let r = return_req(&s, "return", "cash-sale", 500);
+            s.prepare_retail(r.clone()).unwrap();
+            let before = snapshots(&s);
+            let action = if table == "local_products" {
+                "UPDATE"
+            } else {
+                "INSERT"
+            };
+            s.0.execute_batch(&format!("CREATE TRIGGER fail_return BEFORE {action} ON {table} BEGIN SELECT RAISE({mode}); END;")).unwrap();
+            assert!(s.post_retail(r.clone()).is_err(), "{table}");
+            assert_eq!(snapshots(&s), before, "{table}");
+            let session = s.1.clone();
+            drop(s);
+            let mut s = Store::open(&path, KEY).unwrap();
+            assert_eq!(snapshots(&s), before);
+            s.0.execute_batch("DROP TRIGGER fail_return").unwrap();
+            s.1 = session;
+            let out = s.post_retail(r.clone()).unwrap();
+            assert_eq!(s.post_retail(r).unwrap(), out);
+            journals_balance(&s);
+        }
+    }
+}
+#[test]
+fn cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    s.save_customer(SaveCustomer {
+        operation_id: "customer".into(),
+        id: "c1".into(),
+        name: "Asha".into(),
+        phone: None,
+        credit_limit_paise: None,
+        credit_days: 30,
+        expected_revision: None,
+    })
+    .unwrap();
+    s.post_invoice(PostInvoice {
+        operation_id: "credit".into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: 1,
+            quantity_milli: 1000,
+        }],
+        tax_basis_points: 0,
+        tender: Tender::Credit,
+        customer_id: Some("c1".into()),
+    })
+    .unwrap();
+    let c = s.find_customers("c1", false).unwrap()[0].clone();
+    let pay = CreditRequest {
+        operation_id: "pay".into(),
+        customer_id: "c1".into(),
+        expected_revision: c.revision,
+        kind: CreditKind::Repayment,
+        amount_paise: 3000,
+        reason: String::new(),
+        due_on: None,
+        reverse_of: None,
+    };
+    s.prepare_credit(pay.clone()).unwrap();
+    s.post_credit(pay, true).unwrap();
+    s.clear_credit("pay", true).unwrap();
+    let r = return_req(&s, "return", "credit", 1000);
+    let q = quote(
+        &s.0,
+        "credit",
+        &[ReturnLine {
+            line_index: 0,
+            quantity_milli: 1000,
+        }],
+    )
+    .unwrap();
+    assert_eq!((q.credit_reduction_paise, q.cash_out_paise), (7000, 3000));
+    perform(&mut s, r);
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
+    let b = s.cashier_state().unwrap().balances;
+    assert_eq!((b.cash_paise, b.credit_paise), ("0".into(), "0".into()));
+    journals_balance(&s);
+}
+#[test]
+fn closing_variance_is_native_and_closed_drawer_blocks_late_atomic_sales() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let day = today(&s.0).unwrap();
+    perform(
+        &mut s,
+        req(
+            "float",
+            Action::Float {
+                day: day.clone(),
+                username: "owner".into(),
+                amount_paise: 2000,
+            },
+        ),
+    );
+    let r = sale_req(&s, "sale", &[("cash", 3000), ("upi", 7000)]);
+    perform(&mut s, r);
+    let x = summary(&s.0, &s.1, &day, "owner").unwrap();
+    assert_eq!(x.expected_cash_paise, "5000");
+    assert_eq!(x.digital_pending_paise, "7000");
+    let r = req(
+        "close",
+        Action::Close {
+            day: day.clone(),
+            username: "owner".into(),
+            through: x.through,
+            counted_paise: 4900,
+        },
+    );
+    let c = perform(&mut s, r);
+    assert_eq!(c.data["closing"]["variancePaise"], "-100");
+    let before = snapshots(&s);
+    let r = sale_req(&s, "late", &[("cash", 10000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    let before2 = snapshots(&s);
+    assert!(matches!(s.post_retail(r), Err(StoreError::DayClosed)));
+    assert_eq!(snapshots(&s), before2);
+    s.clear_retail("late", false).unwrap();
+    assert_eq!(s.list_invoices(0).unwrap().len(), 1);
+    let original =
+        s.0.query_row(
+            "SELECT payload FROM local_retail_closings WHERE id='close'",
+            [],
+            |r| r.get::<_, String>(0),
+        )
+        .unwrap();
+    let corrected = perform(
+        &mut s,
+        req(
+            "correct",
+            Action::CorrectClose {
+                closing_id: "close".into(),
+                counted_paise: 5000,
+                reason: "Second count signed by manager".into(),
+            },
+        ),
+    );
+    assert_eq!(corrected.data["closing"]["variancePaise"], "0");
+    assert_eq!(
+        s.0.query_row(
+            "SELECT payload FROM local_retail_closings WHERE id='close'",
+            [],
+            |r| r.get::<_, String>(0)
+        )
+        .unwrap(),
+        original
+    );
+    assert!(!before.is_empty());
+    perform(
+        &mut s,
+        req(
+            "reopen",
+            Action::Reopen {
+                closing_id: "correct".into(),
+                reason: "Approved late counter transaction".into(),
+            },
+        ),
+    );
+    let r = sale_req(&s, "after-reopen", &[("cash", 10000)]);
+    perform(&mut s, r);
+}
+#[test]
+fn stale_closing_quote_and_duplicate_closings_are_rejected() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let day = today(&s.0).unwrap();
+    let quote = summary(&s.0, &s.1, &day, "owner").unwrap();
+    let r = sale_req(&s, "sale", &[("cash", 10000)]);
+    perform(&mut s, r);
+    let r = req(
+        "close",
+        Action::Close {
+            day: day.clone(),
+            username: "owner".into(),
+            through: quote.through,
+            counted_paise: 0,
+        },
+    );
+    s.prepare_retail(r.clone()).unwrap();
+    let before = snapshots(&s);
+    assert!(matches!(s.post_retail(r), Err(StoreError::PaymentConflict)));
+    assert_eq!(snapshots(&s), before);
+}
+#[test]
+fn prepared_settlement_survives_restart_and_exact_acknowledgement() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let r = sale_req(&s, "sale", &[("card", 10000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    drop(s);
+    let mut s = authenticated(&path);
+    assert_eq!(s.pending_retail().unwrap().unwrap().request, r);
+    let out = s.post_retail(r.clone()).unwrap();
+    drop(s);
+    let mut s = authenticated(&path);
+    assert_eq!(
+        s.pending_retail().unwrap().unwrap().receipt,
+        Some(out.clone())
+    );
+    assert_eq!(s.post_retail(r).unwrap(), out);
+    s.clear_retail("sale", true).unwrap();
+    s.clear_retail("sale", true).unwrap();
+    assert!(s.pending_retail().unwrap().is_none());
+}
+#[test]
+fn native_rbac_and_cross_business_denials_do_not_depend_on_react() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.setup(PASSWORD).unwrap();
+    w.create_staff(
+        StaffDetails {
+            username: "cashier".into(),
+            display_name: "Cashier".into(),
+            role: Role::Cashier,
+        },
+        PASSWORD,
+    )
+    .unwrap();
+    let scope = w.local_session().unwrap().scope;
+    w.login("cashier", PASSWORD).unwrap();
+    let bad = req(
+        "bypass",
+        Action::Float {
+            day: "2026-01-01".into(),
+            username: "cashier".into(),
+            amount_paise: 1000,
+        },
+    );
+    assert!(matches!(w.prepare_retail(bad), Err(StoreError::Forbidden)));
+    assert!(matches!(
+        w.retail_view("2026-01-01", "owner", None),
+        Err(StoreError::Forbidden)
+    ));
+    assert!(matches!(
+        w.export_retail("2026-01-01"),
+        Err(StoreError::Forbidden)
+    ));
+    let mut wrong = scope.clone();
+    wrong.business_id = "other".into();
+    assert!(matches!(
+        w.run_scoped(&wrong, |w| w.retail_view("2026-01-01", "cashier", None)),
+        Err(StoreError::WorkspaceMismatch)
+    ));
+}
+#[test]
+fn settlement_history_and_exports_are_append_only_formula_safe_and_exact() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "-sale", &[("cash", 10000)]);
+    perform(&mut s, r);
+    for table in [
+        "local_retail_ops",
+        "local_retail_payments",
+        "local_retail_activity",
+        "local_retail_journal",
+        "local_retail_outbox",
+    ] {
+        assert!(s.0.execute(&format!("DELETE FROM {table}"), []).is_err());
+        assert!(s
+            .0
+            .execute(
+                &format!("INSERT OR REPLACE INTO {table} SELECT * FROM {table} LIMIT 1"),
+                []
+            )
+            .is_err());
+    }
+    let csv = s.export_retail(&today(&s.0).unwrap()).unwrap().csv;
+    assert!(csv.contains("externally_verified"));
+    assert!(csv.contains("\"'-sale\""));
+    assert!(csv.contains(",100.00,"));
+    assert!(!csv.contains("00123456789abcdef"));
+    assert!(!csv.contains(PASSWORD));
+    assert_eq!(csv_text("  =SUM(A1)"), "\"'  =SUM(A1)\"");
+}
+#[test]
+fn simultaneous_exact_settlement_retries_post_once() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    let r = sale_req(&a, "sale", &[("upi", 5000), ("upi", 5000)]);
+    perform(&mut a, r);
+    let r = match_req(&a, "one", "sale-p-0", "TXN123456");
+    a.prepare_retail(r.clone()).unwrap();
+    let mut b = authenticated(&path);
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other = barrier.clone();
+    let rr = r.clone();
+    let t = std::thread::spawn(move || {
+        other.wait();
+        a.post_retail(rr)
+    });
+    barrier.wait();
+    let second = b.post_retail(r);
+    let first = t.join().unwrap();
+    assert!(first.is_ok() && second.is_ok());
+    assert_eq!(first.unwrap(), second.unwrap());
+    assert_eq!(state(&b.0, "sale-p-0").unwrap().revision, 1);
+    journals_balance(&b);
+}
+
+#[test]
+fn deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let r = sale_req(&s, "sale", &[("cash", 10000)]);
+    perform(&mut s, r);
+    let r = return_req(&s, "return", "sale", 500);
+    s.prepare_retail(r.clone()).unwrap();
+    let before = snapshots(&s);
+    s.0.execute_batch("CREATE TABLE fail_parent(id INTEGER PRIMARY KEY);CREATE TABLE fail_child(id INTEGER REFERENCES fail_parent(id) DEFERRABLE INITIALLY DEFERRED);CREATE TRIGGER fail_commit AFTER INSERT ON local_retail_ops BEGIN INSERT INTO fail_child VALUES(1);END;").unwrap();
+    assert!(s.post_retail(r.clone()).is_err());
+    assert_eq!(snapshots(&s), before);
+    let session = s.1.clone();
+    drop(s);
+    let mut s = Store::open(&path, KEY).unwrap();
+    assert_eq!(snapshots(&s), before);
+    s.0.execute_batch("DROP TRIGGER fail_commit").unwrap();
+    s.1 = session;
+    s.post_retail(r).unwrap();
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99500);
+}
+fn second_principal(path: &std::path::Path) -> Session {
+    let mut w = Workspace::new(Store::open(path, KEY).unwrap());
+    w.unlock(PASSWORD).unwrap();
+    w.create_staff(
+        StaffDetails {
+            username: "manager".into(),
+            display_name: "Manager".into(),
+            role: Role::Manager,
+        },
+        PASSWORD,
+    )
+    .unwrap();
+    w.login("manager", PASSWORD).unwrap();
+    let l = w.local_session().unwrap();
+    Session {
+        scope: l.scope,
+        actor_id: l.principal.id,
+        revision: l.principal.revision,
+        expires: std::time::Instant::now() + std::time::Duration::from_secs(3600),
+    }
+}
+#[test]
+fn competing_staff_cannot_match_one_bank_reference_to_two_allocations() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    let r = sale_req(&a, "sale", &[("upi", 5000), ("upi", 5000)]);
+    perform(&mut a, r);
+    let manager = second_principal(&path);
+    let mut b = Store::open(&path, KEY).unwrap();
+    b.1 = Some(manager);
+    let ra = match_req(&a, "one", "sale-p-0", "BANK123456");
+    let rb = match_req(&b, "two", "sale-p-1", "BANK123456");
+    a.prepare_retail(ra.clone()).unwrap();
+    b.prepare_retail(rb.clone()).unwrap();
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other = barrier.clone();
+    let t = std::thread::spawn(move || {
+        other.wait();
+        a.post_retail(ra)
+    });
+    barrier.wait();
+    let second = b.post_retail(rb);
+    let first = t.join().unwrap();
+    assert!(matches!(
+        (&first, &second),
+        (Ok(_), Err(StoreError::DuplicateSettlement))
+            | (Err(StoreError::DuplicateSettlement), Ok(_))
+    ));
+    assert_eq!(pending_digital(&b.0).unwrap(), 5000);
+    journals_balance(&b);
+}
+#[test]
+fn competing_partial_returns_cannot_restore_or_refund_more_than_was_sold() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    let r = sale_req(&a, "sale", &[("cash", 10000)]);
+    perform(&mut a, r);
+    let manager = second_principal(&path);
+    let mut b = Store::open(&path, KEY).unwrap();
+    b.1 = Some(manager);
+    let ra = return_req(&a, "a", "sale", 750);
+    let rb = return_req(&b, "b", "sale", 750);
+    a.prepare_retail(ra.clone()).unwrap();
+    b.prepare_retail(rb.clone()).unwrap();
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other = barrier.clone();
+    let t = std::thread::spawn(move || {
+        other.wait();
+        a.post_retail(ra)
+    });
+    barrier.wait();
+    let second = b.post_retail(rb);
+    let first = t.join().unwrap();
+    assert_ne!(first.is_ok(), second.is_ok());
+    assert_eq!(b.list_products().unwrap()[0].stock_milli, 99750);
+    assert_eq!(b.cashier_state().unwrap().balances.cash_paise, "2500");
+    assert_eq!(
+        b.0.query_row("SELECT COUNT(*) FROM local_retail_returns", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    journals_balance(&b);
+}
+#[test]
+fn interrupted_cashier_sale_can_be_adopted_by_owner_without_duplicate_posting() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let manager = second_principal(&path);
+    s.1 = Some(manager);
+    let r = sale_req(&s, "sale", &[("cash", 10000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    let out = s.post_retail(r.clone()).unwrap();
+    drop(s);
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.unlock(PASSWORD).unwrap();
+    assert_eq!(
+        w.takeover_payment("sale", "Manager terminal interrupted")
+            .unwrap(),
+        "retail"
+    );
+    assert_eq!(w.post_retail(r).unwrap(), out);
+    w.clear_retail("sale", true).unwrap();
+    assert_eq!(w.cashier_state().unwrap().balances.cash_paise, "10000");
+    assert_eq!(w.list_invoices(0).unwrap().len(), 1);
+}
+#[test]
+fn v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    s.post_invoice(PostInvoice {
+        operation_id: "old-cash".into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: 1,
+            quantity_milli: 1000,
+        }],
+        tax_basis_points: 500,
+        tender: Tender::Cash,
+        customer_id: None,
+    })
+    .unwrap();
+    s.save_customer(SaveCustomer {
+        operation_id: "profile".into(),
+        id: "c1".into(),
+        name: "Asha".into(),
+        phone: None,
+        credit_limit_paise: None,
+        credit_days: 30,
+        expected_revision: None,
+    })
+    .unwrap();
+    s.post_invoice(PostInvoice {
+        operation_id: "old-credit".into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: 2,
+            quantity_milli: 500,
+        }],
+        tax_basis_points: 500,
+        tender: Tender::Credit,
+        customer_id: Some("c1".into()),
+    })
+    .unwrap();
+    let p = CreditRequest {
+        operation_id: "old-pay".into(),
+        customer_id: "c1".into(),
+        expected_revision: 2,
+        kind: CreditKind::Repayment,
+        amount_paise: 1000,
+        reason: String::new(),
+        due_on: None,
+        reverse_of: None,
+    };
+    s.prepare_credit(p.clone()).unwrap();
+    s.post_credit(p, true).unwrap();
+    s.clear_credit("old-pay", true).unwrap();
+    let old_statement = serde_json::to_value(s.customer_statement("c1", 0, None).unwrap()).unwrap();
+    let original = s.list_invoices(0).unwrap()[0].invoice.clone();
+    let scope = identity::scope(&s.0).unwrap();
+    let stock = s.list_products().unwrap();
+    let names = [
+        "local_retail_outbox",
+        "local_retail_pending",
+        "local_retail_canceled",
+        "local_retail_events",
+        "local_retail_journal",
+        "local_retail_activity",
+        "local_retail_return_items",
+        "local_retail_return_parts",
+        "local_retail_refunds",
+        "local_retail_returns",
+        "local_retail_payments",
+        "local_retail_float_corrections",
+        "local_retail_floats",
+        "local_retail_closings",
+        "local_retail_ops",
+    ];
+    for t in names {
+        s.0.execute_batch(&format!("DROP TABLE {t}")).unwrap();
+    }
+    s.0.pragma_update(None, "user_version", 8).unwrap();
+    drop(s);
+    let s = authenticated(&path);
+    assert_eq!(
+        serde_json::to_value(s.customer_statement("c1", 0, None).unwrap()).unwrap(),
+        old_statement
+    );
+    assert_eq!(s.cashier_state().unwrap().balances.credit_paise, "4250");
+    assert_eq!(identity::scope(&s.0).unwrap(), scope);
+    assert_eq!(s.list_invoices(0).unwrap()[0].invoice, original);
+    assert_eq!(s.list_products().unwrap(), stock);
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "11500");
+    assert_eq!(state(&s.0, "old-cash").unwrap().status, "recorded");
+    assert_eq!(
+        summary(
+            &s.0,
+            &s.1,
+            &day_at(&s.0, &original.created_at).unwrap(),
+            "owner"
+        )
+        .unwrap()
+        .net_cash_paise,
+        "11500"
+    );
+}
+#[test]
+fn business_day_uses_the_invoice_posting_timestamp_across_ist_midnight() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "sale", &[("cash", 10000)]);
+    perform(&mut s, r);
+    activity_at(
+        &s.0,
+        &s.1,
+        "before-boundary",
+        "test",
+        1,
+        Some("2026-01-01T18:29:59.999Z"),
+    )
+    .unwrap();
+    activity_at(
+        &s.0,
+        &s.1,
+        "after-boundary",
+        "test",
+        1,
+        Some("2026-01-01T18:30:00.000Z"),
+    )
+    .unwrap();
+    assert_eq!(
+        summary(&s.0, &s.1, "2026-01-01", "owner")
+            .unwrap()
+            .net_cash_paise,
+        "1"
+    );
+    assert_eq!(
+        summary(&s.0, &s.1, "2026-01-02", "owner")
+            .unwrap()
+            .net_cash_paise,
+        "1"
+    );
+}
+#[test]
+fn opening_float_correction_is_append_only_and_invalidates_a_stale_close() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let day = today(&s.0).unwrap();
+    perform(
+        &mut s,
+        req(
+            "opening",
+            Action::Float {
+                day: day.clone(),
+                username: "owner".into(),
+                amount_paise: 1000,
+            },
+        ),
+    );
+    let x = summary(&s.0, &s.1, &day, "owner").unwrap();
+    perform(
+        &mut s,
+        req(
+            "float-correction",
+            Action::CorrectFloat {
+                opening_id: "opening".into(),
+                amount_paise: 2000,
+                reason: "Opening note transposed, second count approved".into(),
+            },
+        ),
+    );
+    assert_eq!(
+        s.0.query_row(
+            "SELECT amount FROM local_retail_floats WHERE id='opening'",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        1000
+    );
+    assert_eq!(
+        summary(&s.0, &s.1, &day, "owner")
+            .unwrap()
+            .expected_cash_paise,
+        "2000"
+    );
+    let r = req(
+        "stale-close",
+        Action::Close {
+            day,
+            username: "owner".into(),
+            through: x.through,
+            counted_paise: 2000,
+        },
+    );
+    s.prepare_retail(r.clone()).unwrap();
+    assert!(matches!(s.post_retail(r), Err(StoreError::PaymentConflict)));
+}

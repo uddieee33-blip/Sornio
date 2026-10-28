@@ -15,6 +15,7 @@ pub enum Role {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Permission {
     View,
+    Reconcile,
     CustomerRead,
     ManageCustomers,
     CollectCredit,
@@ -45,6 +46,8 @@ impl Role {
                     | ManageCustomers
                     | CollectCredit
                     | CreditPolicy
+                    | Reconcile
+                    | Refund
             ),
             Self::AssistantManager => matches!(
                 permission,

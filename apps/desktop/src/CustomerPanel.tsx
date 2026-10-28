@@ -7,7 +7,7 @@ import { money } from './billing-types';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import type { Customer, CreditKind, CreditReceipt, CreditRequest, PendingCredit, Statement } from './customer-types';
 const emptyProfile = { id: '', name: '', phone: '', limit: '', days: '30' };
-const refusedCodes = new Set(['invalid_credit', 'credit_conflict', 'overpayment', 'customer_missing', 'operation_conflict', 'credit_limit', 'forbidden']);
+const refusedCodes = new Set(['day_closed', 'invalid_credit', 'credit_conflict', 'overpayment', 'customer_missing', 'operation_conflict', 'credit_limit', 'forbidden']);
 export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyChange, onDirtyChange }: { role: Role; disabled: boolean; refreshToken: number; onChanged: () => void; onBusyChange: (busy: boolean) => void; onDirtyChange: (dirty: boolean) => void }) {
   const manage = role !== 'cashier', policy = role === 'owner' || role === 'manager', correct = role === 'owner';
   const [customers, setCustomers] = useState<Customer[]>([]), [search, setSearch] = useState(''), [overdue, setOverdue] = useState(false);

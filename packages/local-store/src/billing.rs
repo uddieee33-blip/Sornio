@@ -20,6 +20,7 @@ pub struct BillLine {
 pub enum Tender {
     Cash,
     Credit,
+    Retail,
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -139,6 +140,173 @@ pub(crate) fn migrate(tx: &rusqlite::Transaction<'_>) -> Result<(), StoreError> 
     }
     Ok(())
 }
+pub(crate) fn post_into(
+    tx: &rusqlite::Transaction<'_>,
+    session: &Option<crate::identity::Session>,
+    request: PostInvoice,
+    prepared: bool,
+    retail: Option<&[crate::payments::PaymentPart]>,
+) -> Result<Invoice, StoreError> {
+    request.validate()?;
+    if (request.tender == Tender::Retail) != retail.is_some() {
+        return Err(StoreError::InvalidPayment);
+    }
+    let raw = serde_json::to_string(&request)?;
+    crate::identity::guard(
+        &tx,
+        session,
+        crate::identity::Permission::Sell,
+        "sale.posted",
+        Some(&request.operation_id),
+    )?;
+    crate::identity::checkout_actor(&tx, session)?;
+    crate::payments::invoice_id_check(tx, &request.operation_id, retail.is_some())?;
+    let previous: Option<(String, String)> = tx
+        .query_row(
+            "SELECT request,payload FROM local_invoices WHERE id=?1",
+            [&request.operation_id],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .optional()?;
+    if let Some((old, payload)) = previous {
+        crate::identity::invoice_reader(&tx, session, &request.operation_id)?;
+        if old != raw {
+            return Err(StoreError::OperationConflict);
+        }
+        return Ok(serde_json::from_str(&payload)?);
+    }
+    let canceled: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
+        [&request.operation_id],
+        |r| r.get(0),
+    )?;
+    if canceled {
+        return Err(StoreError::CheckoutActive);
+    }
+    if prepared {
+        let checkpoint: Option<String> = tx
+            .query_row(
+                "SELECT request FROM local_checkout WHERE singleton=1",
+                [],
+                |r| r.get(0),
+            )
+            .optional()?;
+        if checkpoint.as_deref() != Some(raw.as_str()) {
+            return Err(StoreError::CheckoutActive);
+        }
+    }
+    let mut quantities: BTreeMap<String, (i64, i64)> = BTreeMap::new();
+    let mut lines = Vec::new();
+    let mut subtotal = 0i64;
+    for l in &request.lines {
+        let (name, unit, price, revision): (String, String, i64, i64) = tx
+            .query_row(
+                "SELECT name,unit,unit_price_paise,revision FROM local_products WHERE id=?1",
+                [&l.product_id],
+                |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
+            )
+            .optional()?
+            .ok_or(StoreError::ProductMissing)?;
+        if revision != l.expected_revision {
+            return Err(StoreError::StockConflict);
+        }
+        let q = quantities
+            .entry(l.product_id.clone())
+            .or_insert((0, revision));
+        q.0 =
+            q.0.checked_add(l.quantity_milli)
+                .ok_or(StoreError::InvalidInvoice)?;
+        let total = line_total(l.quantity_milli, price)?;
+        subtotal = amount(subtotal as i128 + total as i128)?;
+        lines.push(PostedLine {
+            product_id: l.product_id.clone(),
+            name,
+            unit,
+            quantity_milli: l.quantity_milli,
+            unit_price_paise: price,
+            total_paise: total,
+        });
+    }
+    if subtotal == 0 {
+        return Err(StoreError::InvalidInvoice);
+    }
+    let tax = tax_total(subtotal, request.tax_basis_points)?;
+    let total = amount(subtotal as i128 + tax as i128)?;
+    let now: String = tx.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |r| {
+        r.get(0)
+    })?;
+    let invoice = Invoice {
+        id: request.operation_id.clone(),
+        created_at: now,
+        lines,
+        subtotal_paise: subtotal,
+        tax_paise: tax,
+        total_paise: total,
+        tax_basis_points: request.tax_basis_points,
+        tender: request.tender,
+        customer_id: request.customer_id,
+    };
+    let payload = serde_json::to_string(&invoice)?;
+    insert_one(
+        &tx,
+        "INSERT INTO local_invoices(id,request,payload) VALUES(?1,?2,?3)",
+        params![invoice.id, raw, payload],
+    )?;
+    insert_one(
+        &tx,
+        "INSERT INTO local_invoice_actors(invoice_id,actor_id) VALUES(?1,?2)",
+        params![invoice.id, session.as_ref().map(|s| s.actor_id.as_str())],
+    )?;
+    for (id, (quantity, revision)) in quantities {
+        let before: i64 = tx.query_row(
+            "SELECT stock_milli FROM local_products WHERE id=?1",
+            [&id],
+            |r| r.get(0),
+        )?;
+        if quantity > before {
+            return Err(StoreError::InvalidStock);
+        }
+        let next_revision = revision.checked_add(1).ok_or(StoreError::InvalidInvoice)?;
+        let changed = tx.execute(
+            "UPDATE local_products SET stock_milli=?1,revision=?2 WHERE id=?3 AND revision=?4",
+            params![before - quantity, next_revision, id, revision],
+        )?;
+        if changed != 1 {
+            return Err(StoreError::StockConflict);
+        }
+        insert_one(&tx,"INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?3,?4,?5)",params![invoice.id,id,quantity,before,before-quantity])?;
+    }
+    let account = if invoice.tender == Tender::Cash {
+        "cash"
+    } else {
+        "receivables"
+    };
+    insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invoice.id,account,invoice.customer_id,total])?;
+    insert_one(
+        &tx,
+        "INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'revenue',?2)",
+        params![invoice.id, -subtotal],
+    )?;
+    if tax > 0 {
+        insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoice.id,-tax])?;
+    }
+    if invoice.tender != Tender::Retail {
+        crate::customers::post_sale(tx, session, &invoice)?;
+    }
+    crate::payments::invoice_posted(tx, session, &invoice, retail)?;
+    let event=serde_json::json!({"version":1,"kind":"invoice.posted","operationId":invoice.id,"invoice":invoice}).to_string();
+    insert_one(
+        &tx,
+        "INSERT INTO local_billing_audit(invoice_id,payload) VALUES(?1,?2)",
+        params![invoice.id, event],
+    )?;
+    insert_one(
+        &tx,
+        "INSERT INTO local_billing_outbox(invoice_id,payload) VALUES(?1,?2)",
+        params![invoice.id, event],
+    )?;
+    Ok(invoice)
+}
 impl Store {
     pub(crate) fn post_invoice(&mut self, request: PostInvoice) -> Result<Invoice, StoreError> {
         self.post_invoice_inner(request, false)
@@ -155,155 +323,13 @@ impl Store {
         prepared: bool,
     ) -> Result<Invoice, StoreError> {
         request.validate()?;
-        let raw = serde_json::to_string(&request)?;
+        if request.tender == Tender::Retail {
+            return Err(StoreError::InvalidPayment);
+        }
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        crate::identity::guard(
-            &tx,
-            &self.1,
-            crate::identity::Permission::Sell,
-            "sale.posted",
-            Some(&request.operation_id),
-        )?;
-        crate::identity::checkout_actor(&tx, &self.1)?;
-        let previous: Option<(String, String)> = tx
-            .query_row(
-                "SELECT request,payload FROM local_invoices WHERE id=?1",
-                [&request.operation_id],
-                |r| Ok((r.get(0)?, r.get(1)?)),
-            )
-            .optional()?;
-        if let Some((old, payload)) = previous {
-            crate::identity::invoice_reader(&tx, &self.1, &request.operation_id)?;
-            if old != raw {
-                return Err(StoreError::OperationConflict);
-            }
-            return Ok(serde_json::from_str(&payload)?);
-        }
-        let canceled: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
-            [&request.operation_id],
-            |r| r.get(0),
-        )?;
-        if canceled {
-            return Err(StoreError::CheckoutActive);
-        }
-        if prepared {
-            let checkpoint: Option<String> = tx
-                .query_row(
-                    "SELECT request FROM local_checkout WHERE singleton=1",
-                    [],
-                    |r| r.get(0),
-                )
-                .optional()?;
-            if checkpoint.as_deref() != Some(raw.as_str()) {
-                return Err(StoreError::CheckoutActive);
-            }
-        }
-        let mut quantities: BTreeMap<String, (i64, i64)> = BTreeMap::new();
-        let mut lines = Vec::new();
-        let mut subtotal = 0i64;
-        for l in &request.lines {
-            let (name, unit, price, revision): (String, String, i64, i64) = tx
-                .query_row(
-                    "SELECT name,unit,unit_price_paise,revision FROM local_products WHERE id=?1",
-                    [&l.product_id],
-                    |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
-                )
-                .optional()?
-                .ok_or(StoreError::ProductMissing)?;
-            if revision != l.expected_revision {
-                return Err(StoreError::StockConflict);
-            }
-            let q = quantities
-                .entry(l.product_id.clone())
-                .or_insert((0, revision));
-            q.0 =
-                q.0.checked_add(l.quantity_milli)
-                    .ok_or(StoreError::InvalidInvoice)?;
-            let total = line_total(l.quantity_milli, price)?;
-            subtotal = amount(subtotal as i128 + total as i128)?;
-            lines.push(PostedLine {
-                product_id: l.product_id.clone(),
-                name,
-                unit,
-                quantity_milli: l.quantity_milli,
-                unit_price_paise: price,
-                total_paise: total,
-            });
-        }
-        if subtotal == 0 {
-            return Err(StoreError::InvalidInvoice);
-        }
-        let tax = tax_total(subtotal, request.tax_basis_points)?;
-        let total = amount(subtotal as i128 + tax as i128)?;
-        let now: String = tx.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |r| {
-            r.get(0)
-        })?;
-        let invoice = Invoice {
-            id: request.operation_id.clone(),
-            created_at: now,
-            lines,
-            subtotal_paise: subtotal,
-            tax_paise: tax,
-            total_paise: total,
-            tax_basis_points: request.tax_basis_points,
-            tender: request.tender,
-            customer_id: request.customer_id,
-        };
-        let payload = serde_json::to_string(&invoice)?;
-        insert_one(
-            &tx,
-            "INSERT INTO local_invoices(id,request,payload) VALUES(?1,?2,?3)",
-            params![invoice.id, raw, payload],
-        )?;
-        insert_one(
-            &tx,
-            "INSERT INTO local_invoice_actors(invoice_id,actor_id) VALUES(?1,?2)",
-            params![invoice.id, self.1.as_ref().map(|s| s.actor_id.as_str())],
-        )?;
-        for (id, (quantity, revision)) in quantities {
-            let before: i64 = tx.query_row(
-                "SELECT stock_milli FROM local_products WHERE id=?1",
-                [&id],
-                |r| r.get(0),
-            )?;
-            if quantity > before {
-                return Err(StoreError::InvalidStock);
-            }
-            let next_revision = revision.checked_add(1).ok_or(StoreError::InvalidInvoice)?;
-            let changed = tx.execute(
-                "UPDATE local_products SET stock_milli=?1,revision=?2 WHERE id=?3 AND revision=?4",
-                params![before - quantity, next_revision, id, revision],
-            )?;
-            if changed != 1 {
-                return Err(StoreError::StockConflict);
-            }
-            insert_one(&tx,"INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?3,?4,?5)",params![invoice.id,id,quantity,before,before-quantity])?;
-        }
-        let account = if invoice.tender == Tender::Cash {
-            "cash"
-        } else {
-            "receivables"
-        };
-        insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invoice.id,account,invoice.customer_id,total])?;
-        insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'revenue',?2)",params![invoice.id,-subtotal])?;
-        if tax > 0 {
-            insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoice.id,-tax])?;
-        }
-        crate::customers::post_sale(&tx, &self.1, &invoice)?;
-        let event=serde_json::json!({"version":1,"kind":"invoice.posted","operationId":invoice.id,"invoice":invoice}).to_string();
-        insert_one(
-            &tx,
-            "INSERT INTO local_billing_audit(invoice_id,payload) VALUES(?1,?2)",
-            params![invoice.id, event],
-        )?;
-        insert_one(
-            &tx,
-            "INSERT INTO local_billing_outbox(invoice_id,payload) VALUES(?1,?2)",
-            params![invoice.id, event],
-        )?;
+        let invoice = post_into(&tx, &self.1, request, prepared, None)?;
         tx.commit()?;
         Ok(invoice)
     }
@@ -737,7 +763,7 @@ mod tests {
             [crate::access::hash_password("Existing billing password").unwrap()],
         )
         .unwrap();
-        s.0.execute_batch("DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
+        s.0.execute_batch("DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
         drop(s);
         let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
         w.unlock("Existing billing password").unwrap();

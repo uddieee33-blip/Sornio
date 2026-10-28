@@ -3,6 +3,7 @@
 use sornio_local_store::customers as crate_types;
 #[cfg(windows)]
 use sornio_local_store::device::initialize;
+use sornio_local_store::payments as retail;
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
     catalog::{AddProduct, AdjustStock, Product},
@@ -34,6 +35,11 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::InvalidPayment => "invalid_payment",
+            StoreError::PaymentConflict => "payment_conflict",
+            StoreError::DuplicateSettlement => "duplicate_settlement",
+            StoreError::DayClosed => "day_closed",
+            StoreError::ComplexCreditReturn => "complex_credit_return",
             StoreError::InvalidCustomer => "invalid_customer",
             StoreError::CustomerMissing => "customer_missing",
             StoreError::InvalidCredit => "invalid_credit",
@@ -304,6 +310,124 @@ async fn read_identity_audit(
 }
 
 #[tauri::command]
+async fn prepare_local_retail(
+    scope: Scope,
+    r: retail::Request,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.prepare_retail(r)).await
+}
+#[tauri::command]
+async fn post_local_retail(
+    scope: Scope,
+    r: retail::Request,
+    state: tauri::State<'_, LocalState>,
+) -> Result<retail::Receipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_retail(r)).await
+}
+#[tauri::command]
+async fn clear_local_retail(
+    scope: Scope,
+    operation_id: String,
+    saved: bool,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.clear_retail(&operation_id, saved)).await
+}
+#[tauri::command]
+async fn read_local_retail(
+    scope: Scope,
+    day: String,
+    username: String,
+    invoice_id: Option<String>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<retail::View, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.retail_view(&day, &username, invoice_id.as_deref())
+    })
+    .await
+}
+#[tauri::command]
+async fn quote_local_return(
+    scope: Scope,
+    invoice_id: String,
+    lines: Vec<retail::ReturnLine>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<retail::ReturnQuote, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.quote_retail_return(&invoice_id, &lines)
+    })
+    .await
+}
+#[tauri::command]
+async fn take_over_local_payment(
+    scope: Scope,
+    operation_id: String,
+    reason: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<String, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.takeover_payment(&operation_id, &reason)
+    })
+    .await
+}
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct SavedSettlementExport {
+    file_name: String,
+    path: String,
+    csv: String,
+}
+#[tauri::command]
+async fn export_local_settlements(
+    app: tauri::AppHandle,
+    scope: Scope,
+    day: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<SavedSettlementExport, CommandError> {
+    let directory = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| CommandError::unavailable("Could not locate the settlement export folder."))?
+        .join("settlement-exports")
+        .join(&scope.business_id);
+    // Scope is validated before file IO. No caller path or arbitrary file access.
+    with_scoped_workspace(state, scope, move |w| {
+        use std::io::Write;
+        let export = w.export_retail(&day)?;
+        std::fs::create_dir_all(&directory).map_err(|_| StoreError::AccessUnavailable)?;
+        let nonce = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_err(|_| StoreError::AccessUnavailable)?
+            .as_nanos();
+        let name = format!("Sornio-settlements-{day}-{nonce}.csv");
+        let path = directory.join(&name);
+        let temporary = directory.join(format!("{name}.partial"));
+        let result = (|| -> std::io::Result<()> {
+            let mut f = std::fs::OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&temporary)?;
+            f.write_all(export.csv.as_bytes())?;
+            f.sync_all()?;
+            drop(f);
+            std::fs::rename(&temporary, &path)?;
+            Ok(())
+        })();
+        if result.is_err() {
+            let _ = std::fs::remove_file(&temporary);
+            return Err(StoreError::AccessUnavailable);
+        }
+        Ok(SavedSettlementExport {
+            file_name: name,
+            path: path.to_string_lossy().into_owned(),
+            csv: export.csv,
+        })
+    })
+    .await
+}
+
+#[tauri::command]
 async fn save_local_customer(
     scope: Scope,
     r: crate_types::SaveCustomer,
@@ -410,6 +534,13 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            prepare_local_retail,
+            post_local_retail,
+            clear_local_retail,
+            read_local_retail,
+            quote_local_return,
+            take_over_local_payment,
+            export_local_settlements,
             save_local_customer,
             find_local_customers,
             prepare_local_credit,

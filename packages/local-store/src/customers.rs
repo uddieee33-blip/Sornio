@@ -181,6 +181,7 @@ fn replay<T: DeserializeOwned>(
     if !valid_id(id) {
         return Err(StoreError::InvalidCredit);
     }
+    crate::payments::unclaimed(db, id)?;
     let old: Option<(String, String, String)> = db
         .query_row(
             "SELECT kind,request,payload FROM local_customer_ops WHERE operation_id=?1",
@@ -255,7 +256,7 @@ fn overdue(db: &Connection, id: &str) -> Result<i128, StoreError> {
     })?;
     for row in rows {
         let (seq, kind, amount, due, invoice) = row?;
-        if matches!(kind.as_str(), "repayment" | "write_off") {
+        if matches!(kind.as_str(), "repayment" | "write_off" | "return") {
             let mut credit = -(amount as i128);
             charges.sort_by(|a, b| (&a.0, a.1).cmp(&(&b.0, b.1)));
             for (_, _, due) in &mut charges {
@@ -427,6 +428,7 @@ pub(crate) fn post_sale(
     )? {
         return Err(StoreError::OperationConflict);
     }
+    crate::payments::unclaimed(tx, &invoice.id)?;
     if invoice.tender != Tender::Credit {
         return Ok(());
     }
@@ -471,6 +473,52 @@ pub(crate) fn post_sale(
     bump(tx, id, c.revision)?;
     Ok(())
 }
+pub(crate) fn quote_invoice_return(
+    db: &Connection,
+    invoice: &str,
+    amount: i64,
+) -> Result<(String, i64, i64), StoreError> {
+    let id:String=db.query_row("SELECT customer_id FROM local_credit_entries WHERE invoice_id=?1 AND kind IN ('sale','link_in') ORDER BY sequence DESC LIMIT 1",[invoice],|r|r.get(0))?;
+    if db.query_row("SELECT EXISTS(SELECT 1 FROM local_credit_entries WHERE customer_id=?1 AND kind IN ('opening_due','write_off','reversal'))",[&id],|r|r.get::<_,bool>(0))? {return Err(StoreError::ComplexCreditReturn);}
+    let c = customer(db, &id)?;
+    let balance = c
+        .balance_paise
+        .parse::<i128>()
+        .map_err(|_| StoreError::InvalidCredit)?;
+    let debt = balance.min(amount as i128) as i64;
+    let cash = amount - debt;
+    let mut received = 0i128;
+    {
+        let mut q=db.prepare("SELECT amount_paise FROM local_customer_journal WHERE customer_id=?1 AND account='cash' UNION ALL SELECT amount FROM local_retail_journal WHERE customer_id=?1 AND account='cash'")?;
+        for row in q.query_map([&id], |r| r.get::<_, i64>(0))? {
+            received = add(received, row? as i128)?;
+        }
+    }
+    if cash as i128 > received {
+        return Err(StoreError::InvalidPayment);
+    }
+    Ok((id, debt, cash))
+}
+pub(crate) fn invoice_return(
+    db: &Connection,
+    session: &Option<identity::Session>,
+    op: &str,
+    invoice: &str,
+    amount: i64,
+    why: &str,
+) -> Result<(String, i64, i64), StoreError> {
+    if let Some(s) = session {
+        identity::verify(db, s, Permission::Refund)?;
+    }
+    let (id, debt, cash) = quote_invoice_return(db, invoice, amount)?;
+    let c = customer(db, &id)?;
+    if debt > 0 {
+        entry(db, op, &id, "return", -debt, None, Some(invoice), None, why)?;
+    }
+    bump(db, &id, c.revision)?;
+    Ok((id, debt, cash))
+}
+
 impl Store {
     pub(crate) fn save_customer(&mut self, r: SaveCustomer) -> Result<Customer, StoreError> {
         if !valid_id(&r.operation_id)
@@ -826,6 +874,19 @@ impl Store {
             r.reverse_of.as_deref(),
             &r.reason,
         )?;
+        let cash_delta = postings
+            .iter()
+            .filter(|(a, _)| a == "cash")
+            .map(|(_, n)| *n)
+            .sum();
+        crate::payments::activity_at(
+            &tx,
+            &self.1,
+            &r.operation_id,
+            "credit_entry",
+            cash_delta,
+            Some(&receipt.created_at),
+        )?;
         for (account, amount) in postings {
             journal(&tx, &r.operation_id, &r.customer_id, &account, amount)?;
         }
@@ -867,7 +928,7 @@ impl Store {
         if old.revision != r.source_revision || target.revision != r.target_revision {
             return Err(StoreError::CreditConflict);
         }
-        if tx.query_row("SELECT EXISTS(SELECT 1 FROM local_credit_entries WHERE customer_id=?1 AND kind IN ('repayment','write_off','opening_due','reversal'))",[&source],|r|r.get::<_,bool>(0))?{return Err(StoreError::CreditAlreadyCollected);}
+        if tx.query_row("SELECT EXISTS(SELECT 1 FROM local_credit_entries WHERE customer_id=?1 AND kind IN ('repayment','write_off','opening_due','reversal','return'))",[&source],|r|r.get::<_,bool>(0))?{return Err(StoreError::CreditAlreadyCollected);}
         let after = add(
             target
                 .balance_paise

@@ -7,6 +7,7 @@ import type { PortalId } from '../../../packages/business-domain/src/business-ty
 import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
+import { RetailPanel } from './RetailPanel';
 import { CustomerPanel } from './CustomerPanel';
 import { StaffPanel } from './StaffPanel';
 import type { LocalSession } from './native';
@@ -42,13 +43,15 @@ function App({ onLocked, session }: { onLocked: () => void; session: LocalSessio
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [customerBusy, setCustomerBusy] = useState(false);
   const [customerDirty, setCustomerDirty] = useState(false);
+  const [retailBusy, setRetailBusy] = useState(false), [retailDirty, setRetailDirty] = useState(false), [retailRefresh, setRetailRefresh] = useState(0);
   const [customerRefresh, setCustomerRefresh] = useState(0);
   const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [checkoutRefresh, setCheckoutRefresh] = useState(0);
-  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
-  const refreshCheckout = useCallback(() => setCheckoutRefresh(value => value + 1), []);
+  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
+  const refreshCheckout = useCallback(() => { setCheckoutRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
+  const retailChanged = useCallback(() => { setCheckoutRefresh(value => value + 1); setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const dirty = catalogDirty || draftDirty || checkoutDirty || customerDirty;
+  const dirty = catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty;
 
   useEffect(() => {
     if (!native) return;
@@ -110,7 +113,7 @@ function App({ onLocked, session }: { onLocked: () => void; session: LocalSessio
     } finally { saving.current = false; }
   }
 
-  const busy = customerBusy || checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
+  const busy = retailBusy || customerBusy || checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -158,6 +161,7 @@ function App({ onLocked, session }: { onLocked: () => void; session: LocalSessio
         </div>
         {native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
         {native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}
+        {native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}
         {native && snapshot && owner ? <StaffPanel disabled={busy}/> : null}
         {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>

@@ -504,6 +504,46 @@ impl Workspace {
         self.require(Permission::CustomerRead)?;
         self.store.print_customer_statement(id, through)
     }
+    pub fn prepare_retail(&mut self, r: crate::payments::Request) -> Result<(), StoreError> {
+        self.require(r.action.permission())?;
+        self.store.prepare_retail(r)
+    }
+    pub fn post_retail(
+        &mut self,
+        r: crate::payments::Request,
+    ) -> Result<crate::payments::Receipt, StoreError> {
+        self.require(r.action.permission())?;
+        self.store.post_retail(r)
+    }
+    pub fn clear_retail(&mut self, id: &str, saved: bool) -> Result<(), StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.clear_retail(id, saved)
+    }
+    pub fn retail_view(
+        &self,
+        day: &str,
+        username: &str,
+        invoice_id: Option<&str>,
+    ) -> Result<crate::payments::View, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.retail_view(day, username, invoice_id)
+    }
+    pub fn quote_retail_return(
+        &self,
+        id: &str,
+        lines: &[crate::payments::ReturnLine],
+    ) -> Result<crate::payments::ReturnQuote, StoreError> {
+        self.require(Permission::Refund)?;
+        self.store.quote_retail_return(id, lines)
+    }
+    pub fn export_retail(&mut self, day: &str) -> Result<crate::payments::Export, StoreError> {
+        self.require(Permission::Reports)?;
+        self.store.export_retail(day)
+    }
+    pub fn takeover_payment(&mut self, id: &str, why: &str) -> Result<String, StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.takeover_payment(id, why)
+    }
     pub fn prepare_checkout(
         &mut self,
         request: crate::billing::PostInvoice,

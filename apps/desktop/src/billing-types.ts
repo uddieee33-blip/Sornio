@@ -1,14 +1,14 @@
-import type { NativeInvoiceRequest } from '../../../packages/business-domain/src/native-invoice';
+import type { CheckoutRequest, RetailRequest } from './retail-types';
 export type Product = { id: string; name: string; sku: string; unit: string; unitPricePaise: number; stockMilli: number; revision: number };
 export type Invoice = {
   id: string; createdAt: string;
   lines: { productId: string; name: string; unit: string; quantityMilli: number; unitPricePaise: number; totalPaise: number }[];
   subtotalPaise: number; taxPaise: number; totalPaise: number; taxBasisPoints: number;
-  tender: 'cash' | 'credit'; customerId: string | null;
+  tender: 'cash' | 'credit' | 'retail'; customerId: string | null;
 };
 export type CashierState = {
   products: Product[];
-  checkout: { request: NativeInvoiceRequest; invoice: Invoice | null } | null;
+  checkout: { request: CheckoutRequest; invoice: Invoice | null; retailRequest?: RetailRequest } | null;
   reportsAllowed: boolean;
   balances: { cashPaise: string; creditPaise: string };
 };

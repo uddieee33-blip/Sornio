@@ -1,6 +1,13 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "prepare_local_retail",
+            "post_local_retail",
+            "clear_local_retail",
+            "read_local_retail",
+            "quote_local_return",
+            "take_over_local_payment",
+            "export_local_settlements",
             "save_local_customer",
             "find_local_customers",
             "prepare_local_credit",

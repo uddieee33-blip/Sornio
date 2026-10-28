@@ -10,6 +10,8 @@ use serde::Serialize;
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PreparedCheckout {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub retail_request: Option<crate::payments::Request>,
     pub request: PostInvoice,
     pub invoice: Option<Invoice>,
 }
@@ -60,6 +62,7 @@ impl Store {
             Some(&request.operation_id),
         )?;
         crate::identity::checkout_actor(&tx, &self.1)?;
+        crate::payments::old_sale_clear(&tx)?;
         let canceled: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
             [&request.operation_id],
@@ -204,16 +207,43 @@ impl Store {
                 )
                 .optional()?;
             Some(PreparedCheckout {
+                retail_request: None,
                 request,
                 invoice: payload.map(|p| serde_json::from_str(&p)).transpose()?,
             })
+        } else if let Some(s) = &self.1 {
+            let raw:Option<String>=tx.query_row("SELECT request FROM local_retail_pending WHERE actor_id=?1 AND json_extract(request,'$.action.kind')='sale'",[&s.actor_id],|r|r.get(0)).optional()?;
+            if let Some(raw) = raw {
+                let r: crate::payments::Request = serde_json::from_str(&raw)?;
+                if let crate::payments::Action::Sale {
+                    invoice: request, ..
+                } = &r.action
+                {
+                    let payload: Option<String> = tx
+                        .query_row(
+                            "SELECT payload FROM local_invoices WHERE id=?1",
+                            [&r.operation_id],
+                            |r| r.get(0),
+                        )
+                        .optional()?;
+                    Some(PreparedCheckout {
+                        request: request.clone(),
+                        invoice: payload.map(|p| serde_json::from_str(&p)).transpose()?,
+                        retail_request: Some(r),
+                    })
+                } else {
+                    None
+                }
+            } else {
+                None
+            }
         } else {
             None
         };
         let mut cash = 0i128;
         let mut credit = 0i128;
         {
-            let mut statement = tx.prepare("SELECT account,amount_paise FROM local_billing_ledger WHERE account IN ('cash','receivables') UNION ALL SELECT account,amount_paise FROM local_customer_journal WHERE account IN ('cash','receivables')")?;
+            let mut statement = tx.prepare("SELECT account,amount_paise FROM local_billing_ledger WHERE account IN ('cash','receivables') UNION ALL SELECT account,amount_paise FROM local_customer_journal WHERE account IN ('cash','receivables') UNION ALL SELECT account,amount FROM local_retail_journal WHERE account IN ('cash','receivables')")?;
             let rows =
                 statement.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
             for row in rows {
@@ -228,6 +258,9 @@ impl Store {
                     .ok_or(StoreError::InvalidInvoice)?;
             }
         }
+        credit = credit
+            .checked_sub(crate::payments::pending_digital(&tx)?)
+            .ok_or(StoreError::InvalidPayment)?;
         tx.commit()?;
         Ok(CashierState {
             products,
@@ -396,7 +429,7 @@ mod tests {
         let mut s = seed(&path);
         let invoice = s.post_invoice(request()).unwrap();
         s.0.execute_batch(
-            "DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; PRAGMA user_version=5;",
+            "DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; PRAGMA user_version=5;",
         )
         .unwrap();
         drop(s);

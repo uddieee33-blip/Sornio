@@ -1,7 +1,7 @@
 name: Windows local workspace
 on:
   pull_request:
-    branches: [main, 'feature/windows-native-authorization']
+    branches: [main, 'feature/windows-native-authorization', 'feature/windows-customer-credit']
     paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
   workflow_dispatch:
 permissions:
@@ -9,7 +9,7 @@ permissions:
 jobs:
   local-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
     steps:

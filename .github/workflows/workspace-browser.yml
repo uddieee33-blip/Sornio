@@ -1,7 +1,7 @@
 name: Workspace browser review
 on:
   pull_request:
-    branches: [main, 'feature/windows-native-authorization']
+    branches: [main, 'feature/windows-native-authorization', 'feature/windows-customer-credit']
     paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
@@ -66,6 +66,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-checkout.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-authorization.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-customers.cjs
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-retail.cjs
       - uses: actions/upload-artifact@v7
         if: always()
         with:

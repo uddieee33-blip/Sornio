@@ -139,7 +139,7 @@ async function stopBridge() {
     await add('Review rice','kg','0.750'); await label('Transaction type').selectOption('credit');
     assert.equal(await button('Review sale').isDisabled(),true);
     await label('Credit customer reference').fill('customer-1');
-    assert.deepEqual(await label('Transaction type').locator('option').allTextContents(),['Cash','Credit']);
+    assert.deepEqual(await label('Transaction type').locator('option').allTextContents(),['Cash','UPI / card / split','Credit']);
     losePost = true;
     await button('Review sale').click(); await button('Confirm sale').click();
     await alert('Posting reply was lost').waitFor();

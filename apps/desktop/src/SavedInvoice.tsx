@@ -10,7 +10,7 @@ export function SavedInvoice({ invoice }: { invoice: Invoice }) {
     <label htmlFor="saved-invoice-id">Saved invoice ID</label>
     <input id="saved-invoice-id" readOnly value={invoice.id}/>
     <p><time dateTime={invoice.createdAt}>{new Date(invoice.createdAt).toLocaleString()}</time></p>
-    <p>{invoice.tender === 'cash' ? 'Cash received' : `Credit · Customer reference: ${invoice.customerId}`}</p>
+    <p>{invoice.tender === 'cash' ? 'Cash received' : invoice.tender === 'retail' ? 'Retail payment recorded. UPI/card amounts remain unverified; review Payments & closing for pending status.' : `Credit · Customer reference: ${invoice.customerId}`}</p>
     <ul aria-label="Saved invoice items">{invoice.lines.map((line, index) => <li key={`${line.productId}-${index}`}>
       <span>{line.name} · {quantity(line.quantityMilli)} {line.unit} × {money(line.unitPricePaise)}</span><strong>{money(line.totalPaise)}</strong>
     </li>)}</ul>

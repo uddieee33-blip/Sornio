@@ -39,6 +39,35 @@ fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
 fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
+        "prepare_local_retail" => {
+            w.prepare_retail(argument(a, "r")?)?;
+            Value::Null
+        }
+        "post_local_retail" => serde_json::to_value(w.post_retail(argument(a, "r")?)?)?,
+        "clear_local_retail" => {
+            w.clear_retail(
+                &argument::<String>(a, "operationId")?,
+                argument(a, "saved")?,
+            )?;
+            Value::Null
+        }
+        "read_local_retail" => serde_json::to_value(w.retail_view(
+            &argument::<String>(a, "day")?,
+            &argument::<String>(a, "username")?,
+            argument::<Option<String>>(a, "invoiceId")?.as_deref(),
+        )?)?,
+        "quote_local_return" => serde_json::to_value(w.quote_retail_return(
+            &argument::<String>(a, "invoiceId")?,
+            &argument::<Vec<sornio_local_store::payments::ReturnLine>>(a, "lines")?,
+        )?)?,
+        "take_over_local_payment" => serde_json::to_value(w.takeover_payment(
+            &argument::<String>(a, "operationId")?,
+            &argument::<String>(a, "reason")?,
+        )?)?,
+        "export_local_settlements" => {
+            let e = w.export_retail(&argument::<String>(a, "day")?)?;
+            serde_json::json!({"fileName":e.file_name,"csv":e.csv,"path":"synthetic-test-export.csv"})
+        }
         "save_local_customer" => {
             serde_json::to_value(w.save_customer(argument::<SaveCustomer>(a, "r")?)?)?
         }
@@ -150,6 +179,11 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::InvalidPayment => "invalid_payment",
+                    StoreError::PaymentConflict => "payment_conflict",
+                    StoreError::DuplicateSettlement => "duplicate_settlement",
+                    StoreError::DayClosed => "day_closed",
+                    StoreError::ComplexCreditReturn => "complex_credit_return",
                     StoreError::InvalidCustomer => "invalid_customer",
                     StoreError::CustomerMissing => "customer_missing",
                     StoreError::InvalidCredit => "invalid_credit",

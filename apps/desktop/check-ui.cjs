@@ -36,6 +36,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
      s.access.unlocked=false;return null;
     }
     if(!s.access.unlocked)throw {code:'locked',message:'Unlock this workspace to continue.'};
+    if(command==='read_local_retail')return {summary:{day:args.day,username:args.username,actorId:'owner',through:0,openingFloatPaise:0,netCashPaise:'0',expectedCashPaise:'0',countedCashPaise:null,variancePaise:null,cashRecordedPaise:'0',digitalRecordedPaise:'0',digitalPendingPaise:'0',manuallyMatchedPaise:'0',externallyVerifiedPaise:'0',refundPendingPaise:'0',unattributedCashPaise:'0',closingId:null,state:'open'},pending:null,invoice:null,payments:[],refunds:[]};
     if(command==='read_cashier_state')return {products:structuredClone(s.products),checkout:null,reportsAllowed:true,balances:{cashPaise:'0',creditPaise:'0'}};
     if(command==='load_workspace')return structuredClone(s.snapshot);
     if(command==='list_workspace_copies')return structuredClone(s.copies);

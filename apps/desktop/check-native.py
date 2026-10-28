@@ -35,7 +35,7 @@ def focus_control(title, control_type):
     target = window.child_window(title=title, control_type=control_type, visible_only=False)
     target.wait("exists", timeout=45)
     window.set_focus()
-    for _ in range(160):
+    for _ in range(240):
         control = target.wrapper_object()
         if control.is_visible() and control.is_enabled() and control.has_keyboard_focus():
             return control
@@ -322,6 +322,73 @@ try:
     wait_until(30, 0.5, lambda: message_visible("That password did not unlock this workspace."))
     assert_locked()
     window.capture_as_image().save(OUTPUT / "windows-staff-disabled.png")
+    # Retail operations use the real bundled IPC and encrypted transaction engine.
+    enter_password()
+    fill("Search items for sale", "NATIVE-RICE")
+    activate("Add Sample native rice to sale")
+    fill("Quantity for Sample native rice (pcs)", "0.250")
+    fill("Tax (%)", "0")
+    focus_control("Transaction type", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Split cash amount (₹)", "5.00")
+    fill("Split UPI amount (₹)", "5.63")
+    activate("Review sale")
+    activate("Confirm sale")
+    retail_invoice = saved_invoice_id()
+    assert_saved_total("10.63")
+    assert_balances("100.64", "0.00", "1.5")
+    activate("Start next sale")
+    activate("Refresh payment records")
+    fill("Invoice ID for payment records", retail_invoice)
+
+    def retail_text(text):
+        return text in "".join(c.window_text() for c in window.descendants(control_type="Text"))
+
+    def activate_prefix(prefix):
+        wait_until(30, 0.5, lambda: any(c.window_text().startswith(prefix) for c in window.descendants(control_type="Button")))
+        names = [c.window_text() for c in window.descendants(control_type="Button") if c.window_text().startswith(prefix)]
+        assert len(names) == 1, f"Ambiguous native action {prefix}: {names}"
+        activate(names[0])
+
+    wait_until(30, 0.5, lambda: retail_text("Pending — unverified"))
+    fill("Bank or terminal reference (never card number)", "WINUPI123456")
+    fill("Bank statement amount (₹)", "5.63")
+    fill("Manual statement check note", "Manually compared synthetic bank statement")
+    activate_prefix("Review manual match ")
+    activate("Confirm retail operation")
+    match_id = focus_control("Saved retail operation ID", "Edit").get_value()
+    assert str(UUID(match_id)) == match_id
+    stop()
+    launch()
+    assert focus_control("Saved retail operation ID", "Edit").get_value() == match_id
+    activate("Start next retail operation")
+    fill("Invoice ID for payment records", retail_invoice)
+    wait_until(30, 0.5, lambda: retail_text("Manually matched — not externally verified"))
+    wait_until(30, 0.5, lambda: retail_text("Externally verified: ₹0.00"))
+    fill("Return quantity for line 1: Sample native rice (pcs)", "0.250")
+    fill("Return or correction reason", "Native returned goods inspected")
+    activate("Calculate native return")
+    wait_until(30, 0.5, lambda: retail_text("Digital refund pending ₹5.63"))
+    activate("Review invoice return")
+    activate("Confirm retail operation")
+    return_id = focus_control("Saved retail operation ID", "Edit").get_value()
+    assert return_id != match_id
+    assert_balances("95.64", "0.00", "1.75")
+    activate("Start next retail operation")
+    activate("Save CA settlement CSV")
+    export_path = focus_control("Saved settlement CSV path", "Edit").get_value()
+    assert Path(export_path).is_file(), "Native settlement CSV was not saved"
+    csv_text = Path(export_path).read_text(encoding="utf-8")
+    assert csv_text.startswith("record_type,") and "refund_obligation" in csv_text
+    assert PASSWORD not in csv_text
+    assert all(line.endswith(",false") for line in csv_text.splitlines()[1:])
+    fill("Counted drawer cash (₹)", "85.00")
+    activate("Review cashier closing")
+    activate("Confirm retail operation")
+    focus_control("Saved retail operation ID", "Edit")
+    wait_until(30, 0.5, lambda: retail_text("Closing expected cash ₹85.01 · Counted ₹85.00 · Variance -₹0.01"))
+    window.capture_as_image().save(OUTPUT / "windows-retail-closing.png")
+    print("Native retail release: real cash/UPI split, pending/unverified separation, explicit manual statement match, forced match receipt recovery, authorized return, cash refund, pending digital refund, atomic stock restoration, saved CA CSV and exact cashier variance passed.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()
