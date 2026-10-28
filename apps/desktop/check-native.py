@@ -4,6 +4,7 @@ CI blocks outbound traffic for this app and its WebView runtime. This script
 uses verified native keyboard focus, not debugging, injected JS or mocked IPC.
 """
 from pathlib import Path
+import os
 import subprocess
 import sys
 import time
@@ -14,7 +15,7 @@ from pywinauto import Application, Desktop
 from pywinauto.keyboard import send_keys
 from pywinauto.timings import wait_until
 
-EXE = Path("apps/desktop/src-tauri/target/release/sornio-desktop.exe").resolve()
+EXE = Path(os.environ.get("SORNIO_REVIEW_EXE", "apps/desktop/src-tauri/target/release/sornio-desktop.exe")).resolve()
 OUTPUT = Path("dist/native-review")
 OUTPUT.mkdir(parents=True, exist_ok=True)
 PASSWORD = "SornioReviewAccess2026"
@@ -139,6 +140,18 @@ def stop():
 
 
 try:
+    if sys.argv[1:] not in ([], ['--verify-preserved']):
+        raise ValueError('Unknown native acceptance mode')
+    if '--verify-preserved' in sys.argv:
+        field = launch()
+        assert field.get_value() == 'Sample local store', 'Business draft did not survive reinstall'
+        assert focus_control('Workspace note', 'Edit').get_value() == ORIGINAL_NOTE, 'Draft history changed across reinstall'
+        window.child_window(title='Restore saved copy 3', control_type='Button', visible_only=False).wait('exists', timeout=30)
+        assert_no_receipt()
+        assert_balances('53.13', '31.88', '2')
+        window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
+        print('Installed-app reopen: original password, vault/database, draft/history, balances, inventory and acknowledged checkout preserved.')
+        sys.exit(0)
     launch(setup=True)
     fill("Business name", "Sample local store")
     fill("Workspace note", ORIGINAL_NOTE)
@@ -247,7 +260,8 @@ except Exception:
         try:
             window.capture_as_image().save(OUTPUT / "windows-local-failure.png")
             for control in window.descendants()[:100]:
-                print(control.element_info.control_type, repr(control.window_text()),
+                # Never dump UI text/values: failure diagnostics could include private data.
+                print(control.element_info.control_type,
                       "enabled=", control.is_enabled(), "visible=", control.is_visible(),
                       "focused=", control.has_keyboard_focus())
         except Exception as capture_error:

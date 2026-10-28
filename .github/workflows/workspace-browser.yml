@@ -25,6 +25,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: packages/local-store
+      - name: Test installer preservation evidence helper
+        run: python3 -m unittest discover -s apps/desktop -p test_install_data.py
       - name: Check native Rust formatting
         run: |
           cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
