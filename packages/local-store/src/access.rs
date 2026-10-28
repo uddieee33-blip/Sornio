@@ -25,6 +25,7 @@ pub struct AccessStatus {
 pub struct Workspace {
     store: Store,
     unlocked: bool,
+    generation: Option<String>,
 }
 
 impl Workspace {
@@ -72,10 +73,15 @@ impl Workspace {
         self.store.billing_outbox(after)
     }
 
+    pub(crate) fn into_recovery_store(self) -> Store {
+        self.store
+    }
+
     pub fn new(store: Store) -> Self {
         Self {
             store,
             unlocked: false,
+            generation: None,
         }
     }
 
@@ -92,7 +98,10 @@ impl Workspace {
             .ok_or(StoreError::AccessUnavailable)?;
         Ok(AccessStatus {
             configured,
-            unlocked: configured && self.unlocked,
+            unlocked: configured
+                && self.unlocked
+                && self.generation.as_deref()
+                    == Some(crate::recovery::generation(&self.store.0)?.as_str()),
         })
     }
 
@@ -136,6 +145,8 @@ impl Workspace {
             return Err(StoreError::AccessUnavailable);
         }
         tx.commit()?;
+        self.generation = Some(crate::recovery::generation(&self.store.0)?);
+        self.store.1 = self.generation.clone();
         self.unlocked = true;
         Ok(AccessStatus {
             configured: true,
@@ -180,6 +191,8 @@ impl Workspace {
             Ok(()) => {
                 tx.execute("UPDATE workspace_access SET failed_attempts = 0, retry_after = 0 WHERE singleton = 1", [])?;
                 tx.commit()?;
+                self.generation = Some(crate::recovery::generation(&self.store.0)?);
+                self.store.1 = self.generation.clone();
                 self.unlocked = true;
                 Ok(AccessStatus {
                     configured: true,
@@ -209,12 +222,13 @@ impl Workspace {
     }
 
     pub fn lock(&mut self) {
+        self.store.1 = None;
         self.unlocked = false;
     }
 
     fn require_unlock(&self) -> Result<(), StoreError> {
         if self.unlocked {
-            if self.status()?.configured {
+            if self.status()?.unlocked {
                 Ok(())
             } else {
                 Err(StoreError::AccessUnavailable)
@@ -222,6 +236,70 @@ impl Workspace {
         } else {
             Err(StoreError::Locked)
         }
+    }
+
+    pub fn last_restore(&self) -> Result<Option<crate::recovery::RestoreReceipt>, StoreError> {
+        self.require_unlock()?;
+        Ok(self.store.0.query_row("SELECT backup_id, created_at FROM local_recovery_audit WHERE action='restore_committed' ORDER BY seq DESC LIMIT 1", [], |r| Ok(crate::recovery::RestoreReceipt {backup_id:r.get(0)?,created_at:r.get(1)?})).optional()?)
+    }
+
+    /// Native adapter supplies paths selected through its OS file picker, never renderer paths.
+    pub fn export_backup(
+        &mut self,
+        destination: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+    ) -> Result<crate::recovery::BackupPreview, StoreError> {
+        self.require_unlock()?;
+        self.unlock(current_password)?;
+        if current_password == recovery_password {
+            return Err(StoreError::InvalidRecoveryPassword);
+        }
+        crate::recovery::export(&mut self.store, destination, recovery_password)
+    }
+
+    pub fn preview_backup(
+        &mut self,
+        source: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+        original_password: &str,
+    ) -> Result<crate::recovery::BackupPreview, StoreError> {
+        if self.status()?.configured {
+            self.unlock(current_password)?;
+        }
+        crate::recovery::preview(
+            &mut self.store,
+            source,
+            recovery_password,
+            original_password,
+        )
+    }
+
+    pub fn restore_backup(
+        &mut self,
+        source: &std::path::Path,
+        safety_directory: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+        original_password: &str,
+        preview: &crate::recovery::BackupPreview,
+        confirmation: &str,
+    ) -> Result<String, StoreError> {
+        if self.status()?.configured {
+            self.unlock(current_password)?;
+        }
+        let result = crate::recovery::restore(
+            &mut self.store,
+            source,
+            safety_directory,
+            recovery_password,
+            original_password,
+            preview,
+            confirmation,
+        );
+        self.lock();
+        result
     }
 
     pub fn load(&self) -> Result<Snapshot, StoreError> {

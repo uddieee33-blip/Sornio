@@ -9,12 +9,29 @@ pub mod access;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
+pub mod recovery;
 
 #[cfg(windows)]
 pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error(
+        "Backup could not be verified. Check the recovery passphrase and keep the original file."
+    )]
+    InvalidBackup,
+    #[error(
+        "Use a separate recovery passphrase of 14–128 characters; keep it away from the backup."
+    )]
+    InvalidRecoveryPassword,
+    #[error("Backup storage is unavailable or the destination already exists. The original workspace is unchanged.")]
+    BackupStorage,
+    #[error("This backup belongs to another business. Restore it only into a new, unconfigured workspace.")]
+    BackupBusinessMismatch,
+    #[error("The workspace or backup changed since preview. Preview it again before restoring.")]
+    RecoveryChanged,
+    #[error("Enter the exact restore confirmation from the preview.")]
+    RecoveryConfirmation,
     #[error("The local database could not be opened or saved. Keep the original files and retry.")]
     Database(#[from] rusqlite::Error),
     #[error("The database encryption key is invalid.")]
@@ -91,7 +108,7 @@ pub struct SavedCopy {
 const SCHEMA_VERSION: i64 = 6;
 const HISTORY_LIMIT: i64 = 20;
 
-pub struct Store(Connection);
+pub struct Store(Connection, Option<String>);
 
 impl Store {
     /// A random 256-bit hex secret comes from the native credential vault.
@@ -100,6 +117,10 @@ impl Store {
         if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(StoreError::InvalidKey);
         }
+        Self::open_secret(path, key)
+    }
+
+    pub(crate) fn open_secret(path: &Path, key: &str) -> Result<Self, StoreError> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_secs(5))?;
         db.pragma_update(None, "key", key)?;
@@ -172,7 +193,21 @@ impl Store {
             }
             tx.commit()?;
         }
-        Ok(Self(db))
+        recovery::initialize(&mut db)?;
+        Ok(Self(db, None))
+    }
+
+    pub(crate) fn writer(&mut self) -> Result<rusqlite::Transaction<'_>, StoreError> {
+        let expected = self.1.clone();
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if let Some(expected) = expected {
+            if recovery::generation(&tx)? != expected {
+                return Err(StoreError::Locked);
+            }
+        }
+        Ok(tx)
     }
 
     pub fn load(&self) -> Result<Snapshot, StoreError> {
@@ -199,9 +234,7 @@ impl Store {
     /// Return success only after SQLite commits; stale windows cannot overwrite.
     pub fn save(&mut self, expected_revision: i64, draft: Draft) -> Result<Snapshot, StoreError> {
         Self::validate(expected_revision, &draft)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         Self::commit_draft(tx, expected_revision, draft)
     }
 
@@ -233,9 +266,7 @@ impl Store {
         if expected_revision < 0 || source_revision <= 0 {
             return Err(StoreError::MissingRevision);
         }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         let payload: String = tx
             .query_row(
                 "SELECT payload FROM workspace_history WHERE revision = ?1",

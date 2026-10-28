@@ -7,6 +7,7 @@ import { dailyWorkspace } from '../../../packages/business-domain/src/daily-work
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
 import { CheckoutPanel } from './CheckoutPanel';
+import { BackupPanel } from './BackupPanel';
 import { AccessGate } from './AccessGate';
 import { errorCode, errorMessage } from './access';
 import type { Draft, Snapshot } from './workspace-types';
@@ -29,6 +30,8 @@ function App({ onLocked }: { onLocked: () => void }) {
   const saving = useRef(false);
   const [reopenPrompt, setReopenPrompt] = useState(false);
   const [lockPrompt, setLockPrompt] = useState(false);
+  const [backupDirty, setBackupDirty] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [checkoutDirty, setCheckoutDirty] = useState(false);
@@ -38,7 +41,7 @@ function App({ onLocked }: { onLocked: () => void }) {
   const refreshInventory = useCallback(() => setInventoryRefresh(value => value + 1), []);
   const refreshCheckout = useCallback(() => setCheckoutRefresh(value => value + 1), []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const dirty = catalogDirty || draftDirty || checkoutDirty;
+  const dirty = backupDirty || catalogDirty || draftDirty || checkoutDirty;
 
   useEffect(() => {
     if (!native) return;
@@ -100,7 +103,7 @@ function App({ onLocked }: { onLocked: () => void }) {
     } finally { saving.current = false; }
   }
 
-  const busy = checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
+  const busy = backupBusy || checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -147,6 +150,7 @@ function App({ onLocked }: { onLocked: () => void }) {
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
         </div>
         {native && snapshot ? <InventoryPanel refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
+        {native && snapshot ? <BackupPanel configured disabled={checkoutBusy || catalogBusy || draftDirty || checkoutDirty || catalogDirty || status === 'saving' || status === 'opening'} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={() => window.location.reload()}/> : null}
         {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>

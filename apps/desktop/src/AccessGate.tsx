@@ -3,6 +3,7 @@ import type { FormEvent, ReactNode } from 'react';
 import { invoke, isTauri } from '@tauri-apps/api/core';
 import { errorCode, errorMessage } from './access';
 import type { AccessStatus } from './access';
+import { BackupPanel } from './BackupPanel';
 import brandIcon from '../../../public/brand/icon-192.png';
 
 export function AccessGate({ children }: { children: (onLocked: () => void) => ReactNode }) {
@@ -11,6 +12,7 @@ export function AccessGate({ children }: { children: (onLocked: () => void) => R
   const [message, setMessage] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const submitting = useRef(false);
@@ -59,13 +61,14 @@ export function AccessGate({ children }: { children: (onLocked: () => void) => R
       <p className="access-intro">{!native ? 'Open the installed Windows app to use this workspace.' : !access ? 'Your original files stay on this PC.' : setup ? 'Create a local password before opening your sample workspace.' : 'Enter your local password to open the saved workspace on this PC.'}</p>
       {message ? <p className="access-error" role="alert">{message}</p> : null}
       {native && access ? <form onSubmit={(event) => void submit(event)}>
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || recoveryBusy}>
           <label htmlFor="local-password">Local password</label>
           <input id="local-password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} autoFocus minLength={setup ? 10 : undefined} maxLength={128} required value={password} onChange={(e) => setPassword(e.target.value)}/>
           {setup ? <><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" type="password" autoComplete="new-password" maxLength={128} required value={confirm} onChange={(e) => setConfirm(e.target.value)}/><p className="access-hint">Use 10–128 characters. Keep this password safe: password recovery is not available in this review.</p></> : null}
           <button className="access-submit" type="submit" disabled={busy || !password || (setup && (Array.from(password).length < 10 || !confirm))}>{busy ? 'Opening…' : setup ? 'Set up local access' : 'Unlock workspace'}</button>
         </fieldset>
       </form> : native && message ? <button type="button" className="access-submit" onClick={() => { setMessage(''); setRetry((n) => n + 1); }}>Retry local access</button> : null}
+      {native && access ? <BackupPanel allowExport={false} configured={access.configured} disabled={busy} onBusyChange={setRecoveryBusy} onRestored={() => window.location.reload()}/> : null}
       <p className="access-footnote">Engineering review · Use test data only.<br/>Local access does not create a verified business account.</p>
     </section>
   </main>;

@@ -1,7 +1,7 @@
 //! Bounded stock review on the same encrypted device store. No sale, payment,
 //! verified business identity, staff authorization or sync is implied here.
 use crate::{Store, StoreError};
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, OptionalExtension, Transaction};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_VALUE: i64 = 9_000_000_000_000;
@@ -166,9 +166,7 @@ impl Store {
         // Preserve the exact bounded request so reusing an operation ID with
         // different input is rejected, even if it normalizes to the same item.
         let payload = serde_json::to_string(&request)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         if let Some(product) = replay(&tx, &request.operation_id, "product_added", &payload)? {
             return Ok(product);
         }
@@ -220,9 +218,7 @@ impl Store {
             return Err(StoreError::InvalidProduct);
         }
         let payload = serde_json::to_string(&request)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         if let Some(product) = replay(&tx, &request.operation_id, "stock_adjusted", &payload)? {
             return Ok(product);
         }

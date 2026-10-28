@@ -2,12 +2,22 @@
 
 #[cfg(windows)]
 use sornio_local_store::device::initialize;
+use sornio_local_store::recovery::BackupPreview;
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
     catalog::{AddProduct, AdjustStock, Product},
     Draft, SavedCopy, Snapshot, Store, StoreError,
 };
-use std::sync::{Arc, Mutex};
+use std::{
+    path::PathBuf,
+    sync::{Arc, Mutex},
+};
+#[derive(Default)]
+struct RecoverySelection {
+    path: Option<PathBuf>,
+    preview: Option<BackupPreview>,
+}
+type RecoveryState = Arc<Mutex<RecoverySelection>>;
 use tauri::Manager;
 use zeroize::Zeroizing;
 
@@ -219,6 +229,122 @@ async fn read_billing_outbox(
 ) -> Result<Vec<sornio_local_store::billing::OutboxRecord>, CommandError> {
     with_workspace(state, move |w| w.billing_outbox(after)).await
 }
+
+#[tauri::command]
+async fn read_last_restore(
+    state: tauri::State<'_, LocalState>,
+) -> Result<Option<sornio_local_store::recovery::RestoreReceipt>, CommandError> {
+    with_workspace(state, |w| w.last_restore()).await
+}
+#[tauri::command]
+async fn choose_local_backup(
+    selection: tauri::State<'_, RecoveryState>,
+) -> Result<Option<String>, CommandError> {
+    let selected = Arc::clone(selection.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        #[cfg(windows)]
+        let path = rfd::FileDialog::new()
+            .add_filter("Sornio encrypted backup", &["sorniobackup"])
+            .set_title("Choose encrypted Sornio backup")
+            .pick_file();
+        #[cfg(not(windows))]
+        let path: Option<PathBuf> = None;
+        let name = path
+            .as_ref()
+            .and_then(|p| p.file_name())
+            .map(|n| n.to_string_lossy().into_owned());
+        let mut guard = selected
+            .lock()
+            .map_err(|_| CommandError::unavailable("Restart Sornio before choosing a backup."))?;
+        guard.path = path;
+        guard.preview = None;
+        Ok(name)
+    })
+    .await
+    .map_err(|_| CommandError::unavailable("Backup selection stopped."))?
+}
+#[tauri::command]
+async fn export_local_backup(
+    current_password: String,
+    recovery_password: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Option<BackupPreview>, CommandError> {
+    let current = Zeroizing::new(current_password);
+    let secret = Zeroizing::new(recovery_password);
+    with_workspace(state, move |w| {
+        if !w.status()?.unlocked {
+            return Err(StoreError::Locked);
+        }
+        #[cfg(windows)]
+        let path = rfd::FileDialog::new()
+            .add_filter("Sornio encrypted backup", &["sorniobackup"])
+            .set_file_name("sornio-business.sorniobackup")
+            .set_title("Export encrypted Sornio backup")
+            .save_file();
+        #[cfg(not(windows))]
+        let path: Option<PathBuf> = None;
+        path.map(|p| w.export_backup(&p, &current, &secret))
+            .transpose()
+    })
+    .await
+}
+#[tauri::command]
+async fn preview_local_backup(
+    current_password: String,
+    recovery_password: String,
+    original_password: String,
+    selection: tauri::State<'_, RecoveryState>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<BackupPreview, CommandError> {
+    let current = Zeroizing::new(current_password);
+    let secret = Zeroizing::new(recovery_password);
+    let original = Zeroizing::new(original_password);
+    let selected = Arc::clone(selection.inner());
+    with_workspace(state, move |w| {
+        let mut selected = selected.lock().map_err(|_| StoreError::AccessUnavailable)?;
+        selected.preview = None;
+        let path = selected.path.clone().ok_or(StoreError::InvalidBackup)?;
+        let preview = w.preview_backup(&path, &current, &secret, &original)?;
+        selected.preview = Some(preview.clone());
+        Ok(preview)
+    })
+    .await
+}
+#[tauri::command]
+async fn restore_local_backup(
+    current_password: String,
+    recovery_password: String,
+    original_password: String,
+    confirmation: String,
+    app: tauri::AppHandle,
+    selection: tauri::State<'_, RecoveryState>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<String, CommandError> {
+    let current = Zeroizing::new(current_password);
+    let secret = Zeroizing::new(recovery_password);
+    let original = Zeroizing::new(original_password);
+    let safety = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| CommandError::unavailable("Safety backup folder is unavailable."))?
+        .join("recovery-safety");
+    let selected = Arc::clone(selection.inner());
+    with_workspace(state, move |w| {
+        let mut selected = selected.lock().map_err(|_| StoreError::AccessUnavailable)?;
+        let path = selected.path.clone().ok_or(StoreError::InvalidBackup)?;
+        let preview = selected.preview.take().ok_or(StoreError::RecoveryChanged)?;
+        w.restore_backup(
+            &path,
+            &safety,
+            &current,
+            &secret,
+            &original,
+            &preview,
+            &confirmation,
+        )
+    })
+    .await
+}
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -229,6 +355,7 @@ fn main() {
                 .and_then(|path| initialize(&path))
                 .map(Workspace::new);
             app.manage(Arc::new(Mutex::new(workspace)));
+            app.manage(Arc::new(Mutex::new(RecoverySelection::default())));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -248,7 +375,12 @@ fn main() {
             clear_local_checkout,
             post_local_invoice,
             list_local_invoices,
-            read_billing_outbox
+            read_billing_outbox,
+            read_last_restore,
+            choose_local_backup,
+            export_local_backup,
+            preview_local_backup,
+            restore_local_backup
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");

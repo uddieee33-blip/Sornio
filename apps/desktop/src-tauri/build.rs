@@ -18,6 +18,11 @@ fn main() {
             "post_local_invoice",
             "list_local_invoices",
             "read_billing_outbox",
+            "read_last_restore",
+            "choose_local_backup",
+            "export_local_backup",
+            "preview_local_backup",
+            "restore_local_backup",
         ]),
     ))
     .expect("Tauri build configuration failed");

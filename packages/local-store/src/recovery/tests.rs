@@ -1,0 +1,489 @@
+use super::*;
+use crate::{
+    access::Workspace,
+    billing::{BillLine, PostInvoice, Tender},
+    catalog::AddProduct,
+    Draft,
+};
+const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+const LOGIN: &str = "Local test password!";
+const SECRET: &str = "Separate recovery passphrase 2026!";
+fn seeded(path: &Path) -> Store {
+    let mut w = Workspace::new(Store::open(path, KEY).unwrap());
+    w.setup(LOGIN).unwrap();
+    w.save(
+        0,
+        Draft {
+            business_name: "Recovery shop".into(),
+            business_type: "kirana".into(),
+            note: "Private saved note".into(),
+        },
+    )
+    .unwrap();
+    w.add_product(AddProduct {
+        operation_id: "rice".into(),
+        name: "Rice".into(),
+        sku: "RICE".into(),
+        unit: "kg".into(),
+        unit_price_paise: 4250,
+        opening_stock_milli: 10000,
+    })
+    .unwrap();
+    w.into_recovery_store()
+}
+fn sale(id: &str, revision: i64) -> PostInvoice {
+    PostInvoice {
+        operation_id: id.into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: revision,
+            quantity_milli: 1250,
+        }],
+        tax_basis_points: 500,
+        tender: Tender::Cash,
+        customer_id: None,
+    }
+}
+fn count(db: &Connection, table: &str) -> i64 {
+    db.query_row(&format!("SELECT count(*) FROM {}", quote(table)), [], |r| {
+        r.get(0)
+    })
+    .unwrap()
+}
+#[test]
+fn snapshot_restore_preserves_finance_identity_pending_work_and_retries() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live.db"));
+    let bill = sale("invoice-original", 1);
+    let receipt = s.post_invoice(bill.clone()).unwrap();
+    s.prepare_checkout(sale("pending-sale", 2)).unwrap();
+    let outbox = s.billing_outbox(0).unwrap();
+    let id: String =
+        s.0.query_row("SELECT business_id FROM local_recovery_identity", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let p = d.path().join("copy.sorniobackup");
+    export(&mut s, &p, SECRET).unwrap();
+    let bytes = fs::read(&p).unwrap();
+    assert!(!bytes.windows(6).any(|v| v == b"SQLite"));
+    for private in [LOGIN, SECRET, KEY, "Private saved note", "invoice-original"] {
+        assert!(!bytes
+            .windows(private.len())
+            .any(|v| v == private.as_bytes()));
+    }
+    assert!(Store::open(&p, KEY).is_err());
+    let preview = preview(&mut s, &p, SECRET, LOGIN).unwrap();
+    assert_eq!(preview.invoices, 1);
+    assert!(preview.pending_checkout);
+    s.clear_checkout("pending-sale", false).unwrap();
+    assert!(matches!(
+        restore(
+            &mut s,
+            &p,
+            d.path(),
+            SECRET,
+            LOGIN,
+            &preview,
+            &preview.confirmation
+        ),
+        Err(StoreError::RecoveryChanged)
+    ));
+    let preview = super::preview(&mut s, &p, SECRET, LOGIN).unwrap();
+    let safety = restore(
+        &mut s,
+        &p,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &preview,
+        &preview.confirmation,
+    )
+    .unwrap();
+    assert!(Path::new(&safety).exists());
+    assert_eq!(s.post_invoice(bill).unwrap(), receipt);
+    assert_eq!(s.billing_outbox(0).unwrap().len(), outbox.len());
+    assert_eq!(
+        s.0.query_row("SELECT business_id FROM local_recovery_identity", [], |r| r
+            .get::<_, String>(0))
+            .unwrap(),
+        id
+    );
+    assert_eq!(
+        s.cashier_state()
+            .unwrap()
+            .checkout
+            .unwrap()
+            .request
+            .operation_id,
+        "pending-sale"
+    );
+    assert_eq!(count(&s.0, "local_billing_audit"), 1);
+    assert!(matches!(
+        restore(
+            &mut s,
+            &p,
+            d.path(),
+            SECRET,
+            LOGIN,
+            &preview,
+            &preview.confirmation
+        ),
+        Err(StoreError::RecoveryChanged)
+    ));
+}
+#[test]
+fn new_device_uses_new_device_key_and_original_login_and_locks_old_sessions() {
+    let d = tempfile::tempdir().unwrap();
+    let mut source = seeded(&d.path().join("source.db"));
+    source.post_invoice(sale("old-sale", 1)).unwrap();
+    let archive = d.path().join("backup");
+    export(&mut source, &archive, SECRET).unwrap();
+    let target = d.path().join("target.db");
+    let new_key = "abcdef0123456789abcdef0123456789abcdef0123456789abcdef0123456789";
+    let mut target = Workspace::new(Store::open(&target, new_key).unwrap());
+    let p = target.preview_backup(&archive, "", SECRET, LOGIN).unwrap();
+    target
+        .restore_backup(&archive, d.path(), "", SECRET, LOGIN, &p, &p.confirmation)
+        .unwrap();
+    assert!(!target.status().unwrap().unlocked);
+    target.unlock(LOGIN).unwrap();
+    assert_eq!(target.list_invoices(0).unwrap().len(), 1);
+    let mut stale = Workspace::new(Store::open(&d.path().join("source.db"), KEY).unwrap());
+    stale.unlock(LOGIN).unwrap();
+    let mut owner = Workspace::new(source);
+    owner.unlock(LOGIN).unwrap();
+    let p = owner
+        .preview_backup(&archive, LOGIN, SECRET, LOGIN)
+        .unwrap();
+    owner
+        .restore_backup(
+            &archive,
+            d.path(),
+            LOGIN,
+            SECRET,
+            LOGIN,
+            &p,
+            &p.confirmation,
+        )
+        .unwrap();
+    assert!(!stale.status().unwrap().unlocked);
+    assert!(stale.load().is_err());
+    let mut stale_store = stale.into_recovery_store();
+    assert!(matches!(
+        stale_store.save(
+            1,
+            Draft {
+                business_name: "stale".into(),
+                business_type: "kirana".into(),
+                note: "stale write".into()
+            }
+        ),
+        Err(StoreError::Locked)
+    ));
+}
+#[test]
+fn wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let p = d.path().join("backup");
+    export(&mut s, &p, SECRET).unwrap();
+    assert!(preview(&mut s, &p, "Wrong recovery passphrase!", LOGIN).is_err());
+    assert!(preview(&mut s, &p, SECRET, "Wrong login password").is_err());
+    let initial = digest(&s.0).unwrap();
+    let original = fs::read(&p).unwrap();
+    for bytes in [Vec::new(), original[..4096].to_vec(), {
+        let mut b = original.clone();
+        let n = b.len() - 128;
+        b[n] ^= 42;
+        b
+    }] {
+        fs::write(d.path().join("bad"), bytes).unwrap();
+        assert!(preview(&mut s, &d.path().join("bad"), SECRET, LOGIN).is_err());
+    }
+    let db = Connection::open(&p).unwrap();
+    db.pragma_update(None, "key", SECRET).unwrap();
+    db.pragma_update(None, "user_version", 999).unwrap();
+    drop(db);
+    assert!(matches!(
+        preview(&mut s, &p, SECRET, LOGIN),
+        Err(StoreError::NewerSchema)
+    ));
+    fs::write(&p, original).unwrap();
+    let db = Connection::open(&p).unwrap();
+    db.pragma_update(None, "key", SECRET).unwrap();
+    db.execute_batch("CREATE TRIGGER hostile AFTER UPDATE ON workspace_access BEGIN DELETE FROM workspace_draft; END;").unwrap();
+    drop(db);
+    assert!(preview(&mut s, &p, SECRET, LOGIN).is_err());
+    assert_eq!(digest(&s.0).unwrap(), initial);
+}
+#[test]
+fn other_business_confirmation_stale_preview_storage_and_native_auth_are_checked() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let p = d.path().join("backup");
+    export(&mut s, &p, SECRET).unwrap();
+    let mut other = seeded(&d.path().join("other"));
+    assert!(matches!(
+        preview(&mut other, &p, SECRET, LOGIN),
+        Err(StoreError::BackupBusinessMismatch)
+    ));
+    let before = digest(&s.0).unwrap();
+    assert!(export(&mut s, &p, SECRET).is_err());
+    assert!(export(&mut s, &d.path().join("missing/backup"), SECRET).is_err());
+    assert_eq!(digest(&s.0).unwrap(), before);
+    let v = preview(&mut s, &p, SECRET, LOGIN).unwrap();
+    assert!(matches!(
+        restore(&mut s, &p, d.path(), SECRET, LOGIN, &v, "YES"),
+        Err(StoreError::RecoveryConfirmation)
+    ));
+    let blocked = d.path().join("not-a-directory");
+    fs::write(&blocked, "occupied").unwrap();
+    assert!(restore(&mut s, &p, &blocked, SECRET, LOGIN, &v, &v.confirmation).is_err());
+    assert_eq!(digest(&s.0).unwrap(), before);
+    let mut w = Workspace::new(s);
+    assert!(matches!(
+        w.export_backup(&d.path().join("denied"), LOGIN, SECRET),
+        Err(StoreError::Locked)
+    ));
+    w.unlock(LOGIN).unwrap();
+    assert!(w
+        .export_backup(&d.path().join("denied"), "Wrong login password", SECRET)
+        .is_err());
+    assert!(!w.status().unwrap().unlocked);
+}
+#[test]
+fn snapshot_excludes_uncommitted_sale_and_restore_preserves_original_on_required_write_failure() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("live");
+    let mut s = seeded(&path);
+    let other = Store::open(&path, KEY).unwrap();
+    other
+        .0
+        .execute_batch("BEGIN IMMEDIATE; UPDATE local_products SET stock_milli=1;")
+        .unwrap();
+    // Snapshot waits for writer, rather than copying a half transaction. Release it asynchronously.
+    let t = std::thread::spawn(move || {
+        std::thread::sleep(std::time::Duration::from_millis(200));
+        other.0.execute_batch("ROLLBACK").unwrap();
+    });
+    let p = d.path().join("backup");
+    export(&mut s, &p, SECRET).unwrap();
+    t.join().unwrap();
+    let verified = verified(&p, SECRET, LOGIN).unwrap();
+    assert_eq!(
+        verified.store.list_products().unwrap()[0].stock_milli,
+        10000
+    );
+    drop(verified);
+    let v = preview(&mut s, &p, SECRET, LOGIN).unwrap();
+    let before = fingerprint(&s.0).unwrap();
+    s.0.pragma_update(None, "query_only", true).unwrap();
+    assert!(restore(&mut s, &p, d.path(), SECRET, LOGIN, &v, &v.confirmation).is_err());
+    s.0.pragma_update(None, "query_only", false).unwrap();
+    assert_eq!(fingerprint(&s.0).unwrap(), before);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 10000);
+}
+#[test]
+fn recovery_audit_is_immutable_and_migration_preserves_old_schema_contents() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    s.post_invoice(sale("old-bill", 1)).unwrap();
+    let p = d.path().join("backup");
+    export(&mut s, &p, SECRET).unwrap();
+    assert!(s
+        .0
+        .execute("UPDATE local_recovery_audit SET action='forged'", [])
+        .is_err());
+    assert!(s.0.execute("DELETE FROM local_recovery_audit", []).is_err());
+    let db = Connection::open(&p).unwrap();
+    db.pragma_update(None, "key", SECRET).unwrap();
+    db.execute_batch(
+        "DROP TABLE local_checkout; DROP TABLE local_checkout_canceled; PRAGMA user_version=5;",
+    )
+    .unwrap();
+    let payload: String = db
+        .query_row("SELECT payload FROM sornio_backup_manifest", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let mut m: Manifest = serde_json::from_str(&payload).unwrap();
+    m.schema = 5;
+    m.digest = digest(&db).unwrap();
+    db.execute(
+        "UPDATE sornio_backup_manifest SET payload=?1",
+        [serde_json::to_string(&m).unwrap()],
+    )
+    .unwrap();
+    drop(db);
+    let v = preview(&mut s, &p, SECRET, LOGIN).unwrap();
+    assert_eq!(v.schema_version, 5);
+    restore(&mut s, &p, d.path(), SECRET, LOGIN, &v, &v.confirmation).unwrap();
+    assert_eq!(s.list_invoices(0).unwrap().len(), 1);
+    assert!(s.cashier_state().unwrap().checkout.is_none());
+}
+
+#[test]
+#[ignore = "subprocess crash worker only"]
+fn crash_worker() {
+    let root = std::path::PathBuf::from(std::env::var_os("SORNIO_RECOVERY_TEST_ROOT").unwrap());
+    let mut s = Store::open(&root.join("live"), KEY).unwrap();
+    if std::env::var("SORNIO_RECOVERY_CRASH_PHASE").unwrap() == "backup" {
+        export(&mut s, &root.join("interrupted.sorniobackup"), SECRET).unwrap();
+    } else {
+        let p = preview(&mut s, &root.join("backup"), SECRET, LOGIN).unwrap();
+        restore(
+            &mut s,
+            &root.join("backup"),
+            &root,
+            SECRET,
+            LOGIN,
+            &p,
+            &p.confirmation,
+        )
+        .unwrap();
+    }
+    panic!("Worker did not stop at injected boundary");
+}
+#[test]
+fn forced_termination_does_not_publish_partial_backup_or_commit_partial_restore() {
+    for phase in ["backup", "restore"] {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = seeded(&d.path().join("live"));
+        s.post_invoice(sale("first-sale", 1)).unwrap();
+        export(&mut s, &d.path().join("backup"), SECRET).unwrap();
+        s.post_invoice(sale("later-sale", 2)).unwrap();
+        drop(s);
+        let marker = d.path().join("at-boundary");
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "recovery::tests::crash_worker",
+                "--ignored",
+                "--nocapture",
+            ])
+            .env("SORNIO_RECOVERY_TEST_ROOT", d.path())
+            .env("SORNIO_RECOVERY_CRASH_PHASE", phase)
+            .env("SORNIO_RECOVERY_CRASH_MARKER", &marker)
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(30);
+        while !marker.exists() && std::time::Instant::now() < deadline {
+            assert!(
+                child.try_wait().unwrap().is_none(),
+                "Worker exited before boundary"
+            );
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        assert!(marker.exists(), "Worker did not reach boundary");
+        child.kill().unwrap();
+        child.wait().unwrap();
+        let mut reopened = Store::open(&d.path().join("live"), KEY).unwrap();
+        assert_eq!(reopened.list_invoices(0).unwrap().len(), 2);
+        integrity(&reopened.0).unwrap();
+        assert!(!d.path().join("interrupted.sorniobackup").exists());
+        if phase == "restore" {
+            let p = preview(&mut reopened, &d.path().join("backup"), SECRET, LOGIN).unwrap();
+            restore(
+                &mut reopened,
+                &d.path().join("backup"),
+                d.path(),
+                SECRET,
+                LOGIN,
+                &p,
+                &p.confirmation,
+            )
+            .unwrap();
+            assert_eq!(reopened.list_invoices(0).unwrap().len(), 1);
+        } else {
+            export(&mut reopened, &d.path().join("after-crash"), SECRET).unwrap();
+            assert_eq!(
+                preview(&mut reopened, &d.path().join("after-crash"), SECRET, LOGIN)
+                    .unwrap()
+                    .invoices,
+                2
+            );
+        }
+    }
+}
+
+#[test]
+fn full_target_database_rolls_restore_back_without_losing_current_data() {
+    let d = tempfile::tempdir().unwrap();
+    let mut source = seeded(&d.path().join("source"));
+    let payload = serde_json::to_string(&Draft {
+        business_name: "Archive history".into(),
+        business_type: "kirana".into(),
+        note: "x".repeat(2000),
+    })
+    .unwrap();
+    for n in 2..150 {
+        source
+            .0
+            .execute(
+                "INSERT INTO workspace_history VALUES(?1,?2)",
+                params![n, &payload],
+            )
+            .unwrap();
+    }
+    let archive = d.path().join("archive");
+    export(&mut source, &archive, SECRET).unwrap();
+    let mut target = Store::open(&d.path().join("target"), KEY).unwrap();
+    let before = fingerprint(&target.0).unwrap();
+    let pages: i64 = target
+        .0
+        .pragma_query_value(None, "page_count", |r| r.get(0))
+        .unwrap();
+    target
+        .0
+        .pragma_update(None, "max_page_count", pages)
+        .unwrap();
+    let p = preview(&mut target, &archive, SECRET, LOGIN).unwrap();
+    assert!(restore(
+        &mut target,
+        &archive,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &p,
+        &p.confirmation
+    )
+    .is_err());
+    assert_eq!(fingerprint(&target.0).unwrap(), before);
+    integrity(&target.0).unwrap();
+    let foreign_keys: bool = target
+        .0
+        .pragma_query_value(None, "foreign_keys", |r| r.get(0))
+        .unwrap();
+    assert!(foreign_keys);
+}
+
+#[test]
+fn internal_name_lookalikes_and_manifest_named_triggers_are_not_trusted() {
+    let d = tempfile::tempdir().unwrap();
+    let mut source = seeded(&d.path().join("source"));
+    for (index,sql) in ["CREATE TABLE sqliteXhidden(secret TEXT)","CREATE TRIGGER sornio_backup_manifest AFTER UPDATE ON workspace_access BEGIN DELETE FROM workspace_draft; END;"].iter().enumerate() {
+  let p=d.path().join(format!("archive-{index}"));export(&mut source,&p,SECRET).unwrap();
+  let db=Connection::open(&p).unwrap();db.pragma_update(None,"key",SECRET).unwrap();db.execute_batch(sql).unwrap();drop(db);
+  assert!(preview(&mut source,&p,SECRET,LOGIN).is_err());assert!(source.load().unwrap().draft.is_some());
+ }
+    let mut legacy = Store::open(&d.path().join("legacy"), KEY).unwrap();
+    legacy
+        .save(
+            0,
+            Draft {
+                business_name: "Legacy business".into(),
+                business_type: "kirana".into(),
+                note: "No access configured yet".into(),
+            },
+        )
+        .unwrap();
+    let p = d.path().join("ordinary");
+    export(&mut source, &p, SECRET).unwrap();
+    assert!(matches!(
+        preview(&mut legacy, &p, SECRET, LOGIN),
+        Err(StoreError::BackupBusinessMismatch)
+    ));
+}

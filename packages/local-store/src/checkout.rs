@@ -4,7 +4,7 @@ use crate::{
     catalog::Product,
     Store, StoreError,
 };
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, OptionalExtension, Transaction};
 use serde::Serialize;
 
 #[derive(Debug, Serialize)]
@@ -48,9 +48,7 @@ impl Store {
     pub fn prepare_checkout(&mut self, request: PostInvoice) -> Result<(), StoreError> {
         request.validate()?;
         let raw = serde_json::to_string(&request)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         let canceled: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
             [&request.operation_id],
@@ -103,9 +101,7 @@ impl Store {
         if !crate::billing::valid_id(operation_id) {
             return Err(StoreError::InvalidInvoice);
         }
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         let current: Option<String> = tx
             .query_row(
                 "SELECT operation_id FROM local_checkout WHERE singleton=1",

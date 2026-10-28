@@ -1,6 +1,6 @@
 //! Authoritative cash/credit posting. No renderer prices/totals or digital settlement.
 use crate::{catalog::MAX_VALUE, Store, StoreError};
-use rusqlite::{params, OptionalExtension, TransactionBehavior};
+use rusqlite::{params, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
@@ -156,9 +156,7 @@ impl Store {
     ) -> Result<Invoice, StoreError> {
         request.validate()?;
         let raw = serde_json::to_string(&request)?;
-        let tx = self
-            .0
-            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let tx = self.writer()?;
         let previous: Option<(String, String)> = tx
             .query_row(
                 "SELECT request,payload FROM local_invoices WHERE id=?1",

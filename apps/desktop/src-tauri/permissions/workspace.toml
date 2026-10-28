@@ -13,3 +13,8 @@ commands.allow = ["list_local_products", "add_local_product", "adjust_local_stoc
 identifier = "local-billing"
 description = "Post bounded cash/credit invoices and read local records through native unlock. No network or outbox acknowledgement."
 commands.allow = ["read_cashier_state", "prepare_local_checkout", "clear_local_checkout", "post_local_invoice", "list_local_invoices", "read_billing_outbox"]
+
+[[permission]]
+identifier = "local-recovery"
+description = "Native password-authenticated encrypted backup and restore using OS-selected files; no renderer filesystem paths or encryption keys."
+commands.allow = ["read_last_restore", "choose_local_backup", "export_local_backup", "preview_local_backup", "restore_local_backup"]

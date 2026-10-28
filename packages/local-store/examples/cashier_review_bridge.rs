@@ -19,7 +19,11 @@ struct Call {
 fn argument<T: serde::de::DeserializeOwned>(args: &Value, key: &str) -> Result<T, StoreError> {
     Ok(serde_json::from_value(args[key].clone())?)
 }
-fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+fn call(
+    w: &mut Workspace,
+    preview: &mut Option<sornio_local_store::recovery::BackupPreview>,
+    c: Call,
+) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
         "workspace_access_status" => serde_json::to_value(w.status()?)?,
@@ -30,6 +34,44 @@ fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
         "lock_workspace" => {
             w.lock();
             Value::Null
+        }
+        "save_workspace" => {
+            serde_json::to_value(w.save(argument(a, "expectedRevision")?, argument(a, "draft")?)?)?
+        }
+        "read_last_restore" => serde_json::to_value(w.last_restore()?)?,
+        "choose_local_backup" => serde_json::json!("synthetic.sorniobackup"),
+        "export_local_backup" => {
+            let path = std::path::PathBuf::from(std::env::var_os("SORNIO_REVIEW_BACKUP").unwrap());
+            serde_json::to_value(w.export_backup(
+                &path,
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "recoveryPassword")?,
+            )?)?
+        }
+        "preview_local_backup" => {
+            *preview = None;
+            let path = std::path::PathBuf::from(std::env::var_os("SORNIO_REVIEW_BACKUP").unwrap());
+            let result = w.preview_backup(
+                &path,
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "recoveryPassword")?,
+                &argument::<String>(a, "originalPassword")?,
+            )?;
+            *preview = Some(result.clone());
+            serde_json::to_value(result)?
+        }
+        "restore_local_backup" => {
+            let path = std::path::PathBuf::from(std::env::var_os("SORNIO_REVIEW_BACKUP").unwrap());
+            let expected = preview.take().ok_or(StoreError::RecoveryChanged)?;
+            serde_json::to_value(w.restore_backup(
+                &path,
+                path.parent().unwrap(),
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "recoveryPassword")?,
+                &argument::<String>(a, "originalPassword")?,
+                &expected,
+                &argument::<String>(a, "confirmation")?,
+            )?)?
         }
         "load_workspace" => serde_json::to_value(w.load()?)?,
         "list_workspace_copies" => serde_json::to_value(w.saved_copies()?)?,
@@ -69,9 +111,10 @@ fn main() {
     )
     .unwrap();
     let mut workspace = Workspace::new(store);
+    let mut preview = None;
     for line in io::stdin().lock().lines() {
         let input: Call = serde_json::from_str(&line.unwrap()).unwrap();
-        let output = match call(&mut workspace, input) {
+        let output = match call(&mut workspace, &mut preview, input) {
             Ok(value) => json!({"ok":true,"value":value}),
             Err(error) => {
                 let code = match error {

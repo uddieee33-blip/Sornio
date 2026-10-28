@@ -13,3 +13,6 @@ tauri = { version = "2", features = [] }
 sornio-local-store = { path = "../../../packages/local-store" }
 serde = { version = "1", features = ["derive"] }
 
+
+[target.'cfg(windows)'.dependencies]
+rfd = { version = "0.15", default-features = false }
