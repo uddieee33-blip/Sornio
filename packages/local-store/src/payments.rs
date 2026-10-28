@@ -224,6 +224,15 @@ fn one(db: &Connection, sql: &str, p: impl rusqlite::Params) -> Result<(), Store
 fn sum(a: i128, b: i128) -> Result<i128, StoreError> {
     a.checked_add(b).ok_or(StoreError::InvalidPayment)
 }
+fn variance(counted: i64, expected: &str) -> Result<String, StoreError> {
+    let expected = expected
+        .parse::<i128>()
+        .map_err(|_| StoreError::InvalidPayment)?;
+    Ok((counted as i128)
+        .checked_sub(expected)
+        .ok_or(StoreError::InvalidPayment)?
+        .to_string())
+}
 fn now(db: &Connection) -> Result<String, StoreError> {
     Ok(
         db.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |r| {
@@ -1026,6 +1035,101 @@ fn validate(r: &Request) -> Result<(), StoreError> {
         | Action::Reopen { reason: r, .. } => reason(r)?,
         _ => {}
     }
+    let date_shape = |day: &str| {
+        day.len() == 10
+            && day.bytes().enumerate().all(|(i, b)| {
+                if i == 4 || i == 7 {
+                    b == b'-'
+                } else {
+                    b.is_ascii_digit()
+                }
+            })
+    };
+    let money = |n: i64| (0..=MAX_VALUE).contains(&n);
+    let revision = |n: i64| (0..=9_007_199_254_740_991).contains(&n);
+    let bad = match &r.action {
+        Action::Sale { .. } => false,
+        Action::Match {
+            payment_id,
+            expected_revision,
+            statement_amount_paise,
+            ..
+        } => {
+            !billing::valid_id(payment_id)
+                || !revision(*expected_revision)
+                || *statement_amount_paise < 1
+                || !money(*statement_amount_paise)
+        }
+        Action::MatchRefund {
+            refund_id,
+            expected_revision,
+            statement_amount_paise,
+            ..
+        } => {
+            refund_id.is_empty()
+                || refund_id.len() > 160
+                || !refund_id
+                    .bytes()
+                    .all(|b| b.is_ascii_alphanumeric() || b"-_:".contains(&b))
+                || !revision(*expected_revision)
+                || *statement_amount_paise < 1
+                || !money(*statement_amount_paise)
+        }
+        Action::ReverseMatch {
+            payment_id,
+            expected_revision,
+            ..
+        } => !billing::valid_id(payment_id) || !revision(*expected_revision),
+        Action::Return {
+            invoice_id,
+            expected_revision,
+            lines,
+            refunds,
+            ..
+        } => {
+            !billing::valid_id(invoice_id)
+                || !revision(*expected_revision)
+                || lines.is_empty()
+                || lines.len() > 100
+                || refunds.len() > 8
+                || lines
+                    .iter()
+                    .any(|l| l.line_index >= 100 || !(1..=MAX_VALUE).contains(&l.quantity_milli))
+                || refunds.iter().any(|p| {
+                    !billing::valid_id(&p.payment_id) || !(1..=MAX_VALUE).contains(&p.amount_paise)
+                })
+        }
+        Action::Float {
+            day,
+            username,
+            amount_paise,
+        } => !date_shape(day) || identity::username(username).is_err() || !money(*amount_paise),
+        Action::CorrectFloat {
+            opening_id,
+            amount_paise,
+            ..
+        } => !billing::valid_id(opening_id) || !money(*amount_paise),
+        Action::Close {
+            day,
+            username,
+            through,
+            counted_paise,
+        } => {
+            !date_shape(day)
+                || identity::username(username).is_err()
+                || *through < 0
+                || !money(*counted_paise)
+        }
+        Action::CorrectClose {
+            closing_id,
+            counted_paise,
+            ..
+        } => !billing::valid_id(closing_id) || !money(*counted_paise),
+        Action::Reopen { closing_id, .. } => !billing::valid_id(closing_id),
+    };
+    if bad {
+        return Err(StoreError::InvalidPayment);
+    }
     Ok(())
 }
 
@@ -1369,13 +1473,7 @@ impl Store {
                     return Err(StoreError::CheckoutActive);
                 }
                 x.counted_cash_paise = Some(*counted_paise);
-                x.variance_paise = Some(
-                    (*counted_paise as i128
-                        - x.expected_cash_paise
-                            .parse::<i128>()
-                            .map_err(|_| StoreError::InvalidPayment)?)
-                    .to_string(),
-                );
+                x.variance_paise = Some(variance(*counted_paise, &x.expected_cash_paise)?);
                 x.closing_id = Some(id.clone());
                 x.state = "closed".into();
                 close_row(&tx, id, &x, "closed")?;
@@ -1408,13 +1506,7 @@ impl Store {
                         return Err(StoreError::InvalidPayment);
                     }
                     x.counted_cash_paise = Some(*counted_paise);
-                    x.variance_paise = Some(
-                        (*counted_paise as i128
-                            - x.expected_cash_paise
-                                .parse::<i128>()
-                                .map_err(|_| StoreError::InvalidPayment)?)
-                        .to_string(),
-                    );
+                    x.variance_paise = Some(variance(*counted_paise, &x.expected_cash_paise)?);
                     x.state = "corrected".into();
                 } else {
                     x.state = "reopened".into();
@@ -1777,7 +1869,7 @@ impl Store {
             }
         }
         {
-            let mut q=tx.prepare("SELECT e.operation_id,e.kind,e.reference,e.reason,COALESCE(e.actor_id,'legacy-unattributed'),e.created_at,COALESCE(p.invoice_id,rp.invoice_id),COALESCE(p.method,f.method),(SELECT j.amount FROM local_retail_journal j WHERE j.operation_id=e.operation_id AND j.account IN ('upi_clearing','card_clearing') LIMIT 1) FROM local_retail_events e LEFT JOIN local_retail_payments p ON p.id=e.subject LEFT JOIN local_retail_refunds f ON f.id=e.subject LEFT JOIN local_retail_payments rp ON rp.id=f.payment_id WHERE date(e.created_at,'+330 minutes')=?1 ORDER BY e.sequence")?;
+            let mut q=tx.prepare("SELECT e.operation_id,e.kind,e.reference,e.reason,COALESCE(e.actor_id,'legacy-unattributed'),a.created_at,COALESCE(p.invoice_id,rp.invoice_id),COALESCE(p.method,f.method),(SELECT j.amount FROM local_retail_journal j WHERE j.operation_id=e.operation_id AND j.account IN ('upi_clearing','card_clearing') LIMIT 1) FROM local_retail_events e JOIN local_retail_activity a ON a.operation_id=e.operation_id LEFT JOIN local_retail_payments p ON p.id=e.subject LEFT JOIN local_retail_refunds f ON f.id=e.subject LEFT JOIN local_retail_payments rp ON rp.id=f.payment_id WHERE a.day=?1 ORDER BY e.sequence")?;
             for row in q.query_map([day], |r| {
                 Ok((
                     r.get::<_, String>(0)?,
@@ -1868,12 +1960,17 @@ impl Store {
         }
         {
             let mut q = tx.prepare(
-                "SELECT id,payload FROM local_retail_closings WHERE day=?1 ORDER BY sequence",
+                "SELECT c.id,c.payload,COALESCE((SELECT a.created_at FROM local_identity_audit a WHERE a.target=c.id AND a.action IN ('drawer_closed','closing_corrected','drawer_reopened') ORDER BY a.sequence LIMIT 1),''),COALESCE(json_extract(o.request,'$.action.reason'),'') FROM local_retail_closings c LEFT JOIN local_retail_ops o ON o.id=c.id WHERE c.day=?1 ORDER BY c.sequence",
             )?;
             for row in q.query_map([day], |r| {
-                Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?))
+                Ok((
+                    r.get::<_, String>(0)?,
+                    r.get::<_, String>(1)?,
+                    r.get::<_, String>(2)?,
+                    r.get::<_, String>(3)?,
+                ))
             })? {
-                let (id, payload) = row?;
+                let (id, payload, time, reason) = row?;
                 let x: DaySummary = serde_json::from_str(&payload)?;
                 for (name, n) in [
                     (
@@ -1896,7 +1993,7 @@ impl Store {
                         &mut out,
                         "closing_snapshot",
                         day,
-                        &stamp,
+                        &time,
                         &x.actor_id,
                         &id,
                         "",
@@ -1904,7 +2001,7 @@ impl Store {
                         &x.state,
                         n,
                         "",
-                        &format!("Immutable snapshot through {}", x.through),
+                        &format!("Immutable snapshot through {}. {}", x.through, reason),
                     );
                 }
             }

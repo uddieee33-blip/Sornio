@@ -1003,3 +1003,82 @@ fn opening_float_correction_is_append_only_and_invalidates_a_stale_close() {
     s.prepare_retail(r.clone()).unwrap();
     assert!(matches!(s.post_retail(r), Err(StoreError::PaymentConflict)));
 }
+
+#[test]
+fn reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "sale", &[("upi", 10000)]);
+    perform(&mut s, r);
+    let r = match_req(&s, "match", "sale-p-0", "DAY123456");
+    perform(&mut s, r);
+    // Fixture a bank-event clock on the preceding IST date; do not change its
+    // native cash-activity/journal posting snapshot or the financial amounts.
+    s.0.execute_batch("DROP TRIGGER local_retail_events_no_UPDATE;UPDATE local_retail_events SET created_at=strftime('%Y-%m-%dT18:29:59.999Z','now','+330 minutes','-1 day') WHERE operation_id='match';").unwrap();
+    let day = today(&s.0).unwrap();
+    let csv = s.export_retail(&day).unwrap().csv;
+    let rows = csv
+        .lines()
+        .filter(|r| r.contains("\"match\""))
+        .collect::<Vec<_>>();
+    assert!(rows
+        .iter()
+        .any(|r| r.starts_with("\"manual_reconciliation\"")));
+    assert!(rows.iter().any(|r| r.starts_with("\"journal\"")));
+    assert!(rows.iter().all(|r| r.contains(&format!("\"{day}\""))));
+}
+#[test]
+fn cash_variance_preserves_large_integer_values_and_refuses_overflow() {
+    assert_eq!(
+        variance(0, "9018000000000001").unwrap(),
+        "-9018000000000001"
+    );
+    assert_eq!(variance(1, "0").unwrap(), "1");
+    assert!(variance(0, &i128::MIN.to_string()).is_err());
+}
+#[test]
+fn invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let before = snapshots(&s);
+    let actions = [
+        Action::Close {
+            day: "x".repeat(1000),
+            username: "owner".into(),
+            through: 0,
+            counted_paise: 0,
+        },
+        Action::Float {
+            day: "2026-01-01".into(),
+            username: "x".repeat(1000),
+            amount_paise: 0,
+        },
+        Action::Return {
+            invoice_id: "sale".into(),
+            expected_revision: 0,
+            lines: vec![
+                ReturnLine {
+                    line_index: 0,
+                    quantity_milli: 1
+                };
+                101
+            ],
+            refunds: vec![],
+            reason: "Checked goods".into(),
+        },
+        Action::Match {
+            payment_id: "payment".into(),
+            expected_revision: 0,
+            reference: "MATCH123456".into(),
+            statement_amount_paise: -1,
+            evidence: "Bank statement".into(),
+        },
+    ];
+    for (i, a) in actions.into_iter().enumerate() {
+        assert!(matches!(
+            s.prepare_retail(req(&format!("invalid-{i}"), a)),
+            Err(StoreError::InvalidPayment)
+        ));
+        assert_eq!(snapshots(&s), before);
+    }
+}
