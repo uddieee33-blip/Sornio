@@ -185,8 +185,10 @@ fn disconnect_pending_cancel_reconnect_and_hub_restart_preserve_uncertainty() {
     let server = start(h.clone(), Arc::new(AtomicBool::new(false)));
     let mut a = pair(&h, &d.path().join("a"), Role::Cashier, server.address());
     a.cashier_state().unwrap();
+    let request = sale("prepared-before-disconnect");
+    a.prepare_checkout(request.clone()).unwrap();
     drop(server);
-    let request = sale("offline-queued");
+    // Existing exact prepare retries remain recoverable while disconnected.
     a.prepare_checkout(request.clone()).unwrap();
     assert!(matches!(
         a.post_prepared_invoice(request.clone()),
@@ -239,7 +241,8 @@ fn device_revocation_role_denial_wrong_shop_and_device_spoofing_fail_closed() {
         .change_lan_device(PASSWORD, &settings_a.device_id, Role::Cashier, false, 1)
         .unwrap();
     assert!(a.cashier_state().is_err());
-    a.prepare_checkout(sale("revoked-attempt")).unwrap();
+    assert!(a.prepare_checkout(sale("revoked-attempt")).is_err());
+    assert_eq!(count(&a, "lan_client_queue"), 0);
     assert!(a.post_prepared_invoice(sale("revoked-attempt")).is_err());
     assert_eq!(count(&h.lock().unwrap(), "local_invoices"), 0);
     let other = hub(&d.path().join("other-hub"));
@@ -572,4 +575,40 @@ fn approval_cannot_substitute_another_computers_certificate() {
         .is_err());
     assert!(a.store.prepare_checkout(sale("raw-prepare-fork")).is_err());
     assert!(a.store.post_invoice(sale("raw-post-fork")).is_err());
+}
+
+#[test]
+fn unavailable_hub_cannot_create_a_new_shared_stock_checkout() {
+    let d = tempfile::tempdir().unwrap();
+    let h = hub(&d.path().join("hub"));
+    let server = start(h.clone(), Arc::new(AtomicBool::new(false)));
+    let path = d.path().join("cashier");
+    let mut a = pair(&h, &path, Role::Cashier, server.address());
+    assert_eq!(a.cashier_state().unwrap().products.len(), 1);
+    drop(server);
+    let request = sale("offline-new-operation");
+    assert!(matches!(
+        a.prepare_checkout(request.clone()),
+        Err(StoreError::HubUnavailable)
+    ));
+    assert_eq!(count(&a, "lan_client_queue"), 0);
+    assert_eq!(count(&a, "local_invoices"), 0);
+    assert_eq!(count(&h.lock().unwrap(), "local_invoices"), 0);
+    drop(a);
+    let mut a = Workspace::new(Store::open(&path, KEY).unwrap());
+    a.unlock(PASSWORD).unwrap();
+    assert!(matches!(
+        a.prepare_checkout(request.clone()),
+        Err(StoreError::HubUnavailable)
+    ));
+    assert_eq!(count(&a, "lan_client_queue"), 0);
+    let server = start(h.clone(), Arc::new(AtomicBool::new(false)));
+    a.change_hub_address(PASSWORD, &server.address().to_string())
+        .unwrap();
+    a.prepare_checkout(request.clone()).unwrap();
+    assert_eq!(count(&a, "lan_client_queue"), 1);
+    let first = a.post_prepared_invoice(request.clone()).unwrap();
+    let replay = a.post_prepared_invoice(request).unwrap();
+    assert_eq!(first.id, replay.id);
+    assert_eq!(count(&h.lock().unwrap(), "local_invoices"), 1);
 }

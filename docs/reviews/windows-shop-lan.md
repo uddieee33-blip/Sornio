@@ -230,3 +230,24 @@ References: [rustls mutual client authentication](https://docs.rs/rustls/0.23.46
 [rcgen verified CSR parsing](https://docs.rs/rcgen/0.14.10/rcgen/struct.CertificateSigningRequestParams.html),
 [SQLite transactions](https://www.sqlite.org/lang_transaction.html),
 [Windows socket binding security](https://learn.microsoft.com/windows/win32/winsock/using-so-reuseaddr-and-so-exclusiveaddruse).
+
+
+## Disconnected checkout hardening (28 October 2026)
+
+New shared-stock requests require a successful native synchronization with the
+mutually authenticated hub before they enter the durable queue. An unavailable
+hub or a revoked device cannot create a new queued checkout from cached stock.
+The UI also disables new checkout while its latest state is offline; the native
+check is authoritative even if the renderer bypasses that UI restriction.
+
+Exact retries of an existing active request keep its original operation ID and
+remain available during disconnection. No financial posting occurs locally.
+Network I/O holds no SQLite writer lock, and queue checks repeat under a fresh
+writer lock after synchronization. A successful preflight is not a stock
+reservation or a guarantee of future connectivity: final stock, device grant and
+idempotency checks still occur inside the hub posting transaction. A disconnect
+between preparation and posting retains the existing uncertainty/recovery flow.
+
+This hardening does not implement individual human authentication, the newer
+financial operation adapters, restore epochs or failover. Those integration and
+Windows/physical multi-PC acceptance requirements remain release blockers.

@@ -45,9 +45,19 @@ try{
  await button(winner,'Start next sale').click();await button(loser,'Edit refused sale').click();
  await hub.native('adjust_local_stock',{request:{operationId:'restock-after-concurrency',productId:'last-item',expectedRevision:2,deltaMilli:1000,reason:'Physical restock'}});
  await button(loser,'Refresh checkout').click();await loser.getByRole('list',{name:'Items available for sale'}).getByText(/1 pcs available/).waitFor();
+ // A cached cart must not create a new native operation while the hub is down.
  await hub.native('review_drop_listener');await button(loser,'Refresh checkout').click();await loser.getByRole('status').filter({hasText:'Shop hub unavailable.'}).waitFor();
- // The refused cart is retained for editing; its next request receives a fresh stable operation ID.
- await button(loser,'Review sale').click();await button(loser,'Confirm sale').click();await loser.getByRole('alert').filter({hasText:'result is uncertain'}).waitFor();const queued=(await loserPeer.native('read_cashier_state')).checkout.request.operationId;
+ assert.equal(await button(loser,'Review sale').isDisabled(),true);
+ const offlineProduct=(await loserPeer.native('read_cashier_state')).products[0];
+ const refused=await loserPeer.rpc('prepare_local_checkout',{request:{operationId:'must-not-queue-offline',taxBasisPoints:0,tender:'cash',customerId:null,lines:[{productId:offlineProduct.id,expectedRevision:offlineProduct.revision,quantityMilli:1000}]}});
+ assert.equal(refused.ok,false);assert.equal(refused.error.code,'hub_unavailable');assert.equal((await loserPeer.native('read_cashier_state')).checkout,null);
+ const resumedAddress=await hub.native('review_restart_listener');await loserPeer.native('change_shop_hub_address',{password,endpoint:resumedAddress});await button(loser,'Refresh checkout').click();
+ // Preserve an operation prepared while connected, then lose the hub before posting.
+ const product=(await loserPeer.native('read_cashier_state')).products[0];
+ const queued='prepared-before-hub-loss';
+ await loserPeer.native('prepare_local_checkout',{request:{operationId:queued,taxBasisPoints:0,tender:'cash',customerId:null,lines:[{productId:product.id,expectedRevision:product.revision,quantityMilli:1000}]}});
+ await hub.native('review_drop_listener');await button(loser,'Refresh checkout').click();await loser.getByRole('status').filter({hasText:'Shop hub unavailable.'}).waitFor();
+ await button(loser,'Retry same sale').click();await loser.getByRole('alert').filter({hasText:'result is uncertain'}).waitFor();
  assert.equal((await hub.native('list_local_invoices',{after:0})).length,1);
  await hub.stop();hub.start();await loserPeer.stop();loserPeer.start();await loser.reload();await label(loser,'Local password').fill(password);await button(loser,'Unlock workspace').click();await button(loser,'Retry same sale').waitFor();
  await hub.native('unlock_workspace',{password});const newAddress=(await hub.native('read_shop_lan')).address;
@@ -55,6 +65,6 @@ try{
  assert.equal((await hub.native('list_local_invoices',{after:0})).length,2);assert.equal((await hub.native('read_cashier_state')).products[0].stockMilli,0);assert.equal(await loserPeer.native('review_local_invoice_count'),0);
  await loser.screenshot({path:join(screenshots,'lan-recovered-receipt.png'),fullPage:true});
  assert.deepEqual(errors,[]);for(const page of pages)assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
- console.log('LAN integration passed: three native processes, two React clients, public CSR approval and fingerprint trust, real mutual TLS, concurrent last-unit checkout, native report denial, no client financial posting, offline queue, forced hub/client restart and exact receipt recovery.');
+ console.log('LAN integration passed: three native processes, two React clients, public CSR approval and fingerprint trust, real mutual TLS, concurrent last-unit checkout, native report denial, no client financial posting, retained pre-disconnect queue, forced hub/client restart and exact receipt recovery.');
 } catch(error){for(const peer of peers)console.error(peer.name,peer.stderr);throw error;}finally{await browser.close();for(const peer of peers)await peer.stop();rmSync(directory,{recursive:true,force:true});}
 })().catch(e=>{console.error(e);process.exitCode=1;});

@@ -91,11 +91,13 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
     if (submitting.current || disabled) return;
     readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true); remember(request); setReview(false); setRefused(false); setFailed(false);
+    let prepared = false;
     setMessage(lan ? 'Requesting confirmation from the shop hub…' : 'Confirming sale on this PC…');
     try {
       // Persist the exact request before invoking posting. Never create a new ID
       // for a timeout/reply loss, including after a window/app restart.
       await invoke('prepare_local_checkout', { request });
+      prepared = true;
       const saved = await invoke<Invoice>('post_local_invoice', { request });
       if (!mounted.current) return;
       setInvoice(saved); setMessage(lan ? 'Sale confirmed by the shop hub. Refreshing stock and balances…' : 'Sale saved on this PC. Refreshing stock and balances…'); onPosted();
@@ -114,6 +116,10 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       if (!mounted.current) return;
       const code = errorCode(error);
       if (code === 'locked') { onLocked(); return; }
+      if (!prepared && (code === 'hub_unavailable' || code === 'lan_denied')) {
+        remember(null);
+        setLan(current => current ? { ...current, online: false } : current);
+      }
       setRefused(refusedCodes.has(code ?? '')); setFailed(true);
       setMessage(errorMessage(error, 'The sale result is uncertain. Retry the same sale; do not enter it again.'));
     } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
@@ -160,7 +166,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
         : detail || 'Check the sale quantities and tax.';
     }
   }
-  const blocked = disabled || busy || !ready || pending !== null;
+  const blocked = disabled || busy || !ready || pending !== null || Boolean(lan && !lan.online);
   const matching = useMemo(() => products.filter(product => `${product.name} ${product.sku}`.toLowerCase().includes(search.toLowerCase())), [products, search]);
   function add(product: Product) {
     if (blocked || review) return;
@@ -218,7 +224,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>
         {preview ? <p className="checkout-total">Subtotal: {money(preview.subtotalPaise)} · Tax: {money(preview.taxPaise)}<br/><output aria-live="polite">Total: {money(preview.totalPaise)}</output></p> : null}
-        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : `Record credit for ${customer}.`} {lan ? 'Ask the shop hub to confirm this sale?' : 'Save this sale on this PC?'}</p><button type="button" disabled={disabled || busy} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
+        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : `Record credit for ${customer}.`} {lan ? 'Ask the shop hub to confirm this sale?' : 'Save this sale on this PC?'}</p><button type="button" disabled={blocked} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={startConfirmation}>Review sale</button>}
       </> : null}
     </>}

@@ -209,38 +209,52 @@ pub(crate) fn prepare(store: &mut Store, request: PostInvoice) -> Result<(), Sto
     let _ = client(&store.0)?;
     request.validate()?;
     let raw = serde_json::to_string(&request)?;
-    let tx = store
-        .0
-        .transaction_with_behavior(TransactionBehavior::Immediate)?;
-    let old: Option<(String, bool)> = tx
-        .query_row(
-            "SELECT request,active FROM lan_client_queue WHERE operation_id=?1",
-            [&request.operation_id],
-            |r| Ok((r.get(0)?, r.get(1)?)),
-        )
-        .optional()?;
-    if let Some((old, active)) = old {
-        return if old == raw && active {
-            Ok(())
-        } else {
-            Err(StoreError::OperationConflict)
-        };
+    let mut checked_hub = false;
+    loop {
+        let tx = store
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let old: Option<(String, bool)> = tx
+            .query_row(
+                "SELECT request,active FROM lan_client_queue WHERE operation_id=?1",
+                [&request.operation_id],
+                |r| Ok((r.get(0)?, r.get(1)?)),
+            )
+            .optional()?;
+        if let Some((old, active)) = old {
+            return if old == raw && active {
+                Ok(())
+            } else {
+                Err(StoreError::OperationConflict)
+            };
+        }
+        if active(&tx)?.is_some() {
+            return Err(StoreError::CheckoutActive);
+        }
+        if !checked_hub {
+            // Do not create a new shared-stock operation from an offline cache.
+            // Release the writer lock during network I/O, then repeat queue checks
+            // under a fresh lock. Exact retries above retain their durable identity.
+            drop(tx);
+            if !sync(store)? {
+                return Err(StoreError::HubUnavailable);
+            }
+            checked_hub = true;
+            continue;
+        }
+        tx.execute(
+            "INSERT INTO lan_client_queue(operation_id,request) VALUES(?1,?2)",
+            params![request.operation_id, raw],
+        )?;
+        audit(
+            &tx,
+            "local-cashier",
+            "request.queued",
+            serde_json::json!({"operationId":request.operation_id}),
+        )?;
+        tx.commit()?;
+        return Ok(());
     }
-    if active(&tx)?.is_some() {
-        return Err(StoreError::CheckoutActive);
-    }
-    tx.execute(
-        "INSERT INTO lan_client_queue(operation_id,request) VALUES(?1,?2)",
-        params![request.operation_id, raw],
-    )?;
-    audit(
-        &tx,
-        "local-cashier",
-        "request.queued",
-        serde_json::json!({"operationId":request.operation_id}),
-    )?;
-    tx.commit()?;
-    Ok(())
 }
 pub(crate) fn post(store: &mut Store, request: PostInvoice) -> Result<Invoice, StoreError> {
     let s = client(&store.0)?;
