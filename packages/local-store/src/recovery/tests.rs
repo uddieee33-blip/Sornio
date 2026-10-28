@@ -192,12 +192,21 @@ fn wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_close
     assert!(preview(&mut s, &p, SECRET, "Wrong login password").is_err());
     let initial = digest(&s.0).unwrap();
     let original = fs::read(&p).unwrap();
-    for bytes in [Vec::new(), original[..4096].to_vec(), {
-        let mut b = original.clone();
-        let n = b.len() - 128;
-        b[n] ^= 42;
-        b
-    }] {
+    for bytes in [
+        Vec::new(),
+        original[..4096].to_vec(),
+        {
+            let mut b = original.clone();
+            b.extend_from_slice(b"untrusted trailing bytes");
+            b
+        },
+        {
+            let mut b = original.clone();
+            let n = b.len() - 128;
+            b[n] ^= 42;
+            b
+        },
+    ] {
         fs::write(d.path().join("bad"), bytes).unwrap();
         assert!(preview(&mut s, &d.path().join("bad"), SECRET, LOGIN).is_err());
     }

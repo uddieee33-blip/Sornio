@@ -437,6 +437,11 @@ fn verified(source: &Path, secret: &str, original_password: &str) -> Result<Veri
         StoreError::NewerSchema => e,
         _ => StoreError::InvalidBackup,
     })?;
+    let pages: i64 = db.pragma_query_value(None, "page_count", |r| r.get(0))?;
+    let page_size: String = db.pragma_query_value(None, "cipher_page_size", |r| r.get(0))?;
+    if page_size != "4096" || pages.checked_mul(4096) != i64::try_from(n).ok() {
+        return Err(StoreError::InvalidBackup);
+    }
     let preview = details(&db, &manifest, file_hash(file.path())?)?;
     drop(db);
     let store = Store::open_secret(file.path(), secret)?;

@@ -6,7 +6,7 @@ import type { AccessStatus } from './access';
 import { BackupPanel } from './BackupPanel';
 import brandIcon from '../../../public/brand/icon-192.png';
 
-export function AccessGate({ children }: { children: (onLocked: () => void) => ReactNode }) {
+export function AccessGate({ children }: { children: (onLocked: (message?: string) => void) => ReactNode }) {
   const native = isTauri();
   const [access, setAccess] = useState<AccessStatus | null>(null);
   const [message, setMessage] = useState('');
@@ -16,8 +16,8 @@ export function AccessGate({ children }: { children: (onLocked: () => void) => R
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const submitting = useRef(false);
-  const onLocked = useCallback(() => {
-    setAccess({ configured: true, unlocked: false }); setMessage('');
+  const onLocked = useCallback((detail = '') => {
+    setAccess(current => ({ configured: current?.configured ?? true, unlocked: false })); setMessage(detail);
   }, []);
 
   useEffect(() => {
@@ -68,7 +68,7 @@ export function AccessGate({ children }: { children: (onLocked: () => void) => R
           <button className="access-submit" type="submit" disabled={busy || !password || (setup && (Array.from(password).length < 10 || !confirm))}>{busy ? 'Opening…' : setup ? 'Set up local access' : 'Unlock workspace'}</button>
         </fieldset>
       </form> : native && message ? <button type="button" className="access-submit" onClick={() => { setMessage(''); setRetry((n) => n + 1); }}>Retry local access</button> : null}
-      {native && access ? <BackupPanel allowExport={false} configured={access.configured} disabled={busy} onBusyChange={setRecoveryBusy} onRestored={() => window.location.reload()}/> : null}
+      {native && access ? <BackupPanel allowExport={false} configured={access.configured} disabled={busy} onBusyChange={setRecoveryBusy} onLocked={onLocked} onRestored={() => window.location.reload()}/> : null}
       <p className="access-footnote">Engineering review · Use test data only.<br/>Local access does not create a verified business account.</p>
     </section>
   </main>;

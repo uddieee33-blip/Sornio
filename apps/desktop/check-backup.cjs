@@ -45,6 +45,11 @@ async function stop() { if(child.exitCode!==null || child.signalCode!==null)retu
   await label('Workspace note').fill('Saved after backup');await button('Save local draft').click();await page.getByText('Saved to this PC. You can close and reopen Sornio.',{exact:true}).waitFor();
   await button('Choose encrypted backup…').click();await page.getByText('synthetic.sorniobackup',{exact:true}).waitFor();
   await credentials('Wrong recovery passphrase!');await button('Verify and preview backup').click();await page.getByRole('alert').filter({hasText:'Backup could not be verified.'}).waitFor();
+  await credentials();await label('Original local password from backup').fill('Wrong original local password');await button('Verify and preview backup').click();
+  await label('Local password').waitFor();await page.getByRole('alert').filter({hasText:'That password did not unlock this workspace.'}).waitFor();
+  assert.equal(await label('Workspace note').count(),0,'Authentication denial left the private workspace visible');
+  await label('Local password').fill(login);await button('Unlock workspace').click();
+  await button('Open backup controls').click();await button('Choose encrypted backup…').click();await page.getByText('synthetic.sorniobackup',{exact:true}).waitFor();
   await credentials();await button('Verify and preview backup').click();await page.getByRole('group',{name:'Verified backup preview'}).waitFor();
   await page.getByText('Invoices: 1',{exact:false}).waitFor();
   for(const name of ['Current local password','Recovery passphrase','Original local password from backup']) assert.equal(await label(name).inputValue(),'');

@@ -21,7 +21,7 @@ const types = [
   ['boutique', 'Boutique'], ['service', 'Services'],
 ] as const satisfies ReadonlyArray<readonly [PortalId, string]>;
 
-function App({ onLocked }: { onLocked: () => void }) {
+function App({ onLocked }: { onLocked: (message?: string) => void }) {
   const native = isTauri();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [draft, setDraft] = useState<Draft>(empty);
@@ -150,7 +150,7 @@ function App({ onLocked }: { onLocked: () => void }) {
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
         </div>
         {native && snapshot ? <InventoryPanel refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
-        {native && snapshot ? <BackupPanel configured disabled={checkoutBusy || catalogBusy || draftDirty || checkoutDirty || catalogDirty || status === 'saving' || status === 'opening'} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={() => window.location.reload()}/> : null}
+        {native && snapshot ? <BackupPanel configured disabled={checkoutBusy || catalogBusy || draftDirty || checkoutDirty || catalogDirty || status === 'saving' || status === 'opening'} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onLocked={onLocked} onRestored={() => window.location.reload()}/> : null}
         {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>

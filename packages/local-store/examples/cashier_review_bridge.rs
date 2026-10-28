@@ -119,6 +119,8 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::IncorrectPassword => "incorrect_password",
+                    StoreError::RateLimited => "rate_limited",
                     StoreError::StockConflict => "stock_conflict",
                     StoreError::CheckoutActive => "checkout_active",
                     StoreError::InvalidInvoice => "invalid_invoice",

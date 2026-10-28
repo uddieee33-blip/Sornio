@@ -1,14 +1,14 @@
 import { useEffect, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import { errorMessage } from './access';
+import { errorCode, errorMessage } from './access';
 export type BackupPreview = {
   backupId: string; businessId: string; businessName: string; createdAt: number; schemaVersion: number;
   invoices: number; ledgerEntries: number; auditRecords: number; outboxEvents: number; pendingCheckout: boolean;
   fileSha256: string; currentFingerprint: string; confirmation: string;
 };
-export function BackupPanel({ configured, allowExport = true, disabled = false, onBusyChange, onDirtyChange, onRestored }: {
+export function BackupPanel({ configured, allowExport = true, disabled = false, onBusyChange, onDirtyChange, onRestored, onLocked }: {
   configured: boolean; allowExport?: boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void;
-  onDirtyChange?: (dirty: boolean) => void; onRestored: () => void;
+  onDirtyChange?: (dirty: boolean) => void; onRestored: () => void; onLocked: (message: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -56,7 +56,12 @@ export function BackupPanel({ configured, allowExport = true, disabled = false, 
         onRestored();
       }
     } catch (error) {
-      setFailed(true); setMessage(errorMessage(error, 'Recovery stopped. Keep the original files. Preview again before retrying.'));
+      const detail = errorMessage(error, 'Recovery stopped. Keep the original files. Preview again before retrying.');
+      setFailed(true); setMessage(detail);
+      if (action === 'restore' || ['locked', 'incorrect_password', 'rate_limited'].includes(errorCode(error) ?? '')) {
+        try { await invoke('lock_workspace'); } catch { /* Native failure still clears the private screen. */ }
+        onLocked(detail);
+      }
       if (action === 'restore') setPreview(null);
     } finally { clear(); submitting.current = false; setBusy(false); }
   }
