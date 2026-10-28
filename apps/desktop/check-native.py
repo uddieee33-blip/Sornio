@@ -170,8 +170,8 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-local-stock.png")
 
     # Actual bundled cashier -> authorized native posting -> encrypted SQLite.
-    fill("Search items for sale", "NATIVE-RICE")
-    activate("Add Sample native rice to sale")
+    focus_control("Search items for sale", "Edit")
+    send_keys("{F2}NATIVE-RICE{ENTER}", pause=0.1)
     fill("Quantity for Sample native rice (pcs)", "4.001")
     assert_review_blocked("Check quantities against available stock.")
     activate("Refresh checkout")

@@ -6,6 +6,7 @@ import type { PortalId } from '../../../packages/business-domain/src/business-ty
 import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
+import { I18nProvider } from '../../../lib/i18n';
 import { CheckoutPanel } from './CheckoutPanel';
 import { AccessGate } from './AccessGate';
 import { errorCode, errorMessage } from './access';
@@ -124,7 +125,7 @@ function App({ onLocked }: { onLocked: () => void }) {
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace"><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button className="quiet-button" type="button" disabled={busy} onClick={() => setLockPrompt(false)}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
-        {native && snapshot ? <CheckoutPanel disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
+        {native && snapshot ? <CheckoutPanel businessName={snapshot.draft?.businessName ?? 'Shop name not configured'} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
         <div className="workspace-grid">
           <form className="panel" onSubmit={(event) => void save(event)}>
             <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
@@ -153,5 +154,5 @@ function App({ onLocked }: { onLocked: () => void }) {
   </div>;
 }
 
-createRoot(document.getElementById('root')!).render(<AccessGate>{(onLocked) => <App onLocked={onLocked}/>}</AccessGate>);
+createRoot(document.getElementById('root')!).render(<I18nProvider><AccessGate>{(onLocked) => <App onLocked={onLocked}/>}</AccessGate></I18nProvider>);
 

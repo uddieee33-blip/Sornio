@@ -200,6 +200,50 @@ async function stopBridge() {
     assert.equal(await label('Saved invoice ID').inputValue(),finalId);
     assert.equal((await native('list_local_invoices',{after:0})).length,5);
     assert.equal((await native('read_cashier_state')).products.find(p=>p.id==='widget').stockMilli,1875);
+    // Keyboard-only checkout under a 4x CPU slowdown. No mouse submission.
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Emulation.setCPUThrottlingRate', {rate:4});
+    await button('Start next sale').click();
+    await page.getByText('Checkout is ready. Totals are previews until the sale is saved.',{exact:true}).waitFor();
+    const keyboardStart = performance.now();
+    await page.keyboard.press('F2');
+    await page.keyboard.type('WIDGET'); await page.keyboard.press('Enter');
+    await page.keyboard.press('F3'); await page.keyboard.type('0.125'); await page.keyboard.press('Enter');
+    await page.keyboard.press('F4'); await button('Confirm sale').waitFor(); await page.keyboard.press('Enter');
+    await saved().waitFor();
+    const keyboardMs = Math.round(performance.now()-keyboardStart);
+    const printedId = await label('Saved invoice ID').inputValue();
+    const invoicesBeforePrint = await native('list_local_invoices',{after:0});
+    const postsBeforePrint = calls.filter(call=>call.command==='post_local_invoice').length;
+    await page.evaluate(()=>{window.print=()=>{throw new Error('Injected print dialog failure');};});
+    await button('Print saved receipt').click();
+    await page.getByRole('status').filter({hasText:'Printing could not open.'}).waitFor();
+    await page.evaluate(()=>{window.print=()=>{window.__receiptPrints=(window.__receiptPrints||0)+1;};});
+    for(const layout of ['a4','58mm','80mm']) {
+      await label('Paper layout').selectOption(layout);await button('Print saved receipt').click();
+      await page.getByRole('status').filter({hasText:'Check the printer or PDF output.'}).waitFor();
+      await page.waitForFunction(()=>document.querySelector('[data-sornio-print-root]'));
+      assert.equal(await page.locator('[data-sornio-print-root] .receipt-reference').textContent(),printedId);
+      await page.emulateMedia({media:'print'});
+      assert.equal(await page.locator('.desktop-shell').isVisible(),false);
+      assert.equal(await page.locator('[data-sornio-print-root]').isVisible(),true);
+      if(process.argv[4]) { mkdirSync(process.argv[4],{recursive:true}); await page.pdf({path:join(process.argv[4],`receipt-${layout}.pdf`),preferCSSPageSize:true}); }
+      await page.emulateMedia({media:'screen'});
+    }
+    await label('Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ').selectOption('pa');
+    await page.getByRole('button',{name:'ਸੰਭਾਲੀ ਰਸੀਦ ਛਾਪੋ',exact:true}).waitFor();
+    await page.getByRole('button',{name:'ਸੰਭਾਲੀ ਰਸੀਦ ਛਾਪੋ',exact:true}).click();
+    await page.waitForFunction(()=>document.querySelector('[data-sornio-print-root]')?.textContent.includes('ਨਕਦ ਪ੍ਰਾਪਤ ਹੋਇਆ'));
+    assert.equal(await label('ਸੰਭਾਲੇ ਬਿੱਲ ਦਾ ਨੰਬਰ').inputValue(),printedId);
+    await page.evaluate(()=>document.fonts.load('12px "Sornio Gurmukhi"','ਰਸੀਦ'));
+    assert.equal(await page.evaluate(()=>document.fonts.check('12px "Sornio Gurmukhi"','ਰਸੀਦ')),true);
+    if(process.argv[4]) { await page.screenshot({path:join(process.argv[4],'receipt-punjabi.png'),fullPage:true}); }
+    await label('Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ').selectOption('en');
+    await saved().waitFor();
+    assert.deepEqual(await native('list_local_invoices',{after:0}),invoicesBeforePrint);
+    assert.equal(calls.filter(call=>call.command==='post_local_invoice').length,postsBeforePrint);
+    await cdp.send('Emulation.setCPUThrottlingRate',{rate:1});
+    console.log(JSON.stringify({keyboardCheckout4xCpuMs:keyboardMs,printLayouts:3,printFailureInjected:true,extraFinancialPostsFromPrinting:0}));
     for (const width of [390,760,1365]) {
       await page.setViewportSize({width,height:900});
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,`overflow at ${width}`);
@@ -210,10 +254,19 @@ async function stopBridge() {
       await page.emulateMedia({colorScheme:'dark'});
       await page.screenshot({path:join(process.argv[4],'checkout-saved-dark.png'),fullPage:true});
     }
+    await button('Start next sale').click();
+    await button('Find saved receipt').click();
+    await page.getByRole('region',{name:'Saved receipts'}).getByRole('button').filter({hasText:printedId}).click();
+    await saved().waitFor();
+    assert.equal(await label('Saved invoice ID').inputValue(),printedId);
+    await button('Print saved receipt').click();
+    await page.waitForFunction(()=>document.querySelector('[data-sornio-print-root]'));
+    assert.deepEqual(await native('list_local_invoices',{after:0}),invoicesBeforePrint);
     await button('Lock workspace').click();
     await page.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();
     assert.equal(await saved().count(),0); assert.equal(await label('Saved invoice ID').count(),0);
-    assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);
+    assert.equal(await page.evaluate(()=>Object.keys(localStorage).filter(key=>key!=='dukaanos-language').length+sessionStorage.length),0);
+    assert.equal(await page.locator('[data-sornio-print-root]').count(),0);
     assert.deepEqual(errors,[]);
     console.log('Checkout integration passed: real SQLCipher/Workspace; stale background read fencing; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI.');
   } finally { await browser.close(); await stopBridge(); rmSync(directory,{recursive:true,force:true}); }
