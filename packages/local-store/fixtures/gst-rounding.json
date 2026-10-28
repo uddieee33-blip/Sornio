@@ -1,0 +1,98 @@
+[
+  {
+    "name": "exclusive-intra",
+    "registration": "Regular",
+    "supply": "IntraState",
+    "pricing": "Exclusive",
+    "quantity": 1000,
+    "price": 10000,
+    "rate": 1800,
+    "expected": {
+      "taxable_paise": 10000,
+      "cgst_paise": 900,
+      "sgst_paise": 900,
+      "igst_paise": 0,
+      "total_paise": 11800
+    }
+  },
+  {
+    "name": "inclusive-inter",
+    "registration": "Regular",
+    "supply": "InterState",
+    "pricing": "Inclusive",
+    "quantity": 1000,
+    "price": 11800,
+    "rate": 1800,
+    "expected": {
+      "taxable_paise": 10000,
+      "cgst_paise": 0,
+      "sgst_paise": 0,
+      "igst_paise": 1800,
+      "total_paise": 11800
+    }
+  },
+  {
+    "name": "half-paise-tax",
+    "registration": "Regular",
+    "supply": "IntraState",
+    "pricing": "Exclusive",
+    "quantity": 1000,
+    "price": 10,
+    "rate": 500,
+    "expected": {
+      "taxable_paise": 10,
+      "cgst_paise": 1,
+      "sgst_paise": 0,
+      "igst_paise": 0,
+      "total_paise": 11
+    }
+  },
+  {
+    "name": "inclusive-small",
+    "registration": "Regular",
+    "supply": "IntraState",
+    "pricing": "Inclusive",
+    "quantity": 1000,
+    "price": 4,
+    "rate": 1800,
+    "expected": {
+      "taxable_paise": 3,
+      "cgst_paise": 1,
+      "sgst_paise": 0,
+      "igst_paise": 0,
+      "total_paise": 4
+    }
+  },
+  {
+    "name": "quantity-half-paise",
+    "registration": "Regular",
+    "supply": "InterState",
+    "pricing": "Exclusive",
+    "quantity": 500,
+    "price": 1,
+    "rate": 0,
+    "expected": {
+      "taxable_paise": 1,
+      "cgst_paise": 0,
+      "sgst_paise": 0,
+      "igst_paise": 0,
+      "total_paise": 1
+    }
+  },
+  {
+    "name": "no-gst",
+    "registration": "Unregistered",
+    "supply": "IntraState",
+    "pricing": "Inclusive",
+    "quantity": 1000,
+    "price": 11800,
+    "rate": 0,
+    "expected": {
+      "taxable_paise": 11800,
+      "cgst_paise": 0,
+      "sgst_paise": 0,
+      "igst_paise": 0,
+      "total_paise": 11800
+    }
+  }
+]
