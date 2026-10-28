@@ -9,6 +9,7 @@ pub mod access;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
+pub mod gst;
 
 #[cfg(windows)]
 pub mod device;
