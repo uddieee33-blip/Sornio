@@ -8,6 +8,7 @@ use sornio_local_store::{
     Draft, SavedCopy, Snapshot, Store, StoreError,
 };
 use std::sync::{Arc, Mutex};
+mod lan_commands;
 use tauri::Manager;
 use zeroize::Zeroizing;
 
@@ -31,6 +32,9 @@ impl CommandError {
 impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
+            StoreError::LanUncertain => "lan_uncertain",
+            StoreError::HubUnavailable => "hub_unavailable",
+            StoreError::LanDenied => "lan_denied",
             StoreError::Locked => "locked",
             StoreError::IncorrectPassword => "incorrect_password",
             StoreError::RateLimited => "rate_limited",
@@ -228,7 +232,9 @@ fn main() {
                 .map_err(|_| "The device data directory is unavailable.".to_string())
                 .and_then(|path| initialize(&path))
                 .map(Workspace::new);
-            app.manage(Arc::new(Mutex::new(workspace)));
+            let shared = Arc::new(Mutex::new(workspace));
+            app.manage(shared.clone());
+            lan_commands::setup(app, shared);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -248,7 +254,18 @@ fn main() {
             clear_local_checkout,
             post_local_invoice,
             list_local_invoices,
-            read_billing_outbox
+            read_billing_outbox,
+            lan_commands::read_shop_lan,
+            lan_commands::designate_shop_hub,
+            lan_commands::set_shop_hub_enabled,
+            lan_commands::export_shop_pair_request,
+            lan_commands::approve_shop_computer,
+            lan_commands::preview_shop_pair_request,
+            lan_commands::preview_shop_approval,
+            lan_commands::join_shop_hub,
+            lan_commands::change_shop_hub_address,
+            lan_commands::list_shop_computers,
+            lan_commands::change_shop_computer
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");

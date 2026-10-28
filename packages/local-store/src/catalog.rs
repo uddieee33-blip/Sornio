@@ -169,6 +169,7 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::lan::guard_local(&tx)?;
         if let Some(product) = replay(&tx, &request.operation_id, "product_added", &payload)? {
             return Ok(product);
         }
@@ -223,6 +224,7 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::lan::guard_local(&tx)?;
         if let Some(product) = replay(&tx, &request.operation_id, "stock_adjusted", &payload)? {
             return Ok(product);
         }

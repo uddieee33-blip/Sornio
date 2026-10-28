@@ -1,0 +1,17 @@
+CREATE TABLE IF NOT EXISTS lan_settings(singleton INTEGER PRIMARY KEY CHECK(singleton=1), payload TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS lan_devices(device_id TEXT PRIMARY KEY, name TEXT NOT NULL, role TEXT NOT NULL CHECK(role IN ('owner','manager','cashier')), certificate_hash TEXT NOT NULL UNIQUE, request_hash TEXT NOT NULL UNIQUE, approval TEXT NOT NULL, enabled INTEGER NOT NULL CHECK(enabled IN (0,1)), revision INTEGER NOT NULL CHECK(revision>0));
+CREATE TABLE IF NOT EXISTS lan_operations(sequence INTEGER PRIMARY KEY AUTOINCREMENT, operation_id TEXT NOT NULL UNIQUE, device_id TEXT NOT NULL REFERENCES lan_devices(device_id), request TEXT NOT NULL, outcome TEXT NOT NULL, committed INTEGER NOT NULL CHECK(committed IN (0,1)));
+CREATE TABLE IF NOT EXISTS lan_audit(sequence INTEGER PRIMARY KEY AUTOINCREMENT, actor TEXT NOT NULL, action TEXT NOT NULL, payload TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
+CREATE TABLE IF NOT EXISTS lan_client_queue(operation_id TEXT PRIMARY KEY, request TEXT NOT NULL, attempted INTEGER NOT NULL DEFAULT 0 CHECK(attempted IN (0,1)), outcome TEXT, active INTEGER NOT NULL DEFAULT 1 CHECK(active IN (0,1)));
+CREATE UNIQUE INDEX IF NOT EXISTS lan_one_active_checkout ON lan_client_queue(active) WHERE active=1;
+CREATE TABLE IF NOT EXISTS lan_client_cache(singleton INTEGER PRIMARY KEY CHECK(singleton=1), products TEXT NOT NULL, cursor INTEGER NOT NULL CHECK(cursor>=0), through_head INTEGER NOT NULL CHECK(through_head>=0));
+CREATE TABLE IF NOT EXISTS lan_client_events(sequence INTEGER PRIMARY KEY, invoice_id TEXT NOT NULL, payload TEXT NOT NULL);
+CREATE TRIGGER IF NOT EXISTS lan_operations_no_update BEFORE UPDATE ON lan_operations BEGIN SELECT RAISE(ABORT,'LAN outcomes are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS lan_operations_no_delete BEFORE DELETE ON lan_operations BEGIN SELECT RAISE(ABORT,'LAN outcomes are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS lan_audit_no_update BEFORE UPDATE ON lan_audit BEGIN SELECT RAISE(ABORT,'LAN audit is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS lan_audit_no_delete BEFORE DELETE ON lan_audit BEGIN SELECT RAISE(ABORT,'LAN audit is immutable'); END;
+CREATE TRIGGER IF NOT EXISTS lan_queue_request_immutable BEFORE UPDATE OF operation_id,request ON lan_client_queue BEGIN SELECT RAISE(ABORT,'Queued requests cannot change'); END;
+CREATE TRIGGER IF NOT EXISTS lan_queue_no_delete BEFORE DELETE ON lan_client_queue BEGIN SELECT RAISE(ABORT,'Keep LAN operation history'); END;
+CREATE TRIGGER IF NOT EXISTS lan_queue_terminal_immutable BEFORE UPDATE OF outcome ON lan_client_queue WHEN OLD.outcome IS NOT NULL AND NEW.outcome IS NOT OLD.outcome BEGIN SELECT RAISE(ABORT,'Keep the original terminal outcome'); END;
+CREATE TRIGGER IF NOT EXISTS lan_events_no_update BEFORE UPDATE ON lan_client_events BEGIN SELECT RAISE(ABORT,'Received outbox events are immutable'); END;
+CREATE TRIGGER IF NOT EXISTS lan_events_no_delete BEFORE DELETE ON lan_client_events BEGIN SELECT RAISE(ABORT,'Received outbox events are immutable'); END;

@@ -22,10 +22,18 @@ pub struct LedgerBalances {
 }
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
+pub struct LanCheckout {
+    pub online: bool,
+    pub hub_authority: bool,
+}
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
 pub struct CashierState {
     pub products: Vec<Product>,
     pub checkout: Option<PreparedCheckout>,
     pub balances: LedgerBalances,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub lan: Option<LanCheckout>,
 }
 
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
@@ -51,6 +59,7 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::lan::guard_local(&tx)?;
         let canceled: bool = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
             [&request.operation_id],
@@ -106,6 +115,7 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::lan::guard_local(&tx)?;
         let current: Option<String> = tx
             .query_row(
                 "SELECT operation_id FROM local_checkout WHERE singleton=1",
@@ -197,6 +207,7 @@ impl Store {
         }
         tx.commit()?;
         Ok(CashierState {
+            lan: None,
             products,
             checkout,
             balances: LedgerBalances {

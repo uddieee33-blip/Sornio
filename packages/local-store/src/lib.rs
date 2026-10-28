@@ -9,12 +9,23 @@ pub mod access;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
+pub mod lan;
 
 #[cfg(windows)]
 pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("The shop hub result is uncertain. Keep this operation ID and retry the same sale. Do not take payment or create a replacement sale.")]
+    LanUncertain,
+    #[error("The shop hub is unavailable. Cached stock is not a reservation. No shared sale was confirmed.")]
+    HubUnavailable,
+    #[error("This computer is not authorized for that shop or command. Ask the hub administrator to review its device access.")]
+    LanDenied,
+    #[error("Check the local IP address, pairing file and fingerprint. Keep this computer's existing data.")]
+    InvalidLan,
+    #[error("LAN mode is already configured or this computer holds local stock, sales or a pending checkout. Use a fresh computer profile to join a hub.")]
+    LanConfigured,
     #[error("The local database could not be opened or saved. Keep the original files and retry.")]
     Database(#[from] rusqlite::Error),
     #[error("The database encryption key is invalid.")]
@@ -172,6 +183,7 @@ impl Store {
             }
             tx.commit()?;
         }
+        lan::migrate(&mut db)?;
         Ok(Self(db))
     }
 

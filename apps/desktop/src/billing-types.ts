@@ -7,6 +7,7 @@ export type Invoice = {
   tender: 'cash' | 'credit'; customerId: string | null;
 };
 export type CashierState = {
+  lan?: {online: boolean; hubAuthority: boolean};
   products: Product[];
   checkout: { request: NativeInvoiceRequest; invoice: Invoice | null } | null;
   balances: { cashPaise: string; creditPaise: string };

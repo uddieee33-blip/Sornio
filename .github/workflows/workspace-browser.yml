@@ -34,7 +34,7 @@ jobs:
           cargo test --locked --manifest-path packages/local-store/Cargo.toml
           cargo test --release --locked --manifest-path packages/local-store/Cargo.toml
       - name: Build native cashier integration fixture
-        run: cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge
+        run: cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --example shop_lan_review_bridge
       - run: npm ci
       - run: npm run build
       - name: Install isolated browser tooling
@@ -64,6 +64,7 @@ jobs:
           done
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-ui.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-checkout.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-lan.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/lan
       - uses: actions/upload-artifact@v7
         if: always()
         with:
