@@ -23,7 +23,7 @@ pub struct AccessStatus {
 /// Native commands own this wrapper. No renderer-provided session flag, role,
 /// token, password hash, key, path or SQL can authorize a data command.
 pub struct Workspace {
-    store: Store,
+    pub(crate) store: Store,
     unlocked: bool,
 }
 
@@ -33,14 +33,23 @@ impl Workspace {
         request: crate::billing::PostInvoice,
     ) -> Result<(), StoreError> {
         self.require_unlock()?;
+        if crate::lan::client_mode(&self.store.0)? {
+            return crate::lan::client::prepare(&mut self.store, request);
+        }
         self.store.prepare_checkout(request)
     }
     pub fn clear_checkout(&mut self, operation_id: &str, saved: bool) -> Result<(), StoreError> {
         self.require_unlock()?;
+        if crate::lan::client_mode(&self.store.0)? {
+            return crate::lan::client::clear(&mut self.store, operation_id, saved);
+        }
         self.store.clear_checkout(operation_id, saved)
     }
-    pub fn cashier_state(&self) -> Result<crate::checkout::CashierState, StoreError> {
+    pub fn cashier_state(&mut self) -> Result<crate::checkout::CashierState, StoreError> {
         self.require_unlock()?;
+        if crate::lan::client_mode(&self.store.0)? {
+            return crate::lan::client::state(&mut self.store);
+        }
         self.store.cashier_state()
     }
     pub fn post_prepared_invoice(
@@ -48,6 +57,9 @@ impl Workspace {
         request: crate::billing::PostInvoice,
     ) -> Result<crate::billing::Invoice, StoreError> {
         self.require_unlock()?;
+        if crate::lan::client_mode(&self.store.0)? {
+            return crate::lan::client::post(&mut self.store, request);
+        }
         self.store.post_prepared_invoice(request)
     }
     pub fn post_invoice(
@@ -55,13 +67,17 @@ impl Workspace {
         request: crate::billing::PostInvoice,
     ) -> Result<crate::billing::Invoice, StoreError> {
         self.require_unlock()?;
+        crate::lan::guard_local(&self.store.0)?;
         self.store.post_invoice(request)
     }
     pub fn list_invoices(
-        &self,
+        &mut self,
         after: i64,
     ) -> Result<Vec<crate::billing::InvoiceRecord>, StoreError> {
         self.require_unlock()?;
+        if crate::lan::client_mode(&self.store.0)? {
+            return crate::lan::client::report(&mut self.store, after);
+        }
         self.store.list_invoices(after)
     }
     pub fn billing_outbox(
@@ -69,7 +85,92 @@ impl Workspace {
         after: i64,
     ) -> Result<Vec<crate::billing::OutboxRecord>, StoreError> {
         self.require_unlock()?;
+        crate::lan::guard_local(&self.store.0)?;
         self.store.billing_outbox(after)
+    }
+
+    pub fn lan_status(&self) -> Result<crate::lan::Status, StoreError> {
+        self.require_unlock()?;
+        crate::lan::status(&self.store.0)
+    }
+    pub fn designate_hub(
+        &mut self,
+        password: &str,
+        endpoint: &str,
+    ) -> Result<crate::lan::Status, StoreError> {
+        self.unlock(password)?;
+        crate::lan::designate(&mut self.store, endpoint)
+    }
+    pub fn create_pair_request(
+        &mut self,
+        password: &str,
+        name: &str,
+    ) -> Result<crate::lan::PairRequest, StoreError> {
+        self.unlock(password)?;
+        crate::lan::pairing_request(&mut self.store, name)
+    }
+    pub fn approve_device(
+        &mut self,
+        password: &str,
+        request: crate::lan::PairRequest,
+        role: crate::lan::Role,
+    ) -> Result<crate::lan::Approval, StoreError> {
+        self.unlock(password)?;
+        crate::lan::approve(&mut self.store, request, role)
+    }
+    pub fn join_hub(
+        &mut self,
+        password: &str,
+        approval: crate::lan::Approval,
+        endpoint: &str,
+        fingerprint: &str,
+    ) -> Result<crate::lan::Status, StoreError> {
+        self.unlock(password)?;
+        crate::lan::join(&mut self.store, approval, endpoint, fingerprint)
+    }
+    pub fn change_hub_address(&mut self, password: &str, endpoint: &str) -> Result<(), StoreError> {
+        self.unlock(password)?;
+        crate::lan::change_address(&mut self.store, endpoint)
+    }
+    pub fn lan_devices(&self) -> Result<Vec<crate::lan::Device>, StoreError> {
+        self.require_unlock()?;
+        crate::lan::devices(&self.store.0)
+    }
+    pub fn change_lan_device(
+        &mut self,
+        password: &str,
+        id: &str,
+        role: crate::lan::Role,
+        enabled: bool,
+        revision: i64,
+    ) -> Result<(), StoreError> {
+        self.unlock(password)?;
+        crate::lan::set_device(&mut self.store, id, role, enabled, revision)
+    }
+    pub fn enable_lan_hub(&mut self, password: &str, enabled: bool) -> Result<(), StoreError> {
+        self.unlock(password)?;
+        crate::lan::hub_enabled(&mut self.store, enabled)
+    }
+    /// Native startup only: no renderer serialization or local-UI unlock is required to resume approved devices.
+    pub fn lan_listener_config(
+        &self,
+    ) -> Result<Option<(String, std::sync::Arc<rustls::ServerConfig>)>, StoreError> {
+        crate::lan::server_config(&self.store.0)
+    }
+    /// Only a peer identity produced by the mutual-TLS transport can enter this path.
+    pub fn handle_lan_peer(
+        &mut self,
+        peer: crate::lan::transport::VerifiedPeer,
+        request: crate::lan::Request,
+    ) -> Result<crate::lan::Reply, StoreError> {
+        let denied = crate::lan::Reply {
+            version: 1,
+            business_id: request.business_id.clone(),
+            hub_id: request.hub_id.clone(),
+            device_id: request.device_id.clone(),
+            response: crate::lan::Response::Denied,
+        };
+        Ok(crate::lan::dispatch(&mut self.store, peer, request).unwrap_or(denied))
     }
 
     pub fn new(store: Store) -> Self {
@@ -212,7 +313,7 @@ impl Workspace {
         self.unlocked = false;
     }
 
-    fn require_unlock(&self) -> Result<(), StoreError> {
+    pub(crate) fn require_unlock(&self) -> Result<(), StoreError> {
         if self.unlocked {
             if self.status()?.configured {
                 Ok(())
@@ -241,16 +342,21 @@ impl Workspace {
 
     pub fn list_products(&self) -> Result<Vec<Product>, StoreError> {
         self.require_unlock()?;
+        if crate::lan::client_mode(&self.store.0)? {
+            return crate::lan::client::cached_products(&self.store.0);
+        }
         self.store.list_products()
     }
 
     pub fn add_product(&mut self, request: AddProduct) -> Result<Product, StoreError> {
         self.require_unlock()?;
+        crate::lan::guard_local(&self.store.0)?;
         self.store.add_product(request)
     }
 
     pub fn adjust_stock(&mut self, request: AdjustStock) -> Result<Product, StoreError> {
         self.require_unlock()?;
+        crate::lan::guard_local(&self.store.0)?;
         self.store.adjust_stock(request)
     }
 

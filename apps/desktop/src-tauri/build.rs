@@ -18,6 +18,17 @@ fn main() {
             "post_local_invoice",
             "list_local_invoices",
             "read_billing_outbox",
+            "read_shop_lan",
+            "designate_shop_hub",
+            "set_shop_hub_enabled",
+            "export_shop_pair_request",
+            "approve_shop_computer",
+            "preview_shop_pair_request",
+            "preview_shop_approval",
+            "join_shop_hub",
+            "change_shop_hub_address",
+            "list_shop_computers",
+            "change_shop_computer",
         ]),
     ))
     .expect("Tauri build configuration failed");

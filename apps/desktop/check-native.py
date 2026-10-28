@@ -35,7 +35,7 @@ def focus_control(title, control_type):
     target = window.child_window(title=title, control_type=control_type, visible_only=False)
     target.wait("exists", timeout=45)
     window.set_focus()
-    for _ in range(80):
+    for _ in range(180):
         control = target.wrapper_object()
         if control.is_visible() and control.is_enabled() and control.has_keyboard_focus():
             return control
@@ -240,6 +240,25 @@ try:
     ).exists(timeout=0.1), "Acknowledged checkout returned after restart"
     assert_balances("53.13", "31.88", "2")
     window.capture_as_image().save(OUTPUT / "windows-local-next-sale-reopened.png")
+    # Packaged opt-in listener and persisted authority; two-client TLS/process
+    # concurrency and kill-boundary cases run in the preceding Rust acceptance step.
+    activate("Open shop network controls")
+    fill("Local password for network settings", PASSWORD)
+    fill("Shop hub address", "127.0.0.1:45433")
+    activate("Make this PC the shop hub")
+    wait_until(45, 0.5, lambda: message_visible("Mode: hub."))
+    wait_until(45, 0.5, lambda: message_visible("Listening on 127.0.0.1:45433."))
+    fingerprint = focus_control("Hub trust fingerprint", "Edit").get_value()
+    assert len(fingerprint) == 64 and all(c in "0123456789abcdef" for c in fingerprint)
+    assert_balances("53.13", "31.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-shop-hub.png")
+    stop()
+    launch()
+    wait_until(45, 0.5, lambda: message_visible("Listening on 127.0.0.1:45433."))
+    assert focus_control("Hub trust fingerprint", "Edit").get_value() == fingerprint
+    assert_balances("53.13", "31.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-shop-hub-reopened.png")
+    print("Native Windows hub: explicit password-authenticated designation, real loopback listener, persisted public trust fingerprint, forced restart and unchanged local billing balances passed. Physical multi-PC hardware is not claimed.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery and durable acknowledgement passed.")
 except Exception:
     traceback.print_exc()

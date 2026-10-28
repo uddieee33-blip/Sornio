@@ -22,6 +22,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   const [search, setSearch] = useState('');
   const [tax, setTax] = useState('0');
   const [tender, setTender] = useState<'cash' | 'credit'>('cash');
+  const [lan, setLan] = useState<CashierState['lan']>(undefined);
   const [customer, setCustomer] = useState('');
   const [pending, setPending] = useState<NativeInvoiceRequest | null>(null);
   const [invoice, setInvoice] = useState<Invoice | null>(null);
@@ -42,13 +43,13 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   useEffect(() => { onDirtyChange(cart.length > 0 && pending === null); }, [cart.length, pending, onDirtyChange]);
 
   const apply = useCallback((state: CashierState) => {
-    setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
+    setLan(state.lan); setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
     if (state.checkout) {
       const { request, invoice: saved } = state.checkout;
       remember(request); setInvoice(saved); setRefused(false); setReview(false);
       setCart(request.lines.map(line => ({ productId: line.productId, typedQuantity: quantity(line.quantityMilli) })));
       setTax(String(request.taxBasisPoints / 100)); setTender(request.tender); setCustomer(request.customerId ?? '');
-      setMessage(saved ? 'Recovered the saved invoice from this PC.' : 'This checkout is waiting for confirmation. Retry the same sale to resolve it.');
+      setMessage(saved ? state.lan ? 'Recovered the hub-confirmed receipt kept on this PC.' : 'Recovered the saved invoice from this PC.' : 'This checkout is waiting for confirmation. Retry the same sale to resolve it.');
     } else {
       // Another window may have completed/canceled this checkpoint. Never turn
       // its old uncertain cart into a fresh sale with a new operation ID.
@@ -90,19 +91,21 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
     if (submitting.current || disabled) return;
     readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true); remember(request); setReview(false); setRefused(false); setFailed(false);
-    setMessage('Confirming sale on this PC…');
+    let prepared = false;
+    setMessage(lan ? 'Requesting confirmation from the shop hub…' : 'Confirming sale on this PC…');
     try {
       // Persist the exact request before invoking posting. Never create a new ID
       // for a timeout/reply loss, including after a window/app restart.
       await invoke('prepare_local_checkout', { request });
+      prepared = true;
       const saved = await invoke<Invoice>('post_local_invoice', { request });
       if (!mounted.current) return;
-      setInvoice(saved); setMessage('Sale saved on this PC. Refreshing stock and balances…'); onPosted();
+      setInvoice(saved); setMessage(lan ? 'Sale confirmed by the shop hub. Refreshing stock and balances…' : 'Sale saved on this PC. Refreshing stock and balances…'); onPosted();
       try {
         const state = await invoke<CashierState>('read_cashier_state');
         if (!mounted.current) return;
-        setProducts(state.products); setBalances(state.balances); setReady(true);
-        setMessage('Sale saved on this PC. Stock and balances are up to date.');
+        setLan(state.lan); setProducts(state.products); setBalances(state.balances); setReady(true);
+        setMessage(state.lan && !state.lan.online ? 'The hub confirmed this invoice. The connection is now unavailable; displayed stock is cached.' : state.lan ? 'Sale confirmed by the shop hub. Stock and balances are up to date.' : 'Sale saved on this PC. Stock and balances are up to date.');
       } catch (error: unknown) {
         if (!mounted.current) return;
         if (errorCode(error) === 'locked') { onLocked(); return; }
@@ -113,6 +116,10 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       if (!mounted.current) return;
       const code = errorCode(error);
       if (code === 'locked') { onLocked(); return; }
+      if (!prepared && (code === 'hub_unavailable' || code === 'lan_denied')) {
+        remember(null);
+        setLan(current => current ? { ...current, online: false } : current);
+      }
       setRefused(refusedCodes.has(code ?? '')); setFailed(true);
       setMessage(errorMessage(error, 'The sale result is uncertain. Retry the same sale; do not enter it again.'));
     } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
@@ -159,7 +166,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
         : detail || 'Check the sale quantities and tax.';
     }
   }
-  const blocked = disabled || busy || !ready || pending !== null;
+  const blocked = disabled || busy || !ready || pending !== null || Boolean(lan && !lan.online);
   const matching = useMemo(() => products.filter(product => `${product.name} ${product.sku}`.toLowerCase().includes(search.toLowerCase())), [products, search]);
   function add(product: Product) {
     if (blocked || review) return;
@@ -185,9 +192,10 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
   return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
+    {lan ? <p role="status">{lan.online ? 'Shop hub connected. Only a hub-confirmed receipt completes this sale. Balances below are this computer’s confirmed receipts.' : 'Shop hub unavailable. Cached stock is not reserved. Prepared requests stay on this PC; unsaved carts stay only in this window. Retry the same pending sale after reconnecting. No shared sale can be confirmed offline.'}</p> : null}
     <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
-    {invoice ? <><SavedInvoice invoice={invoice}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
+    {invoice ? <><SavedInvoice invoice={invoice} hubConfirmed={Boolean(lan)}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it.</p>
         <button type="button" disabled={busy || disabled} onClick={() => void confirm(pending)}>Retry same sale</button>
         {refused ? <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void release(false)}>Edit refused sale</button> : null}
@@ -216,7 +224,7 @@ export function CheckoutPanel({ disabled, refreshToken, onLocked, onDirtyChange,
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>
         {preview ? <p className="checkout-total">Subtotal: {money(preview.subtotalPaise)} · Tax: {money(preview.taxPaise)}<br/><output aria-live="polite">Total: {money(preview.totalPaise)}</output></p> : null}
-        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : `Record credit for ${customer}.`} Save this sale on this PC?</p><button type="button" disabled={disabled || busy} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
+        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : `Record credit for ${customer}.`} {lan ? 'Ask the shop hub to confirm this sale?' : 'Save this sale on this PC?'}</p><button type="button" disabled={blocked} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={startConfirmation}>Review sale</button>}
       </> : null}
     </>}

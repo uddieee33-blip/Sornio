@@ -11,15 +11,15 @@ use sornio_local_store::{
 use std::io::{self, BufRead, Write};
 
 #[derive(Deserialize)]
-struct Call {
-    command: String,
+pub(crate) struct Call {
+    pub(crate) command: String,
     #[serde(default)]
-    args: Value,
+    pub(crate) args: Value,
 }
 fn argument<T: serde::de::DeserializeOwned>(args: &Value, key: &str) -> Result<T, StoreError> {
     Ok(serde_json::from_value(args[key].clone())?)
 }
-fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+pub(crate) fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
         "workspace_access_status" => serde_json::to_value(w.status()?)?,

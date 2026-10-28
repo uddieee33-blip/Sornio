@@ -11,10 +11,13 @@ serde_json = "1"
 thiserror = "2"
 argon2 = { version = "0.5.3", features = ["zeroize"] }
 getrandom = "0.3"
+sha2 = "0.10"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
+rcgen = { version = "0.14", default-features = false, features = ["ring", "crypto", "x509-parser"] }
+zeroize = "1"
 
 [target.'cfg(windows)'.dependencies]
 fs2 = "0.4"
-zeroize = "1"
 keyring = { version = "3", features = ["windows-native"] }
 
 [dev-dependencies]

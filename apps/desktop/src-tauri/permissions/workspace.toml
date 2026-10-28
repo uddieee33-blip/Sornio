@@ -13,3 +13,8 @@ commands.allow = ["list_local_products", "add_local_product", "adjust_local_stoc
 identifier = "local-billing"
 description = "Post bounded cash/credit invoices and read local records through native unlock. No network or outbox acknowledgement."
 commands.allow = ["read_cashier_state", "prepare_local_checkout", "clear_local_checkout", "post_local_invoice", "list_local_invoices", "read_billing_outbox"]
+
+[[permission]]
+identifier = "shop-lan"
+description = "Opt-in native hub/device pairing and scoped operations. No arbitrary filesystem or network request from the renderer."
+commands.allow = ["read_shop_lan", "designate_shop_hub", "set_shop_hub_enabled", "export_shop_pair_request", "approve_shop_computer", "preview_shop_pair_request", "preview_shop_approval", "join_shop_hub", "change_shop_hub_address", "list_shop_computers", "change_shop_computer"]

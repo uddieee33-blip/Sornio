@@ -2,11 +2,11 @@ import { useEffect, useRef } from 'react';
 import { money, quantity } from './billing-types';
 import type { Invoice } from './billing-types';
 
-export function SavedInvoice({ invoice }: { invoice: Invoice }) {
+export function SavedInvoice({ invoice, hubConfirmed = false }: { invoice: Invoice; hubConfirmed?: boolean }) {
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => { heading.current?.focus(); }, [invoice.id]);
   return <section className="saved-invoice" aria-labelledby="saved-invoice-heading">
-    <h3 id="saved-invoice-heading" ref={heading} tabIndex={-1}>Sale saved on this PC</h3>
+    <h3 id="saved-invoice-heading" ref={heading} tabIndex={-1}>{hubConfirmed ? 'Sale confirmed by shop hub' : 'Sale saved on this PC'}</h3>
     <label htmlFor="saved-invoice-id">Saved invoice ID</label>
     <input id="saved-invoice-id" readOnly value={invoice.id}/>
     <p><time dateTime={invoice.createdAt}>{new Date(invoice.createdAt).toLocaleString()}</time></p>

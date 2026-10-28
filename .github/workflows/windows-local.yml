@@ -9,7 +9,7 @@ permissions:
 jobs:
   local-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
     steps:
@@ -30,7 +30,7 @@ jobs:
         run: npm ci --prefix apps/desktop
       - name: Build bundled frontend
         run: npm run build --prefix apps/desktop
-      - name: Test encrypted storage, Windows vault and restart behavior
+      - name: Test encrypted storage, Windows vault and two-client TLS LAN recovery
         run: cargo test --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target
       - name: Build independent Windows installer
         run: npm run desktop:build --prefix apps/desktop
