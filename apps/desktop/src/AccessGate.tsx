@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
 import { invoke } from './native';
+import { BackupPanel } from './BackupPanel';
 import { errorCode, errorMessage } from './access';
 import type { AccessStatus } from './access';
 import { setNativeSession } from './native';
@@ -22,9 +23,10 @@ export function AccessGate({ children }: { children: (onLocked: () => void, sess
   const [busy, setBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const submitting = useRef(false);
-  const onLocked = useCallback(() => {
+  const onLocked = useCallback((detail?: unknown) => {
     setNativeSession(null); setSession(null); setPassword(''); setConfirm('');
-    setAccess({ configured: true, unlocked: false }); setMessage('');
+    setAccess({ configured: true, unlocked: false }); setMessage(typeof detail === 'string' ? detail : '');
+    setRetry(n => n + 1);
   }, []);
 
   useEffect(() => {
@@ -95,6 +97,7 @@ export function AccessGate({ children }: { children: (onLocked: () => void, sess
           <button className="access-submit" type="submit" disabled={busy || !password || (setup && (Array.from(password).length < 10 || !confirm))}>{busy ? 'Opening…' : setup ? 'Set up local access' : 'Unlock workspace'}</button>
         </fieldset>
       </form> : native && message ? <button type="button" className="access-submit" onClick={() => { setMessage(''); setRetry((n) => n + 1); }}>Retry local access</button> : null}
+      {native && access && !access.configured ? <BackupPanel configured={false} allowExport={false} disabled={busy} onBusyChange={setBusy} onRestored={() => { onLocked(); setAccess(null); setRetry(n => n + 1); }} onLocked={onLocked}/> : null}
       <p className="access-footnote">Engineering review · Use test data only.<br/>Identity is verified locally against this encrypted workspace. Cloud verification and LAN pairing are not enabled.</p>
     </section>
   </main>;

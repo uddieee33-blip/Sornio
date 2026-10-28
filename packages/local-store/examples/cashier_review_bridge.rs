@@ -21,7 +21,38 @@ struct Call {
 fn argument<T: serde::de::DeserializeOwned>(args: &Value, key: &str) -> Result<T, StoreError> {
     Ok(serde_json::from_value(args[key].clone())?)
 }
-fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+fn call(
+    w: &mut Workspace,
+    preview: &mut Option<sornio_local_store::recovery::BackupPreview>,
+    c: Call,
+) -> Result<Value, StoreError> {
+    if [
+        "read_last_restore",
+        "choose_local_backup",
+        "export_local_backup",
+        "preview_local_backup",
+        "restore_local_backup",
+    ]
+    .contains(&c.command.as_str())
+    {
+        if w.status()?.configured {
+            let scope = argument::<Scope>(&c.args, "scope")?;
+            return w.run_scoped(&scope, |w| {
+                w.require(sornio_local_store::identity::Permission::Settings)?;
+                dispatch(w, preview, c)
+            });
+        }
+        if ![
+            "choose_local_backup",
+            "preview_local_backup",
+            "restore_local_backup",
+        ]
+        .contains(&c.command.as_str())
+        {
+            return Err(StoreError::Locked);
+        }
+        return dispatch(w, preview, c);
+    }
     if ![
         "workspace_access_status",
         "read_local_session",
@@ -32,13 +63,53 @@ fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
     .contains(&c.command.as_str())
     {
         let scope = argument::<Scope>(&c.args, "scope")?;
-        return w.run_scoped(&scope, move |w| dispatch(w, c));
+        return w.run_scoped(&scope, move |w| dispatch(w, preview, c));
     }
-    dispatch(w, c)
+    dispatch(w, preview, c)
 }
-fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+fn dispatch(
+    w: &mut Workspace,
+    preview: &mut Option<sornio_local_store::recovery::BackupPreview>,
+    c: Call,
+) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
+        "read_last_restore" => serde_json::to_value(w.last_restore()?)?,
+        "choose_local_backup" => serde_json::json!("synthetic.sorniobackup"),
+        "export_local_backup" => {
+            let path = std::path::PathBuf::from(std::env::var_os("SORNIO_REVIEW_BACKUP").unwrap());
+            serde_json::to_value(w.export_backup(
+                &path,
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "recoveryPassword")?,
+            )?)?
+        }
+        "preview_local_backup" => {
+            *preview = None;
+            let path = std::path::PathBuf::from(std::env::var_os("SORNIO_REVIEW_BACKUP").unwrap());
+            let result = w.preview_backup(
+                &path,
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "recoveryPassword")?,
+                &argument::<String>(a, "originalPassword")?,
+            )?;
+            *preview = Some(result.clone());
+            serde_json::to_value(result)?
+        }
+        "restore_local_backup" => {
+            let path = std::path::PathBuf::from(std::env::var_os("SORNIO_REVIEW_BACKUP").unwrap());
+            let expected = preview.take().ok_or(StoreError::RecoveryChanged)?;
+            serde_json::to_value(w.restore_backup(
+                &path,
+                path.parent().unwrap(),
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "recoveryPassword")?,
+                &argument::<String>(a, "originalPassword")?,
+                &expected,
+                &argument::<String>(a, "confirmation")?,
+            )?)?
+        }
+
         "prepare_local_retail" => {
             w.prepare_retail(argument(a, "r")?)?;
             Value::Null
@@ -172,9 +243,10 @@ fn main() {
     )
     .unwrap();
     let mut workspace = Workspace::new(store);
+    let mut preview = None;
     for line in io::stdin().lock().lines() {
         let input: Call = serde_json::from_str(&line.unwrap()).unwrap();
-        let output = match call(&mut workspace, input) {
+        let output = match call(&mut workspace, &mut preview, input) {
             Ok(value) => json!({"ok":true,"value":value}),
             Err(error) => {
                 let code = match error {

@@ -28,7 +28,104 @@ pub struct Workspace {
     last_activity: Cell<Instant>,
 }
 impl Workspace {
-    pub fn new(store: Store) -> Self {
+    pub(crate) fn into_recovery_store(self) -> Store {
+        self.store
+    }
+    pub(crate) fn store_owner_username(&self) -> Result<String, StoreError> {
+        Ok(self.store.0.query_row(
+            "SELECT username FROM local_principals WHERE role='owner' AND enabled=1",
+            [],
+            |r| r.get(0),
+        )?)
+    }
+
+    fn recovery_authorize(&mut self, password: &str) -> Result<(), StoreError> {
+        if self.store.1.is_some() {
+            self.require(Permission::Settings)?;
+        }
+        if self.status()?.configured {
+            let username: String = self.store.0.query_row(
+                "SELECT username FROM local_principals WHERE role='owner' AND enabled=1",
+                [],
+                |r| r.get(0),
+            )?;
+            self.login(&username, password)?;
+            self.require(Permission::Settings)?;
+        }
+        Ok(())
+    }
+
+    pub fn last_restore(&self) -> Result<Option<crate::recovery::RestoreReceipt>, StoreError> {
+        self.read(Permission::Settings, |s| Ok(s.0.query_row(
+            "SELECT backup_id,created_at FROM local_recovery_audit WHERE action='restore_committed' ORDER BY seq DESC LIMIT 1", [],
+            |r| Ok(crate::recovery::RestoreReceipt { backup_id:r.get(0)?,created_at:r.get(1)? }),
+        ).optional()?))
+    }
+
+    /// Paths come from the native file picker, never renderer-provided paths.
+    pub fn export_backup(
+        &mut self,
+        destination: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+    ) -> Result<crate::recovery::BackupPreview, StoreError> {
+        self.require(Permission::Settings)?;
+        self.recovery_authorize(current_password)?;
+        if current_password == recovery_password {
+            return Err(StoreError::InvalidRecoveryPassword);
+        }
+        crate::recovery::export(&mut self.store, destination, recovery_password)
+    }
+
+    pub fn preview_backup(
+        &mut self,
+        source: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+        original_password: &str,
+    ) -> Result<crate::recovery::BackupPreview, StoreError> {
+        self.recovery_authorize(current_password)?;
+        let result = crate::recovery::preview(
+            &mut self.store,
+            source,
+            recovery_password,
+            original_password,
+        );
+        if matches!(
+            &result,
+            Err(StoreError::IncorrectPassword | StoreError::RateLimited)
+        ) {
+            self.lock();
+        }
+        result
+    }
+
+    pub fn restore_backup(
+        &mut self,
+        source: &std::path::Path,
+        safety_directory: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+        original_password: &str,
+        preview: &crate::recovery::BackupPreview,
+        confirmation: &str,
+    ) -> Result<String, StoreError> {
+        self.recovery_authorize(current_password)?;
+        let result = crate::recovery::restore(
+            &mut self.store,
+            source,
+            safety_directory,
+            recovery_password,
+            original_password,
+            preview,
+            confirmation,
+        );
+        self.lock();
+        result
+    }
+
+    pub fn new(mut store: Store) -> Self {
+        store.1 = None;
         Self {
             store,
             last_activity: Cell::new(Instant::now()),
@@ -47,17 +144,24 @@ impl Workspace {
         })
     }
     pub fn local_session(&self) -> Result<LocalSession, StoreError> {
-        let principal = self.require(Permission::View)?;
-        Ok(LocalSession {
-            scope: identity::scope(&self.store.0)?,
-            principal,
-            business_name: self.store.0.query_row(
-                "SELECT business_name FROM local_identity WHERE singleton=1",
-                [],
-                |r| r.get(0),
-            )?,
+        self.read(Permission::View, |s| {
+            let principal = identity::verify(
+                &s.0,
+                s.1.as_ref().ok_or(StoreError::Locked)?,
+                Permission::View,
+            )?;
+            Ok(LocalSession {
+                scope: identity::scope(&s.0)?,
+                principal,
+                business_name: s.0.query_row(
+                    "SELECT business_name FROM local_identity WHERE singleton=1",
+                    [],
+                    |r| r.get(0),
+                )?,
+            })
         })
     }
+
     /// Boundary shared by IPC and future transport adapters. A supplied scope
     /// never selects a database and never grants authority.
     pub fn run_scoped<T>(
@@ -154,8 +258,9 @@ impl Workspace {
         }
         let p = identity::principal(&tx, &id)?;
         identity::audit(&tx, &scope, Some(&p), "owner.provisioned", Some(&id))?;
+        let session = identity::session(&tx, scope, &p)?;
         tx.commit()?;
-        self.store.1 = Some(identity::session(scope, &p));
+        self.store.1 = Some(session);
         self.last_activity.set(Instant::now());
         self.status()
     }
@@ -227,8 +332,9 @@ impl Workspace {
                 return Err(StoreError::AccessUnavailable);
             }
             identity::audit(&tx, &scope, Some(&p), "session.unlocked", None)?;
+            let session = identity::session(&tx, scope, &p)?;
             tx.commit()?;
-            self.store.1 = Some(identity::session(scope, &p));
+            self.store.1 = Some(session);
             self.last_activity.set(Instant::now());
             self.status()
         } else {

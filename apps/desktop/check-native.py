@@ -5,10 +5,12 @@ uses verified native keyboard focus, not debugging, injected JS or mocked IPC.
 """
 from pathlib import Path
 import subprocess
+import os
+import re
 import sys
 import time
 import traceback
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from pywinauto import Application, Desktop
 from pywinauto.keyboard import send_keys
@@ -251,6 +253,69 @@ try:
     ).exists(timeout=0.1), "Acknowledged checkout returned after restart"
     assert_balances("53.13", "31.88", "2")
     window.capture_as_image().save(OUTPUT / "windows-local-next-sale-reopened.png")
+    # Real OS file picker, actual encrypted file, wrong-passphrase refusal and full restore.
+    recovery_secret = "IndependentBackupPassphrase2026"
+    backup = Path(os.environ["TEMP"]) / ("sornio-native-" + str(uuid4()) + ".sorniobackup")
+    def pick_native_file(title, path):
+        dialog = Desktop(backend="uia").window(title=title)
+        dialog.wait("visible", timeout=45)
+        dialog.set_focus()
+        send_keys("%n", pause=0.1)
+        send_keys("^a{BACKSPACE}", pause=0.1)
+        send_keys(str(path), with_spaces=True, pause=0.01)
+        send_keys("{ENTER}", pause=0.1)
+        dialog.wait_not("visible", timeout=45)
+    original_note = focus_control("Workspace note", "Edit").get_value()
+    activate("Open backup controls")
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Confirm recovery passphrase for export", recovery_secret)
+    activate("Export encrypted backup…")
+    pick_native_file("Export encrypted Sornio backup", backup)
+    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
+    assert backup.exists() and backup.stat().st_size >= 4096
+    payload = backup.read_bytes()
+    for secret in (PASSWORD, recovery_secret, original_note):
+        assert secret.encode() not in payload, "Backup leaked plaintext"
+    assert not payload.startswith(b"SQLite format 3")
+    fill("Workspace note", "This note was saved after the backup.")
+    activate("Save local draft")
+    wait_until(30, 0.5, lambda: message_visible("Saved to this PC. You can close and reopen Sornio."))
+    activate("Choose encrypted backup…")
+    pick_native_file("Choose encrypted Sornio backup", backup)
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", "WrongRecoveryPassphrase2026")
+    fill("Original Owner password from backup", PASSWORD)
+    activate("Verify and preview backup")
+    wait_until(60, 0.5, lambda: message_visible("Backup could not be verified."))
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Original Owner password from backup", PASSWORD)
+    activate("Verify and preview backup")
+    wait_until(60, 0.5, lambda: message_visible("Backup verified. Re-enter the passwords"))
+    preview = window.child_window(title="Verified backup preview", control_type="Group", visible_only=False)
+    preview.wait("exists", timeout=30)
+    phrase_title = next(c.window_text() for c in window.descendants(control_type="Edit") if re.match(r"^Type RESTORE [a-f0-9]{12} to restore$", c.window_text()))
+    phrase = re.match(r"^Type (RESTORE [a-f0-9]{12}) to restore$", phrase_title).group(1)
+    for title in ("Current Owner password", "Recovery passphrase", "Original Owner password from backup"):
+        assert focus_control(title, "Edit").get_value() == "", "Preview retained a password"
+    focus_control(phrase_title, "Edit")
+    window.capture_as_image().save(OUTPUT / "windows-backup-preview.png")
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Original Owner password from backup", PASSWORD)
+    fill(phrase_title, phrase)
+    activate("Create safety backup and restore")
+    assert_locked()
+    enter_password()
+    wait_until(30, 0.5, lambda: focus_control("Workspace note", "Edit").get_value() == original_note)
+    assert_balances("53.13", "31.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-backup-restored.png")
+    stop()
+    launch()
+    assert focus_control("Workspace note", "Edit").get_value() == original_note
+    assert_balances("53.13", "31.88", "2")
+    print("Native Windows backup: OS-picked encrypted export, real ciphertext, wrong passphrase refusal, authenticated preview, cleared password controls, safety-backed restore, original note/financial balances and restart persistence passed.")
     # Native customer cash collections: partial repayment, forced restart,
     # exact saved receipt recovery, acknowledgement, full settlement and print.
     activate("Open customer native-customer-1")

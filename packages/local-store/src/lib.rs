@@ -12,12 +12,27 @@ pub mod checkout;
 pub mod customers;
 pub mod identity;
 pub mod payments;
+pub mod recovery;
 
 #[cfg(windows)]
 pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("The encrypted backup could not be read or written. Keep the original files.")]
+    BackupStorage,
+    #[error(
+        "Backup could not be verified. Check the recovery passphrase and keep the original file."
+    )]
+    InvalidBackup,
+    #[error("Use a separate recovery passphrase of 14–128 characters.")]
+    InvalidRecoveryPassword,
+    #[error("This backup belongs to another business.")]
+    BackupBusinessMismatch,
+    #[error("Type the exact restore confirmation phrase.")]
+    RecoveryConfirmation,
+    #[error("The backup or current workspace changed. Preview again before restoring.")]
+    RecoveryChanged,
     #[error("Check payment amounts, references, return quantities and closing values.")]
     InvalidPayment,
     #[error("Payment or closing changed. Refresh it before continuing.")]
@@ -139,6 +154,11 @@ impl Store {
         if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(StoreError::InvalidKey);
         }
+        Self::open_secret(path, key)
+    }
+
+    // Called only for an encrypted, schema-verified recovery staging file.
+    pub(crate) fn open_secret(path: &Path, key: &str) -> Result<Self, StoreError> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_secs(5))?;
         db.pragma_update(None, "key", key)?;
@@ -220,6 +240,7 @@ impl Store {
             }
             tx.commit()?;
         }
+        recovery::initialize(&mut db)?;
         Ok(Self(db, None))
     }
 

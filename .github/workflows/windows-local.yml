@@ -39,7 +39,7 @@ jobs:
           python-version: '3.12'
       - name: Install native accessibility review tooling
         run: python -m pip install pywinauto==0.6.9 Pillow==12.0.0
-      - name: Verify native offline access, checkout guards and receipt recovery
+      - name: Verify native offline access, checkout and encrypted backup recovery
         shell: pwsh
         run: |
           $prefix = 'Sornio-local-review-' + [guid]::NewGuid().ToString()

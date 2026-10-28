@@ -2,6 +2,16 @@
   "identifier": "local-workspace",
   "description": "Only bundled main-window code can load and save the local review draft.",
   "local": true,
-  "windows": ["main"],
-  "permissions": ["workspace-drafts", "local-stock", "local-billing", "local-identity", "local-customers", "local-retail"]
+  "windows": [
+    "main"
+  ],
+  "permissions": [
+    "workspace-drafts",
+    "local-stock",
+    "local-billing",
+    "local-identity",
+    "local-customers",
+    "local-retail",
+    "local-recovery"
+  ]
 }
