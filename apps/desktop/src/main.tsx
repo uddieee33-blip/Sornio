@@ -41,13 +41,14 @@ function App({ onLocked, session }: { onLocked: () => void; session: LocalSessio
   const [checkoutDirty, setCheckoutDirty] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [customerBusy, setCustomerBusy] = useState(false);
+  const [customerDirty, setCustomerDirty] = useState(false);
   const [customerRefresh, setCustomerRefresh] = useState(0);
   const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [checkoutRefresh, setCheckoutRefresh] = useState(0);
   const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
   const refreshCheckout = useCallback(() => setCheckoutRefresh(value => value + 1), []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const dirty = catalogDirty || draftDirty || checkoutDirty;
+  const dirty = catalogDirty || draftDirty || checkoutDirty || customerDirty;
 
   useEffect(() => {
     if (!native) return;
@@ -156,7 +157,7 @@ function App({ onLocked, session }: { onLocked: () => void; session: LocalSessio
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Owner and staff access is enforced on this PC. LAN pairing and cloud backup are not enabled. This review does not replace your current business records.</p></aside>
         </div>
         {native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
-        {native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy}/> : null}
+        {native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}
         {native && snapshot && owner ? <StaffPanel disabled={busy}/> : null}
         {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>

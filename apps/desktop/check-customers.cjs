@@ -52,8 +52,8 @@ async function stopBridge() {
       return reply;
     });
     await page.addInitScript(() => {
-      globalThis.isTauri = true; globalThis.printCount = 0; window.print = () => { globalThis.printCount += 1; };
-      globalThis.__TAURI_INTERNALS__ = { invoke: async (command, args = {}) => { const r = await globalThis.customerReviewInvoke(command, args); if (!r.ok) throw r.error; return r.value; } };
+      globalThis.isTauri = true; globalThis.printCount = 0; globalThis.customerFinds = 0; window.print = () => { globalThis.printCount += 1; };
+      globalThis.__TAURI_INTERNALS__ = { invoke: async (command, args = {}) => { const r = await globalThis.customerReviewInvoke(command, args); if (!r.ok) throw r.error; if (command === 'find_local_customers') globalThis.customerFinds += 1; return r.value; } };
     });
     const label = name => page.getByLabel(name, { exact: true }), button = name => page.getByRole('button', { name, exact: true });
     const panel = page.getByRole('region', { name: 'Customers & credit', exact: true });
@@ -74,9 +74,13 @@ async function stopBridge() {
     await label('Local password').fill(password); await label('Confirm password').fill(password); await button('Set up local access').click();
     nativeScope = (await native('read_local_session')).scope;
     await panel.getByText('Customer accounts are up to date.', { exact: true }).waitFor();
+    await page.getByText('Checkout is ready. Totals are previews until the sale is saved.', { exact: true }).waitFor();
+    await label('Transaction type').selectOption('credit');
+    await page.waitForFunction(() => globalThis.customerFinds >= 2);
     await label('Customer ID').fill('customer-1'); await label('Customer name').fill('Asha <shop>');
     await label('Customer phone (optional)').fill('+91 98765 43210'); await label('Credit limit (₹, blank for no limit)').fill('200.00');
     await button('Save customer').click(); await panel.getByText('Customer saved.', { exact: true }).waitFor();
+    await button('Use customer customer-1').waitFor(); // Existing lookup refreshes after account creation.
     assert.equal((await native('find_local_customers', { search: '9876543210', overdueOnly: false }))[0].phone, '+919876543210');
     await native('add_local_product', { request: { operationId: 'rice', name: 'Rice', sku: 'RICE', unit: 'kg', unitPricePaise: 10000, openingStockMilli: 10000 } });
     await button('Refresh checkout').click(); await button('Add Rice to sale').click(); await label('Transaction type').selectOption('credit');
@@ -87,7 +91,9 @@ async function stopBridge() {
     await ready(); await button('Open customer customer-1').click();
     await panel.getByText('Outstanding: ₹100.00 · Overdue: ₹0.00 · Limit: ₹200.00', { exact: true }).waitFor();
     // No financial writes when leaving review. A delayed/lost response never creates a fresh ID.
-    await entry('repayment', '25.01'); await button('Cancel credit review').click();
+    await entry('repayment', '25.01'); await button('Lock workspace').click(); await button('Continue editing').click();
+    assert.equal(await label('Credit entry amount (₹)').inputValue(), '25.01');
+    await button('Cancel credit review').click();
     assert.equal((await native('read_customer_statement', { customerId: 'customer-1', after: 0, through: null })).entries.length, 1);
     await entry('repayment', '25.01'); losePrepare = true; await button('Confirm credit entry').click();
     await alert('Lost prepare reply').waitFor(); assert.equal(await label('Saved credit entry ID').count(), 0);
@@ -115,7 +121,9 @@ async function stopBridge() {
     await panel.getByText('Outstanding: ₹50.00 · Overdue: ₹50.00 · Limit: ₹200.00', { exact: true }).waitFor();
     await label('Show overdue accounts').uncheck();
     await entry('reversal', '', 'Duplicate opening corrected', opening); await button('Confirm credit entry').click(); await receipt(); await acknowledge();
-    await button('Prepare full customer statement').click(); await button('Print customer statement').click();
+    await button('Prepare full customer statement').click(); await button('Print customer statement').waitFor();
+    await ready(); // A same-snapshot refresh must preserve the prepared document.
+    await button('Print customer statement').click();
     const printable = page.getByRole('region', { name: 'Printable customer statement', exact: true });
     assert.equal(await printable.locator('tbody tr').count(), 5);
     assert.equal(await printable.locator('script, img, iframe').count(), 0);
@@ -133,7 +141,7 @@ async function stopBridge() {
     for (const id of ['legacy-ref', 'named-account']) await native('save_local_customer', { r: { operationId: `profile-${id}`, id, name: id, phone: null, creditLimitPaise: null, creditDays: 30, expectedRevision: null } });
     const oldSale = { operationId: 'legacy-sale', lines: [{ productId: 'rice', expectedRevision: 2, quantityMilli: 1000 }], taxBasisPoints: 0, tender: 'credit', customerId: 'legacy-ref' };
     await native('prepare_local_checkout', { request: oldSale }); await native('post_local_invoice', { request: oldSale }); await native('clear_local_checkout', { operationId: 'legacy-sale', saved: true });
-    await ready(); await button('Open customer named-account').click();
+    await ready(); assert.equal(await button('Print customer statement').count(), 0, 'Changed ledger must invalidate the old print snapshot'); await button('Open customer named-account').click();
     await label('Existing credit invoice ID').fill('legacy-sale'); await label('Existing source customer ID').fill('legacy-ref'); await label('Credit link reason').fill('Match the original shop book');
     loseLink = true; await button('Link existing credit sale').click(); await alert('Lost link reply').waitFor();
     await ready(); await button('Link existing credit sale').click(); await panel.getByText('Existing credit sale linked. Original invoice and transfer history were retained.', { exact: true }).waitFor();

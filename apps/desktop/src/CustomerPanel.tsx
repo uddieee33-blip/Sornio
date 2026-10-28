@@ -8,7 +8,7 @@ import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-d
 import type { Customer, CreditKind, CreditReceipt, CreditRequest, PendingCredit, Statement } from './customer-types';
 const emptyProfile = { id: '', name: '', phone: '', limit: '', days: '30' };
 const refusedCodes = new Set(['invalid_credit', 'credit_conflict', 'overpayment', 'customer_missing', 'operation_conflict', 'credit_limit', 'forbidden']);
-export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyChange }: { role: Role; disabled: boolean; refreshToken: number; onChanged: () => void; onBusyChange: (busy: boolean) => void }) {
+export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyChange, onDirtyChange }: { role: Role; disabled: boolean; refreshToken: number; onChanged: () => void; onBusyChange: (busy: boolean) => void; onDirtyChange: (dirty: boolean) => void }) {
   const manage = role !== 'cashier', policy = role === 'owner' || role === 'manager', correct = role === 'owner';
   const [customers, setCustomers] = useState<Customer[]>([]), [search, setSearch] = useState(''), [overdue, setOverdue] = useState(false);
   const [selected, setSelected] = useState<Customer | null>(null), [statement, setStatement] = useState<Statement | null>(null), [html, setHtml] = useState('');
@@ -18,11 +18,13 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const [pending, setPending] = useState<PendingCredit | null>(null), [receipt, setReceipt] = useState<CreditReceipt | null>(null), [review, setReview] = useState(false), [refused, setRefused] = useState(false);
   const [ready, setReady] = useState(false);
   const pendingRef = useRef<PendingCredit | null>(null);
+  const printSnapshot = useRef<{ customerId: string; through: number; revision: number } | null>(null);
   const deferredRead = useRef(false), [reloadTick, setReloadTick] = useState(0);
   const profileOperation = useRef<{ fingerprint: string; request: Record<string, unknown> } | null>(null);
   const linkOperation = useRef<{ fingerprint: string; request: Record<string, unknown> } | null>(null);
   const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false), [message, setMessage] = useState('Opening customer accounts…');
   const mounted = useRef(false), submitting = useRef(false), readVersion = useRef(0), selection = useRef<string | null>(null);
+  useEffect(() => { onDirtyChange(JSON.stringify(form) !== JSON.stringify(emptyProfile) || editing !== null || invoice !== '' || source !== '' || linkReason !== '' || pending === null && (review || amount !== '' || reason !== '' || due !== '' || reverse !== '')); }, [form, editing, invoice, source, linkReason, pending, review, amount, reason, due, reverse, onDirtyChange]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const applyPending = useCallback((value: PendingCredit | null) => {
     if (!value && pendingRef.current) { setAmount(''); setReason(''); setDue(''); setReverse(''); setKind('repayment'); }
@@ -41,7 +43,8 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
     if (id) {
       const result = await invoke<Statement>('read_customer_statement', { customerId: id, after: 0, through: null });
       if (!mounted.current || generation !== readVersion.current) return;
-      selection.current = id; setSelected(result.customer); setStatement(result); setHtml('');
+      if (printSnapshot.current && (printSnapshot.current.customerId !== id || printSnapshot.current.through !== result.through || printSnapshot.current.revision !== result.customer.revision)) { printSnapshot.current = null; setHtml(''); }
+      selection.current = id; setSelected(result.customer); setStatement(result);
     }
     setReady(true); setFailed(false); setMessage(active?.receipt ? 'Recovered the saved credit receipt.' : active ? 'This entry is awaiting confirmation. Retry the same entry to resolve it.' : 'Customer accounts are up to date.');
   }, [search, overdue, applyPending]);
@@ -56,7 +59,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   async function choose(id: string) {
     if (pending || busy || disabled) return;
     selection.current = id;
-    await run(async () => { const result = await invoke<Statement>('read_customer_statement', { customerId: id, after: 0, through: null }); if (mounted.current) { setSelected(result.customer); setStatement(result); setHtml(''); setReview(false); setAmount(''); } });
+    await run(async () => { const result = await invoke<Statement>('read_customer_statement', { customerId: id, after: 0, through: null }); if (mounted.current) { setSelected(result.customer); setStatement(result); printSnapshot.current = null; setHtml(''); setReview(false); setAmount(''); } });
   }
   function save(event: FormEvent) {
     event.preventDefault();
@@ -69,7 +72,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       const saved = await invoke<Customer>('save_local_customer', { r: profileOperation.current.request });
       profileOperation.current = null;
       if (!mounted.current) return;
-      selection.current = saved.id; setSelected(saved); setForm(emptyProfile); setEditing(null); onChanged(); await load(); setMessage('Customer saved.');
+      printSnapshot.current = null; setHtml(''); selection.current = saved.id; setSelected(saved); setForm(emptyProfile); setEditing(null); onChanged(); await load(); setMessage('Customer saved.');
     });
   }
   async function confirm(request: CreditRequest) {
@@ -81,7 +84,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
         await invoke('prepare_local_credit', { r: request }); prepared = true;
         const saved = await invoke<CreditReceipt>('post_local_credit', { r: request });
         if (!mounted.current) return;
-        setReceipt(saved); pendingRef.current = { request, receipt: saved }; setPending({ request, receipt: saved }); setMessage('Credit entry saved.'); onChanged();
+        printSnapshot.current = null; setHtml(''); setReceipt(saved); pendingRef.current = { request, receipt: saved }; setPending({ request, receipt: saved }); setMessage('Credit entry saved.'); onChanged();
         try { await load(); } catch { setReady(false); setMessage('Credit entry was saved. Refresh customer accounts before the next entry.'); }
       } catch (error: unknown) {
         if (!prepared && refusedCodes.has(errorCode(error) ?? '')) { try { applyPending(await invoke<PendingCredit | null>('pending_local_credit')); } catch { /* Retain the exact uncertain request. */ } }
@@ -105,7 +108,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   }
   async function preview() {
     if (!selected || !statement) return;
-    await run(async () => { const rendered = await invoke<string>('render_customer_statement', { customerId: selected.id, through: statement.through }); if (mounted.current) { setHtml(rendered); setMessage('Full statement is ready to print, including all history in this snapshot.'); } });
+    await run(async () => { const rendered = await invoke<string>('render_customer_statement', { customerId: selected.id, through: statement.through }); if (mounted.current) { printSnapshot.current = { customerId: selected.id, through: statement.through, revision: selected.revision }; setHtml(rendered); setMessage('Full statement is ready to print, including all history in this snapshot.'); } });
   }
   async function link() {
     if (!selected) return;
@@ -119,7 +122,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       await invoke('link_local_credit', { r: linkOperation.current.request });
       linkOperation.current = null;
       if (!mounted.current) return;
-      onChanged(); await load(); setMessage('Existing credit sale linked. Original invoice and transfer history were retained.');
+      printSnapshot.current = null; setHtml(''); setInvoice(''); setSource(''); setLinkReason(''); onChanged(); await load(); setMessage('Existing credit sale linked. Original invoice and transfer history were retained.');
     });
   }
   const blocked = disabled || busy || !ready || pending !== null;
@@ -131,7 +134,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       <ul aria-label="Customer accounts">{customers.slice(0, 100).map(c => <li key={c.id}><span>{c.name} · {c.id} · {c.phone ?? 'No phone'} · Outstanding {money(c.balancePaise)} · Overdue {money(c.overduePaise)}</span><button type="button" aria-label={`Open customer ${c.id}`} onClick={() => void choose(c.id)}>Open</button></li>)}</ul>{customers.length > 100 ? <p>More than 100 matches. Refine your search.</p> : null}
     </fieldset>
     {manage ? <form onSubmit={save}><fieldset disabled={blocked}><legend>{editing === null ? 'Create customer' : 'Edit customer'}</legend>
-      <label htmlFor="customer-id">Customer ID</label><input id="customer-id" required maxLength={80} pattern="[A-Za-z0-9_-]+" readOnly={editing !== null} value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}/>
+      <label htmlFor="customer-id">Customer ID</label><input id="customer-id" required maxLength={80} pattern="[A-Za-z0-9_\-]+" readOnly={editing !== null} value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}/>
       <label htmlFor="customer-name">Customer name</label><input id="customer-name" required maxLength={120} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/>
       <label htmlFor="customer-phone">Customer phone (optional)</label><input id="customer-phone" type="tel" maxLength={40} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
       <label htmlFor="customer-limit">Credit limit (₹, blank for no limit)</label><input id="customer-limit" inputMode="decimal" disabled={!policy} maxLength={24} value={!policy && editing === null ? '0' : form.limit} onChange={e => setForm({ ...form, limit: e.target.value })}/>

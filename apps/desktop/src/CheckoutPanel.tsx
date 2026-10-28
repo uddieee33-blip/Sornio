@@ -213,7 +213,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
         })}</ul>
         <div className="checkout-options"><div><label htmlFor="sale-tax">Tax (%)</label><input id="sale-tax" inputMode="decimal" maxLength={8} value={tax} onChange={event => setTax(event.target.value)}/></div>
           <div><label htmlFor="sale-tender">Transaction type</label><select id="sale-tender" value={tender} onChange={event => setTender(event.target.value as 'cash' | 'credit')}><option value="cash">Cash</option><option value="credit">Credit</option></select></div>
-          {tender === 'credit' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">Credit customer reference</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference.</small></div> : null}
+          {tender === 'credit' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken + refreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">Credit customer reference</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference.</small></div> : null}
         </div>
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>

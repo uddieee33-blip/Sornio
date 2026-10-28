@@ -15,7 +15,9 @@ become accounts, retaining their original reference and financial history.
 
 The customer panel shows account balances, transaction history, credit terms,
 and full printable statements. It supports partial/full **cash** repayments.
-No digital payment settlement is claimed. Owner corrections cover opening dues,
+No digital payment settlement is claimed. Unsaved customer edits and repayment
+drafts use the existing lock/discard guard; prepared financial requests remain
+durable across locking and restart. Owner corrections cover opening dues,
 write-offs and a once-only reversal of these entries or a repayment; these do not
 refund an invoice or rewrite sales/tax. Reasons are mandatory for corrections.
 
