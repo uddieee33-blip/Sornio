@@ -4,6 +4,7 @@ import { invoke } from './native';
 import type { Role } from './native';
 import { errorCode, errorMessage } from './access';
 import { money } from './billing-types';
+import { clearPrintReceipt, printCustomerStatement } from './receipt-print';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import type { Customer, CreditKind, CreditReceipt, CreditRequest, PendingCredit, Statement } from './customer-types';
 const emptyProfile = { id: '', name: '', phone: '', limit: '', days: '30' };
@@ -19,6 +20,8 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const [ready, setReady] = useState(false);
   const pendingRef = useRef<PendingCredit | null>(null);
   const printSnapshot = useRef<{ customerId: string; through: number; revision: number } | null>(null);
+  const paper = useRef<HTMLElement>(null);
+  const clearStatement = useCallback(() => { if (paper.current) clearPrintReceipt(paper.current); printSnapshot.current = null; setHtml(''); }, []);
   const deferredRead = useRef(false), [reloadTick, setReloadTick] = useState(0);
   const profileOperation = useRef<{ fingerprint: string; request: Record<string, unknown> } | null>(null);
   const linkOperation = useRef<{ fingerprint: string; request: Record<string, unknown> } | null>(null);
@@ -26,6 +29,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const mounted = useRef(false), submitting = useRef(false), readVersion = useRef(0), selection = useRef<string | null>(null);
   useEffect(() => { onDirtyChange(JSON.stringify(form) !== JSON.stringify(emptyProfile) || editing !== null || invoice !== '' || source !== '' || linkReason !== '' || pending === null && (review || amount !== '' || reason !== '' || due !== '' || reverse !== '')); }, [form, editing, invoice, source, linkReason, pending, review, amount, reason, due, reverse, onDirtyChange]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => { const source = paper.current; return () => { if (source) clearPrintReceipt(source); }; }, [html]);
   const applyPending = useCallback((value: PendingCredit | null) => {
     if (!value && pendingRef.current) { setAmount(''); setReason(''); setDue(''); setReverse(''); setKind('repayment'); }
     pendingRef.current = value; setPending(value); setReceipt(value?.receipt ?? null); setReview(false); setRefused(false);
@@ -43,11 +47,11 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
     if (id) {
       const result = await invoke<Statement>('read_customer_statement', { customerId: id, after: 0, through: null });
       if (!mounted.current || generation !== readVersion.current) return;
-      if (printSnapshot.current && (printSnapshot.current.customerId !== id || printSnapshot.current.through !== result.through || printSnapshot.current.revision !== result.customer.revision)) { printSnapshot.current = null; setHtml(''); }
+      if (printSnapshot.current && (printSnapshot.current.customerId !== id || printSnapshot.current.through !== result.through || printSnapshot.current.revision !== result.customer.revision)) clearStatement();
       selection.current = id; setSelected(result.customer); setStatement(result);
     }
     setReady(true); setFailed(false); setMessage(active?.receipt ? 'Recovered the saved credit receipt.' : active ? 'This entry is awaiting confirmation. Retry the same entry to resolve it.' : 'Customer accounts are up to date.');
-  }, [search, overdue, applyPending]);
+  }, [search, overdue, applyPending, clearStatement]);
   useEffect(() => { const timer = setTimeout(() => { if (submitting.current) { deferredRead.current = true; return; } void load().catch(error => { if (mounted.current) { setReady(false); setFailed(true); setMessage(errorMessage(error, 'Customer accounts could not be opened.')); } }); }, 150); return () => { clearTimeout(timer); readVersion.current += 1; }; }, [load, refreshToken, reloadTick]);
   async function run(operation: () => Promise<void>) {
     if (submitting.current || disabled) return;
@@ -59,7 +63,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   async function choose(id: string) {
     if (pending || busy || disabled) return;
     selection.current = id;
-    await run(async () => { const result = await invoke<Statement>('read_customer_statement', { customerId: id, after: 0, through: null }); if (mounted.current) { setSelected(result.customer); setStatement(result); printSnapshot.current = null; setHtml(''); setReview(false); setAmount(''); } });
+    await run(async () => { const result = await invoke<Statement>('read_customer_statement', { customerId: id, after: 0, through: null }); if (mounted.current) { setSelected(result.customer); setStatement(result); clearStatement(); setReview(false); setAmount(''); } });
   }
   function save(event: FormEvent) {
     event.preventDefault();
@@ -72,7 +76,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       const saved = await invoke<Customer>('save_local_customer', { r: profileOperation.current.request });
       profileOperation.current = null;
       if (!mounted.current) return;
-      printSnapshot.current = null; setHtml(''); selection.current = saved.id; setSelected(saved); setForm(emptyProfile); setEditing(null); onChanged(); await load(); setMessage('Customer saved.');
+      clearStatement(); selection.current = saved.id; setSelected(saved); setForm(emptyProfile); setEditing(null); onChanged(); await load(); setMessage('Customer saved.');
     });
   }
   async function confirm(request: CreditRequest) {
@@ -84,7 +88,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
         await invoke('prepare_local_credit', { r: request }); prepared = true;
         const saved = await invoke<CreditReceipt>('post_local_credit', { r: request });
         if (!mounted.current) return;
-        printSnapshot.current = null; setHtml(''); setReceipt(saved); pendingRef.current = { request, receipt: saved }; setPending({ request, receipt: saved }); setMessage('Credit entry saved.'); onChanged();
+        clearStatement(); setReceipt(saved); pendingRef.current = { request, receipt: saved }; setPending({ request, receipt: saved }); setMessage('Credit entry saved.'); onChanged();
         try { await load(); } catch { setReady(false); setMessage('Credit entry was saved. Refresh customer accounts before the next entry.'); }
       } catch (error: unknown) {
         if (!prepared && refusedCodes.has(errorCode(error) ?? '')) { try { applyPending(await invoke<PendingCredit | null>('pending_local_credit')); } catch { /* Retain the exact uncertain request. */ } }
@@ -110,6 +114,25 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
     if (!selected || !statement) return;
     await run(async () => { const rendered = await invoke<string>('render_customer_statement', { customerId: selected.id, through: statement.through }); if (mounted.current) { printSnapshot.current = { customerId: selected.id, through: statement.through, revision: selected.revision }; setHtml(rendered); setMessage('Full statement is ready to print, including all history in this snapshot.'); } });
   }
+  async function print() {
+    const source = paper.current, prepared = printSnapshot.current;
+    if (!source || !prepared || !html) return;
+    await run(async () => {
+      try {
+        await printCustomerStatement(source, async () => {
+          const rendered = await invoke<string>('render_customer_statement', { customerId: prepared.customerId, through: prepared.through });
+          if (printSnapshot.current !== prepared || rendered !== html) {
+            clearStatement();
+            throw { code: 'statement_changed', message: 'The customer statement changed. Prepare it again before printing.' };
+          }
+        });
+      } catch (error) {
+        if (errorCode(error)) throw error;
+        throw new Error('Statement printing could not open. Check access and your printer, then retry.');
+      }
+      if (mounted.current) setMessage('Check the printer or PDF output. Printing does not change this customer account. If cancelled or unsuccessful, print the same statement again.');
+    });
+  }
   async function link() {
     if (!selected) return;
     await run(async () => {
@@ -122,7 +145,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       await invoke('link_local_credit', { r: linkOperation.current.request });
       linkOperation.current = null;
       if (!mounted.current) return;
-      printSnapshot.current = null; setHtml(''); setInvoice(''); setSource(''); setLinkReason(''); onChanged(); await load(); setMessage('Existing credit sale linked. Original invoice and transfer history were retained.');
+      clearStatement(); setInvoice(''); setSource(''); setLinkReason(''); onChanged(); await load(); setMessage('Existing credit sale linked. Original invoice and transfer history were retained.');
     });
   }
   const blocked = disabled || busy || !ready || pending !== null;
@@ -152,6 +175,6 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       {statement ? <><h4>Customer transaction history</h4><p>Statement snapshot {statement.through} · Closing balance {money(statement.closingBalancePaise)}</p><table><thead><tr><th>Date</th><th>Type / reference</th><th>Change</th><th>Balance</th></tr></thead><tbody>{statement.entries.map(e => <tr key={e.sequence}><td>{new Date(e.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</td><td>{e.kind} · {e.operationId}<br/>{e.invoiceId ? `Invoice ${e.invoiceId}` : null}{e.reverseOf ? `Reverses ${e.reverseOf}` : null}<br/>{e.reason}</td><td>{money(e.amountPaise)}</td><td>{money(e.runningBalancePaise)}</td></tr>)}</tbody></table>{statement.hasMore ? <button type="button" disabled={busy || disabled} onClick={() => void more()}>Load more customer history</button> : null}<button type="button" disabled={busy || disabled} onClick={() => void preview()}>Prepare full customer statement</button></> : null}
       {correct ? <fieldset disabled={blocked}><legend>Link an existing unpaid credit sale</legend><label htmlFor="credit-link-invoice">Existing credit invoice ID</label><input id="credit-link-invoice" maxLength={80} value={invoice} onChange={e => setInvoice(e.target.value)}/><label htmlFor="credit-link-source">Existing source customer ID</label><input id="credit-link-source" maxLength={80} value={source} onChange={e => setSource(e.target.value)}/><label htmlFor="credit-link-reason">Credit link reason</label><input id="credit-link-reason" maxLength={200} value={linkReason} onChange={e => setLinkReason(e.target.value)}/><p>Moves an unrepaid sale to this account and retains the original invoice. Accounts with collections or adjustments need an explicit correction.</p><button type="button" onClick={() => void link()}>Link existing credit sale</button></fieldset> : null}
     </section> : null}
-    {html ? <><button type="button" disabled={busy || disabled} onClick={() => window.print()}>Print customer statement</button><section className="customer-statement-print" aria-label="Printable customer statement" dangerouslySetInnerHTML={{ __html: html }}/></> : null}
+    {html ? <><button type="button" disabled={busy || disabled} onClick={() => void print()}>Print customer statement</button><section ref={paper} lang="en-IN" className="customer-statement-print" aria-label="Printable customer statement" dangerouslySetInnerHTML={{ __html: html }}/></> : null}
   </section>;
 }

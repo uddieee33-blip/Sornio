@@ -4,7 +4,7 @@ import { invoke } from './native';
 import { clearPrintReceipt, printReceipt } from './receipt-print';
 import type { ReceiptLayout } from './receipt-print';
 import type { Invoice } from './billing-types';
-import punjabi from '../public/locales/pa.json';
+import punjabi from './locales/pa.json';
 
 // Canonical display fields; optional historical snapshots remain absent, never
 // replaced by today's business name, prices or settlement status.
