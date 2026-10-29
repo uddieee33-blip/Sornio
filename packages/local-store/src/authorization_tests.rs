@@ -489,6 +489,22 @@ fn expiry_and_idle_lock_are_native_and_restart_never_restores_a_session() {
     w.login("owner", PASSWORD).unwrap();
     assert_eq!(w.local_session().unwrap().scope, scope);
 }
+
+#[test]
+fn passive_access_and_session_polling_cannot_renew_an_idle_session() {
+    let d = tempfile::tempdir().unwrap();
+    let w = owner(&d.path().join("s.db"));
+    let before = Instant::now() - Duration::from_secs(899);
+    w.last_activity.set(before);
+    assert!(w.status().unwrap().unlocked);
+    assert!(w.local_session().is_ok());
+    assert_eq!(w.last_activity.get(), before);
+    w.last_activity
+        .set(Instant::now() - Duration::from_secs(901));
+    assert!(!w.status().unwrap().unlocked);
+    assert!(matches!(w.local_session(), Err(StoreError::Locked)));
+    assert!(matches!(w.list_products(), Err(StoreError::Locked)));
+}
 #[test]
 fn malformed_hash_and_failed_auth_writes_never_unlock() {
     let d = tempfile::tempdir().unwrap();
@@ -632,4 +648,76 @@ fn ignored_authentication_counter_writes_fail_closed() {
         Err(StoreError::AccessUnavailable)
     ));
     assert!(!w.status().unwrap().unlocked);
+}
+
+#[test]
+fn encrypted_storage_and_temporary_data_policy_are_explicit_after_reopen() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = owner(&path);
+    let private_note = "Synthetic confidential customer reference 34f291cc8b9d";
+    w.save(
+        0,
+        Draft {
+            business_name: "Synthetic private shop".into(),
+            business_type: "general".into(),
+            note: private_note.into(),
+        },
+    )
+    .unwrap();
+    for store in [&w.store, &Store::open(&path, KEY).unwrap()] {
+        for (pragma, expected) in [
+            ("temp_store", 2),
+            ("foreign_keys", 1),
+            ("recursive_triggers", 1),
+            ("synchronous", 2),
+        ] {
+            assert_eq!(
+                store
+                    .0
+                    .pragma_query_value(None, pragma, |r| r.get::<_, i64>(0))
+                    .unwrap(),
+                expected,
+                "{pragma}"
+            );
+        }
+        let memory_security: String = store
+            .0
+            .pragma_query_value(None, "cipher_memory_security", |r| r.get(0))
+            .unwrap();
+        assert_eq!(memory_security, "1");
+    }
+    for file in std::fs::read_dir(d.path()).unwrap() {
+        let bytes = std::fs::read(file.unwrap().path()).unwrap();
+        for secret in [private_note, PASSWORD, KEY] {
+            assert!(
+                !bytes
+                    .windows(secret.len())
+                    .any(|window| window == secret.as_bytes()),
+                "Sensitive marker found in database sidecar"
+            );
+        }
+    }
+    let plain = rusqlite::Connection::open(&path).unwrap();
+    assert!(plain
+        .query_row("SELECT COUNT(*) FROM sqlite_schema", [], |r| r
+            .get::<_, i64>(0))
+        .is_err());
+    drop(w);
+    let mut reopened = Workspace::new(Store::open(&path, KEY).unwrap());
+    assert!(!reopened.status().unwrap().unlocked);
+    reopened.login("owner", PASSWORD).unwrap();
+    assert_eq!(reopened.load().unwrap().draft.unwrap().note, private_note);
+}
+
+#[test]
+fn user_facing_errors_do_not_include_database_or_parser_payloads() {
+    let marker = "Synthetic private payment/customer payload 7b67c3a824";
+    let error = StoreError::Database(rusqlite::Error::SqliteFailure(
+        rusqlite::ffi::Error::new(1),
+        Some(marker.into()),
+    ));
+    assert!(!error.to_string().contains(marker));
+    let parse = serde_json::from_str::<serde_json::Value>(marker).unwrap_err();
+    assert!(!StoreError::InvalidData(parse).to_string().contains(marker));
 }

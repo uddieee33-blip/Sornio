@@ -12,6 +12,10 @@ use sornio_local_store::{
 };
 use std::io::{self, BufRead, Write};
 
+#[cfg(test)]
+#[path = "security/tests.rs"]
+mod security_command_tests;
+
 #[derive(Deserialize)]
 struct Call {
     command: String,

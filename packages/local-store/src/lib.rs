@@ -163,6 +163,8 @@ impl Store {
         // could be replaced despite the UPDATE/DELETE guards.
         db.pragma_update(None, "recursive_triggers", "ON")?;
         db.pragma_update(None, "cipher_memory_security", "ON")?;
+        // Keep transient sorts and temporary customer/payment data off disk.
+        db.pragma_update(None, "temp_store", "MEMORY")?;
         if version < SCHEMA_VERSION {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
             // Re-read after acquiring the write lock: another process may have

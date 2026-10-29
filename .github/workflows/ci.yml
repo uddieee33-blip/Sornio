@@ -27,10 +27,12 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
           cache: npm
@@ -71,14 +73,18 @@ jobs:
   security:
     name: Dependency audit
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    env:
+      CARGO_BUILD_JOBS: 2
 
     steps:
       - name: Check out
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7
         with:
           node-version: 24
           cache: npm
@@ -86,23 +92,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      # Audited against the *production* dependency tree only.
-      #
-      # The dev tree currently reports five high-severity findings with a single
-      # root cause: `braces@3.0.3` (GHSA-vfj7-8cjw-p6xm). The advisory's range
-      # covers every version that exists, so there is nothing to upgrade to, and
-      # the only remaining path to it is `eslint-config-next` ->
-      # `@next/eslint-plugin-next` -> `fast-glob@3.3.1` -> `micromatch` ->
-      # `braces`. `npm audit fix --force` "resolves" it by downgrading
-      # eslint-config-next to 14.x, which would break this repo's flat config and
-      # its typed lint rules; that is a regression wearing a fix's clothes.
-      #
-      # None of it ships: these are build-time glob matchers, and
-      # `npm ls braces --omit=dev` prints an empty tree. Blocking CI on an
-      # unfixable dev-only advisory would only train people to ignore it.
-      #
-      # Production dependencies must stay at zero — that is the tree that runs
-      # against real business records.
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=high
-
+      # Build tooling can execute code in CI; audit it alongside runtime dependencies.
+      - name: Audit root dependencies including build tooling
+        run: npm audit --audit-level=high
+      - name: Audit desktop dependencies including build tooling
+        run: npm audit --prefix apps/desktop --package-lock-only --audit-level=high
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - name: Install pinned Rust advisory scanner
+        run: cargo install cargo-audit --version 0.22.2 --locked
+      - name: Audit native lockfiles
+        run: |
+          cargo audit --file packages/local-store/Cargo.lock
+          cargo audit --file apps/desktop/src-tauri/Cargo.lock

@@ -43,11 +43,11 @@ impl Workspace {
         )?;
         Ok(AccessStatus {
             configured,
-            unlocked: self.require(Permission::View).is_ok(),
+            unlocked: self.authorize(Permission::View).is_ok(),
         })
     }
     pub fn local_session(&self) -> Result<LocalSession, StoreError> {
-        let principal = self.require(Permission::View)?;
+        let principal = self.authorize(Permission::View)?;
         Ok(LocalSession {
             scope: identity::scope(&self.store.0)?,
             principal,
@@ -99,13 +99,17 @@ impl Workspace {
         Ok(())
     }
     pub fn require(&self, permission: Permission) -> Result<Principal, StoreError> {
+        let p = self.authorize(permission)?;
+        self.last_activity.set(Instant::now());
+        Ok(p)
+    }
+    // Passive access-status/session polling must not extend the idle deadline.
+    fn authorize(&self, permission: Permission) -> Result<Principal, StoreError> {
         let session = self.store.1.as_ref().ok_or(StoreError::Locked)?;
         if self.last_activity.get().elapsed() >= Duration::from_secs(15 * 60) {
             return Err(StoreError::Locked);
         }
-        let p = identity::verify(&self.store.0, session, permission)?;
-        self.last_activity.set(Instant::now());
-        Ok(p)
+        identity::verify(&self.store.0, session, permission)
     }
     pub fn provision_owner(
         &mut self,

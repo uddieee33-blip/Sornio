@@ -11,18 +11,22 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     env:
+      RUST_TEST_THREADS: '4'
+      CARGO_BUILD_JOBS: '2'
       NEXT_TELEMETRY_DISABLED: '1'
       NEXT_PUBLIC_APP_URL: http://127.0.0.1:3000
       # Isolated CI-only identity, never used by a hosted deployment.
       DUKAANOS_SESSION_SECRET: sornio-local-browser-review-only-2026
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           workspaces: packages/local-store
       - name: Check native Rust formatting
@@ -31,8 +35,8 @@ jobs:
           cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
       - name: Test native billing and inventory in debug and release
         run: |
-          cargo test --locked --manifest-path packages/local-store/Cargo.toml
-          cargo test --release --locked --manifest-path packages/local-store/Cargo.toml
+          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml
+          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml
       - name: Build native cashier integration fixture
         run: cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge
       - run: npm ci
@@ -69,7 +73,7 @@ jobs:
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-customers.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-retail.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-inventory-recovery.cjs
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
           name: Sornio-workspace-review
@@ -78,5 +82,6 @@ jobs:
             /tmp/sornio-server.log
             /tmp/sornio-desktop-server.log
           retention-days: 7
+
 
 
