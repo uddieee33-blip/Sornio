@@ -164,6 +164,7 @@ try:
     activate("Save item on this PC")
     wait_until(30, 0.5, lambda: message_visible("Saved item changes to this PC."))
     wait_until(30, 0.5, lambda: message_visible("1.25 pcs"))
+    activate("Acknowledge item save")
     # Select the first saved item using native keyboard input on the actual combo.
     focus_control("Item to adjust", "ComboBox")
     send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
@@ -171,6 +172,7 @@ try:
     fill("Reason for stock change", "Counted delivery")
     activate("Save stock change")
     wait_until(30, 0.5, lambda: message_visible("4 pcs"))
+    activate("Acknowledge item save")
     window.capture_as_image().save(OUTPUT / "windows-local-stock.png")
 
     # Actual bundled cashier -> authorized native posting -> encrypted SQLite.

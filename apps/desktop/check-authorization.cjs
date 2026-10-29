@@ -8,7 +8,7 @@ const { mkdtempSync, rmSync } = require('node:fs');
 const { join, resolve } = require('node:path');
 const { tmpdir } = require('node:os');
 const directory = mkdtempSync(join(tmpdir(), 'sornio-identity-'));
-const binary = resolve('packages/local-store/target/debug/examples/cashier_review_bridge');
+const binary = resolve(process.env.SORNIO_REVIEW_BRIDGE || 'packages/local-store/target/debug/examples/cashier_review_bridge');
 function bridge() {
   const child = spawn(binary, [join(directory, 'synthetic.db')], { stdio: ['pipe', 'pipe', 'pipe'] });
   const queue = []; let errors = '';

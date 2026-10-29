@@ -6,7 +6,7 @@ commands.allow = ["workspace_access_status", "setup_local_access", "unlock_works
 [[permission]]
 identifier = "local-stock"
 description = "Read and mutate bounded review stock through native authorization. No SQL, path, filesystem or network access."
-commands.allow = ["list_local_products", "add_local_product", "adjust_local_stock"]
+commands.allow = ["list_local_products", "add_local_product", "adjust_local_stock", "pending_local_inventory", "acknowledge_local_inventory"]
 
 
 [[permission]]

@@ -6,9 +6,64 @@ use crate::{
     customers::{CreditKind, CreditRequest, SaveCustomer},
     identity::{Role, StaffDetails},
 };
+use proptest::prelude::*;
 use rusqlite::types::Value as SqlValue;
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const PASSWORD: &str = "Synthetic retail password 2026";
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+    #[test]
+    fn generated_split_returns_conserve_money_stock_and_closing(
+        qty in 1000i64..9000, price in 100i64..100000, bps in 0i64..3001,
+        cut in 1u32..999, float in 100i64..100000, difference in -100i64..101, match_upi in any::<bool>(),
+    ) {
+        let d=tempfile::tempdir().unwrap();let mut s=seed(&d.path().join("s.db"));
+        s.0.execute("UPDATE local_products SET unit_price_paise=?1 WHERE id='rice'",[price]).unwrap();
+        let total=crate::billing::line_total(qty,price).unwrap();let tax=crate::billing::tax_total(total,bps).unwrap();let amount=total+tax;
+        let cash=amount/3;let upi=(amount-cash)/2;let card=amount-cash-upi;
+        let mut r=sale_req(&s,"generated-sale",&[("cash",cash),("upi",upi),("card",card)]);
+        if let Action::Sale{invoice,..}=&mut r.action {invoice.lines[0].quantity_milli=qty;invoice.tax_basis_points=bps;}
+        let saved=perform(&mut s,r.clone());let before=snapshots(&s);prop_assert_eq!(s.post_retail(r).unwrap(),saved);prop_assert_eq!(snapshots(&s),before);
+        prop_assert_eq!(s.list_products().unwrap()[0].stock_milli,100000-qty);
+        for p in invoice_payments(&s.0,"generated-sale").unwrap() {prop_assert!(!p.externally_verified);if p.method!="cash"{prop_assert_eq!(p.status,"pending");}}
+        if match_upi { let r=match_req(&s,"match-upi","generated-sale-p-1","BANKREF123456");perform(&mut s,r); }
+        let first=(qty*cut as i64/1000).clamp(1,qty-1);
+        let request_a=return_req(&s,"return-a","generated-sale",first);let a=perform(&mut s,request_a);
+        let request_b=return_req(&s,"return-b","generated-sale",qty-first);let b=perform(&mut s,request_b);
+        prop_assert_eq!(a.data["totalPaise"].as_i64().unwrap()+b.data["totalPaise"].as_i64().unwrap(),amount);
+        prop_assert_eq!(a.data["taxPaise"].as_i64().unwrap()+b.data["taxPaise"].as_i64().unwrap(),tax);
+        prop_assert_eq!(s.list_products().unwrap()[0].stock_milli,100000);
+        prop_assert_eq!(s.cashier_state().unwrap().balances.cash_paise,"0");prop_assert_eq!(pending_digital(&s.0).unwrap(),0);
+        let refunds:Vec<String>={let mut q=s.0.prepare("SELECT id FROM local_retail_refunds").unwrap();q.query_map([],|r|r.get(0)).unwrap().collect::<Result<_,_>>().unwrap()};
+        for (index,id) in refunds.into_iter().enumerate() { let f=refund(&s.0,&id).unwrap();perform(&mut s,req(&format!("send-refund-{index}"),Action::MatchRefund{refund_id:id,expected_revision:f.revision,reference:format!("REFUND{index:08}"),statement_amount_paise:f.amount_paise,evidence:"Manually compared outgoing statement".into()})); }
+        for account in ["cash","receivables","revenue","tax_payable","refund_payable","upi_clearing","card_clearing"] {
+            let net:i64=s.0.query_row("SELECT COALESCE((SELECT SUM(amount_paise) FROM local_billing_ledger WHERE account=?1),0)+COALESCE((SELECT SUM(amount) FROM local_retail_journal WHERE account=?1),0)",[account],|r|r.get(0)).unwrap();prop_assert_eq!(net,0,"account {}",account);
+        }
+        for table in ["local_billing_ledger","local_retail_journal"] {
+            let col=if table=="local_billing_ledger"{"amount_paise"}else{"amount"};
+            let sum:i64=s.0.query_row(&format!("SELECT COALESCE(SUM({col}),0) FROM {table}"),[],|r|r.get(0)).unwrap();prop_assert_eq!(sum,0);
+        }
+        journals_balance(&s);let day=today(&s.0).unwrap();
+        perform(&mut s,req("opening",Action::Float{day:day.clone(),username:"owner".into(),amount_paise:float}));
+        let summary=summary(&s.0,&s.1,&day,"owner").unwrap();prop_assert_eq!(&summary.expected_cash_paise,&float.to_string());
+        let close=perform(&mut s,req("closing",Action::Close{day:day.clone(),username:"owner".into(),through:summary.through,counted_paise:float+difference}));
+        let expected_variance=difference.to_string();prop_assert_eq!(close.data["closing"]["variancePaise"].as_str(),Some(expected_variance.as_str()));
+        for p in invoice_payments(&s.0,"generated-sale").unwrap(){prop_assert!(!p.externally_verified);prop_assert_eq!(p.refundable_paise,0);}
+    }
+
+    #[test]
+    fn generated_invalid_split_and_mid_transaction_failure_never_partially_commit(cash in 1i64..9999) {
+        let d=tempfile::tempdir().unwrap();let mut s=seed(&d.path().join("s.db"));
+        let mut bad=sale_req(&s,"bad-split",&[("cash",cash),("upi",10001-cash)]);
+        s.prepare_retail(bad.clone()).unwrap();let before=snapshots(&s);prop_assert!(s.post_retail(bad.clone()).is_err());prop_assert_eq!(snapshots(&s),before);
+        s.clear_retail("bad-split",false).unwrap();
+        bad=sale_req(&s,"retryable",&[("cash",cash),("upi",10000-cash)]);s.prepare_retail(bad.clone()).unwrap();
+        let before=snapshots(&s);s.0.execute_batch("CREATE TRIGGER fail_property BEFORE INSERT ON local_retail_outbox BEGIN SELECT RAISE(ABORT,'synthetic failure'); END;").unwrap();
+        prop_assert!(s.post_retail(bad.clone()).is_err());prop_assert_eq!(snapshots(&s),before);s.0.execute_batch("DROP TRIGGER fail_property").unwrap();
+        let receipt=s.post_retail(bad.clone()).unwrap();let committed=snapshots(&s);prop_assert_eq!(s.post_retail(bad).unwrap(),receipt);prop_assert_eq!(snapshots(&s),committed);journals_balance(&s);
+    }
+}
 fn authenticated(path: &std::path::Path) -> Store {
     let mut w = Workspace::new(Store::open(path, KEY).unwrap());
     if !w.status().unwrap().configured {
@@ -867,6 +922,9 @@ fn v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity() {
     let scope = identity::scope(&s.0).unwrap();
     let stock = s.list_products().unwrap();
     let names = [
+        "local_inventory_pending",
+        "local_inventory_outbox",
+        "local_inventory_actors",
         "local_retail_outbox",
         "local_retail_pending",
         "local_retail_canceled",

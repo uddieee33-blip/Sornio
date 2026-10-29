@@ -443,6 +443,34 @@ fn process_worker() {
 }
 
 #[test]
+fn uncommitted_billing_process_exit_rolls_back_every_effect_before_exact_retry() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path().join("s.db");
+    let store = seeded(&path);
+    let original = bill(&store, "process-sale");
+    let before = state(&store);
+    let mut workspace = Workspace::new(store);
+    workspace.setup(PASSWORD).unwrap();
+    drop(workspace);
+    let exit = std::process::Command::new(std::env::current_exe().unwrap())
+        .args(["--exact", "billing::reliability_tests::process_worker"])
+        .env("SORNIO_TEST_COMMITTED_BILL_DB", &path)
+        .env("SORNIO_TEST_BILL_CRASH_PHASE", "before_commit")
+        .status()
+        .unwrap();
+    assert_eq!(exit.code(), Some(88));
+    let reopened = Store::open(&path, KEY).unwrap();
+    assert_eq!(state(&reopened), before);
+    let mut workspace = Workspace::new(reopened);
+    workspace.unlock(PASSWORD).unwrap();
+    let saved = workspace.post_invoice(original.clone()).unwrap();
+    assert_eq!(workspace.post_invoice(original).unwrap(), saved);
+    assert_eq!(workspace.list_invoices(0).unwrap().len(), 1);
+    assert_eq!(workspace.billing_outbox(0).unwrap().len(), 1);
+    assert_eq!(workspace.list_products().unwrap()[0].stock_milli, 8750);
+}
+
+#[test]
 fn committed_billing_survives_process_exit_relock_unlock_and_exact_retry() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path().join("s.db");
@@ -601,7 +629,7 @@ fn frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency() {
             .0
             .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        9
+        crate::SCHEMA_VERSION
     );
     assert_eq!(rows(&migrated.0, &tables), before);
     assert_eq!(migrated.add_product(item()).unwrap(), added);

@@ -29,7 +29,12 @@ function rpc(command, args = {}) {
   return new Promise((resolve, reject) => { queue.push({ resolve, reject }); child.stdin.write(`${JSON.stringify({ command, args })}\n`); });
 }
 async function native(command, args = {}) {
-  const reply = await rpc(command, { ...args, scope: nativeScope }); if (!reply.ok) throw new Error(JSON.stringify(reply.error)); return reply.value;
+  const reply = await rpc(command, { ...args, scope: nativeScope }); if (!reply.ok) throw new Error(JSON.stringify(reply.error));
+  if (['add_local_product', 'adjust_local_stock'].includes(command)) {
+    const ack = await rpc('acknowledge_local_inventory', { scope: nativeScope, operationId: args.request.operationId });
+    assert.equal(ack.ok, true, 'Fixture must acknowledge its known completed stock save');
+  }
+  return reply.value;
 }
 async function stopBridge() {
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -89,6 +94,7 @@ async function stopBridge() {
     holdNextRead = true;
     await button('Save item on this PC').click();
     await page.getByText('Saved item changes to this PC.', { exact: true }).waitFor();
+    await button('Acknowledge item save').click();
     await readReady;
     for (const [id, name, unit, price, stock] of [['oil','Review oil','litre',10000,5000],['cloth','Review cloth','metre',1999,3000],['widget','Review widget','pcs',199,2000]]) {
       await native('add_local_product', { request: { operationId: id, name, sku: id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });

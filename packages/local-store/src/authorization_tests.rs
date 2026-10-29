@@ -77,6 +77,7 @@ fn every_role_is_enforced_by_native_data_methods() {
         let path = d.path().join("s.db");
         let mut w = owner(&path);
         w.add_product(item()).unwrap();
+        w.acknowledge_inventory("rice").unwrap();
         if role != Role::Owner {
             w.create_staff(details("staff", role.clone()), PASSWORD)
                 .unwrap();
@@ -88,6 +89,9 @@ fn every_role_is_enforced_by_native_data_methods() {
         new.operation_id = "second".into();
         new.sku = "SECOND".into();
         assert_eq!(w.add_product(new).is_ok(), role.allows(Permission::AddItem));
+        if role.allows(Permission::AddItem) {
+            w.acknowledge_inventory("second").unwrap();
+        }
         assert_eq!(
             w.adjust_stock(correction()).is_ok(),
             role.allows(Permission::CorrectStock)

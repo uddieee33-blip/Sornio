@@ -5,6 +5,7 @@ use crate::{
     catalog::AddProduct,
     identity::{Scope, StaffDetails},
 };
+use proptest::prelude::*;
 use rusqlite::types::Value;
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const PASSWORD: &str = "Native customer password!";
@@ -736,7 +737,7 @@ fn schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity() {
     let mut s = store(&path);
     let invoice = sale(&mut s, "old-credit", "legacy");
     let identity = identity::scope(&s.0).unwrap();
-    s.0.execute_batch("DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; PRAGMA user_version=7;").unwrap();
+    s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; PRAGMA user_version=7;").unwrap();
     drop(s);
     let s = Store::open(&path, KEY).unwrap();
     assert_eq!(identity::scope(&s.0).unwrap(), identity);
@@ -883,4 +884,20 @@ fn settled_sales_do_not_hide_later_backdated_opening_dues() {
     s.post_credit(request(&s, "part", CreditKind::Repayment, 1234), false)
         .unwrap();
     assert_eq!(customer(&s.0, "c1").unwrap().overdue_paise, "3766");
+}
+
+proptest! {
+    #![proptest_config(ProptestConfig::with_cases(32))]
+    #[test]
+    fn generated_credit_collections_preserve_debt_cash_and_exact_replay(amount in 100i64..1000000, cut in 1u32..1000) {
+        let d=tempfile::tempdir().unwrap();let mut s=store(&d.path().join("s.db"));
+        s.0.execute("UPDATE local_products SET unit_price_paise=?1 WHERE id='rice'",[amount]).unwrap();sale(&mut s,"credit-sale","c1");
+        let part=(amount*cut as i64/1000).clamp(1,amount-1);let r=request(&s,"partial",CreditKind::Repayment,part);
+        let receipt=s.post_credit(r.clone(),false).unwrap();let snapshot=rows(&s);prop_assert_eq!(s.post_credit(r,false).unwrap(),receipt);prop_assert_eq!(&rows(&s),&snapshot);
+        prop_assert_eq!(customer(&s.0,"c1").unwrap().balance_paise,(amount-part).to_string());
+        let over=request(&s,"overpay",CreditKind::Repayment,amount-part+1);prop_assert!(s.post_credit(over,false).is_err());prop_assert_eq!(&rows(&s),&snapshot);
+        let remaining=request(&s,"remaining",CreditKind::Repayment,amount-part);s.post_credit(remaining,false).unwrap();
+        prop_assert_eq!(customer(&s.0,"c1").unwrap().balance_paise,"0");prop_assert_eq!(s.cashier_state().unwrap().balances.cash_paise,amount.to_string());
+        let sum:i64=s.0.query_row("SELECT COALESCE(SUM(amount_paise),0) FROM local_customer_journal",[],|r|r.get(0)).unwrap();prop_assert_eq!(sum,0);
+    }
 }

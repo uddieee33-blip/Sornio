@@ -208,6 +208,24 @@ async fn adjust_local_stock(
 }
 
 #[tauri::command]
+async fn pending_local_inventory(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Option<sornio_local_store::inventory_recovery::InventoryReceipt>, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.pending_inventory()).await
+}
+#[tauri::command]
+async fn acknowledge_local_inventory(
+    scope: Scope,
+    operation_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.acknowledge_inventory(&operation_id)
+    })
+    .await
+}
+#[tauri::command]
 async fn read_cashier_state(
     scope: Scope,
     state: tauri::State<'_, LocalState>,
@@ -566,6 +584,8 @@ fn main() {
             list_local_products,
             add_local_product,
             adjust_local_stock,
+            pending_local_inventory,
+            acknowledge_local_inventory,
             read_cashier_state,
             prepare_local_checkout,
             clear_local_checkout,

@@ -143,6 +143,11 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
         "adjust_local_stock" => {
             serde_json::to_value(w.adjust_stock(argument::<AdjustStock>(a, "request")?)?)?
         }
+        "pending_local_inventory" => serde_json::to_value(w.pending_inventory()?)?,
+        "acknowledge_local_inventory" => {
+            w.acknowledge_inventory(&argument::<String>(a, "operationId")?)?;
+            Value::Null
+        }
         "read_cashier_state" => serde_json::to_value(w.cashier_state()?)?,
         "prepare_local_checkout" => {
             w.prepare_checkout(argument::<PostInvoice>(a, "request")?)?;

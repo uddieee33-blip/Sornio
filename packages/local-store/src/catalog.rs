@@ -1,5 +1,5 @@
-//! Bounded stock review on the same encrypted device store. No sale, payment,
-//! verified business identity, staff authorization or sync is implied here.
+//! Bounded inventory on the encrypted device store, with native staff guards
+//! and atomic recoverable receipts. Outbox storage does not imply active sync.
 use crate::{Store, StoreError};
 use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
@@ -124,7 +124,8 @@ fn record(
     request: &str,
     product: &Product,
 ) -> Result<(), StoreError> {
-    tx.execute(
+    crate::inventory_recovery::one(
+        tx,
         "INSERT INTO local_inventory_events(operation_id, product_id, kind, request, result)
         VALUES(?1, ?2, ?3, ?4, ?5)",
         params![
@@ -177,8 +178,10 @@ impl Store {
             Some(&request.operation_id),
         )?;
         if let Some(product) = replay(&tx, &request.operation_id, "product_added", &payload)? {
+            crate::inventory_recovery::reader(&tx, &self.1, &request.operation_id)?;
             return Ok(product);
         }
+        crate::inventory_recovery::guard(&tx, &self.1, &request.operation_id)?;
         let count: i64 = tx.query_row("SELECT COUNT(*) FROM local_products", [], |r| r.get(0))?;
         if count >= MAX_PRODUCTS {
             return Err(StoreError::CatalogFull);
@@ -202,7 +205,7 @@ impl Store {
             stock_milli: request.opening_stock_milli,
             revision: 1,
         };
-        tx.execute("INSERT INTO local_products(id, name, sku, unit, unit_price_paise, stock_milli, revision)
+        crate::inventory_recovery::one(&tx,"INSERT INTO local_products(id, name, sku, unit, unit_price_paise, stock_milli, revision)
             VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1)", params![product.id, product.name, product.sku,
                 product.unit, product.unit_price_paise, product.stock_milli])?;
         record(
@@ -210,6 +213,13 @@ impl Store {
             &request.operation_id,
             "product_added",
             &payload,
+            &product,
+        )?;
+        crate::inventory_recovery::committed(
+            &tx,
+            &self.1,
+            &request.operation_id,
+            "product_added",
             &product,
         )?;
         tx.commit()?;
@@ -238,8 +248,10 @@ impl Store {
             Some(&request.operation_id),
         )?;
         if let Some(product) = replay(&tx, &request.operation_id, "stock_adjusted", &payload)? {
+            crate::inventory_recovery::reader(&tx, &self.1, &request.operation_id)?;
             return Ok(product);
         }
+        crate::inventory_recovery::guard(&tx, &self.1, &request.operation_id)?;
         let mut product = tx
             .query_row(
                 "SELECT id, name, sku, unit, unit_price_paise, stock_milli, revision
@@ -264,15 +276,22 @@ impl Store {
             .revision
             .checked_add(1)
             .ok_or(StoreError::InvalidProduct)?;
-        tx.execute(
-            "UPDATE local_products SET stock_milli = ?1, revision = ?2 WHERE id = ?3",
-            params![product.stock_milli, product.revision, product.id],
+        crate::inventory_recovery::one(&tx,
+            "UPDATE local_products SET stock_milli = ?1, revision = ?2 WHERE id = ?3 AND revision = ?4",
+            params![product.stock_milli, product.revision, product.id, request.expected_revision],
         )?;
         record(
             &tx,
             &request.operation_id,
             "stock_adjusted",
             &payload,
+            &product,
+        )?;
+        crate::inventory_recovery::committed(
+            &tx,
+            &self.1,
+            &request.operation_id,
+            "stock_adjusted",
             &product,
         )?;
         tx.commit()?;
@@ -433,7 +452,7 @@ mod tests {
             [crate::access::hash_password("Existing local password").unwrap()],
         )
         .unwrap();
-        s.0.execute_batch("DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; PRAGMA user_version = 3;").unwrap();
+        s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; PRAGMA user_version = 3;").unwrap();
         drop(s);
         let s = Store::open(&path, KEY).unwrap();
         assert_eq!(s.load().unwrap().draft, Some(draft));

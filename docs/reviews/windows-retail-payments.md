@@ -1,8 +1,9 @@
 # Native retail payments and cashier reconciliation
 
 This milestone builds on native billing, authorization (#122) and customer
-accounts (#123). The focused PR targets `feature/windows-customer-credit` until
-its dependencies are merged; retarget to `main` afterward. It does not replace
+accounts (#123). PR #124 now includes that dependency chain and targets `main`
+for one combined pilot-correctness review. Neither dependency has been merged.
+See [current pilot evidence and blockers](windows-pilot-correctness.md). It does not replace
 the invoice engine or the existing general/customer ledgers.
 
 ## Recording and verification

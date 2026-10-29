@@ -25,6 +25,8 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   const [openedToken, setOpenedToken] = useState(-1);
   const [busy, setBusy] = useState(false);
   const [pending, setPending] = useState<Pending | null>(null);
+  const [savedInventory, setSavedInventory] = useState<Product | null>(null);
+  const generation = useRef(0);
   const [message, setMessage] = useState('Opening items on this PC…');
   const [failed, setFailed] = useState(false);
   const submitting = useRef(false);
@@ -35,10 +37,15 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   useEffect(() => {
     current.current = true;
     let active = true;
-    invoke<Product[]>('list_local_products').then(items => {
-      if (active) { setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false); setMessage('Items and counts are saved only on this PC.'); }
+    const read = ++generation.current;
+    Promise.all([invoke<Product[]>('list_local_products'), invoke<(Pending & { product: Product }) | null>('pending_local_inventory')]).then(([items, receipt]) => {
+      if (active && read === generation.current) {
+        setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false);
+        setPending(receipt ? { command: receipt.command, request: receipt.request } as Pending : null); setSavedInventory(receipt?.product ?? null);
+        setMessage(receipt ? 'Recovered a saved item change. Acknowledge it before recording another delivery.' : 'Items and counts are saved only on this PC.');
+      }
     }).catch((error: unknown) => {
-      if (!active) return;
+      if (!active || read !== generation.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
       setFailed(true); setMessage(errorMessage(error, 'Items could not be opened. Retry loading your items.'));
     });
@@ -47,12 +54,14 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
 
   async function reload() {
     if (submitting.current) return;
+    const read = ++generation.current;
     submitting.current = true; setBusy(true); onBusyChange(true);
     try {
-      const items = await invoke<Product[]>('list_local_products');
-      if (!current.current) return;
+      const [items, receipt] = await Promise.all([invoke<Product[]>('list_local_products'), invoke<(Pending & { product: Product }) | null>('pending_local_inventory')]);
+      if (!current.current || read !== generation.current) return;
       setProducts(items); setReady(true); setOpenedToken(refreshToken); setFailed(false);
-      setMessage('Reopened the latest item counts from this PC.');
+      setPending(receipt ? { command: receipt.command, request: receipt.request } as Pending : null); setSavedInventory(receipt?.product ?? null);
+      setMessage(receipt ? 'Recovered a saved item change. Acknowledge it before recording another delivery.' : 'Reopened the latest item counts from this PC.');
     } catch (error: unknown) {
       if (!current.current) return;
       if (errorCode(error) === 'locked') { onLocked(); return; }
@@ -62,6 +71,7 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
 
   async function submit(operation: Pending) {
     if (submitting.current) return;
+    generation.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true); setPending(operation); setFailed(false); setMessage('Saving item changes to this PC…');
     try {
       const saved = await invoke<Product>(operation.command, { request: operation.request });
@@ -69,7 +79,7 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
       // Show the durable response immediately. A subsequent reload is explicit;
       // a failed read must never turn a committed write into a failed save.
       setProducts(items => [...items.filter(item => item.id !== saved.id), saved].sort((a, b) => a.name.localeCompare(b.name)));
-      setPending(null); onSaved();
+      setSavedInventory(saved); onSaved();
       if (operation.command === 'add_local_product') setForm(empty);
       else { setDelta(''); setReason(''); }
       setReady(false);
@@ -91,6 +101,20 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
       // transport/database error retains the exact ID and payload for safe retry.
       if (['invalid_product', 'duplicate_sku', 'stock_conflict', 'operation_conflict'].includes(code ?? '')) setPending(null);
       setFailed(true); setMessage(errorMessage(error, 'Save could not be confirmed. Retry this same save before editing.'));
+    } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
+  }
+
+  async function acknowledge() {
+    if (!pending || !savedInventory || submitting.current || disabled) return;
+    submitting.current = true; setBusy(true); onBusyChange(true);
+    try {
+      await invoke('acknowledge_local_inventory', { operationId: pending.request.operationId });
+      if (!current.current) return;
+      setPending(null); setSavedInventory(null); setFailed(false); setMessage('Saved item change acknowledged.');
+    } catch (error: unknown) {
+      if (!current.current) return;
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setFailed(true); setMessage(errorMessage(error, 'Acknowledgement is uncertain. Retry acknowledging the same item save.'));
     } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
   }
 
@@ -121,7 +145,7 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
     <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
-    {pending ? <div className="pending-stock"><p>This save is waiting for confirmation. Retry uses the same save ID and values.</p><button type="button" disabled={busy || disabled} onClick={() => void submit(pending)}>Retry item save</button></div> : null}
+    {pending ? <div className="pending-stock"><p>Item save ID: <span className="operation-id">{pending.request.operationId}</span></p>{savedInventory ? <><p>Item change saved. The receipt remains on this PC until acknowledged.</p><button type="button" disabled={busy || disabled} onClick={() => void acknowledge()}>Acknowledge item save</button></> : <><p>This save is waiting for confirmation. Retry uses the same save ID and values.</p><button type="button" disabled={busy || disabled} onClick={() => void submit(pending)}>Retry item save</button></>}</div> : null}
     <div className="inventory-forms">
       {canAdd ? <form onSubmit={add} aria-label="Add local item"><fieldset disabled={blocked || pending !== null}>
         <legend>Add an item</legend>

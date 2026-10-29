@@ -7,6 +7,8 @@ export function SavedInvoice({ invoice }: { invoice: Invoice }) {
   useEffect(() => { heading.current?.focus(); }, [invoice.id]);
   return <section className="saved-invoice" aria-labelledby="saved-invoice-heading">
     <h3 id="saved-invoice-heading" ref={heading} tabIndex={-1}>Sale saved on this PC</h3>
+    {invoice.businessName ? <p>{invoice.businessName}</p> : null}
+    <p>Sale number: {invoice.invoiceNumber ?? 'Legacy record — use saved invoice ID'}</p>
     <label htmlFor="saved-invoice-id">Saved invoice ID</label>
     <input id="saved-invoice-id" readOnly value={invoice.id}/>
     <p><time dateTime={invoice.createdAt}>{new Date(invoice.createdAt).toLocaleString()}</time></p>

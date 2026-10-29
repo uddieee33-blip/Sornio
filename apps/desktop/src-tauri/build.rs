@@ -33,6 +33,8 @@ fn main() {
             "list_local_products",
             "add_local_product",
             "adjust_local_stock",
+            "pending_local_inventory",
+            "acknowledge_local_inventory",
             "read_cashier_state",
             "prepare_local_checkout",
             "clear_local_checkout",

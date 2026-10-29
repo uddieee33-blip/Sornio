@@ -37,6 +37,8 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
     }
     if(!s.access.unlocked)throw {code:'locked',message:'Unlock this workspace to continue.'};
     if(command==='read_local_retail')return {summary:{day:args.day,username:args.username,actorId:'owner',through:0,openingFloatPaise:0,netCashPaise:'0',expectedCashPaise:'0',countedCashPaise:null,variancePaise:null,cashRecordedPaise:'0',digitalRecordedPaise:'0',digitalPendingPaise:'0',manuallyMatchedPaise:'0',externallyVerifiedPaise:'0',refundPendingPaise:'0',unattributedCashPaise:'0',closingId:null,state:'open'},pending:null,invoice:null,payments:[],refunds:[]};
+    if(command==='pending_local_inventory')return s.inventoryReceipt??null;
+    if(command==='acknowledge_local_inventory'){s.inventoryReceipt=null;return null;}
     if(command==='read_cashier_state')return {products:structuredClone(s.products),checkout:null,reportsAllowed:true,balances:{cashPaise:'0',creditPaise:'0'}};
     if(command==='load_workspace')return structuredClone(s.snapshot);
     if(command==='list_workspace_copies')return structuredClone(s.copies);
@@ -57,7 +59,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
       if(old.stockMilli+r.deltaMilli<0)throw {code:'invalid_product',message:'The stock change would leave an invalid quantity. Check the count.'};
       product={...old,stockMilli:old.stockMilli+r.deltaMilli,revision:old.revision+1};s.products[index]=product;
      }
-     s.stockOps[r.operationId]=structuredClone(product);
+     s.stockOps[r.operationId]=structuredClone(product);s.inventoryReceipt={command,request:structuredClone(r),product:structuredClone(product)};
      if(s.failStockReply){s.failStockReply=false;throw {code:'unavailable',message:'Save could not be confirmed. Retry this same save before editing.'};}
      if(s.failReadAfterSave){s.failReadAfterSave=false;s.failStockRead=true;}
      return structuredClone(product);
@@ -151,10 +153,12 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   assert.equal(await page.evaluate(()=>globalThis.review.products.length),1);
   const requests=await page.evaluate(()=>globalThis.review.stockRequests);
   assert.deepEqual(requests[0],requests[1]);
+  await button('Acknowledge item save').click();
   await page.getByLabel('Item to adjust',{exact:true}).selectOption(await page.evaluate(()=>globalThis.review.products[0].id));
   await page.getByLabel('Quantity change',{exact:true}).fill('2.750');
   await page.getByLabel('Reason for stock change',{exact:true}).fill('Counted delivery');
   await button('Save stock change').click();await itemList.getByText('4 kg',{exact:true}).waitFor();
+  await button('Acknowledge item save').click();
   await page.getByLabel('Quantity change',{exact:true}).fill('-4.001');
   await page.getByLabel('Reason for stock change',{exact:true}).fill('Wrong count');
   await button('Save stock change').click();
@@ -172,6 +176,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   await page.getByRole('alert').filter({hasText:'Item changes were saved.'}).waitFor();
   assert.equal(await button('Retry item save').count(),0);
   assert.equal(await button('Save stock change').isDisabled(),true);
+  await button('Acknowledge item save').click();
   await button('Reload item counts').click();await itemList.getByText('3 kg',{exact:true}).waitFor();
   await page.getByLabel('Find an item',{exact:true}).fill('missing');
   await page.getByText('No matching items.',{exact:true}).waitFor();

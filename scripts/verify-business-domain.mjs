@@ -26,6 +26,19 @@ try {
   const result = calculateInvoice([line], 5);
   assert.deepEqual(result, { ok: true, lines: [{ ...line, name: 'Rice', category: 'General', total: 53.13 }], subtotal: 53.13, tax: 2.66, total: 55.79 });
   assert.equal(line.name, ' Rice ');
+  const { calculateNativeInvoice } = require(join(out, 'native-invoice.js'));
+  for (const [quantity, unitPrice] of [[4.85,0.50],[4.85,0.70],[2.9,0.75],[4.265,1],[4.395,1]]) {
+    const result = calculateInvoice([{ ...line, quantity, unitPrice }], 0);
+    assert.equal(result.ok, true); assert.equal(result.total, calculateNativeInvoice([{quantityMilli:Math.round(quantity*1000),unitPricePaise:Math.round(unitPrice*100)}],0).totalPaise/100);
+  }
+  for (let price = 1; price < 200; price += 7) for (let milli = 500; milli < 5000; milli += 137) {
+    const expected=calculateNativeInvoice([{quantityMilli:milli,unitPricePaise:price}],525);
+    const result=calculateInvoice([{ ...line, quantity:milli/1000, unitPrice:price/100 }],5.25);
+    assert.equal(result.ok,true); assert.equal(result.total,expected.totalPaise/100);
+  }
+  assert.equal(calculateInvoice([{...line,quantity:0.0001}],0).ok,false);
+  assert.equal(calculateInvoice([line],5.001).ok,false);
+
   assert.equal(calculateInvoice([{ ...line, quantity: 3, unitPrice: 0.1 }], 0).total, 0.3);
   for (const tax of [-1, 101, NaN, Infinity]) assert.equal(calculateInvoice([line], tax).ok, false);
   for (const quantity of [0, -1, NaN, Infinity, Number.MAX_VALUE]) assert.equal(calculateInvoice([{ ...line, quantity }], 0).ok, false);

@@ -651,6 +651,16 @@ impl Workspace {
         self.store.add_product(request)
     }
 
+    pub fn pending_inventory(
+        &self,
+    ) -> Result<Option<crate::inventory_recovery::InventoryReceipt>, StoreError> {
+        self.require(Permission::View)?;
+        self.store.pending_inventory()
+    }
+    pub fn acknowledge_inventory(&mut self, operation_id: &str) -> Result<(), StoreError> {
+        self.require(Permission::View)?;
+        self.store.acknowledge_inventory(operation_id)
+    }
     pub fn adjust_stock(&mut self, request: AdjustStock) -> Result<Product, StoreError> {
         self.require(Permission::CorrectStock)?;
         self.store.adjust_stock(request)

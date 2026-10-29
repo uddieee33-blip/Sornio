@@ -68,6 +68,12 @@ pub struct PostedLine {
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Invoice {
     pub id: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub invoice_number: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub business_id: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub business_name: Option<String>,
     pub created_at: String,
     pub lines: Vec<PostedLine>,
     pub subtotal_paise: i64,
@@ -235,8 +241,27 @@ pub(crate) fn post_into(
     let now: String = tx.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |r| {
         r.get(0)
     })?;
+    let last_sequence: Option<i64> = tx
+        .query_row(
+            "SELECT seq FROM sqlite_sequence WHERE name='local_invoices'",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    let sequence = last_sequence
+        .unwrap_or(0)
+        .checked_add(1)
+        .ok_or(StoreError::InvalidInvoice)?;
+    let (business_id, business_name): (String, String) = tx.query_row(
+        "SELECT business_id,business_name FROM local_identity WHERE singleton=1",
+        [],
+        |r| Ok((r.get(0)?, r.get(1)?)),
+    )?;
     let invoice = Invoice {
         id: request.operation_id.clone(),
+        invoice_number: Some(format!("S-{sequence:012}")),
+        business_id: Some(business_id),
+        business_name: Some(business_name),
         created_at: now,
         lines,
         subtotal_paise: subtotal,
@@ -249,8 +274,8 @@ pub(crate) fn post_into(
     let payload = serde_json::to_string(&invoice)?;
     insert_one(
         &tx,
-        "INSERT INTO local_invoices(id,request,payload) VALUES(?1,?2,?3)",
-        params![invoice.id, raw, payload],
+        "INSERT INTO local_invoices(sequence,id,request,payload) VALUES(?1,?2,?3,?4)",
+        params![sequence, invoice.id, raw, payload],
     )?;
     insert_one(
         &tx,
@@ -330,6 +355,10 @@ impl Store {
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let invoice = post_into(&tx, &self.1, request, prepared, None)?;
+        #[cfg(test)]
+        if std::env::var("SORNIO_TEST_BILL_CRASH_PHASE").as_deref() == Ok("before_commit") {
+            std::process::exit(88);
+        }
         tx.commit()?;
         Ok(invoice)
     }
@@ -398,6 +427,33 @@ mod tests {
     fn count(s: &Store, table: &str) -> i64 {
         s.0.query_row(&format!("SELECT COUNT(*) FROM {table}"), [], |r| r.get(0))
             .unwrap()
+    }
+    #[test]
+    fn invoice_numbers_are_transactional_unique_and_stable_on_retry() {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("s.db");
+        let mut s = Store::open(&path, KEY).unwrap();
+        s.add_product(product()).unwrap();
+        let first = s.post_invoice(bill()).unwrap();
+        assert_eq!(first.invoice_number.as_deref(), Some("S-000000000001"));
+        let mut next = bill();
+        next.operation_id = "next-sale".into();
+        next.lines[0].expected_revision = 2;
+        s.0.execute_batch("CREATE TRIGGER fail_number BEFORE INSERT ON local_billing_outbox BEGIN SELECT RAISE(ABORT,'injected failure'); END;").unwrap();
+        assert!(s.post_invoice(next.clone()).is_err());
+        s.0.execute_batch("DROP TRIGGER fail_number").unwrap();
+        let second = s.post_invoice(next.clone()).unwrap();
+        assert_eq!(second.invoice_number.as_deref(), Some("S-000000000002"));
+        drop(s);
+        let mut reopened = Store::open(&path, KEY).unwrap();
+        assert_eq!(reopened.post_invoice(bill()).unwrap(), first);
+        assert_eq!(reopened.post_invoice(next).unwrap(), second);
+        let mut legacy = serde_json::to_value(first).unwrap();
+        legacy.as_object_mut().unwrap().remove("invoiceNumber");
+        assert!(serde_json::from_value::<Invoice>(legacy)
+            .unwrap()
+            .invoice_number
+            .is_none());
     }
     #[test]
     fn shared_request_validation_contract() {
@@ -763,7 +819,7 @@ mod tests {
             [crate::access::hash_password("Existing billing password").unwrap()],
         )
         .unwrap();
-        s.0.execute_batch("DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
+        s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
         drop(s);
         let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
         w.unlock("Existing billing password").unwrap();
