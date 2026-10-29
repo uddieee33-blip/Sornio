@@ -1,0 +1,1433 @@
+{
+  "audited_on": "2026-10-29",
+  "repo": "uddieee33-blip/DukaanOS",
+  "main_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+  "main_tree": "c1ea1371dc17949d81135fcefab9a12bf52aad72",
+  "main_source_blob_count": 458,
+  "main_checks": [
+    {
+      "name": "Supabase Preview",
+      "status": "completed",
+      "conclusion": "skipped",
+      "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122658469915"
+    },
+    {
+      "name": "Lint, types, build",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40501876591/job/122182363160"
+    },
+    {
+      "name": "Dependency audit",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40501876591/job/122182362662"
+    }
+  ],
+  "main_branch_protected": false,
+  "prs": [
+    {
+      "number": 122,
+      "base": "main",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "head": "6631eb04efb0cc155d2352113d744ddd2dea748d",
+      "draft": false,
+      "state": "open",
+      "merged": false,
+      "files": [
+        ".github/workflows/workspace-browser.yml",
+        "apps/desktop/check-authorization.cjs",
+        "apps/desktop/check-checkout.cjs",
+        "apps/desktop/check-native.py",
+        "apps/desktop/check-ui.cjs",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/capabilities/local-workspace.json",
+        "apps/desktop/src-tauri/permissions/workspace.toml",
+        "apps/desktop/src-tauri/src/main.rs",
+        "apps/desktop/src/AccessGate.tsx",
+        "apps/desktop/src/CheckoutPanel.tsx",
+        "apps/desktop/src/InventoryPanel.tsx",
+        "apps/desktop/src/SavedCopies.tsx",
+        "apps/desktop/src/StaffPanel.tsx",
+        "apps/desktop/src/billing-types.ts",
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/native.ts",
+        "docs/reviews/2026-10-27-windows-authorization.md",
+        "packages/local-store/examples/cashier_review_bridge.rs",
+        "packages/local-store/src/access.rs",
+        "packages/local-store/src/authorization_tests.rs",
+        "packages/local-store/src/billing.rs",
+        "packages/local-store/src/billing_reliability_tests.rs",
+        "packages/local-store/src/catalog.rs",
+        "packages/local-store/src/checkout.rs",
+        "packages/local-store/src/identity-schema.sql",
+        "packages/local-store/src/identity.rs",
+        "packages/local-store/src/lib.rs"
+      ],
+      "runs": [
+        {
+          "id": 40506465173,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "success",
+          "run_number": 24,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40506465173/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40506465173/logs",
+          "workflow_id": 396278092
+        },
+        {
+          "id": 40506465169,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "success",
+          "run_number": 32,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40506465169/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40506465169/logs",
+          "workflow_id": 396609582
+        },
+        {
+          "id": 40506465343,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "success",
+          "run_number": 294,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40506465343/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40506465343/logs",
+          "workflow_id": 374927105
+        }
+      ]
+    },
+    {
+      "number": 123,
+      "base": "feature/windows-native-authorization",
+      "base_sha": "6631eb04efb0cc155d2352113d744ddd2dea748d",
+      "head": "e41f88941d7c9fc88905a01adfa15d2c504f55d7",
+      "draft": false,
+      "state": "open",
+      "merged": false,
+      "files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/windows-local.yml",
+        ".github/workflows/workspace-browser.yml",
+        "apps/desktop/check-checkout.cjs",
+        "apps/desktop/check-customers.cjs",
+        "apps/desktop/check-native.py",
+        "apps/desktop/check-ui.cjs",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/capabilities/local-workspace.json",
+        "apps/desktop/src-tauri/permissions/workspace.toml",
+        "apps/desktop/src-tauri/src/main.rs",
+        "apps/desktop/src/CheckoutPanel.tsx",
+        "apps/desktop/src/CustomerLookup.tsx",
+        "apps/desktop/src/CustomerPanel.tsx",
+        "apps/desktop/src/customer-types.ts",
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/style.css",
+        "docs/reviews/windows-customer-credit.md",
+        "packages/local-store/examples/cashier_review_bridge.rs",
+        "packages/local-store/src/access.rs",
+        "packages/local-store/src/billing.rs",
+        "packages/local-store/src/billing_reliability_tests.rs",
+        "packages/local-store/src/catalog.rs",
+        "packages/local-store/src/checkout.rs",
+        "packages/local-store/src/customers-schema.sql",
+        "packages/local-store/src/customers.rs",
+        "packages/local-store/src/customers_tests.rs",
+        "packages/local-store/src/identity.rs",
+        "packages/local-store/src/lib.rs"
+      ],
+      "runs": [
+        {
+          "id": 40607511464,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "success",
+          "run_number": 296,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40607511464/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40607511464/logs",
+          "workflow_id": 374927105
+        },
+        {
+          "id": 40607511441,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "success",
+          "run_number": 26,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40607511441/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40607511441/logs",
+          "workflow_id": 396278092
+        },
+        {
+          "id": 40607511476,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "success",
+          "run_number": 34,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40607511476/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40607511476/logs",
+          "workflow_id": 396609582
+        }
+      ]
+    },
+    {
+      "number": 124,
+      "base": "feature/windows-customer-credit",
+      "base_sha": "e41f88941d7c9fc88905a01adfa15d2c504f55d7",
+      "head": "85fc6b6d9a4ac57b879923cc343225a9f8067239",
+      "draft": false,
+      "state": "open",
+      "merged": false,
+      "files": [
+        ".github/workflows/ci.yml",
+        ".github/workflows/windows-local.yml",
+        ".github/workflows/workspace-browser.yml",
+        "apps/desktop/check-checkout.cjs",
+        "apps/desktop/check-native.py",
+        "apps/desktop/check-retail.cjs",
+        "apps/desktop/check-ui.cjs",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/capabilities/local-workspace.json",
+        "apps/desktop/src-tauri/permissions/workspace.toml",
+        "apps/desktop/src-tauri/src/main.rs",
+        "apps/desktop/src/CheckoutPanel.tsx",
+        "apps/desktop/src/CustomerPanel.tsx",
+        "apps/desktop/src/RetailPanel.tsx",
+        "apps/desktop/src/SavedInvoice.tsx",
+        "apps/desktop/src/billing-types.ts",
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/retail-types.ts",
+        "docs/reviews/windows-retail-payments.md",
+        "packages/local-store/examples/cashier_review_bridge.rs",
+        "packages/local-store/src/access.rs",
+        "packages/local-store/src/billing.rs",
+        "packages/local-store/src/billing_reliability_tests.rs",
+        "packages/local-store/src/catalog.rs",
+        "packages/local-store/src/checkout.rs",
+        "packages/local-store/src/customers.rs",
+        "packages/local-store/src/customers_tests.rs",
+        "packages/local-store/src/identity.rs",
+        "packages/local-store/src/lib.rs",
+        "packages/local-store/src/payments-schema.sql",
+        "packages/local-store/src/payments.rs",
+        "packages/local-store/src/payments_tests.rs"
+      ],
+      "runs": [
+        {
+          "id": 40618227898,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 36,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40618227898/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40618227898/logs",
+          "workflow_id": 396609582
+        },
+        {
+          "id": 40618227888,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 28,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40618227888/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40618227888/logs",
+          "workflow_id": 396278092
+        },
+        {
+          "id": 40618227882,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 298,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40618227882/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40618227882/logs",
+          "workflow_id": 374927105
+        }
+      ]
+    },
+    {
+      "number": 125,
+      "base": "main",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "head": "69ed5db0106dfa2dbca1d157f98bc9dce0e7b586",
+      "draft": true,
+      "state": "open",
+      "merged": false,
+      "files": [
+        ".github/workflows/windows-local.yml",
+        ".github/workflows/workspace-browser.yml",
+        "apps/desktop/check-backup.cjs",
+        "apps/desktop/check-native.py",
+        "apps/desktop/src-tauri/Cargo.lock",
+        "apps/desktop/src-tauri/Cargo.toml",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/capabilities/local-workspace.json",
+        "apps/desktop/src-tauri/permissions/workspace.toml",
+        "apps/desktop/src-tauri/src/main.rs",
+        "apps/desktop/src/AccessGate.tsx",
+        "apps/desktop/src/BackupPanel.tsx",
+        "apps/desktop/src/main.tsx",
+        "docs/reviews/windows-encrypted-backup.md",
+        "packages/local-store/Cargo.lock",
+        "packages/local-store/Cargo.toml",
+        "packages/local-store/examples/cashier_review_bridge.rs",
+        "packages/local-store/src/access.rs",
+        "packages/local-store/src/billing.rs",
+        "packages/local-store/src/catalog.rs",
+        "packages/local-store/src/checkout.rs",
+        "packages/local-store/src/lib.rs",
+        "packages/local-store/src/recovery.rs",
+        "packages/local-store/src/recovery/tests.rs"
+      ],
+      "runs": [
+        {
+          "id": 40635151044,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 38,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40635151044/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40635151044/logs",
+          "workflow_id": 396609582
+        },
+        {
+          "id": 40635150963,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 300,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40635150963/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40635150963/logs",
+          "workflow_id": 374927105
+        },
+        {
+          "id": 40635150936,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 30,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40635150936/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40635150936/logs",
+          "workflow_id": 396278092
+        }
+      ]
+    },
+    {
+      "number": 126,
+      "base": "main",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "head": "129fce1ed9c60aaede0228dd5d41097f1580b938",
+      "draft": true,
+      "state": "open",
+      "merged": false,
+      "files": [
+        ".github/workflows/windows-local.yml",
+        ".github/workflows/workspace-browser.yml",
+        "apps/desktop/check-lan.cjs",
+        "apps/desktop/check-native.py",
+        "apps/desktop/src-tauri/Cargo.lock",
+        "apps/desktop/src-tauri/Cargo.toml",
+        "apps/desktop/src-tauri/build.rs",
+        "apps/desktop/src-tauri/capabilities/local-workspace.json",
+        "apps/desktop/src-tauri/permissions/workspace.toml",
+        "apps/desktop/src-tauri/src/lan_commands.rs",
+        "apps/desktop/src-tauri/src/main.rs",
+        "apps/desktop/src/CheckoutPanel.tsx",
+        "apps/desktop/src/LanPanel.tsx",
+        "apps/desktop/src/SavedInvoice.tsx",
+        "apps/desktop/src/billing-types.ts",
+        "apps/desktop/src/main.tsx",
+        "docs/reviews/windows-shop-lan.md",
+        "packages/local-store/Cargo.lock",
+        "packages/local-store/Cargo.toml",
+        "packages/local-store/examples/cashier_review_bridge.rs",
+        "packages/local-store/examples/shop_lan_review_bridge.rs",
+        "packages/local-store/src/access.rs",
+        "packages/local-store/src/billing.rs",
+        "packages/local-store/src/catalog.rs",
+        "packages/local-store/src/checkout.rs",
+        "packages/local-store/src/lan/client.rs",
+        "packages/local-store/src/lan/mod.rs",
+        "packages/local-store/src/lan/schema.sql",
+        "packages/local-store/src/lan/tests.rs",
+        "packages/local-store/src/lan/transport.rs",
+        "packages/local-store/src/lib.rs"
+      ],
+      "runs": [
+        {
+          "id": 40676249636,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 40,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40676249636/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40676249636/logs",
+          "workflow_id": 396609582
+        },
+        {
+          "id": 40676249655,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 302,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40676249655/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40676249655/logs",
+          "workflow_id": 374927105
+        },
+        {
+          "id": 40676249574,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 32,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40676249574/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40676249574/logs",
+          "workflow_id": 396278092
+        }
+      ]
+    },
+    {
+      "number": 127,
+      "base": "main",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "head": "345cd2b6d0db2bb4b83769a0d0b0c04ec4e0737c",
+      "draft": false,
+      "state": "open",
+      "merged": false,
+      "files": [
+        "docs/reviews/windows-gst-integration-notes.md",
+        "packages/local-store/fixtures/gst-rounding.json",
+        "packages/local-store/src/gst.rs",
+        "packages/local-store/src/lib.rs"
+      ],
+      "runs": [
+        {
+          "id": 40686085277,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 41,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40686085277/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40686085277/logs",
+          "workflow_id": 396609582
+        },
+        {
+          "id": 40686085286,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 303,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40686085286/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40686085286/logs",
+          "workflow_id": 374927105
+        },
+        {
+          "id": 40686085285,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 33,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40686085285/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40686085285/logs",
+          "workflow_id": 396278092
+        }
+      ]
+    },
+    {
+      "number": 128,
+      "base": "main",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "head": "08575a2ed7d17d826bc3961278901164b89b5e2b",
+      "draft": false,
+      "state": "open",
+      "merged": false,
+      "files": [
+        "apps/desktop/check-checkout.cjs",
+        "apps/desktop/check-native.py",
+        "apps/desktop/public/fonts/NotoSansGurmukhi-OFL.txt",
+        "apps/desktop/public/fonts/noto-sans-gurmukhi.woff2",
+        "apps/desktop/public/locales/pa.json",
+        "apps/desktop/src/CheckoutPanel.tsx",
+        "apps/desktop/src/SavedInvoice.tsx",
+        "apps/desktop/src/main.tsx",
+        "apps/desktop/src/receipt-print.ts",
+        "apps/desktop/src/style.css",
+        "apps/desktop/vite.config.ts",
+        "docs/reviews/windows-pos-printing.md"
+      ],
+      "runs": [
+        {
+          "id": 40689213449,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 34,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40689213449/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40689213449/logs",
+          "workflow_id": 396278092
+        },
+        {
+          "id": 40689213557,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 304,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40689213557/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40689213557/logs",
+          "workflow_id": 374927105
+        },
+        {
+          "id": 40689213374,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 42,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40689213374/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40689213374/logs",
+          "workflow_id": 396609582
+        }
+      ]
+    },
+    {
+      "number": 129,
+      "base": "main",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "head": "b1045b104298433c5669c02f7f6eb5eb1f460687",
+      "draft": false,
+      "state": "open",
+      "merged": false,
+      "files": [
+        ".github/workflows/windows-local.yml",
+        ".github/workflows/workspace-browser.yml",
+        "apps/desktop/check-install-data.py",
+        "apps/desktop/check-installer.ps1",
+        "apps/desktop/check-native.py",
+        "apps/desktop/test_install_data.py",
+        "docs/reviews/windows-pilot-readiness.md"
+      ],
+      "runs": [
+        {
+          "id": 40690941439,
+          "name": "Windows local workspace",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 43,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40690941439/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40690941439/logs",
+          "workflow_id": 396609582
+        },
+        {
+          "id": 40690941367,
+          "name": "Workspace browser review",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 35,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40690941367/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40690941367/logs",
+          "workflow_id": 396278092
+        },
+        {
+          "id": 40690941383,
+          "name": "CI",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_number": 305,
+          "jobs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40690941383/jobs",
+          "logs_url": "https://api.github.com/repos/uddieee33-blip/DukaanOS/actions/runs/40690941383/logs",
+          "workflow_id": 374927105
+        }
+      ]
+    }
+  ],
+  "toolchain": {
+    "node": "24.22.1",
+    "rust": "1.99.1",
+    "browser": "156.0.8078.73",
+    "platform": "Linux x86_64",
+    "openssl": "system OpenSSL used for SQLCipher after vendored assembler failure; OPENSSL_NO_VENDOR=1; no Cargo manifest or lock modification"
+  },
+  "checks": {
+    "rust-debug-system-openssl.log": {
+      "sha256": "a8649ee9e15f06a3e9480acdaeec20b2fa1ea9d444e84e82479d23ff3b11a9b0",
+      "bytes": 5449,
+      "test_results": [
+        "test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.78s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "2026-10-29 02:12:54.638: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1",
+        "2026-10-29 02:12:54.638: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:12:54.638: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok",
+        "",
+        "test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.78s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "",
+        "exit=0"
+      ]
+    },
+    "rust-release.log": {
+      "sha256": "d45a37d8bf4e256b1d125bbb7949bcfc0f769577a6078f0bf573ba8a9cc49a3e",
+      "bytes": 6947,
+      "test_results": [
+        "test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.08s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "test tests::stale_writers_and_invalid_input_leave_original_intact ... ok",
+        "2026-10-29 02:14:53.589: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1",
+        "2026-10-29 02:14:53.589: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:14:53.589: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok",
+        "",
+        "test result: ok. 56 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.08s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        ""
+      ]
+    },
+    "rust-final-debug.log": {
+      "sha256": "34034592fe31ba315f141d1e48800defcac10861d5286ea6cf5cbf528a21f5be",
+      "bytes": 5601,
+      "test_results": [
+        "test result: ok. 59 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.98s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok",
+        "2026-10-29 02:19:19.414: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1",
+        "2026-10-29 02:19:19.414: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:19:19.414: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok",
+        "",
+        "test result: ok. 59 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.98s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        ""
+      ]
+    },
+    "rust-final-release.log": {
+      "sha256": "5165aca2d92b8d91c9e459c7205650060f69a61c5e8d1d7bc0c2808036434026",
+      "bytes": 5592,
+      "test_results": [
+        "test result: ok. 59 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.10s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "2026-10-29 02:19:25.892: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1",
+        "2026-10-29 02:19:25.892: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:19:25.892: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok",
+        "",
+        "test result: ok. 59 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.10s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        ""
+      ]
+    },
+    "inventory-ignored-before-fix.log": {
+      "sha256": "72ab265eab961f4640d31abc111ae7764c70554c48543696d7d440370efcd6d7",
+      "bytes": 1873,
+      "test_results": [
+        "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 56 filtered out; finished in 0.20s"
+      ],
+      "tail": [
+        "assertion failed: s.adjust_stock(change(1, 1000)).is_err()",
+        "",
+        "---- catalog::tests::ignored_stock_update_cannot_commit_a_fictitious_event stdout ----",
+        "",
+        "thread 'catalog::tests::ignored_stock_update_cannot_commit_a_fictitious_event' (233) panicked at src/catalog.rs:416:9:",
+        "assertion failed: s.adjust_stock(change(1, 1000)).is_err()",
+        "",
+        "",
+        "failures:",
+        "    catalog::tests::ignored_add_event_rolls_back_product_and_allows_exact_retry",
+        "    catalog::tests::ignored_adjust_event_rolls_back_stock_and_allows_exact_retry",
+        "    catalog::tests::ignored_stock_update_cannot_commit_a_fictitious_event",
+        "",
+        "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 56 filtered out; finished in 0.20s",
+        "",
+        "error: test failed, to rerun pass `--lib`"
+      ]
+    },
+    "ui-baseline.log": {
+      "sha256": "8353d428a59ac39ea1686bc204a4fc13ca911f7cf701499312b7cf2e7a253b64",
+      "bytes": 362,
+      "test_results": [],
+      "tail": [
+        "Desktop mocked-IPC UI checks passed: browser guard, setup, mismatch, save/restore, dirty lock guard, failed lock, lock/unlock, wrong password, stale-save recovery, attempt-limit error, fractional stock, retry deduplication, negative/stale stock refusal, committed-write/read-failure handling and responsive light/dark access. Native acceptance remains separate."
+      ]
+    },
+    "checkout-baseline.log": {
+      "sha256": "b8a49e531cebc58657cc8cd26b023a8deaaecf34df977f0f09c14fef4ae3a615",
+      "bytes": 382,
+      "test_results": [],
+      "tail": [
+        "Checkout integration passed: real SQLCipher/Workspace; stale background read fencing; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI."
+      ]
+    },
+    "checkout-final.log": {
+      "sha256": "b8a49e531cebc58657cc8cd26b023a8deaaecf34df977f0f09c14fef4ae3a615",
+      "bytes": 382,
+      "test_results": [],
+      "tail": [
+        "Checkout integration passed: real SQLCipher/Workspace; stale background read fencing; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI."
+      ]
+    },
+    "installer-helper-tests.log": {
+      "sha256": "8446de9e69a8e2e2a9f5bf70c127c4f325e091ab1d98b3489fdd8b8d2d912b19",
+      "bytes": 102,
+      "test_results": [],
+      "tail": [
+        "....",
+        "----------------------------------------------------------------------",
+        "Ran 4 tests in 0.223s",
+        "",
+        "OK"
+      ]
+    },
+    "verify-second.log": {
+      "sha256": "b6f3fe923e902356c53e31527c622e92ed112fab43c4b659971e1bfeea68b118",
+      "bytes": 41694,
+      "test_results": [],
+      "tail": [
+        "ok gym and restaurant daily homes do not inherit kirana jobs",
+        "ok gym metrics use current distinct members and the business day",
+        "ok kirana khata is the live ledger balance, not the opening amount",
+        "ok appointments use the business day and exclude cancelled slots",
+        "33 workspace scenarios passed.",
+        "ok invalid bank settings preserve the local profile",
+        "ok same-owner navigation preserves an unflushed payment",
+        "ok different-owner navigation still loads the new storage scope",
+        "npm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.",
+        "",
+        "> dukaanos@0.1.0 verify:business-domain",
+        "> node scripts/verify-business-domain.mjs && node scripts/verify-native-invoice.mjs && node scripts/verify-checkout.mjs",
+        "",
+        "Shared domain checks passed: invoice rounding, invalid/overflow amounts, immutable inputs and eight business workspaces.",
+        "Native invoice contract passed: 45 request fixtures, 13 money fixtures, line limits and invalid numeric inputs.",
+        "Checkout display checks passed: exact paise including balances beyond JS safe integers, negative/zero balances and fractional units."
+      ]
+    },
+    "typecheck.log": {
+      "sha256": "33a6df57b1bdb6e3a9508c3fe53c3cad04a073e9f6efcbf9759de924eb352318",
+      "bytes": 277,
+      "test_results": [],
+      "tail": [
+        "npm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.",
+        "",
+        "> dukaanos@0.1.0 typecheck",
+        "> node scripts/typecheck.mjs",
+        "",
+        "Type checking with the JavaScript-API compiler \u2014 typescript 6.0.3",
+        "the JavaScript-API compiler reports no type errors."
+      ]
+    },
+    "typecheck-native.log": {
+      "sha256": "43ab5675c2e3216eb9e871d91c097f25797767d09a8fa124b501114f1f9c78df",
+      "bytes": 298,
+      "test_results": [],
+      "tail": [
+        "npm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.",
+        "",
+        "> dukaanos@0.1.0 typecheck:native",
+        "> node scripts/typecheck.mjs --native",
+        "",
+        "Type checking with the native compiler (tsgo) \u2014 typescript-native 7.0.2",
+        "the native compiler (tsgo) reports no type errors."
+      ]
+    },
+    "lint-final-deps.log": {
+      "sha256": "9190adaab60075de2f65e21c3d3627e683dde048c04098713a4734ddb3804b02",
+      "bytes": 134,
+      "test_results": [],
+      "tail": [
+        "npm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.",
+        "",
+        "> dukaanos@0.1.0 lint",
+        "> eslint .",
+        ""
+      ]
+    },
+    "desktop-build.log": {
+      "sha256": "2710a6257b3049efac277173ee525826b767eda1c41aada8d90124f177563cc6",
+      "bytes": 562,
+      "test_results": [],
+      "tail": [
+        "npm warn Unknown env config \"http-proxy\". This will stop working in the next major version of npm.",
+        "",
+        "> @sornio/desktop@0.3.0 build",
+        "> tsc --noEmit && vite build",
+        "",
+        "vite v8.3.5 building client environment for production...",
+        "transforming...",
+        "\u2713 28 modules transformed.",
+        "rendering chunks...",
+        "computing gzip size...",
+        "dist/index.html                      0.42 kB \u2502 gzip:  0.29 kB",
+        "dist/assets/icon-192-BC1gZTvk.png   49.06 kB",
+        "dist/assets/index-41met75J.css      10.87 kB \u2502 gzip:  2.93 kB",
+        "dist/assets/index-Lc3UYDw2.js      261.44 kB \u2502 gzip: 80.10 kB",
+        "",
+        "\u2713 built in 154ms"
+      ]
+    },
+    "web-build.log": {
+      "sha256": "570b33bfcb308b5f7dafd34496fab0a7aa66ac3c25e80bf18b203f0f8dcd400a",
+      "bytes": 2689,
+      "test_results": [],
+      "tail": [
+        "\u251c \u0192 /reports",
+        "\u251c \u0192 /sales",
+        "\u251c \u0192 /scan",
+        "\u251c \u0192 /security",
+        "\u251c \u0192 /settings",
+        "\u251c \u0192 /subscription",
+        "\u251c \u0192 /suppliers",
+        "\u251c \u0192 /team",
+        "\u2514 \u0192 /transactions",
+        "",
+        "",
+        "\u0192 Proxy (Middleware)",
+        "",
+        "\u25cb  (Static)   prerendered as static content",
+        "\u0192  (Dynamic)  server-rendered on demand",
+        ""
+      ]
+    },
+    "cargo-tree-glib-windows.log": {
+      "sha256": "b04a236c80272d14d51e918d441bdf41e96b62d4582e137ae0b0051e4e1fa79d",
+      "bytes": 8419,
+      "test_results": [],
+      "tail": [
+        "  Downloaded toml_edit v0.19.15",
+        "  Downloaded option-ext v0.2.0",
+        "  Downloaded soup3 v0.5.0",
+        "  Downloaded tokio v1.54.1",
+        "  Downloaded web-time v1.1.0",
+        "  Downloaded x11 v2.21.0",
+        "  Downloaded softbuffer v0.4.8",
+        "  Downloaded raw-window-handle v0.6.2",
+        "  Downloaded rustc_version v0.4.1",
+        "  Downloaded windows-sys v0.61.2",
+        "  Downloaded windows-sys v0.60.2",
+        "  Downloaded windows v0.62.2",
+        "  Downloaded infer v0.22.0",
+        "warning: nothing to print.",
+        "",
+        "To find dependencies that require specific target platforms, try to use option `--target all` first, and then narrow your search scope accordingly."
+      ]
+    },
+    "cargo-tree-proc-macro-windows.log": {
+      "sha256": "4dc8e4fe7f86c681d8b81d94c4e76a3dda13457f37def5513d5850195a7778f6",
+      "bytes": 176,
+      "test_results": [],
+      "tail": [
+        "warning: nothing to print.",
+        "",
+        "To find dependencies that require specific target platforms, try to use option `--target all` first, and then narrow your search scope accordingly."
+      ]
+    },
+    "pr-122-tests.log": {
+      "sha256": "a2727d04f1ffbfb1e323e3e7774839aeabf379490f4a2538fdb07c3260ac9392",
+      "bytes": 7921,
+      "test_results": [
+        "test result: ok. 66 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.73s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "2026-10-29 02:20:14.634: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:20:14.634: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok",
+        "",
+        "test result: ok. 66 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.73s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "",
+        "exit=0"
+      ]
+    },
+    "pr-123-verified-tests.log": {
+      "sha256": "e678452b399e4a1d805b1e0f96c45b13a676d29b8a13b144099218bc382dd1d3",
+      "bytes": 8385,
+      "test_results": [
+        "test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.58s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "2026-10-29 02:22:17.487: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:22:17.487: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test customers::tests::prepared_cash_collection_survives_restart_exact_retry_and_acknowledgement ... ok",
+        "test customers::tests::all_required_credit_writes_rollback_together_and_retry_after_reopen ... ok",
+        "test customers::tests::native_roles_deny_corrections_policy_changes_and_cross_business_access ... ok",
+        "",
+        "test result: ok. 88 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.58s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "",
+        "exit=0"
+      ]
+    },
+    "pr-124-verified-tests.log": {
+      "sha256": "92cc17cedd63cfc71fd8f04def626800cff8b077fe9e4bfad5a403e320d1a9b5",
+      "bytes": 10725,
+      "test_results": [
+        "test result: ok. 112 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.14s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "2026-10-29 02:22:46.690: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement ... ok",
+        "test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok",
+        "",
+        "test result: ok. 112 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 37.14s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "",
+        "exit=0"
+      ]
+    },
+    "pr-125-verified-tests.log": {
+      "sha256": "c7fbf19f5e27f6f9c7d8b81e3288135d5bb7fab5149c4f4ed3482ff31d106b68",
+      "bytes": 6828,
+      "test_results": [
+        "test result: ok. 65 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 15.22s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "test recovery::tests::other_business_confirmation_stale_preview_storage_and_native_auth_are_checked ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed ... ok",
+        "test recovery::tests::snapshot_restore_preserves_finance_identity_pending_work_and_retries ... ok",
+        "test recovery::tests::new_device_uses_new_device_key_and_original_login_and_locks_old_sessions ... ok",
+        "test recovery::tests::forced_termination_does_not_publish_partial_backup_or_commit_partial_restore ... ok",
+        "",
+        "test result: ok. 65 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 15.22s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "",
+        "exit=0"
+      ]
+    },
+    "pr-126-verified-tests.log": {
+      "sha256": "74aed867ca8bfea077e642ed8aa337d8dc367a4d08b4d629322b2d752c753ce5",
+      "bytes": 6474,
+      "test_results": [
+        "test result: ok. 67 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 21.51s",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s"
+      ],
+      "tail": [
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test lan::tests::unavailable_hub_cannot_create_a_new_shared_stock_checkout ... ok",
+        "test lan::tests::two_mutual_tls_clients_cannot_oversell_and_share_one_native_commit_order ... ok",
+        "test lan::tests::failed_hub_required_audit_or_outbox_rolls_back_stock_invoice_and_dedup_receipt ... ok",
+        "test lan::tests::pairing_requires_fresh_password_existing_data_is_preserved_and_fingerprint_is_native ... ok",
+        "test lan::tests::forced_hub_termination_before_and_after_commit_resolves_the_same_durable_request ... ok",
+        "",
+        "test result: ok. 67 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 21.51s",
+        "",
+        "   Doc-tests sornio_local_store",
+        "",
+        "running 0 tests",
+        "",
+        "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s",
+        "",
+        "exit=0"
+      ]
+    },
+    "pr-127-verified-tests.log": {
+      "sha256": "8fd202743208856a6461dc051377820323f8c59150a64b8a3a8dcffa1cd6321c",
+      "bytes": 5489,
+      "test_results": [
+        "test result: ok. 60 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.77s"
+      ],
+      "tail": [
+        "test tests::retention_is_bounded_and_pruned_revisions_cannot_be_restored ... ok",
+        "test tests::restoring_creates_a_new_revision_and_survives_reopen ... ok",
+        "test catalog::tests::version_three_migration_keeps_drafts_password_and_locking ... ok",
+        "test tests::stale_restore_and_missing_copy_cannot_replace_newer_work ... ok",
+        "test tests::stale_writers_and_invalid_input_leave_original_intact ... ok",
+        "test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok",
+        "2026-10-29 02:23:51.176: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1",
+        "2026-10-29 02:23:51.176: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1",
+        "2026-10-29 02:23:51.176: ERROR CORE sqlcipher_codec_ctx_set_error 1",
+        "test tests::version_one_migration_preserves_draft_and_seeds_history ... ok",
+        "test tests::wrong_key_does_not_replace_data ... ok",
+        "test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok",
+        "",
+        "test result: ok. 60 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.77s",
+        "",
+        "   Doc-tests sornio_local_store"
+      ]
+    }
+  },
+  "inventory-reproduction.json": {
+    "syntheticDataOnly": true,
+    "afterLostReply": 12000,
+    "retryAfterRestart": 0,
+    "afterReentry": 14000,
+    "distinctOperationIds": 2,
+    "interpretation": "A committed +2 delivery can be entered twice after lost reply and native-process restart; no durable inventory checkpoint recovers the first request."
+  },
+  "rounding-reproduction.json": {
+    "web": {
+      "ok": true,
+      "lines": [
+        {
+          "name": "Synthetic",
+          "category": "Audit",
+          "quantity": 4.85,
+          "unitPrice": 0.5,
+          "total": 2.42
+        }
+      ],
+      "subtotal": 2.42,
+      "tax": 0,
+      "total": 2.42
+    },
+    "native": {
+      "lineTotalsPaise": [
+        243
+      ],
+      "subtotalPaise": 243,
+      "taxPaise": 0,
+      "totalPaise": 243
+    }
+  },
+  "secret-pattern-scan.json": {
+    "scope": "Limited specific credential/private-key patterns over current working source paths from main; no comprehensive or history scan",
+    "matches": []
+  },
+  "root-npm-audit.json": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {},
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies": {
+        "prod": 73,
+        "dev": 406,
+        "optional": 113,
+        "peer": 0,
+        "peerOptional": 0,
+        "total": 515
+      }
+    }
+  },
+  "desktop-npm-audit.json": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {},
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies": {
+        "prod": 5,
+        "dev": 56,
+        "optional": 38,
+        "peer": 0,
+        "peerOptional": 0,
+        "total": 60
+      }
+    }
+  },
+  "root-npm-full-audit.json": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {
+      "zod": {
+        "name": "zod",
+        "severity": "high",
+        "isDirect": false,
+        "via": [
+          {
+            "source": 1243066,
+            "name": "zod",
+            "dependency": "zod",
+            "title": "Zod can exhaust memory while validating oversized constrained collections",
+            "url": "https://github.com/advisories/GHSA-mrhx-c7xc-m3w5",
+            "severity": "high",
+            "cwe": [
+              "CWE-770"
+            ],
+            "cvss": {
+              "score": 7.5,
+              "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:H"
+            },
+            "range": "<4.6.6"
+          }
+        ],
+        "effects": [],
+        "range": "<4.6.6",
+        "nodes": [
+          "node_modules/zod"
+        ],
+        "fixAvailable": true
+      }
+    },
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 1,
+        "critical": 0,
+        "total": 1
+      },
+      "dependencies": {
+        "prod": 73,
+        "dev": 406,
+        "optional": 113,
+        "peer": 0,
+        "peerOptional": 0,
+        "total": 515
+      }
+    }
+  },
+  "root-npm-final-audit.json": {
+    "auditReportVersion": 2,
+    "vulnerabilities": {},
+    "metadata": {
+      "vulnerabilities": {
+        "info": 0,
+        "low": 0,
+        "moderate": 0,
+        "high": 0,
+        "critical": 0,
+        "total": 0
+      },
+      "dependencies": {
+        "prod": 73,
+        "dev": 406,
+        "optional": 113,
+        "peer": 0,
+        "peerOptional": 0,
+        "total": 515
+      }
+    }
+  },
+  "local-store-cargo-audit.json": {
+    "database": {
+      "advisory-count": 1381,
+      "last-commit": "40f5be6fb12ed93fc591bf4ab23b7d793b3f2239",
+      "last-updated": "2026-10-28T09:50:03+01:00"
+    },
+    "lockfile": {
+      "dependency-count": 77
+    },
+    "settings": {
+      "target_arch": [],
+      "target_os": [],
+      "severity": null,
+      "ignore": [],
+      "informational_warnings": [
+        "unmaintained",
+        "unsound",
+        "notice"
+      ]
+    },
+    "vulnerabilities": {
+      "found": false,
+      "count": 0,
+      "list": []
+    },
+    "warnings": {}
+  },
+  "desktop-cargo-audit.json": {
+    "database": {
+      "advisory-count": 1381,
+      "last-commit": "40f5be6fb12ed93fc591bf4ab23b7d793b3f2239",
+      "last-updated": "2026-10-28T09:50:03+01:00"
+    },
+    "lockfile": {
+      "dependency-count": 436
+    },
+    "settings": {
+      "target_arch": [],
+      "target_os": [],
+      "severity": null,
+      "ignore": [],
+      "informational_warnings": [
+        "unmaintained",
+        "unsound",
+        "notice"
+      ]
+    },
+    "vulnerabilities": {
+      "found": false,
+      "count": 0,
+      "list": []
+    },
+    "warnings": {
+      "unmaintained": [
+        {
+          "kind": "unmaintained",
+          "package": {
+            "name": "proc-macro-error",
+            "version": "1.0.4",
+            "source": "registry+https://github.com/rust-lang/crates.io-index",
+            "checksum": "da25490ff9892aab3fcf7c36f08cfb902dd3e71ca0f9f9517bea02a73a5ce38c",
+            "dependencies": [
+              {
+                "name": "proc-macro-error-attr",
+                "version": "1.0.4",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "proc-macro2",
+                "version": "1.0.107",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "quote",
+                "version": "1.0.47",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "syn",
+                "version": "1.0.109",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "version_check",
+                "version": "0.9.5",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              }
+            ],
+            "replace": null
+          },
+          "advisory": {
+            "id": "RUSTSEC-2024-0370",
+            "package": "proc-macro-error",
+            "title": "proc-macro-error is unmaintained",
+            "description": "proc-macro-error's maintainer seems to be unreachable, with no commits for 2 years, no releases pushed for 4 years, and no activity on the GitLab repo or response to email.\n\nproc-macro-error also depends on `syn 1.x`, which may be bringing duplicate dependencies into dependant build trees.\n\n## Possible Alternative(s)\n\n- [manyhow](https://crates.io/crates/manyhow)\n- [proc-macro2-diagnostics](https://github.com/SergioBenitez/proc-macro2-diagnostics)",
+            "date": "2024-09-01",
+            "aliases": [],
+            "related": [],
+            "collection": "crates",
+            "categories": [],
+            "keywords": [],
+            "cvss": null,
+            "informational": "unmaintained",
+            "references": [],
+            "source": null,
+            "url": "https://gitlab.com/CreepySkeleton/proc-macro-error/-/issues/20",
+            "withdrawn": null,
+            "license": "CC0-1.0",
+            "expect-deleted": false
+          },
+          "affected": null,
+          "versions": {
+            "patched": [],
+            "unaffected": []
+          }
+        }
+      ],
+      "unsound": [
+        {
+          "kind": "unsound",
+          "package": {
+            "name": "glib",
+            "version": "0.18.5",
+            "source": "registry+https://github.com/rust-lang/crates.io-index",
+            "checksum": "233daaf6e83ae6a12a52055f568f9d7cf4671dabb78ff9560ab6da230ce00ee5",
+            "dependencies": [
+              {
+                "name": "bitflags",
+                "version": "2.13.2",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "futures-channel",
+                "version": "0.3.34",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "futures-core",
+                "version": "0.3.34",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "futures-executor",
+                "version": "0.3.34",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "futures-task",
+                "version": "0.3.34",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "futures-util",
+                "version": "0.3.34",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "gio-sys",
+                "version": "0.18.1",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "glib-macros",
+                "version": "0.18.5",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "glib-sys",
+                "version": "0.18.1",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "gobject-sys",
+                "version": "0.18.0",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "libc",
+                "version": "0.2.191",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "memchr",
+                "version": "2.8.3",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "once_cell",
+                "version": "1.21.4",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "smallvec",
+                "version": "1.16.4",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              },
+              {
+                "name": "thiserror",
+                "version": "1.0.69",
+                "source": "registry+https://github.com/rust-lang/crates.io-index"
+              }
+            ],
+            "replace": null
+          },
+          "advisory": {
+            "id": "RUSTSEC-2024-0429",
+            "package": "glib",
+            "title": "Unsoundness in `Iterator` and `DoubleEndedIterator` impls for `glib::VariantStrIter`",
+            "description": "The `VariantStrIter::impl_get` function (called internally by implementations of the `Iterator` and `DoubleEndedIterator` traits for this type) was unsound, resulting in undefined behaviour.\n\nAn immutable reference `&p` to a `*mut libc::c_char` pointer initialized to `NULL` was passed as an argument to a C function that that mutates the pointer behind `&p` in-place (i.e. as an out-argument), which was unsound. After changes in recent versions of the Rust compiler, these unsound writes through `&p` now seem to be completely disregarded when building the `glib` crate with optimizations.\n\nThis subsequently caused all calls of `VariantStrIter::impl_get` to violate the safety requirements of the `std::ffi::CStr::from_ptr` function - which requires its argument to be a valid pointer to a C-style string - resulting in crashes due to `NULL` pointer dereferences.\n\nThis was fixed by passing the out-argument pointer explitly as `&mut p` instead of `&p`.\n\nThis issue has been present since this code was initially added in `glib` v0.15.0. The mismatch in mutability was likely missed (and not raised as an error by the compiler) because the C function wrapped by `VariantStrIter::impl_get` is variadic (`glib_sys::g_variant_get_child`), and the pointer in question is one of the variadic arguments.",
+            "date": "2024-03-30",
+            "aliases": [
+              "GHSA-wrw7-89jp-8q8g"
+            ],
+            "related": [],
+            "collection": "crates",
+            "categories": [],
+            "keywords": [],
+            "cvss": null,
+            "informational": "unsound",
+            "references": [],
+            "source": null,
+            "url": "https://github.com/gtk-rs/gtk-rs-core/pull/1343",
+            "withdrawn": null,
+            "license": "CC0-1.0",
+            "expect-deleted": false
+          },
+          "affected": {
+            "arch": [],
+            "os": [],
+            "functions": {
+              "glib::VariantStrIter::last": [
+                ">=0.15.0, <0.20.0"
+              ],
+              "glib::VariantStrIter::next": [
+                ">=0.15.0, <0.20.0"
+              ],
+              "glib::VariantStrIter::next_back": [
+                ">=0.15.0, <0.20.0"
+              ],
+              "glib::VariantStrIter::nth": [
+                ">=0.15.0, <0.20.0"
+              ],
+              "glib::VariantStrIter::nth_back": [
+                ">=0.15.0, <0.20.0"
+              ]
+            }
+          },
+          "versions": {
+            "patched": [
+              ">=0.20.0"
+            ],
+            "unaffected": [
+              "<0.15.0"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "limitations": [
+    "No local Windows UIA, Credential Manager, NSIS or PowerShell execution",
+    "No physical PC, multi-PC LAN, power-interruption, printer or scanner tests",
+    "PR snapshot native tests do not establish combined migrations or integrated financial adapters",
+    "PR 123-127 package artifacts were explicitly cleaned before accepted test runs; earlier shared-target cache results are not counted",
+    "No claim of historical secret scanning or complete security assurance"
+  ]
+}

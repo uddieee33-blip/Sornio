@@ -124,7 +124,7 @@ fn record(
     request: &str,
     product: &Product,
 ) -> Result<(), StoreError> {
-    tx.execute(
+    let changed = tx.execute(
         "INSERT INTO local_inventory_events(operation_id, product_id, kind, request, result)
         VALUES(?1, ?2, ?3, ?4, ?5)",
         params![
@@ -135,6 +135,9 @@ fn record(
             serde_json::to_string(product)?
         ],
     )?;
+    if changed != 1 {
+        return Err(rusqlite::Error::StatementChangedRows(changed).into());
+    }
     Ok(())
 }
 
@@ -195,9 +198,12 @@ impl Store {
             stock_milli: request.opening_stock_milli,
             revision: 1,
         };
-        tx.execute("INSERT INTO local_products(id, name, sku, unit, unit_price_paise, stock_milli, revision)
+        let changed = tx.execute("INSERT INTO local_products(id, name, sku, unit, unit_price_paise, stock_milli, revision)
             VALUES(?1, ?2, ?3, ?4, ?5, ?6, 1)", params![product.id, product.name, product.sku,
                 product.unit, product.unit_price_paise, product.stock_milli])?;
+        if changed != 1 {
+            return Err(rusqlite::Error::StatementChangedRows(changed).into());
+        }
         record(
             &tx,
             &request.operation_id,
@@ -250,10 +256,13 @@ impl Store {
             .revision
             .checked_add(1)
             .ok_or(StoreError::InvalidProduct)?;
-        tx.execute(
-            "UPDATE local_products SET stock_milli = ?1, revision = ?2 WHERE id = ?3",
-            params![product.stock_milli, product.revision, product.id],
+        let changed = tx.execute(
+            "UPDATE local_products SET stock_milli = ?1, revision = ?2 WHERE id = ?3 AND revision = ?4",
+            params![product.stock_milli, product.revision, product.id, request.expected_revision],
         )?;
+        if changed != 1 {
+            return Err(rusqlite::Error::StatementChangedRows(changed).into());
+        }
         record(
             &tx,
             &request.operation_id,
@@ -369,6 +378,66 @@ mod tests {
         assert!(s.adjust_stock(change(1, 1000)).is_err());
         assert_eq!(s.list_products().unwrap()[0].stock_milli, 1250);
         assert_eq!(s.list_products().unwrap()[0].revision, 1);
+    }
+
+    #[test]
+    fn ignored_add_event_rolls_back_product_and_allows_exact_retry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.db");
+        let mut s = Store::open(&path, KEY).unwrap();
+        s.0.execute_batch("CREATE TRIGGER skip_event BEFORE INSERT ON local_inventory_events BEGIN SELECT RAISE(IGNORE); END;").unwrap();
+        assert!(s.add_product(sample()).is_err());
+        assert!(s.list_products().unwrap().is_empty());
+        s.0.execute_batch("DROP TRIGGER skip_event;").unwrap();
+        drop(s);
+        let mut reopened = Store::open(&path, KEY).unwrap();
+        let saved = reopened.add_product(sample()).unwrap();
+        assert_eq!(reopened.add_product(sample()).unwrap(), saved);
+        assert_eq!(reopened.list_products().unwrap(), vec![saved]);
+    }
+
+    #[test]
+    fn ignored_adjust_event_rolls_back_stock_and_allows_exact_retry() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.db");
+        let mut s = Store::open(&path, KEY).unwrap();
+        let original = s.add_product(sample()).unwrap();
+        s.0.execute_batch("CREATE TRIGGER skip_event BEFORE INSERT ON local_inventory_events BEGIN SELECT RAISE(IGNORE); END;").unwrap();
+        assert!(s.adjust_stock(change(1, 1000)).is_err());
+        assert_eq!(s.list_products().unwrap(), vec![original.clone()]);
+        s.0.execute_batch("DROP TRIGGER skip_event;").unwrap();
+        drop(s);
+        let mut reopened = Store::open(&path, KEY).unwrap();
+        assert_eq!(reopened.list_products().unwrap(), vec![original]);
+        let saved = reopened.adjust_stock(change(1, 1000)).unwrap();
+        assert_eq!(saved.stock_milli, 2250);
+        assert_eq!(reopened.adjust_stock(change(1, 1000)).unwrap(), saved);
+        assert_eq!(reopened.list_products().unwrap(), vec![saved]);
+    }
+
+    #[test]
+    fn ignored_stock_update_cannot_commit_a_fictitious_event() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("store.db");
+        let mut s = Store::open(&path, KEY).unwrap();
+        let original = s.add_product(sample()).unwrap();
+        s.0.execute_batch("CREATE TRIGGER skip_stock BEFORE UPDATE ON local_products BEGIN SELECT RAISE(IGNORE); END;").unwrap();
+        assert!(s.adjust_stock(change(1, 1000)).is_err());
+        assert_eq!(s.list_products().unwrap(), vec![original.clone()]);
+        let events: i64 =
+            s.0.query_row("SELECT COUNT(*) FROM local_inventory_events", [], |r| {
+                r.get(0)
+            })
+            .unwrap();
+        assert_eq!(events, 1);
+        s.0.execute_batch("DROP TRIGGER skip_stock;").unwrap();
+        drop(s);
+        let mut reopened = Store::open(&path, KEY).unwrap();
+        assert_eq!(reopened.list_products().unwrap(), vec![original]);
+        let saved = reopened.adjust_stock(change(1, 1000)).unwrap();
+        assert_eq!(saved.stock_milli, 2250);
+        assert_eq!(reopened.adjust_stock(change(1, 1000)).unwrap(), saved);
+        assert_eq!(reopened.list_products().unwrap(), vec![saved]);
     }
     #[test]
     fn malformed_values_and_history_rewrites_are_rejected() {
