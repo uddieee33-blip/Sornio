@@ -1,0 +1,1380 @@
+{
+  "main": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+  "integrationParent": "20e36b7a5d94af961d85b1f252769feb6c21cf51",
+  "prs": [
+    {
+      "number": 124,
+      "head": "20e36b7a5d94af961d85b1f252769feb6c21cf51",
+      "branch": "feature/windows-retail-settlement",
+      "base": "main",
+      "state": "open",
+      "draft": false,
+      "reviews": [],
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "status": "modified",
+          "changes": 50
+        },
+        {
+          "path": ".github/workflows/windows-local.yml",
+          "status": "modified",
+          "changes": 25
+        },
+        {
+          "path": ".github/workflows/workspace-browser.yml",
+          "status": "modified",
+          "changes": 28
+        },
+        {
+          "path": "apps/desktop/check-authorization.cjs",
+          "status": "added",
+          "changes": 93
+        },
+        {
+          "path": "apps/desktop/check-checkout.cjs",
+          "status": "modified",
+          "changes": 16
+        },
+        {
+          "path": "apps/desktop/check-credentials.cjs",
+          "status": "added",
+          "changes": 72
+        },
+        {
+          "path": "apps/desktop/check-customers.cjs",
+          "status": "added",
+          "changes": 168
+        },
+        {
+          "path": "apps/desktop/check-inventory-recovery.cjs",
+          "status": "added",
+          "changes": 66
+        },
+        {
+          "path": "apps/desktop/check-inventory-refresh.cjs",
+          "status": "added",
+          "changes": 66
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 159
+        },
+        {
+          "path": "apps/desktop/check-retail.cjs",
+          "status": "added",
+          "changes": 106
+        },
+        {
+          "path": "apps/desktop/check-ui.cjs",
+          "status": "modified",
+          "changes": 14
+        },
+        {
+          "path": "apps/desktop/src-tauri/build.rs",
+          "status": "modified",
+          "changes": 25
+        },
+        {
+          "path": "apps/desktop/src-tauri/capabilities/local-workspace.json",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src-tauri/permissions/workspace.toml",
+          "status": "modified",
+          "changes": 18
+        },
+        {
+          "path": "apps/desktop/src-tauri/src/main.rs",
+          "status": "modified",
+          "changes": 409
+        },
+        {
+          "path": "apps/desktop/src/AccessGate.tsx",
+          "status": "modified",
+          "changes": 43
+        },
+        {
+          "path": "apps/desktop/src/CheckoutPanel.tsx",
+          "status": "modified",
+          "changes": 68
+        },
+        {
+          "path": "apps/desktop/src/CredentialsPanel.tsx",
+          "status": "added",
+          "changes": 91
+        },
+        {
+          "path": "apps/desktop/src/CustomerLookup.tsx",
+          "status": "added",
+          "changes": 18
+        },
+        {
+          "path": "apps/desktop/src/CustomerPanel.tsx",
+          "status": "added",
+          "changes": 157
+        },
+        {
+          "path": "apps/desktop/src/InventoryPanel.tsx",
+          "status": "modified",
+          "changes": 57
+        },
+        {
+          "path": "apps/desktop/src/RetailPanel.tsx",
+          "status": "added",
+          "changes": 92
+        },
+        {
+          "path": "apps/desktop/src/SavedCopies.tsx",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src/SavedInvoice.tsx",
+          "status": "modified",
+          "changes": 4
+        },
+        {
+          "path": "apps/desktop/src/StaffPanel.tsx",
+          "status": "added",
+          "changes": 53
+        },
+        {
+          "path": "apps/desktop/src/billing-types.ts",
+          "status": "modified",
+          "changes": 9
+        },
+        {
+          "path": "apps/desktop/src/customer-types.ts",
+          "status": "added",
+          "changes": 7
+        },
+        {
+          "path": "apps/desktop/src/main.tsx",
+          "status": "modified",
+          "changes": 51
+        },
+        {
+          "path": "apps/desktop/src/native.ts",
+          "status": "added",
+          "changes": 19
+        },
+        {
+          "path": "apps/desktop/src/retail-types.ts",
+          "status": "added",
+          "changes": 27
+        },
+        {
+          "path": "apps/desktop/src/style.css",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "docs/reviews/2026-10-27-windows-authorization.md",
+          "status": "added",
+          "changes": 148
+        },
+        {
+          "path": "docs/reviews/windows-credential-controls.md",
+          "status": "added",
+          "changes": 124
+        },
+        {
+          "path": "docs/reviews/windows-credential-test-evidence.txt",
+          "status": "added",
+          "changes": 443
+        },
+        {
+          "path": "docs/reviews/windows-customer-credit.md",
+          "status": "added",
+          "changes": 106
+        },
+        {
+          "path": "docs/reviews/windows-pilot-correctness.md",
+          "status": "added",
+          "changes": 149
+        },
+        {
+          "path": "docs/reviews/windows-pilot-followup.md",
+          "status": "added",
+          "changes": 62
+        },
+        {
+          "path": "docs/reviews/windows-pilot-test-evidence.txt",
+          "status": "added",
+          "changes": 405
+        },
+        {
+          "path": "docs/reviews/windows-retail-payments.md",
+          "status": "added",
+          "changes": 151
+        },
+        {
+          "path": "docs/reviews/windows-security-hardening.md",
+          "status": "added",
+          "changes": 186
+        },
+        {
+          "path": "docs/reviews/windows-security-test-evidence.txt",
+          "status": "added",
+          "changes": 666
+        },
+        {
+          "path": "package-lock.json",
+          "status": "modified",
+          "changes": 6
+        },
+        {
+          "path": "packages/business-domain/src/invoice-calculation.ts",
+          "status": "modified",
+          "changes": 48
+        },
+        {
+          "path": "packages/local-store/Cargo.lock",
+          "status": "modified",
+          "changes": 264
+        },
+        {
+          "path": "packages/local-store/Cargo.toml",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "packages/local-store/examples/cashier_review_bridge.rs",
+          "status": "modified",
+          "changes": 152
+        },
+        {
+          "path": "packages/local-store/examples/security/tests.rs",
+          "status": "added",
+          "changes": 527
+        },
+        {
+          "path": "packages/local-store/src/access.rs",
+          "status": "modified",
+          "changes": 1125
+        },
+        {
+          "path": "packages/local-store/src/authorization_tests.rs",
+          "status": "added",
+          "changes": 723
+        },
+        {
+          "path": "packages/local-store/src/billing.rs",
+          "status": "modified",
+          "changes": 374
+        },
+        {
+          "path": "packages/local-store/src/billing_reliability_tests.rs",
+          "status": "modified",
+          "changes": 41
+        },
+        {
+          "path": "packages/local-store/src/catalog.rs",
+          "status": "modified",
+          "changes": 64
+        },
+        {
+          "path": "packages/local-store/src/checkout.rs",
+          "status": "modified",
+          "changes": 93
+        },
+        {
+          "path": "packages/local-store/src/credential_tests.rs",
+          "status": "added",
+          "changes": 283
+        },
+        {
+          "path": "packages/local-store/src/customers-schema.sql",
+          "status": "added",
+          "changes": 38
+        },
+        {
+          "path": "packages/local-store/src/customers.rs",
+          "status": "added",
+          "changes": 1121
+        },
+        {
+          "path": "packages/local-store/src/customers_tests.rs",
+          "status": "added",
+          "changes": 903
+        },
+        {
+          "path": "packages/local-store/src/identity-schema.sql",
+          "status": "added",
+          "changes": 46
+        },
+        {
+          "path": "packages/local-store/src/identity.rs",
+          "status": "added",
+          "changes": 348
+        },
+        {
+          "path": "packages/local-store/src/inventory_recovery.rs",
+          "status": "added",
+          "changes": 180
+        },
+        {
+          "path": "packages/local-store/src/inventory_recovery_tests.rs",
+          "status": "added",
+          "changes": 331
+        },
+        {
+          "path": "packages/local-store/src/lib.rs",
+          "status": "modified",
+          "changes": 88
+        },
+        {
+          "path": "packages/local-store/src/payments-schema.sql",
+          "status": "added",
+          "changes": 22
+        },
+        {
+          "path": "packages/local-store/src/payments.rs",
+          "status": "added",
+          "changes": 2018
+        },
+        {
+          "path": "packages/local-store/src/payments_tests.rs",
+          "status": "added",
+          "changes": 1142
+        },
+        {
+          "path": "scripts/verify-business-domain.mjs",
+          "status": "modified",
+          "changes": 13
+        }
+      ],
+      "checks": [
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/123506437365"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40890555524/job/123505864923"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40890555046/job/123505863652"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40890555046/job/123505863183"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40890555058/job/123505862190"
+        },
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/123505807607"
+        }
+      ]
+    },
+    {
+      "number": 129,
+      "head": "364f42b2896f19aa070d5d853769d0212e7d9503",
+      "branch": "review/windows-controlled-pilot-hardening",
+      "base": "main",
+      "state": "open",
+      "draft": false,
+      "reviews": [],
+      "files": [
+        {
+          "path": ".github/workflows/windows-local.yml",
+          "status": "modified",
+          "changes": 22
+        },
+        {
+          "path": ".github/workflows/workspace-browser.yml",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/check-install-data.py",
+          "status": "added",
+          "changes": 48
+        },
+        {
+          "path": "apps/desktop/check-installer.ps1",
+          "status": "added",
+          "changes": 84
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 18
+        },
+        {
+          "path": "apps/desktop/test_install_data.py",
+          "status": "added",
+          "changes": 62
+        },
+        {
+          "path": "docs/reviews/windows-audit-evidence-2026-10-29.json",
+          "status": "added",
+          "changes": 1433
+        },
+        {
+          "path": "docs/reviews/windows-engineering-audit-2026-10-29.md",
+          "status": "added",
+          "changes": 295
+        },
+        {
+          "path": "docs/reviews/windows-pilot-readiness.md",
+          "status": "added",
+          "changes": 154
+        },
+        {
+          "path": "package-lock.json",
+          "status": "modified",
+          "changes": 6
+        },
+        {
+          "path": "packages/local-store/src/catalog.rs",
+          "status": "modified",
+          "changes": 79
+        }
+      ],
+      "checks": [
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/123301373112"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40829721103/job/123300879636"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40829721103/job/123300879439"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40829721212/job/123300879325"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40829721105/job/123300879291"
+        },
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/123300859610"
+        }
+      ]
+    },
+    {
+      "number": 128,
+      "head": "08575a2ed7d17d826bc3961278901164b89b5e2b",
+      "branch": "feature/windows-pos-keyboard-printing",
+      "base": "main",
+      "state": "open",
+      "draft": false,
+      "reviews": [],
+      "files": [
+        {
+          "path": "apps/desktop/check-checkout.cjs",
+          "status": "modified",
+          "changes": 55
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 4
+        },
+        {
+          "path": "apps/desktop/public/fonts/NotoSansGurmukhi-OFL.txt",
+          "status": "added",
+          "changes": 93
+        },
+        {
+          "path": "apps/desktop/public/fonts/noto-sans-gurmukhi.woff2",
+          "status": "added",
+          "changes": 0
+        },
+        {
+          "path": "apps/desktop/public/locales/pa.json",
+          "status": "added",
+          "changes": 20
+        },
+        {
+          "path": "apps/desktop/src/CheckoutPanel.tsx",
+          "status": "modified",
+          "changes": 73
+        },
+        {
+          "path": "apps/desktop/src/SavedInvoice.tsx",
+          "status": "modified",
+          "changes": 30
+        },
+        {
+          "path": "apps/desktop/src/main.tsx",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src/receipt-print.ts",
+          "status": "added",
+          "changes": 34
+        },
+        {
+          "path": "apps/desktop/src/style.css",
+          "status": "modified",
+          "changes": 8
+        },
+        {
+          "path": "apps/desktop/vite.config.ts",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "docs/reviews/windows-pos-printing.md",
+          "status": "added",
+          "changes": 92
+        }
+      ],
+      "checks": [
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122819641976"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40689213557/job/122819405385"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40689213557/job/122819404977"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40689213374/job/122819404610"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40689213449/job/122819404444"
+        },
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122819397174"
+        }
+      ]
+    },
+    {
+      "number": 127,
+      "head": "345cd2b6d0db2bb4b83769a0d0b0c04ec4e0737c",
+      "branch": "feature/windows-gst-invoicing",
+      "base": "main",
+      "state": "open",
+      "draft": false,
+      "reviews": [],
+      "files": [
+        {
+          "path": "docs/reviews/windows-gst-integration-notes.md",
+          "status": "added",
+          "changes": 118
+        },
+        {
+          "path": "packages/local-store/fixtures/gst-rounding.json",
+          "status": "added",
+          "changes": 98
+        },
+        {
+          "path": "packages/local-store/src/gst.rs",
+          "status": "added",
+          "changes": 271
+        },
+        {
+          "path": "packages/local-store/src/lib.rs",
+          "status": "modified",
+          "changes": 1
+        }
+      ],
+      "checks": [
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122808921073"
+        },
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122808691001"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40686085286/job/122808683916"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40686085277/job/122808683440"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40686085285/job/122808683368"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40686085286/job/122808683327"
+        }
+      ]
+    },
+    {
+      "number": 126,
+      "head": "129fce1ed9c60aaede0228dd5d41097f1580b938",
+      "branch": "feature/windows-shop-lan",
+      "base": "main",
+      "state": "open",
+      "draft": true,
+      "reviews": [],
+      "files": [
+        {
+          "path": ".github/workflows/windows-local.yml",
+          "status": "modified",
+          "changes": 4
+        },
+        {
+          "path": ".github/workflows/workspace-browser.yml",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "apps/desktop/check-lan.cjs",
+          "status": "added",
+          "changes": 70
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 21
+        },
+        {
+          "path": "apps/desktop/src-tauri/Cargo.lock",
+          "status": "modified",
+          "changes": 407
+        },
+        {
+          "path": "apps/desktop/src-tauri/Cargo.toml",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/build.rs",
+          "status": "modified",
+          "changes": 11
+        },
+        {
+          "path": "apps/desktop/src-tauri/capabilities/local-workspace.json",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src-tauri/permissions/workspace.toml",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/src/lan_commands.rs",
+          "status": "added",
+          "changes": 319
+        },
+        {
+          "path": "apps/desktop/src-tauri/src/main.rs",
+          "status": "modified",
+          "changes": 21
+        },
+        {
+          "path": "apps/desktop/src/CheckoutPanel.tsx",
+          "status": "modified",
+          "changes": 26
+        },
+        {
+          "path": "apps/desktop/src/LanPanel.tsx",
+          "status": "added",
+          "changes": 114
+        },
+        {
+          "path": "apps/desktop/src/SavedInvoice.tsx",
+          "status": "modified",
+          "changes": 4
+        },
+        {
+          "path": "apps/desktop/src/billing-types.ts",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "apps/desktop/src/main.tsx",
+          "status": "modified",
+          "changes": 12
+        },
+        {
+          "path": "docs/reviews/windows-shop-lan.md",
+          "status": "added",
+          "changes": 253
+        },
+        {
+          "path": "packages/local-store/Cargo.lock",
+          "status": "modified",
+          "changes": 444
+        },
+        {
+          "path": "packages/local-store/Cargo.toml",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "packages/local-store/examples/cashier_review_bridge.rs",
+          "status": "modified",
+          "changes": 8
+        },
+        {
+          "path": "packages/local-store/examples/shop_lan_review_bridge.rs",
+          "status": "added",
+          "changes": 195
+        },
+        {
+          "path": "packages/local-store/src/access.rs",
+          "status": "modified",
+          "changes": 114
+        },
+        {
+          "path": "packages/local-store/src/billing.rs",
+          "status": "modified",
+          "changes": 280
+        },
+        {
+          "path": "packages/local-store/src/catalog.rs",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "packages/local-store/src/checkout.rs",
+          "status": "modified",
+          "changes": 11
+        },
+        {
+          "path": "packages/local-store/src/lan/client.rs",
+          "status": "added",
+          "changes": 396
+        },
+        {
+          "path": "packages/local-store/src/lan/mod.rs",
+          "status": "added",
+          "changes": 867
+        },
+        {
+          "path": "packages/local-store/src/lan/schema.sql",
+          "status": "added",
+          "changes": 17
+        },
+        {
+          "path": "packages/local-store/src/lan/tests.rs",
+          "status": "added",
+          "changes": 614
+        },
+        {
+          "path": "packages/local-store/src/lan/transport.rs",
+          "status": "added",
+          "changes": 242
+        },
+        {
+          "path": "packages/local-store/src/lib.rs",
+          "status": "modified",
+          "changes": 12
+        }
+      ],
+      "checks": [
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122776151104"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40676249655/job/122775298017"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40676249655/job/122775297578"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40676249636/job/122775297319"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40676249574/job/122775296881"
+        },
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122775287256"
+        }
+      ]
+    },
+    {
+      "number": 125,
+      "head": "69ed5db0106dfa2dbca1d157f98bc9dce0e7b586",
+      "branch": "feature/windows-encrypted-backup",
+      "base": "main",
+      "state": "open",
+      "draft": true,
+      "reviews": [],
+      "files": [
+        {
+          "path": ".github/workflows/windows-local.yml",
+          "status": "modified",
+          "changes": 4
+        },
+        {
+          "path": ".github/workflows/workspace-browser.yml",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "apps/desktop/check-backup.cjs",
+          "status": "added",
+          "changes": 70
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 68
+        },
+        {
+          "path": "apps/desktop/src-tauri/Cargo.lock",
+          "status": "modified",
+          "changes": 145
+        },
+        {
+          "path": "apps/desktop/src-tauri/Cargo.toml",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "apps/desktop/src-tauri/build.rs",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/capabilities/local-workspace.json",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src-tauri/permissions/workspace.toml",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/src/main.rs",
+          "status": "modified",
+          "changes": 136
+        },
+        {
+          "path": "apps/desktop/src/AccessGate.tsx",
+          "status": "modified",
+          "changes": 11
+        },
+        {
+          "path": "apps/desktop/src/BackupPanel.tsx",
+          "status": "added",
+          "changes": 95
+        },
+        {
+          "path": "apps/desktop/src/main.tsx",
+          "status": "modified",
+          "changes": 10
+        },
+        {
+          "path": "docs/reviews/windows-encrypted-backup.md",
+          "status": "added",
+          "changes": 188
+        },
+        {
+          "path": "packages/local-store/Cargo.lock",
+          "status": "modified",
+          "changes": 12
+        },
+        {
+          "path": "packages/local-store/Cargo.toml",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "packages/local-store/examples/cashier_review_bridge.rs",
+          "status": "modified",
+          "changes": 49
+        },
+        {
+          "path": "packages/local-store/src/access.rs",
+          "status": "modified",
+          "changes": 82
+        },
+        {
+          "path": "packages/local-store/src/billing.rs",
+          "status": "modified",
+          "changes": 6
+        },
+        {
+          "path": "packages/local-store/src/catalog.rs",
+          "status": "modified",
+          "changes": 10
+        },
+        {
+          "path": "packages/local-store/src/checkout.rs",
+          "status": "modified",
+          "changes": 10
+        },
+        {
+          "path": "packages/local-store/src/lib.rs",
+          "status": "modified",
+          "changes": 47
+        },
+        {
+          "path": "packages/local-store/src/recovery.rs",
+          "status": "added",
+          "changes": 575
+        },
+        {
+          "path": "packages/local-store/src/recovery/tests.rs",
+          "status": "added",
+          "changes": 498
+        }
+      ],
+      "checks": [
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122640994290"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40635151044/job/122640296297"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40635150963/job/122640296215"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40635150963/job/122640296063"
+        },
+        {
+          "name": "browser",
+          "conclusion": "failure",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40635150936/job/122640296007"
+        },
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122640284270"
+        }
+      ]
+    },
+    {
+      "number": 123,
+      "head": "e41f88941d7c9fc88905a01adfa15d2c504f55d7",
+      "branch": "feature/windows-customer-credit",
+      "base": "feature/windows-native-authorization",
+      "state": "open",
+      "draft": false,
+      "reviews": [],
+      "files": [
+        {
+          "path": ".github/workflows/ci.yml",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": ".github/workflows/windows-local.yml",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": ".github/workflows/workspace-browser.yml",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "apps/desktop/check-checkout.cjs",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "apps/desktop/check-customers.cjs",
+          "status": "added",
+          "changes": 163
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 47
+        },
+        {
+          "path": "apps/desktop/check-ui.cjs",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "apps/desktop/src-tauri/build.rs",
+          "status": "modified",
+          "changes": 9
+        },
+        {
+          "path": "apps/desktop/src-tauri/capabilities/local-workspace.json",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src-tauri/permissions/workspace.toml",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/src/main.rs",
+          "status": "modified",
+          "changes": 111
+        },
+        {
+          "path": "apps/desktop/src/CheckoutPanel.tsx",
+          "status": "modified",
+          "changes": 9
+        },
+        {
+          "path": "apps/desktop/src/CustomerLookup.tsx",
+          "status": "added",
+          "changes": 18
+        },
+        {
+          "path": "apps/desktop/src/CustomerPanel.tsx",
+          "status": "added",
+          "changes": 157
+        },
+        {
+          "path": "apps/desktop/src/customer-types.ts",
+          "status": "added",
+          "changes": 7
+        },
+        {
+          "path": "apps/desktop/src/main.tsx",
+          "status": "modified",
+          "changes": 13
+        },
+        {
+          "path": "apps/desktop/src/style.css",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "docs/reviews/windows-customer-credit.md",
+          "status": "added",
+          "changes": 106
+        },
+        {
+          "path": "packages/local-store/examples/cashier_review_bridge.rs",
+          "status": "modified",
+          "changes": 42
+        },
+        {
+          "path": "packages/local-store/src/access.rs",
+          "status": "modified",
+          "changes": 70
+        },
+        {
+          "path": "packages/local-store/src/billing.rs",
+          "status": "modified",
+          "changes": 3
+        },
+        {
+          "path": "packages/local-store/src/billing_reliability_tests.rs",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "packages/local-store/src/catalog.rs",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "packages/local-store/src/checkout.rs",
+          "status": "modified",
+          "changes": 4
+        },
+        {
+          "path": "packages/local-store/src/customers-schema.sql",
+          "status": "added",
+          "changes": 38
+        },
+        {
+          "path": "packages/local-store/src/customers.rs",
+          "status": "added",
+          "changes": 1060
+        },
+        {
+          "path": "packages/local-store/src/customers_tests.rs",
+          "status": "added",
+          "changes": 886
+        },
+        {
+          "path": "packages/local-store/src/identity.rs",
+          "status": "modified",
+          "changes": 24
+        },
+        {
+          "path": "packages/local-store/src/lib.rs",
+          "status": "modified",
+          "changes": 26
+        }
+      ],
+      "checks": [
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122574572281"
+        },
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122550910830"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40607511464/job/122550590057"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40607511464/job/122550589897"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40607511476/job/122550589555"
+        },
+        {
+          "name": "browser",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40607511441/job/122550589219"
+        }
+      ]
+    },
+    {
+      "number": 122,
+      "head": "6631eb04efb0cc155d2352113d744ddd2dea748d",
+      "branch": "feature/windows-native-authorization",
+      "base": "main",
+      "state": "open",
+      "draft": false,
+      "reviews": [],
+      "files": [
+        {
+          "path": ".github/workflows/workspace-browser.yml",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "apps/desktop/check-authorization.cjs",
+          "status": "added",
+          "changes": 93
+        },
+        {
+          "path": "apps/desktop/check-checkout.cjs",
+          "status": "modified",
+          "changes": 7
+        },
+        {
+          "path": "apps/desktop/check-native.py",
+          "status": "modified",
+          "changes": 51
+        },
+        {
+          "path": "apps/desktop/check-ui.cjs",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/build.rs",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/capabilities/local-workspace.json",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src-tauri/permissions/workspace.toml",
+          "status": "modified",
+          "changes": 5
+        },
+        {
+          "path": "apps/desktop/src-tauri/src/main.rs",
+          "status": "modified",
+          "changes": 113
+        },
+        {
+          "path": "apps/desktop/src/AccessGate.tsx",
+          "status": "modified",
+          "changes": 43
+        },
+        {
+          "path": "apps/desktop/src/CheckoutPanel.tsx",
+          "status": "modified",
+          "changes": 9
+        },
+        {
+          "path": "apps/desktop/src/InventoryPanel.tsx",
+          "status": "modified",
+          "changes": 14
+        },
+        {
+          "path": "apps/desktop/src/SavedCopies.tsx",
+          "status": "modified",
+          "changes": 2
+        },
+        {
+          "path": "apps/desktop/src/StaffPanel.tsx",
+          "status": "added",
+          "changes": 50
+        },
+        {
+          "path": "apps/desktop/src/billing-types.ts",
+          "status": "modified",
+          "changes": 1
+        },
+        {
+          "path": "apps/desktop/src/main.tsx",
+          "status": "modified",
+          "changes": 25
+        },
+        {
+          "path": "apps/desktop/src/native.ts",
+          "status": "added",
+          "changes": 19
+        },
+        {
+          "path": "docs/reviews/2026-10-27-windows-authorization.md",
+          "status": "added",
+          "changes": 148
+        },
+        {
+          "path": "packages/local-store/examples/cashier_review_bridge.rs",
+          "status": "modified",
+          "changes": 53
+        },
+        {
+          "path": "packages/local-store/src/access.rs",
+          "status": "modified",
+          "changes": 920
+        },
+        {
+          "path": "packages/local-store/src/authorization_tests.rs",
+          "status": "added",
+          "changes": 631
+        },
+        {
+          "path": "packages/local-store/src/billing.rs",
+          "status": "modified",
+          "changes": 31
+        },
+        {
+          "path": "packages/local-store/src/billing_reliability_tests.rs",
+          "status": "modified",
+          "changes": 13
+        },
+        {
+          "path": "packages/local-store/src/catalog.rs",
+          "status": "modified",
+          "changes": 31
+        },
+        {
+          "path": "packages/local-store/src/checkout.rs",
+          "status": "modified",
+          "changes": 58
+        },
+        {
+          "path": "packages/local-store/src/identity-schema.sql",
+          "status": "added",
+          "changes": 46
+        },
+        {
+          "path": "packages/local-store/src/identity.rs",
+          "status": "added",
+          "changes": 327
+        },
+        {
+          "path": "packages/local-store/src/lib.rs",
+          "status": "modified",
+          "changes": 46
+        }
+      ],
+      "checks": [
+        {
+          "name": "Supabase Preview",
+          "conclusion": "skipped",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122538033873"
+        },
+        {
+          "name": "Vercel Preview Comments",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/runs/122197034114"
+        },
+        {
+          "name": "Dependency audit",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40506465343/job/122196909917"
+        },
+        {
+          "name": "Lint, types, build",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40506465343/job/122196909490"
+        },
+        {
+          "name": "browser",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40506465173/job/122196908106"
+        },
+        {
+          "name": "local-windows",
+          "conclusion": "success",
+          "url": "https://github.com/uddieee33-blip/DukaanOS/actions/runs/40506465169/job/122196908081"
+        }
+      ]
+    }
+  ]
+}
