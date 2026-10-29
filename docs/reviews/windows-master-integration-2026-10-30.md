@@ -1,7 +1,7 @@
 # Sornio Windows integration checkpoint — 30 October 2026
 
 **NO-GO for a real-shop pilot. Review-only integration; synthetic data only.**
-Receipt follow-up: [authenticated lookup, keyboard checkout and receipt printing](windows-receipt-integration-2026-10-30.md) extends this checkpoint. Its current counts are 157 native passes per profile and 10 browser suites. The 155-test/9-suite evidence below belongs to the earlier recovery checkpoint `86918f4`; current head/CI are in PR #130.
+Receipt follow-up: [authenticated lookup, keyboard checkout and receipt printing](windows-receipt-integration-2026-10-30.md) extends this checkpoint. The [customer statement correction](windows-statement-print-2026-10-30.md) fixes its blank-print interaction and extends print authorization/testing. The 155-test/9-suite evidence below belongs to the earlier recovery checkpoint `86918f4`; later counts, final head and CI are in the follow-up evidence and PR #130.
 
 
 ## A. Repository baseline and dependency graph

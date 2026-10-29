@@ -1,5 +1,7 @@
 # Windows receipt integration — 30 October 2026
 
+Follow-up: [customer statement print correction](windows-statement-print-2026-10-30.md) fixes the blank-statement CSS interaction introduced here and adds native authorization/snapshot checks to statement printing. The counts below describe this receipt checkpoint; final verification is in the follow-up and PR #130.
+
 This extends existing draft PR #130, parent `86918f462087cb480fa1414f5f39dcc1df8502ef` / tree `c00bc226a6c024062b04c4f7f6860f71837e0c57`. Merged main remains `97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6`. No older review branch is overwritten or merged. The proposed final head and exact-head CI links are recorded in PR #130.
 
 **NO-GO for a shop pilot.** Local testing establishes the behavior below; no current Windows installer, OS print-dialog, physical printer/scanner or installed-app acceptance is claimed.
