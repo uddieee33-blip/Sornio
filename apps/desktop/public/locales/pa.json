@@ -1,0 +1,20 @@
+{
+  "Print saved receipt": "ਸੰਭਾਲੀ ਰਸੀਦ ਛਾਪੋ",
+  "Paper layout": "ਕਾਗਜ਼ ਦਾ ਆਕਾਰ",
+  "Sale saved on this PC": "ਵਿਕਰੀ ਇਸ ਕੰਪਿਊਟਰ ਉੱਤੇ ਸੰਭਾਲੀ ਗਈ",
+  "Saved invoice ID": "ਸੰਭਾਲੇ ਬਿੱਲ ਦਾ ਨੰਬਰ",
+  "Cash received": "ਨਕਦ ਪ੍ਰਾਪਤ ਹੋਇਆ",
+  "Discounts: not recorded in this invoice.": "ਛੋਟ: ਇਸ ਬਿੱਲ ਵਿੱਚ ਦਰਜ ਨਹੀਂ ਹੈ।",
+  "Local sales receipt. GST tax-invoice compliance is not claimed.": "ਸਥਾਨਕ ਵਿਕਰੀ ਦੀ ਰਸੀਦ। ਜੀਐਸਟੀ ਟੈਕਸ ਬਿੱਲ ਦੀ ਪਾਲਣਾ ਦਾ ਦਾਅਵਾ ਨਹੀਂ ਕੀਤਾ ਜਾਂਦਾ।",
+  "Current shop label; not stored with this historic invoice.": "ਦੁਕਾਨ ਦਾ ਮੌਜੂਦਾ ਨਾਮ; ਪੁਰਾਣੇ ਬਿੱਲ ਨਾਲ ਸੰਭਾਲਿਆ ਨਹੀਂ ਗਿਆ।",
+  "Printing does not change the saved sale.": "ਛਾਪਣ ਨਾਲ ਸੰਭਾਲੀ ਵਿਕਰੀ ਨਹੀਂ ਬਦਲਦੀ।",
+  "Subtotal: {{0}} · Tax: {{1}}": "ਉਪ-ਜੋੜ: {{0}} · ਟੈਕਸ: {{1}}",
+  "Saved total: {{0}}": "ਸੰਭਾਲਿਆ ਕੁੱਲ: {{0}}",
+  "Search items for sale": "ਵਿਕਰੀ ਲਈ ਸਮਾਨ ਲੱਭੋ",
+  "Review sale": "ਵਿਕਰੀ ਦੀ ਜਾਂਚ ਕਰੋ",
+  "Confirm sale": "ਵਿਕਰੀ ਦੀ ਪੁਸ਼ਟੀ ਕਰੋ",
+  "Retry same sale": "ਉਸੇ ਵਿਕਰੀ ਲਈ ਮੁੜ ਕੋਸ਼ਿਸ਼ ਕਰੋ",
+  "Subtotal:": "ਉਪ-ਜੋੜ:",
+  "· Tax:": "· ਟੈਕਸ:",
+  "Saved total:": "ਸੰਭਾਲਿਆ ਕੁੱਲ:"
+}

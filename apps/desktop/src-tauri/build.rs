@@ -46,6 +46,7 @@ fn main() {
             "prepare_local_checkout",
             "clear_local_checkout",
             "post_local_invoice",
+            "read_local_invoice",
             "list_local_invoices",
             "read_billing_outbox",
         ]),

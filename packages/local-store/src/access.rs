@@ -762,6 +762,9 @@ impl Workspace {
         self.require(Permission::Sell)?;
         self.store.post_invoice(request)
     }
+    pub fn read_invoice(&self, id: &str) -> Result<crate::billing::Invoice, StoreError> {
+        self.read(Permission::Sell, |s| s.read_invoice(id))
+    }
     pub fn list_invoices(
         &self,
         after: i64,

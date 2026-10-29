@@ -17,6 +17,9 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
   disabled: boolean; refreshToken: number; customerRefreshToken: number; onLocked: () => void;
   onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; onPosted: () => void;
 }) {
+  const searchInput = useRef<HTMLInputElement>(null), confirmButton = useRef<HTMLButtonElement>(null);
+  const [history, setHistory] = useState<{ sequence: number; invoice: Invoice }[]>([]);
+  const [historyOpen, setHistoryOpen] = useState(false), [historicInvoice, setHistoricInvoice] = useState<Invoice | null>(null), [receiptId, setReceiptId] = useState('');
   const [products, setProducts] = useState<Product[]>([]);
   const [reportsAllowed, setReportsAllowed] = useState(false);
   const [balances, setBalances] = useState(emptyBalances);
@@ -36,6 +39,8 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [message, setMessage] = useState('Opening checkout…');
+  useEffect(() => { if (review) confirmButton.current?.focus(); }, [review]);
+  useEffect(() => { if (ready && !busy && !invoice && !pending && !historyOpen) searchInput.current?.focus(); }, [ready, busy, invoice, pending, historyOpen]);
   const submitting = useRef(false);
   const readGeneration = useRef(0);
   const pendingRef = useRef<CheckoutRequest | null>(null);
@@ -76,6 +81,32 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
     return () => { current = false; };
   }, [refreshToken, onLocked, apply]);
 
+  async function receipts(after = 0) {
+    if (submitting.current || disabled || !reportsAllowed) return;
+    submitting.current = true; setBusy(true); onBusyChange(true);
+    try {
+      const records = await invoke<{ sequence: number; invoice: Invoice }[]>('list_local_invoices', { after });
+      if (!mounted.current) return;
+      setHistory(records); setHistoryOpen(true); setHistoricInvoice(null); setFailed(false);
+    } catch (error) {
+      if (!mounted.current) return;
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setFailed(true); setMessage(errorMessage(error, 'Saved receipts could not be opened.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
+  }
+  async function openReceipt(id: string) {
+    if (submitting.current || disabled || !id.trim()) return;
+    submitting.current = true; setBusy(true); onBusyChange(true);
+    try {
+      const saved = await invoke<Invoice>('read_local_invoice', { invoiceId: id.trim() });
+      if (!mounted.current) return;
+      setHistoricInvoice(saved); setHistoryOpen(true); setFailed(false);
+    } catch (error) {
+      if (!mounted.current) return;
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setHistoricInvoice(null); setFailed(true); setMessage(errorMessage(error, 'Check the saved receipt ID and your access.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
+  }
   async function refresh() {
     if (submitting.current) return;
     // A delayed background read must not replace newer explicit recovery state.
@@ -176,11 +207,20 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
         : detail || 'Check the sale quantities and tax.';
     }
   }
-  const blocked = disabled || busy || !ready || pending !== null;
+  const blocked = disabled || busy || !ready || pending !== null || historyOpen;
   const matching = useMemo(() => products.filter(product => `${product.name} ${product.sku}`.toLowerCase().includes(search.toLowerCase())), [products, search]);
-  function add(product: Product) {
+  function add(product: Product, scan = false) {
     if (blocked || review) return;
-    if (cart.some(line => line.productId === product.id)) { setSearch(''); return; }
+    if (product.stockMilli <= 0) { setFailed(true); setMessage('This item is out of stock.'); return; }
+    const existing = cart.findIndex(line => line.productId === product.id);
+    if (existing >= 0) {
+      if (scan) {
+        const current = parseFixedDecimal(cart[existing].typedQuantity, 3);
+        if (current === null || current + 1000 > product.stockMilli) { setFailed(true); setMessage('Check quantity against available stock.'); return; }
+        setCart(lines => lines.map((line, index) => index === existing ? { ...line, typedQuantity: quantity(current + 1000) } : line));
+      } else { document.getElementById(`sale-quantity-${existing}`)?.focus(); }
+      setSearch(''); return;
+    }
     if (cart.length >= 100) { setFailed(true); setMessage('A sale supports up to 100 items.'); return; }
     setCart(lines => [...lines, { productId: product.id, typedQuantity: quantity(Math.min(1000, product.stockMilli)) }]);
     setSearch('');
@@ -199,18 +239,43 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
     void confirm(request);
   }
 
-  return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
+  return <section onKeyDown={event => {
+    if (event.repeat || event.nativeEvent.isComposing || event.altKey || event.ctrlKey || event.metaKey || disabled || busy) return;
+    if (event.key === 'F2') { event.preventDefault(); searchInput.current?.focus(); searchInput.current?.select(); }
+    if (event.key === 'F3' && !blocked && cart.length) { event.preventDefault(); document.getElementById(`sale-quantity-${cart.length - 1}`)?.focus(); }
+    if (event.key === 'F4' && !pending && !invoice && !historyOpen) { event.preventDefault(); startConfirmation(); }
+    if (event.key === 'F8' && pending && !invoice) { event.preventDefault(); void confirm(pending); }
+    if (event.key === 'Escape' && review) { event.preventDefault(); setReview(false); searchInput.current?.focus(); }
+  }} className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
+    <p className="muted">F2: find item · F3: last quantity · Enter: add exact code or single match · F4: review · Enter: confirm · F8: recover pending sale</p>
     {reportsAllowed ? <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div> : null}
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
-    {invoice ? <><SavedInvoice invoice={invoice}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
+    {!invoice && !pending ? <button type="button" disabled={busy || disabled} onClick={() => { setHistoryOpen(true); setHistoricInvoice(null); setHistory([]); }}>Find saved receipt</button> : null}
+    {historyOpen && !invoice && !pending ? <section aria-label="Saved receipts">
+      <button type="button" disabled={busy || disabled} onClick={() => { setHistoryOpen(false); setHistoricInvoice(null); setReceiptId(''); }}>Back to checkout</button>
+      <label htmlFor="receipt-lookup">Receipt ID to reopen</label><input id="receipt-lookup" maxLength={80} value={receiptId} disabled={busy || disabled} onChange={e => setReceiptId(e.target.value)}/>
+      <button type="button" disabled={busy || disabled || !receiptId.trim()} onClick={() => void openReceipt(receiptId)}>Open saved receipt</button>
+      {reportsAllowed ? <button type="button" disabled={busy || disabled} onClick={() => void receipts()}>Browse saved receipts</button> : <p>Enter the exact ID of a receipt you saved. Other staff receipts require report permission.</p>}
+      {historicInvoice ? <SavedInvoice key={historicInvoice.id} invoice={historicInvoice}/> : null}
+      {reportsAllowed && history.length ? <><p>Saved receipts, oldest first. Opening or printing does not create a sale.</p><ul>{history.map(record => <li key={record.invoice.id}><button type="button" disabled={busy || disabled} onClick={() => void openReceipt(record.invoice.id)}>{record.invoice.id} · {money(record.invoice.totalPaise)}</button></li>)}</ul>{history.length === 100 ? <button type="button" disabled={busy || disabled} onClick={() => void receipts(history[history.length - 1].sequence)}>Next receipts</button> : null}</> : null}
+    </section> : null}
+    {invoice ? <><SavedInvoice key={invoice.id} invoice={invoice}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it.</p>
         <button type="button" disabled={busy || disabled} onClick={() => void confirm(pending)}>Retry same sale</button>
         {refused ? <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void release(false)}>Edit refused sale</button> : null}
       </div> : null}
       <fieldset disabled={blocked || review}>
-        <label htmlFor="checkout-search">Search items for sale</label><input id="checkout-search" type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Item name or code"/>
+        <label htmlFor="checkout-search">Search items for sale</label><input ref={searchInput} id="checkout-search" onKeyDown={event => {
+          if (event.key !== 'Enter' || event.repeat || event.nativeEvent.isComposing || blocked || review) return;
+          event.preventDefault();
+          if (!search.trim()) { setFailed(true); setMessage('Enter an item name or exact code.'); return; }
+          const exact = products.filter(product => product.sku && product.sku.toLowerCase() === search.trim().toLowerCase());
+          const choices = exact.length ? exact : matching;
+          if (choices.length === 1) add(choices[0], exact.length === 1);
+          else { setFailed(true); setMessage('Choose one item. This search or code does not identify one item.'); }
+        }} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Item name or code"/>
         <ul className="checkout-results" aria-label="Items available for sale">{matching.slice(0, 50).map(product => <li key={product.id}>
           <div><strong>{product.name}</strong><span>{product.sku} · {quantity(product.stockMilli)} {product.unit} available · {money(product.unitPricePaise)} / {product.unit}</span></div>
           <button type="button" disabled={product.stockMilli === 0} aria-label={`Add ${product.name} to sale`} onClick={() => add(product)}>{cart.some(line => line.productId === product.id) ? 'In sale' : 'Add'}</button>
@@ -221,7 +286,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
           const product = productMap.get(line.productId);
           return <li key={line.productId}><strong>{product?.name ?? line.productId}</strong><div className="checkout-quantity">
             <div><label htmlFor={`sale-quantity-${index}`}>Quantity for {product?.name ?? line.productId} ({product?.unit ?? 'units'})</label>
-              <input id={`sale-quantity-${index}`} inputMode="decimal" maxLength={24} value={line.typedQuantity} onChange={event => setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: event.target.value } : entry))}/>
+              <input onFocus={event => event.currentTarget.select()} onKeyDown={event => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) { event.preventDefault(); searchInput.current?.focus(); } }} id={`sale-quantity-${index}`} inputMode="decimal" maxLength={24} value={line.typedQuantity} onChange={event => setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: event.target.value } : entry))}/>
               <small>Up to 3 decimals · {product ? `${quantity(product.stockMilli)} ${product.unit} available` : 'Reload items'}</small></div>
             <button type="button" className="quiet-button" aria-label={`Remove ${product?.name ?? line.productId} from sale`} onClick={() => setCart(lines => lines.filter(entry => entry.productId !== line.productId))}>Remove</button>
           </div></li>;
@@ -234,7 +299,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>
         {preview ? <p className="checkout-total">Subtotal: {money(preview.subtotalPaise)} · Tax: {money(preview.taxPaise)}<br/><output aria-live="polite">Total: {money(preview.totalPaise)}</output></p> : null}
-        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified.'} Save this sale on this PC?</p><button type="button" disabled={disabled || busy} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
+        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified.'} Save this sale on this PC?</p><button type="button" disabled={disabled || busy} ref={confirmButton} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={startConfirmation}>Review sale</button>}
       </> : null}
     </>}

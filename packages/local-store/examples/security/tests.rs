@@ -90,6 +90,7 @@ fn cases() -> Vec<Case> {
         json!({"operationId":"sale","saved":false}),
         ALL
     );
+    c!("read_local_invoice", json!({"invoiceId":"sale"}), ALL);
     c!("list_local_invoices", json!({"after":0}), REPORTS);
     c!("read_billing_outbox", json!({"after":0}), OWNER);
     c!("list_local_staff", json!({}), OWNER);

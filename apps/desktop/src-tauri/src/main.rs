@@ -45,6 +45,7 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::InvoiceMissing => "invoice_missing",
             StoreError::BackupStorage => "backup_storage",
             StoreError::InvalidBackup => "invalid_backup",
             StoreError::BackupBusinessMismatch => "backup_business_mismatch",
@@ -276,6 +277,14 @@ async fn post_local_invoice(
     state: tauri::State<'_, LocalState>,
 ) -> Result<sornio_local_store::billing::Invoice, CommandError> {
     with_scoped_workspace(state, scope, move |w| w.post_prepared_invoice(request)).await
+}
+#[tauri::command]
+async fn read_local_invoice(
+    invoice_id: String,
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::billing::Invoice, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.read_invoice(&invoice_id)).await
 }
 #[tauri::command]
 async fn list_local_invoices(
@@ -787,6 +796,7 @@ fn main() {
             prepare_local_checkout,
             clear_local_checkout,
             post_local_invoice,
+            read_local_invoice,
             list_local_invoices,
             read_billing_outbox
         ])

@@ -20,6 +20,8 @@ pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("That saved invoice could not be found. Check its ID and reopen the receipt.")]
+    InvoiceMissing,
     #[error("The encrypted backup could not be read or written. Keep the original files.")]
     BackupStorage,
     #[error(

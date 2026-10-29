@@ -362,6 +362,24 @@ impl Store {
         tx.commit()?;
         Ok(invoice)
     }
+    /// Read an immutable receipt under Workspace's authenticated read snapshot.
+    /// Cashiers/assistants may read their own receipts; report roles may read all.
+    pub(crate) fn read_invoice(&self, id: &str) -> Result<Invoice, StoreError> {
+        if !valid_id(id) {
+            return Err(StoreError::InvalidInvoice);
+        }
+        crate::identity::invoice_reader(&self.0, &self.1, id)?;
+        let payload: String = self
+            .0
+            .query_row(
+                "SELECT payload FROM local_invoices WHERE id=?1",
+                [id],
+                |r| r.get(0),
+            )
+            .optional()?
+            .ok_or(StoreError::InvoiceMissing)?;
+        Ok(serde_json::from_str(&payload)?)
+    }
     pub(crate) fn list_invoices(&self, after: i64) -> Result<Vec<InvoiceRecord>, StoreError> {
         if after < 0 {
             return Err(StoreError::InvalidInvoice);

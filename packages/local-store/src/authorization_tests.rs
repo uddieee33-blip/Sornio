@@ -721,3 +721,96 @@ fn user_facing_errors_do_not_include_database_or_parser_payloads() {
     let parse = serde_json::from_str::<serde_json::Value>(marker).unwrap_err();
     assert!(!StoreError::InvalidData(parse).to_string().contains(marker));
 }
+
+#[test]
+fn saved_receipt_lookup_enforces_actor_scope_and_revocation_after_acknowledgement() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = owner(&path);
+    w.add_product(item()).unwrap();
+    w.acknowledge_inventory("rice").unwrap();
+    let owner_receipt = w.post_invoice(bill()).unwrap();
+    let cashier = w
+        .create_staff(details("cashier", Role::Cashier), PASSWORD)
+        .unwrap();
+    w.create_staff(details("assistant", Role::AssistantManager), PASSWORD)
+        .unwrap();
+    w.create_staff(details("manager", Role::Manager), PASSWORD)
+        .unwrap();
+    w.login("cashier", PASSWORD).unwrap();
+    assert!(matches!(
+        w.read_invoice(&owner_receipt.id),
+        Err(StoreError::Forbidden)
+    ));
+    let mut request = bill();
+    request.operation_id = "cashier-sale".into();
+    request.lines[0].expected_revision = 2;
+    w.prepare_checkout(request.clone()).unwrap();
+    let own = w.post_prepared_invoice(request).unwrap();
+    w.clear_checkout(&own.id, true).unwrap();
+    assert_eq!(w.read_invoice(&own.id).unwrap(), own);
+    assert!(matches!(w.list_invoices(0), Err(StoreError::Forbidden)));
+    w.login("assistant", PASSWORD).unwrap();
+    assert!(matches!(
+        w.read_invoice(&own.id),
+        Err(StoreError::Forbidden)
+    ));
+    w.login("manager", PASSWORD).unwrap();
+    assert_eq!(w.read_invoice(&own.id).unwrap(), own);
+    assert_eq!(w.read_invoice(&owner_receipt.id).unwrap(), owner_receipt);
+    let mut stale = Workspace::new(Store::open(&path, KEY).unwrap());
+    stale.login("cashier", PASSWORD).unwrap();
+    w.login("owner", PASSWORD).unwrap();
+    w.change_staff(change(&cashier, Role::Cashier, false))
+        .unwrap();
+    assert!(matches!(
+        stale.read_invoice(&own.id),
+        Err(StoreError::Locked)
+    ));
+    let foreign = owner(&d.path().join("foreign.db"))
+        .local_session()
+        .unwrap()
+        .scope;
+    assert!(matches!(
+        w.run_scoped(&foreign, |w| w.read_invoice(&own.id)),
+        Err(StoreError::WorkspaceMismatch)
+    ));
+}
+
+#[test]
+fn receipt_reads_preserve_posted_state_and_refuse_invalid_or_missing_ids() {
+    let d = tempfile::tempdir().unwrap();
+    let mut w = owner(&d.path().join("s.db"));
+    w.add_product(item()).unwrap();
+    let receipt = w.post_invoice(bill()).unwrap();
+    let records = serde_json::to_value(w.list_invoices(0).unwrap()).unwrap();
+    let stock = w.list_products().unwrap();
+    let outbox = serde_json::to_value(w.billing_outbox(0).unwrap()).unwrap();
+    for _ in 0..3 {
+        assert_eq!(w.read_invoice(&receipt.id).unwrap(), receipt);
+    }
+    assert!(matches!(
+        w.read_invoice("not-posted"),
+        Err(StoreError::InvoiceMissing)
+    ));
+    for id in ["", "' OR 1=1 --", &"x".repeat(81)] {
+        assert!(matches!(
+            w.read_invoice(id),
+            Err(StoreError::InvalidInvoice)
+        ));
+    }
+    assert_eq!(
+        serde_json::to_value(w.list_invoices(0).unwrap()).unwrap(),
+        records
+    );
+    assert_eq!(w.list_products().unwrap(), stock);
+    assert_eq!(
+        serde_json::to_value(w.billing_outbox(0).unwrap()).unwrap(),
+        outbox
+    );
+    w.lock();
+    assert!(matches!(
+        w.read_invoice(&receipt.id),
+        Err(StoreError::Locked)
+    ));
+}

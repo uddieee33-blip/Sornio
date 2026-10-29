@@ -263,6 +263,9 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             )?;
             Value::Null
         }
+        "read_local_invoice" => {
+            serde_json::to_value(w.read_invoice(&argument::<String>(a, "invoiceId")?)?)?
+        }
         "list_local_invoices" => serde_json::to_value(w.list_invoices(argument(a, "after")?)?)?,
         _ => return Err(StoreError::InvalidInvoice),
     })
@@ -284,6 +287,7 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::InvoiceMissing => "invoice_missing",
                     StoreError::InvalidBackup => "invalid_backup",
                     StoreError::BackupStorage => "backup_storage",
                     StoreError::BackupBusinessMismatch => "backup_business_mismatch",
