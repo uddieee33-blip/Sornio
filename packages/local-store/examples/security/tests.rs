@@ -34,6 +34,16 @@ fn cases() -> Vec<Case> {
     }
     let invoice = json!({"operationId":"sale","lines":[{"productId":"rice","expectedRevision":1,"quantityMilli":1000}],"taxBasisPoints":0,"tender":"cash","customerId":null});
     c!("read_local_session", json!({}), ALL);
+    c!(
+        "change_local_password",
+        json!({"currentPassword":PASSWORD,"newPassword":"Synthetic replacement password"}),
+        ALL
+    );
+    c!(
+        "reset_local_staff_password",
+        json!({"id":"target","expectedRevision":1,"ownerPassword":PASSWORD,"newPassword":"Synthetic replacement password"}),
+        OWNER
+    );
     c!("load_workspace", json!({}), ALL);
     c!(
         "save_workspace",

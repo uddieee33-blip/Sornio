@@ -17,7 +17,7 @@ commands.allow = ["read_cashier_state", "prepare_local_checkout", "clear_local_c
 [[permission]]
 identifier = "local-identity"
 description = "Native local sessions and owner-only staff administration. No keys, SQL, paths or remote access."
-commands.allow = ["read_local_session", "list_local_staff", "create_local_staff", "change_local_staff", "read_identity_audit"]
+commands.allow = ["read_local_session", "list_local_staff", "create_local_staff", "change_local_staff", "change_local_password", "reset_local_staff_password", "read_identity_audit"]
 
 [[permission]]
 identifier = "local-customers"
@@ -28,3 +28,4 @@ commands.allow = ["save_local_customer", "find_local_customers", "prepare_local_
 identifier = "local-retail"
 description = "Scoped native payment intents, manual matching, authorized returns and cashier closing. No gateway or external verification."
 commands.allow = ["prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
+

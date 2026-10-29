@@ -22,6 +22,8 @@ fn main() {
             "list_local_staff",
             "create_local_staff",
             "change_local_staff",
+            "change_local_password",
+            "reset_local_staff_password",
             "read_identity_audit",
             "setup_local_access",
             "unlock_workspace",

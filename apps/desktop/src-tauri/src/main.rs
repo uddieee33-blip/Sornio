@@ -52,6 +52,7 @@ impl From<StoreError> for CommandError {
             StoreError::InvalidIdentity => "invalid_identity",
             StoreError::AccountExists => "account_exists",
             StoreError::IncorrectPassword => "incorrect_password",
+            StoreError::InvalidPassword => "invalid_password",
             StoreError::RateLimited => "rate_limited",
             StoreError::AccessConfigured => "already_configured",
             StoreError::AccessNotConfigured => "not_configured",
@@ -318,6 +319,37 @@ async fn change_local_staff(
 ) -> Result<Principal, CommandError> {
     with_scoped_workspace(state, scope, move |w| w.change_staff(change)).await
 }
+
+#[tauri::command]
+async fn change_local_password(
+    scope: Scope,
+    current_password: String,
+    new_password: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    let current_password = Zeroizing::new(current_password);
+    let new_password = Zeroizing::new(new_password);
+    with_scoped_workspace(state, scope, move |w| {
+        w.change_password(&current_password, &new_password)
+    })
+    .await
+}
+#[tauri::command]
+async fn reset_local_staff_password(
+    scope: Scope,
+    id: String,
+    expected_revision: i64,
+    owner_password: String,
+    new_password: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Principal, CommandError> {
+    let owner_password = Zeroizing::new(owner_password);
+    let new_password = Zeroizing::new(new_password);
+    with_scoped_workspace(state, scope, move |w| {
+        w.reset_staff_password(&id, expected_revision, &owner_password, &new_password)
+    })
+    .await
+}
 #[tauri::command]
 async fn read_identity_audit(
     scope: Scope,
@@ -552,6 +584,8 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            change_local_password,
+            reset_local_staff_password,
             prepare_local_retail,
             post_local_retail,
             clear_local_retail,

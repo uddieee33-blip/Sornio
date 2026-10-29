@@ -43,6 +43,19 @@ fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
 fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
     let a = &c.args;
     Ok(match c.command.as_str() {
+        "change_local_password" => {
+            w.change_password(
+                &argument::<String>(a, "currentPassword")?,
+                &argument::<String>(a, "newPassword")?,
+            )?;
+            Value::Null
+        }
+        "reset_local_staff_password" => serde_json::to_value(w.reset_staff_password(
+            &argument::<String>(a, "id")?,
+            argument(a, "expectedRevision")?,
+            &argument::<String>(a, "ownerPassword")?,
+            &argument::<String>(a, "newPassword")?,
+        )?)?,
         "prepare_local_retail" => {
             w.prepare_retail(argument(a, "r")?)?;
             Value::Null
@@ -203,6 +216,7 @@ fn main() {
                     StoreError::Forbidden => "forbidden",
                     StoreError::WorkspaceMismatch => "workspace_mismatch",
                     StoreError::IncorrectPassword => "incorrect_password",
+                    StoreError::InvalidPassword => "invalid_password",
                     StoreError::InvalidIdentity => "invalid_identity",
                     StoreError::StockConflict => "stock_conflict",
                     StoreError::CheckoutActive => "checkout_active",

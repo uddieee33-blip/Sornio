@@ -1,5 +1,11 @@
 # Sornio Windows security hardening — 29 October 2026
 
+Credential follow-up: [authenticated rotation and Owner-authorized staff reset](windows-credential-controls.md)
+have since been added. The findings and 40-command/135-test counts below describe
+the `ed553c5` security milestone; the follow-up documents current controls and
+42-command/140-test evidence. Forgotten-Owner-password and vault-key recovery
+remain unresolved.
+
 ## Verified scope and review decision
 
 Merged main is `97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6`, tree

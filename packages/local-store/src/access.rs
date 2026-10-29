@@ -339,6 +339,85 @@ impl Workspace {
         tx.commit()?;
         Ok(p)
     }
+    /// Requires the current credential; all sessions for this principal are revoked.
+    pub fn change_password(
+        &mut self,
+        current_password: &str,
+        new_password: &str,
+    ) -> Result<(), StoreError> {
+        let actor = self.require(Permission::View)?;
+        self.login(&actor.username, current_password)?;
+        let hash = hash_password(new_password)?;
+        let tx = self
+            .store
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let session = self.store.1.as_ref().ok_or(StoreError::Locked)?;
+        let actor = identity::verify(&tx, session, Permission::View)?;
+        let revision = actor
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::AccessUnavailable)?;
+        if tx.execute("UPDATE local_principals SET password_hash=?1,revision=?2,failed_attempts=0,retry_after=0 WHERE id=?3 AND revision=?4",params![hash,revision,actor.id,actor.revision])? != 1 { return Err(StoreError::Conflict); }
+        if actor.role == identity::Role::Owner
+            && tx.execute(
+                "UPDATE workspace_access SET password_hash=NULL WHERE singleton=1",
+                [],
+            )? != 1
+        {
+            return Err(StoreError::AccessUnavailable);
+        }
+        identity::audit(
+            &tx,
+            &session.scope,
+            Some(&actor),
+            "credentials.password_changed",
+            Some(&actor.id),
+        )?;
+        tx.commit()?;
+        self.store.1 = None;
+        Ok(())
+    }
+    /// An enabled Owner must freshly authenticate. Never resets an Owner or enables staff.
+    pub fn reset_staff_password(
+        &mut self,
+        id: &str,
+        expected_revision: i64,
+        owner_password: &str,
+        new_password: &str,
+    ) -> Result<Principal, StoreError> {
+        let actor = self.require(Permission::Staff)?;
+        if !crate::billing::valid_id(id) || expected_revision < 1 {
+            return Err(StoreError::InvalidIdentity);
+        }
+        self.login(&actor.username, owner_password)?;
+        let hash = hash_password(new_password)?;
+        let tx = self
+            .store
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        let session = self.store.1.as_ref().ok_or(StoreError::Locked)?;
+        let actor = identity::verify(&tx, session, Permission::Staff)?;
+        let target = identity::principal(&tx, id)?;
+        if target.role == identity::Role::Owner {
+            return Err(StoreError::Forbidden);
+        }
+        let revision = target
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::AccessUnavailable)?;
+        if tx.execute("UPDATE local_principals SET password_hash=?1,revision=?2,failed_attempts=0,retry_after=0 WHERE id=?3 AND revision=?4",params![hash,revision,id,expected_revision])? != 1 { return Err(StoreError::Conflict); }
+        identity::audit(
+            &tx,
+            &session.scope,
+            Some(&actor),
+            "credentials.staff_password_reset",
+            Some(id),
+        )?;
+        let updated = identity::principal(&tx, id)?;
+        tx.commit()?;
+        Ok(updated)
+    }
     pub fn change_staff(&mut self, change: StaffChange) -> Result<Principal, StoreError> {
         self.require(Permission::Staff)?;
         if change.role == identity::Role::Owner || !crate::billing::valid_id(&change.id) {
@@ -715,3 +794,7 @@ fn verify_password(password: &str, hash: &str) -> Result<bool, StoreError> {
 #[cfg(test)]
 #[path = "authorization_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "credential_tests.rs"]
+mod credential_tests;
