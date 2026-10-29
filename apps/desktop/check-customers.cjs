@@ -134,6 +134,9 @@ async function stopBridge() {
     assert.equal(await printable.locator('script, img, iframe').count(), 0);
     await printable.getByText('Asha <shop>', { exact: true }).waitFor();
     assert.equal(await page.evaluate(() => globalThis.printCount), 1);
+    await page.emulateMedia({ media: 'print' });
+    assert.equal(await page.locator('.customer-statement-print:visible').count(), 1, 'Prepared customer statement must not be blank in print media');
+    await page.emulateMedia({ media: 'screen' });
     assert.ok((await printable.textContent()).includes(invoice));
     // Limits reject the whole original invoice, including stock and native ledger.
     await button('Add Rice to sale').click(); await label('Quantity for Rice (kg)').fill('3'); await label('Transaction type').selectOption('credit');
