@@ -41,6 +41,15 @@ function bridge() {
     await label('Local password').fill(password); await label('Confirm password').fill(password); await button('Set up local access').click();
     await page.getByRole('heading', { name: 'Staff access', exact: true }).waitFor();
     const identity = (await transport.rpc('read_local_session')).value;
+    async function expectRevocationLock() {
+      const locked = page.getByRole('heading', { name: 'Welcome back.', exact: true });
+      // An in-flight read can observe revocation before the explicit refresh.
+      if (!await locked.isVisible()) {
+        try { await button('Refresh checkout').click({ timeout: 1500 }); }
+        catch (error) { if (!await locked.isVisible()) throw error; }
+      }
+      await locked.waitFor();
+    }
     async function raw(command, args = {}, scope = identity.scope) {
       return page.evaluate(async ({ command, args, scope }) => {
         try { return { ok: true, value: await globalThis.__TAURI_INTERNALS__.invoke(command, { ...args, scope }) }; }
@@ -77,12 +86,12 @@ function bridge() {
     assert.ok(await label('Saved invoice ID').inputValue()); await button('Start next sale').click();
     const staff = await admin('list_local_staff'), cashier = staff.find(p => p.username === 'cashier');
     const manager = await admin('change_local_staff', { change: { id: cashier.id, expectedRevision: cashier.revision, role: 'manager', enabled: true } });
-    await button('Refresh checkout').click(); await page.getByRole('heading', { name: 'Welcome back.', exact: true }).waitFor();
+    await expectRevocationLock();
     assert.equal(await label('Saved invoice ID').count(), 0);
     await label('Account name').fill('cashier'); await label('Local password').fill(password); await button('Unlock workspace').click();
     await label('Quantity change').waitFor(); await page.getByText('Cash recorded: ₹100.00', { exact: true }).waitFor();
     await admin('change_local_staff', { change: { id: manager.id, expectedRevision: manager.revision, role: 'cashier', enabled: false } });
-    await button('Refresh checkout').click(); await page.getByRole('heading', { name: 'Welcome back.', exact: true }).waitFor();
+    await expectRevocationLock();
     await label('Local password').fill(password); await button('Unlock workspace').click(); await page.getByRole('alert').filter({ hasText: 'did not unlock' }).waitFor();
     assert.equal(await button('Refresh checkout').count(), 0); assert.equal(await label('Local password').inputValue(), '');
     const audit = await admin('read_identity_audit', { after: 0 }); assert.ok(audit.some(e => e.action === 'authorization.denied')); assert.ok(audit.some(e => e.action === 'staff.changed'));

@@ -29,3 +29,8 @@ identifier = "local-retail"
 description = "Scoped native payment intents, manual matching, authorized returns and cashier closing. No gateway or external verification."
 commands.allow = ["prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
 
+
+[[permission]]
+identifier = "local-recovery"
+description = "Owner-authorized encrypted snapshots and restore using native pickers; no renderer paths or raw filesystem access."
+commands.allow = ["read_last_restore", "choose_local_backup", "export_local_backup", "preview_local_backup", "restore_local_backup"]

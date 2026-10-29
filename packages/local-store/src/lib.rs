@@ -13,12 +13,27 @@ pub mod customers;
 pub mod identity;
 pub mod inventory_recovery;
 pub mod payments;
+pub mod recovery;
 
 #[cfg(windows)]
 pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("The encrypted backup could not be read or written. Keep the original files.")]
+    BackupStorage,
+    #[error(
+        "Backup could not be verified. Check the recovery passphrase and keep the original file."
+    )]
+    InvalidBackup,
+    #[error("Use a separate recovery passphrase of 14–128 characters.")]
+    InvalidRecoveryPassword,
+    #[error("This backup belongs to another business.")]
+    BackupBusinessMismatch,
+    #[error("Type the exact restore confirmation phrase.")]
+    RecoveryConfirmation,
+    #[error("The backup or current workspace changed. Preview again before restoring.")]
+    RecoveryChanged,
     #[error("Check payment amounts, references, return quantities and closing values.")]
     InvalidPayment,
     #[error("Payment or closing changed. Refresh it before continuing.")]
@@ -128,7 +143,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 10;
+const SCHEMA_VERSION: i64 = 11;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -140,6 +155,11 @@ impl Store {
         if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(StoreError::InvalidKey);
         }
+        Self::open_secret(path, key)
+    }
+
+    // Only validated encrypted staging archives may use a recovery passphrase.
+    pub(crate) fn open_secret(path: &Path, key: &str) -> Result<Self, StoreError> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_secs(5))?;
         db.pragma_update(None, "key", key)?;
@@ -223,6 +243,9 @@ impl Store {
             }
             if locked_version < 10 {
                 inventory_recovery::migrate(&tx)?;
+            }
+            if locked_version < 11 {
+                recovery::migrate(&tx)?;
             }
             tx.commit()?;
         }
@@ -491,7 +514,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             old.0
-                .execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

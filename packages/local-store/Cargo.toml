@@ -11,6 +11,8 @@ serde_json = "1"
 thiserror = "2"
 argon2 = { version = "0.5.3", features = ["zeroize"] }
 getrandom = "0.3"
+sha2 = "0.10"
+tempfile = "3"
 
 [target.'cfg(windows)'.dependencies]
 fs2 = "0.4"
@@ -19,5 +21,4 @@ keyring = { version = "3", features = ["windows-native"] }
 
 [dev-dependencies]
 proptest = "1.12.0"
-tempfile = "3"
 

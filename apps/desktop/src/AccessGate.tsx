@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent, ReactNode } from 'react';
 import { isTauri } from '@tauri-apps/api/core';
+import { BackupPanel } from './BackupPanel';
 import { invoke } from './native';
 import { errorCode, errorMessage } from './access';
 import type { AccessStatus } from './access';
@@ -8,7 +9,7 @@ import { setNativeSession } from './native';
 import type { LocalSession } from './native';
 import brandIcon from '../../../public/brand/icon-192.png';
 
-export function AccessGate({ children }: { children: (onLocked: () => void, session: LocalSession) => ReactNode }) {
+export function AccessGate({ children }: { children: (onLocked: (detail?: string) => void, session: LocalSession) => ReactNode }) {
   const native = isTauri();
   const [access, setAccess] = useState<AccessStatus | null>(null);
   const [message, setMessage] = useState('');
@@ -20,16 +21,18 @@ export function AccessGate({ children }: { children: (onLocked: () => void, sess
   const [displayName, setDisplayName] = useState('');
   const [session, setSession] = useState<LocalSession | null>(null);
   const [busy, setBusy] = useState(false);
+  const [recoveryBusy, setRecoveryBusy] = useState(false);
   const [retry, setRetry] = useState(0);
   const submitting = useRef(false);
-  const onLocked = useCallback(() => {
+  const onLocked = useCallback((detail?: string) => {
     setNativeSession(null); setSession(null); setPassword(''); setConfirm('');
-    setAccess({ configured: true, unlocked: false }); setMessage('');
+    setAccess({ configured: true, unlocked: false }); setMessage(typeof detail === 'string' ? detail : '');
   }, []);
 
   useEffect(() => {
-    window.addEventListener('sornio-session-locked', onLocked);
-    return () => window.removeEventListener('sornio-session-locked', onLocked);
+    const locked = () => onLocked();
+    window.addEventListener('sornio-session-locked', locked);
+    return () => window.removeEventListener('sornio-session-locked', locked);
   }, [onLocked]);
   useEffect(() => {
     if (!session) return;
@@ -82,7 +85,7 @@ export function AccessGate({ children }: { children: (onLocked: () => void, sess
       <p className="access-intro">{!native ? 'Open the installed Windows app to use this workspace.' : !access ? 'Your original files stay on this PC.' : setup ? 'Set up your business and its owner account on this PC.' : 'Enter your account name and password. Existing review owners use account name owner.'}</p>
       {message ? <p className="access-error" role="alert">{message}</p> : null}
       {native && access ? <form onSubmit={(event) => void submit(event)}>
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || recoveryBusy}>
           {setup ? <>
             <label htmlFor="setup-business">Business name for setup</label><input id="setup-business" maxLength={120} required value={business} onChange={e => setBusiness(e.target.value)}/>
             <label htmlFor="setup-type">Business type for setup</label><select id="setup-type" value={businessType} onChange={e => setBusinessType(e.target.value)}>{['general','kirana','cafe','gym','salon','electronics','boutique','service'].map(type => <option key={type} value={type}>{type}</option>)}</select>
@@ -95,6 +98,7 @@ export function AccessGate({ children }: { children: (onLocked: () => void, sess
           <button className="access-submit" type="submit" disabled={busy || !password || (setup && (Array.from(password).length < 10 || !confirm))}>{busy ? 'Opening…' : setup ? 'Set up local access' : 'Unlock workspace'}</button>
         </fieldset>
       </form> : native && message ? <button type="button" className="access-submit" onClick={() => { setMessage(''); setRetry((n) => n + 1); }}>Retry local access</button> : null}
+      {native && access && !access.configured ? <BackupPanel configured={false} allowExport={false} disabled={busy} onBusyChange={setRecoveryBusy} onRestored={() => setRetry(n => n + 1)} onLocked={detail => { setMessage(detail); setRetry(n => n + 1); }}/> : null}
       <p className="access-footnote">Engineering review · Use test data only.<br/>Identity is verified locally against this encrypted workspace. Cloud verification and LAN pairing are not enabled.</p>
     </section>
   </main>;

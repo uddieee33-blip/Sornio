@@ -78,6 +78,7 @@ fn authenticated(path: &std::path::Path) -> Store {
         scope: l.scope,
         actor_id: l.principal.id,
         revision: l.principal.revision,
+        generation: crate::recovery::generation(&s.0).unwrap(),
         expires: std::time::Instant::now() + std::time::Duration::from_secs(3600),
     });
     s
@@ -774,6 +775,7 @@ fn second_principal(path: &std::path::Path) -> Session {
         scope: l.scope,
         actor_id: l.principal.id,
         revision: l.principal.revision,
+        generation: crate::recovery::generation(&Store::open(path, KEY).unwrap().0).unwrap(),
         expires: std::time::Instant::now() + std::time::Duration::from_secs(3600),
     }
 }

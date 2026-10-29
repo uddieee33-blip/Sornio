@@ -28,7 +28,104 @@ pub struct Workspace {
     last_activity: Cell<Instant>,
 }
 impl Workspace {
-    pub fn new(store: Store) -> Self {
+    pub(crate) fn into_recovery_store(self) -> Store {
+        self.store
+    }
+    pub(crate) fn store_owner_username(&self) -> Result<String, StoreError> {
+        Ok(self.store.0.query_row(
+            "SELECT username FROM local_principals WHERE role='owner' AND enabled=1",
+            [],
+            |r| r.get(0),
+        )?)
+    }
+
+    fn recovery_authorize(&mut self, password: &str) -> Result<(), StoreError> {
+        if self.status()?.configured {
+            self.require(Permission::Settings)?;
+        }
+        if self.status()?.configured {
+            let username: String = self.store.0.query_row(
+                "SELECT username FROM local_principals WHERE role='owner' AND enabled=1",
+                [],
+                |r| r.get(0),
+            )?;
+            self.login(&username, password)?;
+            self.require(Permission::Settings)?;
+        }
+        Ok(())
+    }
+
+    pub fn last_restore(&self) -> Result<Option<crate::recovery::RestoreReceipt>, StoreError> {
+        self.read(Permission::Settings, |s| Ok(s.0.query_row(
+            "SELECT backup_id,created_at FROM local_recovery_audit WHERE action='restore_committed' ORDER BY seq DESC LIMIT 1", [],
+            |r| Ok(crate::recovery::RestoreReceipt { backup_id:r.get(0)?,created_at:r.get(1)? }),
+        ).optional()?))
+    }
+
+    /// Paths come from the native file picker, never renderer-provided paths.
+    pub fn export_backup(
+        &mut self,
+        destination: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+    ) -> Result<crate::recovery::BackupPreview, StoreError> {
+        self.require(Permission::Settings)?;
+        self.recovery_authorize(current_password)?;
+        if current_password == recovery_password {
+            return Err(StoreError::InvalidRecoveryPassword);
+        }
+        crate::recovery::export(&mut self.store, destination, recovery_password)
+    }
+
+    pub fn preview_backup(
+        &mut self,
+        source: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+        original_password: &str,
+    ) -> Result<crate::recovery::BackupPreview, StoreError> {
+        self.recovery_authorize(current_password)?;
+        let result = crate::recovery::preview(
+            &mut self.store,
+            source,
+            recovery_password,
+            original_password,
+        );
+        if matches!(
+            &result,
+            Err(StoreError::IncorrectPassword | StoreError::RateLimited)
+        ) {
+            self.lock();
+        }
+        result
+    }
+
+    pub fn restore_backup(
+        &mut self,
+        source: &std::path::Path,
+        safety_directory: &std::path::Path,
+        current_password: &str,
+        recovery_password: &str,
+        original_password: &str,
+        preview: &crate::recovery::BackupPreview,
+        confirmation: &str,
+    ) -> Result<String, StoreError> {
+        self.recovery_authorize(current_password)?;
+        let result = crate::recovery::restore(
+            &mut self.store,
+            source,
+            safety_directory,
+            recovery_password,
+            original_password,
+            preview,
+            confirmation,
+        );
+        self.lock();
+        result
+    }
+
+    pub fn new(mut store: Store) -> Self {
+        store.1 = None;
         Self {
             store,
             last_activity: Cell::new(Instant::now()),
@@ -159,7 +256,7 @@ impl Workspace {
         let p = identity::principal(&tx, &id)?;
         identity::audit(&tx, &scope, Some(&p), "owner.provisioned", Some(&id))?;
         tx.commit()?;
-        self.store.1 = Some(identity::session(scope, &p));
+        self.store.1 = Some(identity::session(&self.store.0, scope, &p)?);
         self.last_activity.set(Instant::now());
         self.status()
     }
@@ -232,7 +329,7 @@ impl Workspace {
             }
             identity::audit(&tx, &scope, Some(&p), "session.unlocked", None)?;
             tx.commit()?;
-            self.store.1 = Some(identity::session(scope, &p));
+            self.store.1 = Some(identity::session(&self.store.0, scope, &p)?);
             self.last_activity.set(Instant::now());
             self.status()
         } else {

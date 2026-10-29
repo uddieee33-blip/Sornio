@@ -32,6 +32,15 @@ fn cases() -> Vec<Case> {
             });
         };
     }
+    for command in [
+        "read_last_restore",
+        "choose_local_backup",
+        "export_local_backup",
+        "preview_local_backup",
+        "restore_local_backup",
+    ] {
+        out.push(Case { command, args: json!({"currentPassword":PASSWORD,"recoveryPassword":"Independent recovery passphrase","originalPassword":PASSWORD,"confirmation":"RESTORE 123456789abc"}), allowed: OWNER });
+    }
     let invoice = json!({"operationId":"sale","lines":[{"productId":"rice","expectedRevision":1,"quantityMilli":1000}],"taxBasisPoints":0,"tender":"cash","customerId":null});
     c!("read_local_session", json!({}), ALL);
     c!(
@@ -288,7 +297,14 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
             .trim();
         if !PUBLIC.contains(&name) && name != "read_local_session" {
             assert!(
-                part.contains("with_scoped_workspace("),
+                part.contains("with_scoped_workspace(")
+                    || ([
+                        "choose_local_backup",
+                        "preview_local_backup",
+                        "restore_local_backup"
+                    ]
+                    .contains(&name)
+                        && part.contains("with_recovery_workspace(")),
                 "{name} must use native scope enforcement"
             );
         }
@@ -311,7 +327,8 @@ fn capability_is_local_only_and_no_generic_database_or_reset_command_exists() {
             "local-billing",
             "local-identity",
             "local-customers",
-            "local-retail"
+            "local-retail",
+            "local-recovery"
         ])
     );
     let d = tempfile::tempdir().unwrap();

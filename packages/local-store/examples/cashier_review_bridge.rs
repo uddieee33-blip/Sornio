@@ -25,7 +25,90 @@ struct Call {
 fn argument<T: serde::de::DeserializeOwned>(args: &Value, key: &str) -> Result<T, StoreError> {
     Ok(serde_json::from_value(args[key].clone())?)
 }
+thread_local! { static BACKUP_PREVIEW: std::cell::RefCell<Option<sornio_local_store::recovery::BackupPreview>> = const { std::cell::RefCell::new(None) }; }
+fn recovery_dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+    BACKUP_PREVIEW.with(|p| {
+        let mut preview = p.borrow_mut();
+        let a = &c.args;
+        Ok(match c.command.as_str() {
+            "read_last_restore" => serde_json::to_value(w.last_restore()?)?,
+            "choose_local_backup" => {
+                *preview = None;
+                serde_json::json!("synthetic.sorniobackup")
+            }
+            "export_local_backup" => {
+                let path = std::path::PathBuf::from(
+                    std::env::var_os("SORNIO_REVIEW_BACKUP").ok_or(StoreError::BackupStorage)?,
+                );
+                serde_json::to_value(w.export_backup(
+                    &path,
+                    &argument::<String>(a, "currentPassword")?,
+                    &argument::<String>(a, "recoveryPassword")?,
+                )?)?
+            }
+            "preview_local_backup" => {
+                *preview = None;
+                let path = std::path::PathBuf::from(
+                    std::env::var_os("SORNIO_REVIEW_BACKUP").ok_or(StoreError::BackupStorage)?,
+                );
+                let result = w.preview_backup(
+                    &path,
+                    &argument::<String>(a, "currentPassword")?,
+                    &argument::<String>(a, "recoveryPassword")?,
+                    &argument::<String>(a, "originalPassword")?,
+                )?;
+                *preview = Some(result.clone());
+                serde_json::to_value(result)?
+            }
+            "restore_local_backup" => {
+                let path = std::path::PathBuf::from(
+                    std::env::var_os("SORNIO_REVIEW_BACKUP").ok_or(StoreError::BackupStorage)?,
+                );
+                let expected = preview.take().ok_or(StoreError::RecoveryChanged)?;
+                serde_json::to_value(w.restore_backup(
+                    &path,
+                    path.parent().unwrap(),
+                    &argument::<String>(a, "currentPassword")?,
+                    &argument::<String>(a, "recoveryPassword")?,
+                    &argument::<String>(a, "originalPassword")?,
+                    &expected,
+                    &argument::<String>(a, "confirmation")?,
+                )?)?
+            }
+
+            _ => return Err(StoreError::InvalidInvoice),
+        })
+    })
+}
 fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+    if [
+        "read_last_restore",
+        "choose_local_backup",
+        "export_local_backup",
+        "preview_local_backup",
+        "restore_local_backup",
+    ]
+    .contains(&c.command.as_str())
+    {
+        if w.status()?.configured {
+            let scope = argument::<Scope>(&c.args, "scope")?;
+            return w.run_scoped(&scope, |w| {
+                w.require(sornio_local_store::identity::Permission::Settings)?;
+                recovery_dispatch(w, c)
+            });
+        }
+        if ![
+            "choose_local_backup",
+            "preview_local_backup",
+            "restore_local_backup",
+        ]
+        .contains(&c.command.as_str())
+            || c.args.get("scope").is_some_and(|v| !v.is_null())
+        {
+            return Err(StoreError::Locked);
+        }
+        return recovery_dispatch(w, c);
+    }
     if ![
         "workspace_access_status",
         "read_local_session",
@@ -201,6 +284,13 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::InvalidBackup => "invalid_backup",
+                    StoreError::BackupStorage => "backup_storage",
+                    StoreError::BackupBusinessMismatch => "backup_business_mismatch",
+                    StoreError::InvalidRecoveryPassword => "invalid_recovery_password",
+                    StoreError::RecoveryChanged => "recovery_changed",
+                    StoreError::RecoveryConfirmation => "recovery_confirmation",
+                    StoreError::RateLimited => "rate_limited",
                     StoreError::InvalidPayment => "invalid_payment",
                     StoreError::PaymentConflict => "payment_conflict",
                     StoreError::DuplicateSettlement => "duplicate_settlement",

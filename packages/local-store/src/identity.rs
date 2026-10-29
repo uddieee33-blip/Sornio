@@ -86,6 +86,7 @@ pub(crate) struct Session {
     pub actor_id: String,
     pub revision: i64,
     pub expires: Instant,
+    pub generation: String,
 }
 #[derive(Clone, Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -192,6 +193,9 @@ pub(crate) fn verify(
     if scope(db)? != session.scope {
         return Err(StoreError::WorkspaceMismatch);
     }
+    if crate::recovery::generation(db)? != session.generation {
+        return Err(StoreError::Locked);
+    }
     let p = principal(db, &session.actor_id)?;
     let business: String = db.query_row(
         "SELECT business_id FROM local_principals WHERE id=?1",
@@ -289,7 +293,21 @@ pub(crate) fn guard(
 }
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
     tx.execute_batch(include_str!("identity-schema.sql"))?;
-    let business = random_id()?;
+    // Recovery archives created before individual accounts already have a stable
+    // business ID. Carry it through the identity migration, never mint a second one.
+    let has_recovery: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM sqlite_schema WHERE type='table' AND name='local_recovery_identity')",
+        [], |r| r.get(0),
+    )?;
+    let business = if has_recovery {
+        tx.query_row(
+            "SELECT business_id FROM local_recovery_identity WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )?
+    } else {
+        random_id()?
+    };
     let workspace = random_id()?;
     let legacy: (Option<String>, i64, i64) = tx.query_row(
         "SELECT password_hash,failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
@@ -338,11 +356,12 @@ pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
     }
     Ok(())
 }
-pub(crate) fn session(scope: Scope, p: &Principal) -> Session {
-    Session {
+pub(crate) fn session(db: &Connection, scope: Scope, p: &Principal) -> Result<Session, StoreError> {
+    Ok(Session {
         scope,
         actor_id: p.id.clone(),
         revision: p.revision,
         expires: Instant::now() + Duration::from_secs(8 * 60 * 60),
-    }
+        generation: crate::recovery::generation(db)?,
+    })
 }

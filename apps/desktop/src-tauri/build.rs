@@ -1,6 +1,11 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "read_last_restore",
+            "choose_local_backup",
+            "export_local_backup",
+            "preview_local_backup",
+            "restore_local_backup",
             "prepare_local_retail",
             "post_local_retail",
             "clear_local_retail",
