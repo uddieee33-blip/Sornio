@@ -110,6 +110,8 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
     try {
       await invoke('acknowledge_local_inventory', { operationId: pending.request.operationId });
       if (!current.current) return;
+      if (pending.command === 'add_local_product') setForm(empty);
+      else { setDelta(''); setReason(''); }
       setPending(null); setSavedInventory(null); setFailed(false); setMessage('Saved item change acknowledged.');
     } catch (error: unknown) {
       if (!current.current) return;
@@ -172,3 +174,4 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
     </div>
   </section>;
 }
+
