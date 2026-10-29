@@ -43,25 +43,11 @@ jobs:
           python-version: '3.12'
       - name: Install native accessibility review tooling
         run: python -m pip install pywinauto==0.6.9 Pillow==12.0.0
-      - name: Verify native offline access, checkout guards and receipt recovery
+      - name: Test ciphertext preservation helper
+        run: python -m unittest discover -s apps/desktop -p test_install_data.py
+      - name: Verify installed offline app, recovery and lifecycle preservation
         shell: pwsh
-        run: |
-          $prefix = 'Sornio-local-review-' + [guid]::NewGuid().ToString()
-          $app = (Resolve-Path 'apps/desktop/src-tauri/target/release/sornio-desktop.exe').Path
-          $runtimes = @(Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" -ErrorAction SilentlyContinue)
-          if ($runtimes.Count -eq 0) { throw 'Could not locate WebView2 to enforce the offline test.' }
-          $programs = @($app) + @($runtimes | ForEach-Object { $_.FullName })
-          $code = 1
-          try {
-            for ($index = 0; $index -lt $programs.Count; $index++) {
-              New-NetFirewallRule -Name "$prefix-$index" -DisplayName "$prefix-$index" -Direction Outbound -Program $programs[$index] -Action Block | Out-Null
-            }
-            python apps/desktop/check-native.py
-            $code = $LASTEXITCODE
-          } finally {
-            Get-NetFirewallRule -Name "$prefix-*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-          }
-          if ($code -ne 0) { exit $code }
+        run: ./apps/desktop/check-installer.ps1
       - name: Upload engineering installer
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
