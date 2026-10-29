@@ -126,6 +126,7 @@ def launch(setup=False):
     window = Desktop(backend="uia").window(title_re="Sornio.*Local workspace review")
     window.wait("visible", timeout=60)
     assert_locked()
+    window.capture_as_image().save(OUTPUT / ("windows-first-setup.png" if setup else "windows-unlock.png"))
     if not setup:
         fill("Local password", "WrongReviewPassword")
         activate("Unlock workspace")
@@ -175,6 +176,7 @@ try:
     fill("Item code (optional)", "NATIVE-RICE")
     fill("Unit price (₹)", "42.50")
     fill("Opening stock", "1.250")
+    window.capture_as_image().save(OUTPUT / "windows-product-creation.png")
     activate("Save item on this PC")
     wait_until(30, 0.5, lambda: message_visible("Saved item changes to this PC."))
     wait_until(30, 0.5, lambda: message_visible("1.25 pcs"))
@@ -191,7 +193,7 @@ try:
 
     # Actual bundled cashier -> authorized native posting -> encrypted SQLite.
     fill("Search items for sale", "NATIVE-RICE")
-    activate("Add Sample native rice to sale")
+    send_keys("{ENTER}", pause=0.2)
     fill("Quantity for Sample native rice (pcs)", "4.001")
     assert_review_blocked("Check quantities against available stock.")
     activate("Refresh checkout")
@@ -236,6 +238,7 @@ try:
     assert credit_id != cash_id, "Distinct sales returned the same invoice ID"
     assert_saved_total("31.88")
     assert_balances("53.13", "31.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-customer-credit-sale.png")
     window.capture_as_image().save(OUTPUT / "windows-local-checkout.png")
 
     activate("Lock workspace")
@@ -342,6 +345,7 @@ try:
     payment_id = focus_control("Saved credit entry ID", "Edit").get_value()
     assert str(UUID(payment_id)) == payment_id
     assert_balances("63.13", "21.88", "2")
+    window.capture_as_image().save(OUTPUT / "windows-customer-partial-repayment.png")
     stop()
     launch()
     assert focus_control("Saved credit entry ID", "Edit").get_value() == payment_id
@@ -364,6 +368,7 @@ try:
     fill("Staff account name", "native-cashier")
     fill("Staff password", PASSWORD)
     activate("Create staff account")
+    window.capture_as_image().save(OUTPUT / "windows-owner-staff.png")
     window.child_window(title="Disable native-cashier", control_type="Button", visible_only=False).wait("exists", timeout=30)
     activate("Lock workspace")
     assert_locked()
@@ -430,6 +435,7 @@ try:
         activate(names[0])
 
     wait_until(30, 0.5, lambda: retail_text("Pending — unverified"))
+    window.capture_as_image().save(OUTPUT / "windows-retail-pending-payment.png")
     fill("Bank or terminal reference (never card number)", "WINUPI123456")
     fill("Bank statement amount (₹)", "5.63")
     fill("Manual statement check note", "Manually compared synthetic bank statement")
@@ -444,6 +450,7 @@ try:
     fill("Invoice ID for payment records", retail_invoice)
     wait_until(30, 0.5, lambda: retail_text("Manually matched — not externally verified"))
     wait_until(30, 0.5, lambda: retail_text("Externally verified: ₹0.00"))
+    window.capture_as_image().save(OUTPUT / "windows-retail-reconciliation.png")
     fill("Return quantity for line 1: Sample native rice (pcs)", "0.250")
     fill("Return or correction reason", "Native returned goods inspected")
     activate("Calculate native return")
@@ -452,6 +459,7 @@ try:
     activate("Confirm retail operation")
     return_id = focus_control("Saved retail operation ID", "Edit").get_value()
     assert return_id != match_id
+    window.capture_as_image().save(OUTPUT / "windows-retail-return-refund.png")
     assert_balances("95.64", "0.00", "1.75")
     activate("Start next retail operation")
     activate("Save CA settlement CSV")

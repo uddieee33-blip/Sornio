@@ -65,9 +65,13 @@ async function stop() { if(child.exitCode!==null || child.signalCode!==null)retu
   const text=await page.locator('label[for="backup-phrase"]').innerText();const phrase=text.slice(5,-11);
   await credentials();await phraseLabel.fill(phrase);await button('Create safety backup and restore').click();
   await label('Local password').waitFor();await label('Local password').fill(login);await button('Unlock workspace').click();
+  assert.equal((await native('load_workspace')).draft.note,'Before backup private note');
+  await page.waitForFunction(()=>document.querySelector('#workspace-note')?.value==='Before backup private note');
   assert.equal(await label('Workspace note').inputValue(),'Before backup private note');
   assert.equal((await native('list_local_invoices',{after:0})).length,1);
   await stop();start();await page.reload();await label('Local password').fill(login);await button('Unlock workspace').click();
+  assert.equal((await native('load_workspace')).draft.note,'Before backup private note');
+  await page.waitForFunction(()=>document.querySelector('#workspace-note')?.value==='Before backup private note');
   assert.equal(await label('Workspace note').inputValue(),'Before backup private note');
   assert.equal(await page.evaluate(()=>localStorage.length+sessionStorage.length),0);assert.deepEqual(errors,[]);
   console.log('Real native backup integration passed: ciphertext, authentication rejection, preview, cleared secrets, explicit restore, financial preservation and forced restart.');
