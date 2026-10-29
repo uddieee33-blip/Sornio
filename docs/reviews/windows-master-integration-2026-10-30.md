@@ -1,6 +1,8 @@
 # Sornio Windows integration checkpoint — 30 October 2026
 
 **NO-GO for a real-shop pilot. Review-only integration; synthetic data only.**
+Receipt follow-up: [authenticated lookup, keyboard checkout and receipt printing](windows-receipt-integration-2026-10-30.md) extends this checkpoint. Its current counts are 157 native passes per profile and 10 browser suites. The 155-test/9-suite evidence below belongs to the earlier recovery checkpoint `86918f4`; current head/CI are in PR #130.
+
 
 ## A. Repository baseline and dependency graph
 
@@ -17,7 +19,7 @@ The verified commit dependency is main → #122 authorization → #123 credit �
 | #129 | Reuse required-row-count stock fixes already present in #124. Reuse/adapt installed-executable lifecycle scripts and remove diagnostic control-text dumping; do not overwrite the newer staff/credit/retail acceptance. |
 | #126 | Deferred. Actual `lan/mod.rs` dispatch authenticates device certificate/grant/role, not a named human session; it does not implement current financial APIs or restore-generation fencing. No LAN listener or commands are enabled here. |
 | #127 | Arithmetic foundation inspected; GST invoice integration/compliance remains unimplemented. Do not merge its older lib.rs over current migrations. |
-| #128 | Keyboard/printing diff inspected. Its receipt component and checkout tests need adaptation to #124's newer immutable receipt/financial data. Not imported as a verified printing integration. |
+| #128 | Adapted in the linked receipt follow-up: keyboard checkout, protected saved receipt lookup, print-only layouts and Punjabi font/labels. Physical/Windows printing remains unverified. |
 
 The packaged application is `apps/desktop` (Vite/React) → `apps/desktop/src-tauri` → `packages/local-store`. Tauri's frontendDist is `../dist`. The root Next application and separate web-launcher workflow are not proof of native desktop acceptance.
 
@@ -104,7 +106,7 @@ Restoration deliberately selects a point in time and replaces the active workspa
 3. Rerun **CI**, **Workspace browser review**, and **Windows local workspace** on the exact proposed head. Inspect installed release-app acceptance, actual OS file pickers, firewall/offline behavior, vault, safety-backed restore, uninstall/reinstall data preservation and uploaded installer/screenshots. Same-version reinstall does not satisfy upgrade testing.
 4. Review schema 11 and frozen #125 schema-5/6 importer. Extend external/physical recovery testing before relying on it as the sole shop backup. Missing vault key for an existing profile remains a refusal; supported recovery is into a fresh unconfigured profile using both archive credentials, not a secret bypass.
 5. Integrate #126 with this named human identity, every required financial command and recovery generation. Require device/human permission intersection under the hub writer lock, denied disconnected sales, old-client reconciliation after restore and two-client oversell/restart/replay tests. Keep listener disabled until verified.
-6. Adapt #128's receipt keyboard/printing work to the current receipt snapshots. Integrate #127 only through current posting/return transactions and reviewed tax requirements. CA review, full three-step native onboarding/bank details, invoice history/industry-specific native workflows, compliant GST invoices and physical peripherals remain separate incomplete gates. Existing eight business definitions were preserved; this checkpoint does not deliver every vertical.
+6. The receipt follow-up adapts #128 to current snapshots; complete Windows/driver/peripheral acceptance. Integrate #127 only through current posting/return transactions and reviewed tax requirements. CA review, full three-step native onboarding/bank details, invoice history/industry-specific native workflows, compliant GST invoices and physical peripherals remain separate incomplete gates. Existing eight business definitions were preserved; this checkpoint does not deliver every vertical.
 7. Perform a final review and obtain mandatory operational/security evidence before approving any controlled pilot. Public release is a separate decision. No automatic merge, force-push, public deployment or release is authorized by this checkpoint.
 
 ## G. Pilot gates
