@@ -67,6 +67,7 @@ jobs:
             sleep 1
           done
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-ui.cjs
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-focus.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-inventory-refresh.cjs
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-checkout.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-receipts.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/receipts

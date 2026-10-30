@@ -40,7 +40,18 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
   const [failed, setFailed] = useState(false);
   const [message, setMessage] = useState('Opening checkout…');
   useEffect(() => { if (review) confirmButton.current?.focus(); }, [review]);
-  useEffect(() => { if (ready && !busy && !invoice && !pending && !historyOpen) searchInput.current?.focus(); }, [ready, busy, invoice, pending, historyOpen]);
+  useEffect(() => {
+    if (!ready || busy || invoice || pending || historyOpen) return;
+    const search = searchInput.current, active = document.activeElement;
+    if (!search) return;
+    // A delayed read must not redirect typing from another form or an active
+    // checkout editor. Initial entry and explicit cashier actions can focus search.
+    if (active && active !== document.body && active !== document.documentElement) {
+      if (!search.closest('#checkout')?.contains(active)) return;
+      if (active !== search && (active.matches('input, textarea, select') || active instanceof HTMLElement && active.isContentEditable)) return;
+    }
+    search.focus();
+  }, [ready, busy, invoice, pending, historyOpen]);
   const submitting = useRef(false);
   const readGeneration = useRef(0);
   const pendingRef = useRef<CheckoutRequest | null>(null);
