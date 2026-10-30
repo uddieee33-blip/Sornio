@@ -11,8 +11,306 @@ use rusqlite::types::Value as SqlValue;
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const PASSWORD: &str = "Synthetic retail password 2026";
 
+#[test]
+fn damaged_return_refunds_once_without_reintroducing_sellable_stock() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let sale = sale_req(&s, "damage-sale", &[("cash", 10000)]);
+    perform(&mut s, sale);
+    let legacy = return_req(&s, "damage-return", "damage-sale", 1000);
+    let mut raw = serde_json::to_value(&legacy).unwrap();
+    raw["action"]["lines"][0]["disposition"] = json!("damaged");
+    let request: Request = serde_json::from_value(raw).unwrap();
+    s.prepare_retail(request.clone()).unwrap();
+    let before = snapshots(&s);
+    s.0.execute_batch("CREATE TRIGGER fail_disposition BEFORE INSERT ON local_retail_outbox BEGIN SELECT RAISE(ABORT,'synthetic write failure'); END;").unwrap();
+    assert!(s.post_retail(request.clone()).is_err());
+    assert_eq!(snapshots(&s), before);
+    s.0.execute_batch("DROP TRIGGER fail_disposition").unwrap();
+    let receipt = s.post_retail(request.clone()).unwrap();
+    assert_eq!(receipt.data["stockRestored"], false);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+    drop(s);
+    let mut s = authenticated(&path);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+    // Reauthentication legitimately adds identity audit evidence. Compare the
+    // complete state immediately before and after the replay.
+    let saved = snapshots(&s);
+    assert_eq!(s.post_retail(request.clone()).unwrap(), receipt);
+    assert_eq!(snapshots(&s), saved);
+    assert!(
+        s.post_retail(legacy).is_err(),
+        "A disposition change must conflict with the saved request"
+    );
+    assert_eq!(snapshots(&s), saved);
+    assert!(quote(
+        &s.0,
+        "damage-sale",
+        &[serde_json::from_value(json!({"lineIndex":0,"quantityMilli":1})).unwrap()]
+    )
+    .is_err());
+    let stored: String =
+        s.0.query_row(
+            "SELECT request FROM local_retail_ops WHERE id='damage-return'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert!(stored.contains("damaged"));
+    journals_balance(&s);
+}
+
+#[test]
+fn return_disposition_preserves_legacy_bytes_and_rejects_unknown_values() {
+    let old = r#"{"lineIndex":0,"quantityMilli":1000}"#;
+    let line: ReturnLine = serde_json::from_str(old).unwrap();
+    assert_eq!(serde_json::to_string(&line).unwrap(), old);
+    let explicit: ReturnLine =
+        serde_json::from_str(r#"{"lineIndex":0,"quantityMilli":1000,"disposition":"sellable"}"#)
+            .unwrap();
+    assert_eq!(serde_json::to_string(&explicit).unwrap(), old);
+    assert!(serde_json::from_value::<ReturnLine>(
+        json!({"lineIndex":0,"quantityMilli":1000,"disposition":"unknown"})
+    )
+    .is_err());
+}
+
+#[test]
+fn mixed_return_lines_restock_only_sellable_quantities_of_the_same_product() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let mut sale = sale_req(&s, "mixed-sale", &[("cash", 20000)]);
+    if let Action::Sale { invoice, .. } = &mut sale.action {
+        invoice.lines.push(invoice.lines[0].clone());
+    }
+    perform(&mut s, sale);
+    let lines: Vec<ReturnLine> = serde_json::from_value(json!([
+        {"lineIndex":0,"quantityMilli":1000,"disposition":"no_restock"},
+        {"lineIndex":1,"quantityMilli":1000}
+    ]))
+    .unwrap();
+    let q = quote(&s.0, "mixed-sale", &lines).unwrap();
+    let receipt = perform(
+        &mut s,
+        req(
+            "mixed-return",
+            Action::Return {
+                invoice_id: "mixed-sale".into(),
+                expected_revision: q.revision,
+                lines,
+                refunds: q.suggested_refunds,
+                reason: "One inspected line is sellable; retain the other outside available stock"
+                    .into(),
+            },
+        ),
+    );
+    assert_eq!(receipt.data["stockRestored"], true);
+    assert_eq!(receipt.data["returnLines"][0]["disposition"], "no_restock");
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+    journals_balance(&s);
+}
+
+#[test]
+fn refund_and_repayment_race_conserves_cash_debt_and_damaged_stock() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    a.save_customer(SaveCustomer {
+        operation_id: "customer".into(),
+        id: "customer".into(),
+        name: "Synthetic customer".into(),
+        phone: None,
+        credit_limit_paise: None,
+        credit_days: 0,
+        expected_revision: None,
+    })
+    .unwrap();
+    a.post_invoice(PostInvoice {
+        operation_id: "race-credit".into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: 1,
+            quantity_milli: 1000,
+        }],
+        tax_basis_points: 0,
+        tender: Tender::Credit,
+        customer_id: Some("customer".into()),
+    })
+    .unwrap();
+    let mut b = authenticated(&path);
+    let customer = b.find_customers("customer", false).unwrap().remove(0);
+    let repayment = CreditRequest {
+        operation_id: "race-repay".into(),
+        customer_id: "customer".into(),
+        expected_revision: customer.revision,
+        kind: CreditKind::Repayment,
+        amount_paise: 3000,
+        reason: String::new(),
+        due_on: None,
+        reverse_of: None,
+    };
+    b.prepare_credit(repayment.clone()).unwrap();
+    let mut returned = return_req(&a, "race-return", "race-credit", 1000);
+    if let Action::Return { lines, .. } = &mut returned.action {
+        lines[0].disposition = ReturnDisposition::Damaged;
+    }
+    a.prepare_retail(returned.clone()).unwrap();
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other = barrier.clone();
+    let worker = std::thread::spawn(move || {
+        other.wait();
+        a.post_retail(returned)
+    });
+    barrier.wait();
+    let paid = b.post_credit(repayment.clone(), true);
+    let refunded = worker.join().unwrap().unwrap();
+    match paid {
+        Ok(receipt) => {
+            assert_eq!(refunded.data["cashOutPaise"], 3000);
+            assert_eq!(b.post_credit(repayment, true).unwrap(), receipt);
+        }
+        Err(StoreError::CreditConflict | StoreError::Overpayment) => {
+            assert_eq!(refunded.data["cashOutPaise"], 0);
+        }
+        other => panic!("Unexpected repayment outcome: {other:?}"),
+    }
+    assert_eq!(
+        b.find_customers("customer", false).unwrap()[0].balance_paise,
+        "0"
+    );
+    let balances = b.cashier_state().unwrap().balances;
+    assert_eq!(
+        (balances.cash_paise, balances.credit_paise),
+        ("0".into(), "0".into())
+    );
+    assert_eq!(b.list_products().unwrap()[0].stock_milli, 99000);
+    journals_balance(&b);
+}
+
+#[test]
+fn stock_correction_and_sale_race_never_commits_both_stale_intents() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    a.acknowledge_inventory("rice").unwrap();
+    let mut b = authenticated(&path);
+    let sale = sale_req(&a, "race-sale", &[("cash", 10000)]);
+    a.prepare_retail(sale.clone()).unwrap();
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other = barrier.clone();
+    let worker = std::thread::spawn(move || {
+        other.wait();
+        a.post_retail(sale)
+    });
+    barrier.wait();
+    let correction = b.adjust_stock(crate::catalog::AdjustStock {
+        operation_id: "race-correction".into(),
+        product_id: "rice".into(),
+        expected_revision: 1,
+        delta_milli: -100000,
+        reason: "Physical count found no available stock".into(),
+    });
+    match (worker.join().unwrap(), correction) {
+        (Ok(_), Err(StoreError::StockConflict)) => {
+            assert_eq!(b.list_products().unwrap()[0].stock_milli, 99000);
+            assert_eq!(b.list_invoices(0).unwrap().len(), 1);
+        }
+        (Err(StoreError::StockConflict), Ok(_)) => {
+            assert_eq!(b.list_products().unwrap()[0].stock_milli, 0);
+            assert!(b.list_invoices(0).unwrap().is_empty());
+        }
+        other => panic!("Both stale intents must not commit: {other:?}"),
+    }
+    journals_balance(&b);
+}
+
+#[test]
+fn concurrent_successful_invoices_receive_distinct_durable_numbers() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    a.acknowledge_inventory("rice").unwrap();
+    a.add_product(AddProduct {
+        operation_id: "second-product".into(),
+        name: "Second product".into(),
+        sku: "SECOND".into(),
+        unit: "pcs".into(),
+        unit_price_paise: 10000,
+        opening_stock_milli: 1000,
+    })
+    .unwrap();
+    let mut b = authenticated(&path);
+    let invoice = |id: &str, product: &str| PostInvoice {
+        operation_id: id.into(),
+        lines: vec![BillLine {
+            product_id: product.into(),
+            expected_revision: 1,
+            quantity_milli: 1000,
+        }],
+        tax_basis_points: 0,
+        tender: Tender::Cash,
+        customer_id: None,
+    };
+    let first = invoice("parallel-one", "rice");
+    let second = invoice("parallel-two", "second-product");
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other = barrier.clone();
+    let worker = std::thread::spawn(move || {
+        other.wait();
+        a.post_invoice(first)
+    });
+    barrier.wait();
+    let second = b.post_invoice(second).unwrap();
+    let first = worker.join().unwrap().unwrap();
+    assert!(first.invoice_number.is_some());
+    assert_ne!(first.invoice_number, second.invoice_number);
+    assert_eq!(b.list_invoices(0).unwrap().len(), 2);
+    assert_eq!(b.cashier_state().unwrap().balances.cash_paise, "20000");
+}
+
+#[test]
+fn corrupt_encrypted_database_is_rejected_without_replacement() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    drop(seed(&path));
+    let mut bytes = std::fs::read(&path).unwrap();
+    bytes[256] ^= 1;
+    std::fs::write(&path, &bytes).unwrap();
+    assert!(Store::open(&path, KEY).is_err());
+    assert_eq!(std::fs::read(&path).unwrap(), bytes);
+}
+
 proptest! {
     #![proptest_config(ProptestConfig::with_cases(32))]
+    #[test]
+    fn generated_non_restock_returns_preserve_refund_limits_and_stock(
+        cut in 1i64..1000, damaged in any::<bool>(),
+    ) {
+        let d = tempfile::tempdir().unwrap();
+        let mut s = seed(&d.path().join("s.db"));
+        let sale = sale_req(&s, "non-restock-sale", &[("cash", 10000)]);
+        perform(&mut s, sale);
+        let mut first = return_req(&s, "non-restock-return", "non-restock-sale", cut);
+        if let Action::Return { lines, .. } = &mut first.action {
+            lines[0].disposition = if damaged { ReturnDisposition::Damaged } else { ReturnDisposition::NoRestock };
+        }
+        let saved = perform(&mut s, first.clone());
+        prop_assert_eq!(saved.data["stockRestored"].as_bool(), Some(false));
+        let before = snapshots(&s);
+        prop_assert_eq!(s.post_retail(first).unwrap(), saved);
+        prop_assert_eq!(snapshots(&s), before);
+        let remaining = return_req(&s, "sellable-return", "non-restock-sale", 1000-cut);
+        perform(&mut s, remaining);
+        prop_assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000-cut);
+        prop_assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+        prop_assert_eq!(invoice_payments(&s.0,"non-restock-sale").unwrap()[0].refundable_paise, 0);
+        journals_balance(&s);
+    }
+
     #[test]
     fn generated_split_returns_conserve_money_stock_and_closing(
         qty in 1000i64..9000, price in 100i64..100000, bps in 0i64..3001,
@@ -153,6 +451,7 @@ fn return_req(s: &Store, id: &str, invoice: &str, qty: i64) -> Request {
     let lines = vec![ReturnLine {
         line_index: 0,
         quantity_milli: qty,
+        disposition: Default::default(),
     }];
     let q = quote(&s.0, invoice, &lines).unwrap();
     req(
@@ -346,7 +645,8 @@ fn partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total(
         "sale",
         &[ReturnLine {
             line_index: 0,
-            quantity_milli: 1
+            quantity_milli: 1,
+            disposition: Default::default(),
         }]
     )
     .is_err());
@@ -365,6 +665,7 @@ fn pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds(
         &[ReturnLine {
             line_index: 0,
             quantity_milli: 500,
+            disposition: Default::default(),
         }],
     )
     .unwrap();
@@ -502,6 +803,7 @@ fn cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent() {
         &[ReturnLine {
             line_index: 0,
             quantity_milli: 1000,
+            disposition: Default::default(),
         }],
     )
     .unwrap();
@@ -1120,7 +1422,8 @@ fn invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence() {
             lines: vec![
                 ReturnLine {
                     line_index: 0,
-                    quantity_milli: 1
+                    quantity_milli: 1,
+                    disposition: Default::default(),
                 };
                 101
             ],

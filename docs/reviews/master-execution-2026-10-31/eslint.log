@@ -1,0 +1,1 @@
+Pages directory cannot be found at /workspace/scratch/da8cf33c45c7/sornio/pages or /workspace/scratch/da8cf33c45c7/sornio/src/pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.

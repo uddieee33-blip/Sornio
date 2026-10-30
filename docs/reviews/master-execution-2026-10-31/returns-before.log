@@ -1,0 +1,73 @@
+   Compiling libc v0.2.191
+   Compiling openssl-sys v0.9.117
+   Compiling libsqlite3-sys v0.35.0
+   Compiling getrandom v0.4.3
+   Compiling tempfile v3.27.0
+   Compiling wait-timeout v0.2.1
+   Compiling rusty-fork v0.3.1
+   Compiling getrandom v0.3.4
+   Compiling rand v0.10.3
+   Compiling proptest v1.12.0
+   Compiling rusqlite v0.37.0
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.73s
+     Running unittests src/lib.rs (packages/local-store/target/debug/deps/sornio_local_store-88709470fdf4f97e)
+
+running 31 tests
+test payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow ... ok
+test payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight ... ok
+test payments::tests::cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent ... ok
+test payments::tests::closing_variance_is_native_and_closed_drawer_blocks_late_atomic_sales ... ok
+test payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock ... FAILED
+test payments::tests::changed_or_unbalanced_splits_and_forged_verification_are_refused_atomically ... ok
+test payments::tests::duplicate_bank_reference_cannot_settle_two_payments_even_with_spacing ... ok
+test payments::tests::deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock ... ok
+test payments::tests::competing_partial_returns_cannot_restore_or_refund_more_than_was_sold ... ok
+test payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations ... ok
+test payments::tests::invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence ... ok
+test payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history ... ok
+test payments::tests::opening_float_correction_is_append_only_and_invalidates_a_stale_close ... ok
+test payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react ... ok
+test payments::tests::partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total ... ok
+test payments::tests::pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds ... ok
+test payments::tests::refund_crash_worker ... ignored, subprocess worker exercised by refund_process_death_preserves_atomicity_and_exact_retry
+test payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary ... ok
+test payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values ... FAILED
+test payments::tests::interrupted_cashier_sale_can_be_adopted_by_owner_without_duplicate_posting ... ok
+
+running 1 test
+test payments::tests::settlement_history_and_exports_are_append_only_formula_safe_and_exact ... ok
+test payments::tests::split_sale_uses_original_invoice_and_never_verifies_digital_payments ... ok
+test payments::tests::simultaneous_exact_settlement_retries_post_once ... ok
+test payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement ... ok
+test payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected ... ok
+test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok
+
+running 1 test
+test payments::tests::refund_process_death_preserves_atomicity_and_exact_retry ... ok
+test payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome ... ok
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+test payments::tests::generated_invalid_split_and_mid_transaction_failure_never_partially_commit ... ok
+test payments::tests::generated_split_returns_conserve_money_stock_and_closing ... ok
+
+failures:
+
+---- payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock stdout ----
+
+thread 'payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock' (836) panicked at src/payments_tests.rs:24:56:
+called `Result::unwrap()` on an `Err` value: Error("unknown field `disposition`, expected `lineIndex` or `quantityMilli`", line: 0, column: 0)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values stdout ----
+
+thread 'payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values' (857) panicked at src/payments_tests.rs:53:121:
+called `Result::unwrap()` on an `Err` value: Error("unknown field `disposition`, expected `lineIndex` or `quantityMilli`", line: 1, column: 49)
+
+
+failures:
+    payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock
+    payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values
+
+test result: FAILED. 28 passed; 2 failed; 1 ignored; 0 measured; 142 filtered out; finished in 36.22s
+
+error: test failed, to rerun pass `--lib`

@@ -1,7 +1,7 @@
 name: Workspace browser review
 on:
   pull_request:
-    branches: [main, 'feature/windows-native-authorization', 'feature/windows-customer-credit']
+    branches: [main, 'integration/windows-finance-recovery', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
     paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
@@ -39,6 +39,8 @@ jobs:
           cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml
       - name: Build native cashier integration fixture
         run: cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge
+      - name: Verify synthetic native scale and damaged-return recovery
+        run: python3 apps/desktop/check-native-scale.py --bridge packages/local-store/target/debug/examples/cashier_review_bridge --output /tmp/sornio-screenshots/native-scale.json
       - run: npm ci
       - run: npm run build
       - name: Install isolated browser tooling

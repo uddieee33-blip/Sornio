@@ -1,7 +1,7 @@
 name: Windows local workspace
 on:
   pull_request:
-    branches: [main, 'feature/windows-native-authorization', 'feature/windows-customer-credit']
+    branches: [main, 'integration/windows-finance-recovery', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
     paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
   workflow_dispatch:
 permissions:
@@ -45,6 +45,10 @@ jobs:
         run: python -m pip install pywinauto==0.6.9 Pillow==12.0.0
       - name: Test ciphertext preservation helper
         run: python -m unittest discover -s apps/desktop -p test_install_data.py
+      - name: Build native synthetic scale fixture
+        run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
+      - name: Verify native scale and damaged-return recovery
+        run: python apps/desktop/check-native-scale.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe --output dist/native-review/native-scale.json
       - name: Verify installed offline app, recovery and lifecycle preservation
         shell: pwsh
         run: ./apps/desktop/check-installer.ps1

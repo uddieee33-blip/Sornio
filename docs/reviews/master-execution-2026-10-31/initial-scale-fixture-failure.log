@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-native-scale.py", line 128, in <module>
+    main()
+  File "/workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-native-scale.py", line 57, in main
+    call("setup_local_access", setup={"businessName": "Synthetic scale shop", "businessType": "retail",
+  File "/workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-native-scale.py", line 43, in call
+    raise AssertionError(f"{command}: {response.get('error')}")
+AssertionError: setup_local_access: {'code': 'invalid_identity', 'message': 'Check the business, account name and role.'}

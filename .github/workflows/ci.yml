@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces']
+    branches: [main, 'integration/windows-finance-recovery', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces']
 
 # Run checks for every pushed commit instead of silently cancelling an earlier
 # verification when another commit is pushed to the same PR. GitHub queues

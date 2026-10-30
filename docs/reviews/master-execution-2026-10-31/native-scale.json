@@ -1,0 +1,50 @@
+{
+  "environment": "Linux native stdio fixture; synthetic data",
+  "products": 1000,
+  "customers": 1000,
+  "invoices": 1000,
+  "timings_ms": {
+    "seed_1000_products": {
+      "samples": 1,
+      "median": 2718.202,
+      "maximum": 2718.202
+    },
+    "seed_1000_customers": {
+      "samples": 1,
+      "median": 1445.521,
+      "maximum": 1445.521
+    },
+    "post_1000_invoices_with_checkpoints": {
+      "samples": 1,
+      "median": 4383.512,
+      "maximum": 4383.512
+    },
+    "list_1000_products": {
+      "samples": 30,
+      "median": 19.904,
+      "maximum": 28.112
+    },
+    "customer_search_in_1000": {
+      "samples": 30,
+      "median": 5.992,
+      "maximum": 8.774
+    },
+    "cashier_state_with_1000_invoices": {
+      "samples": 30,
+      "median": 20.958,
+      "maximum": 29.459
+    },
+    "encrypted_backup": {
+      "samples": 1,
+      "median": 2225.035,
+      "maximum": 2225.035
+    },
+    "settlement_export": {
+      "samples": 5,
+      "median": 183.889,
+      "maximum": 204.173
+    }
+  },
+  "backup_bytes": 7376896,
+  "result": "PASS"
+}

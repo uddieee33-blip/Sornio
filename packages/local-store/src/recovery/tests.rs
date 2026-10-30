@@ -181,6 +181,53 @@ fn snapshot_restore_preserves_finance_identity_pending_work_and_retries() {
         Err(StoreError::RecoveryChanged)
     ));
 }
+
+#[test]
+fn damaged_return_backup_restores_the_saved_result_without_restock_or_refund_replay() {
+    use crate::payments::{Action, Request, ReturnDisposition, ReturnLine};
+    let d = tempfile::tempdir().unwrap();
+    let mut source = seeded(&d.path().join("source.db"));
+    source.post_invoice(sale("damaged-sale", 1)).unwrap();
+    let lines = vec![ReturnLine {
+        line_index: 0,
+        quantity_milli: 1250,
+        disposition: ReturnDisposition::Damaged,
+    }];
+    let q = source.quote_retail_return("damaged-sale", &lines).unwrap();
+    let r = Request {
+        operation_id: "damaged-return".into(),
+        action: Action::Return {
+            invoice_id: "damaged-sale".into(),
+            expected_revision: q.revision,
+            lines,
+            refunds: q.suggested_refunds,
+            reason: "Inspected damaged goods; do not sell again".into(),
+        },
+    };
+    source.prepare_retail(r.clone()).unwrap();
+    let receipt = source.post_retail(r.clone()).unwrap();
+    assert_eq!(receipt.data["stockRestored"], false);
+    let archive = d.path().join("damaged.sorniobackup");
+    export(&mut source, &archive, SECRET).unwrap();
+    let mut target = Workspace::new(Store::open(&d.path().join("target.db"), KEY).unwrap());
+    let p = target.preview_backup(&archive, "", SECRET, LOGIN).unwrap();
+    target
+        .restore_backup(&archive, d.path(), "", SECRET, LOGIN, &p, &p.confirmation)
+        .unwrap();
+    target.unlock(LOGIN).unwrap();
+    let day = crate::payments::today(&source.0).unwrap();
+    let pending = target
+        .retail_view(&day, "owner", None)
+        .unwrap()
+        .pending
+        .unwrap();
+    assert_eq!(pending.request, r);
+    assert_eq!(pending.receipt, Some(receipt.clone()));
+    assert_eq!(target.post_retail(r).unwrap(), receipt);
+    assert_eq!(target.list_products().unwrap()[0].stock_milli, 8750);
+    assert_eq!(target.cashier_state().unwrap().balances.cash_paise, "0");
+    assert_eq!(target.list_invoices(0).unwrap().len(), 1);
+}
 #[test]
 fn new_device_uses_new_device_key_and_original_login_and_locks_old_sessions() {
     let d = tempfile::tempdir().unwrap();
@@ -958,6 +1005,7 @@ fn integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_fina
     let lines = vec![ReturnLine {
         line_index: 0,
         quantity_milli: 500,
+        disposition: Default::default(),
     }];
     let q = w.quote_retail_return("split-sale", &lines).unwrap();
     perform(

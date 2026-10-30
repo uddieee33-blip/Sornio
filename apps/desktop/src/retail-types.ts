@@ -2,7 +2,8 @@ import type { NativeInvoiceRequest } from '../../../packages/business-domain/src
 import type { Invoice } from './billing-types';
 export type CheckoutRequest = Omit<NativeInvoiceRequest, 'tender'> & { tender: 'cash' | 'credit' | 'retail' };
 export type PaymentPart = { id: string; method: 'cash' | 'upi' | 'card'; amountPaise: number; reference: string };
-export type ReturnLine = { lineIndex: number; quantityMilli: number };
+export type ReturnDisposition = 'sellable' | 'damaged' | 'no_restock';
+export type ReturnLine = { lineIndex: number; quantityMilli: number; disposition?: ReturnDisposition };
 export type RefundPart = { paymentId: string; amountPaise: number };
 export type RetailAction =
  | { kind: 'sale'; invoice: CheckoutRequest; payments: PaymentPart[] }

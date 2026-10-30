@@ -1,0 +1,92 @@
+   Compiling libsqlite3-sys v0.35.0
+   Compiling rusqlite v0.37.0
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/rustc0vGRB2/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/libgetrandom-cba36bb54b2b0101.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/{libsha2-9d4aabfcedba3ed8,libserde_json-91dd2fa637220b5b,libmemchr-06612286196d868b,libitoa-d2a7e90627a4bc45,libzmij-1f3def37de6d9ad3,libproptest-c9fb7e8abd1557a0,libunarray-7909b750e5cf9b62,libregex_syntax-a853c2d17579d940,librand_xorshift-18bb9f6897c957de,libchacha20-9432e28ac3b42423,libcpufeatures-5de309e66a5d72bc,librand-8149cd5136d3f0db,librusty_fork-64fe48601b695f01,libwait_timeout-deeb9c432e69cb9f,libtempfile-f3d4d236cc7b63e8,libgetrandom-588493b745c2ff34,librand_core-85e25ee1728a8298,libcfg_if-4c4bf4df28a59937,libfastrand-4256e106befb5387,libonce_cell-542183d1c1819761,librustix-85d9580427f7d48c,liblinux_raw_sys-b29eaaeae92cd74a,libfnv-3c7a2f41d215b820,libquick_error-139aa2bfc8ec8fb2,libbit_set-eba1f4a23a6c3e32,libbit_vec-379891fa2c00d114,libargon2-f5712adfa2d218f0,libcpufeatures-08791a2c8cbb5f40,libzeroize-5c35dfe41e2d7ab8,libblake2-e05fd879c55e12d4,libdigest-2054f1a64acb4cf6,libblock_buffer-7bc053e7a8e5bfa7,libcrypto_common-f253a56f533de56e,libgeneric_array-7c5cbf9fe436fd03,libtypenum-0de90cd716a304b9,libpassword_hash-310cffe396d31de9,libsubtle-a146f6f1b0752ee2,libbase64ct-8c892e577e24d997,librand_core-27ed30efcbcd9556,libthiserror-d66685da4a3a7f9d,libserde-3a8e00671525d578,libserde_core-98501f3c45766ae2,librusqlite-b12efceede8d300a,libbitflags-ec102962704ab1c9,libsmallvec-caab11d9e7fc365c,libhashlink-c99d537fd7a63258,libhashbrown-e9eaa9b6a2d71892,libfoldhash-c8ab970b6de338c0,liblibsqlite3_sys-041168a6657621d7,libopenssl_sys-4ec94a696822b911,liblibc-34e983634f114512,libfallible_streaming_iterator-322e3bf2a3500003,libfallible_iterator-c10df8eddfb7c1cf}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lssl" "-lcrypto" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/rustc0vGRB2/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/build/libsqlite3-sys-4a3d88574433356f/out" "-L" "/usr/lib/x86_64-linux-gnu" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,-O1" "-Wl,--strip-debug" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::refund_crash_worker
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::refund_crash_worker::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::simultaneous_exact_settlement_retries_post_once
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::simultaneous_exact_settlement_retries_post_once::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::generated_split_returns_conserve_money_stock_and_closing
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::generated_split_returns_conserve_money_stock_and_closing::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::refund_process_death_preserves_atomicity_and_exact_retry
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::refund_process_death_preserves_atomicity_and_exact_retry::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::corrupt_encrypted_database_is_rejected_without_replacement
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::corrupt_encrypted_database_is_rejected_without_replacement::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::generated_non_restock_returns_preserve_refund_limits_and_stock
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::generated_non_restock_returns_preserve_refund_limits_and_stock::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::concurrent_successful_invoices_receive_distinct_durable_numbers
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::concurrent_successful_invoices_receive_distinct_durable_numbers::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::refund_and_repayment_race_conserves_cash_debt_and_damaged_stock
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::refund_and_repayment_race_conserves_cash_debt_and_damaged_stock::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::stock_correction_and_sale_race_never_commits_both_stale_intents
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::stock_correction_and_sale_race_never_commits_both_stale_intents::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: undefined hidden symbol: sornio_local_store::payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values::{closure#0} as core::ops::function::FnOnce<()>>::call_once)
+
+          rust-lld: error: too many errors emitted, stopping now (use --error-limit=0 to see all errors)
+          collect2: error: ld returned 1 exit status
+
+
+error: could not compile `sornio-local-store` (lib test) due to 1 previous error

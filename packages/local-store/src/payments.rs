@@ -24,6 +24,22 @@ pub struct PaymentPart {
 pub struct ReturnLine {
     pub line_index: usize,
     pub quantity_milli: i64,
+    // Omit the legacy default so saved operation request bytes remain stable.
+    #[serde(default, skip_serializing_if = "ReturnDisposition::is_sellable")]
+    pub disposition: ReturnDisposition,
+}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReturnDisposition {
+    #[default]
+    Sellable,
+    Damaged,
+    NoRestock,
+}
+impl ReturnDisposition {
+    fn is_sellable(&self) -> bool {
+        *self == Self::Sellable
+    }
 }
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -774,6 +790,9 @@ fn return_invoice(
             "INSERT INTO local_retail_return_items VALUES(?1,?2,?3)",
             params![op, l.line_index as i64, l.quantity_milli],
         )?;
+        if !l.disposition.is_sellable() {
+            continue;
+        }
         let n = stock
             .entry(q.invoice.lines[l.line_index].product_id.clone())
             .or_default();
@@ -781,6 +800,7 @@ fn return_invoice(
             .checked_add(l.quantity_milli)
             .ok_or(StoreError::InvalidStock)?;
     }
+    let stock_restored = !stock.is_empty();
     for (id, qty) in stock {
         let (before, rev): (i64, i64) = db.query_row(
             "SELECT stock_milli,revision FROM local_products WHERE id=?1",
@@ -881,7 +901,7 @@ fn return_invoice(
     }
     activity(db, s, op, "invoice_return", cash)?;
     Ok(
-        json!({"invoiceId":id,"subtotalPaise":q.subtotal_paise,"taxPaise":q.tax_paise,"totalPaise":q.total_paise,"cashOutPaise":-cash,"pendingRefundIds":obligations,"stockRestored":true}),
+        json!({"invoiceId":id,"subtotalPaise":q.subtotal_paise,"taxPaise":q.tax_paise,"totalPaise":q.total_paise,"cashOutPaise":-cash,"pendingRefundIds":obligations,"stockRestored":stock_restored,"returnLines":lines}),
     )
 }
 
