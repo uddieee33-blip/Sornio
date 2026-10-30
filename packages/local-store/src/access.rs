@@ -28,6 +28,69 @@ pub struct Workspace {
     last_activity: Cell<Instant>,
 }
 impl Workspace {
+    #[cfg(test)]
+    pub(crate) fn store_for_test(&self) -> &Store {
+        &self.store
+    }
+    /// Native enrollment only; no renderer or listener command is registered yet.
+    pub fn enroll_lan_device(
+        &mut self,
+        request: crate::lan_authority::Enrollment,
+        owner_password: &str,
+    ) -> Result<crate::lan_authority::Device, StoreError> {
+        let owner = self.require(Permission::Staff)?;
+        self.login(&owner.username, owner_password)?;
+        crate::lan_authority::enroll(&mut self.store, request)
+    }
+    pub fn change_lan_device(
+        &mut self,
+        id: &str,
+        revision: i64,
+        enabled: bool,
+        capability: crate::lan_authority::Capability,
+        owner_password: &str,
+    ) -> Result<(), StoreError> {
+        let owner = self.require(Permission::Staff)?;
+        self.login(&owner.username, owner_password)?;
+        crate::lan_authority::change(&mut self.store, id, revision, enabled, capability)
+    }
+    pub fn list_lan_devices(&self) -> Result<Vec<crate::lan_authority::Device>, StoreError> {
+        self.read(Permission::Staff, |s| crate::lan_authority::list(&s.0))
+    }
+    /// The future TLS adapter must own a separate Workspace for authentication.
+    /// The verified peer and session cannot be deserialized from an IPC request.
+    pub fn authenticate_lan_peer(
+        &mut self,
+        peer: &crate::lan_authority::VerifiedPeer,
+        scope: &Scope,
+        generation: &str,
+        username: &str,
+        password: &str,
+    ) -> Result<crate::lan_authority::Session, StoreError> {
+        self.lock();
+        crate::lan_authority::preauthenticate(&self.store.0, peer, scope, generation)?;
+        self.login(username, password)?;
+        crate::lan_authority::bind(&mut self.store, peer, scope, generation)
+    }
+    pub fn lan_products(
+        &self,
+        peer: &crate::lan_authority::VerifiedPeer,
+        session: &crate::lan_authority::Session,
+        scope: &Scope,
+        generation: &str,
+    ) -> Result<Vec<Product>, StoreError> {
+        crate::lan_authority::products(&self.store, peer, session, scope, generation)
+    }
+    pub fn post_lan_cash_invoice(
+        &mut self,
+        peer: &crate::lan_authority::VerifiedPeer,
+        session: &crate::lan_authority::Session,
+        scope: &Scope,
+        generation: &str,
+        request: crate::billing::PostInvoice,
+    ) -> Result<crate::lan_authority::Receipt, StoreError> {
+        crate::lan_authority::post(&mut self.store, peer, session, scope, generation, request)
+    }
     pub(crate) fn into_recovery_store(self) -> Store {
         self.store
     }

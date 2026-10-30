@@ -363,6 +363,8 @@ fn validate(db: &Connection) -> Result<Manifest, StoreError> {
     let expected_schema = if version == SCHEMA_VERSION {
         let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
         schema(&reference.0)?
+    } else if version == 11 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v11-schema.json"))?
     } else if matches!(version, 5 | 6) {
         let mut legacy: Vec<(String, String, String)> =
             serde_json::from_str(include_str!("../fixtures/recovery-v6-schema.json"))?;
@@ -716,6 +718,10 @@ pub(crate) fn restore(
                 Some(&id),
             )?;
         }
+        crate::lan_authority::disable_after_restore(
+            &tx,
+            actor.as_ref().unwrap_or(&archived_actor),
+        )?;
         audit(
             &tx,
             "restore_committed",

@@ -943,6 +943,7 @@ fn v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity() {
         "local_retail_closings",
         "local_retail_ops",
     ];
+    crate::lan_authority::remove_fixture_tables(&s.0);
     for t in names {
         s.0.execute_batch(&format!("DROP TABLE {t}")).unwrap();
     }
