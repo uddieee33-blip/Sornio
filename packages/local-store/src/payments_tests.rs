@@ -1142,3 +1142,126 @@ fn invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence() {
         assert_eq!(snapshots(&s), before);
     }
 }
+
+#[test]
+#[ignore = "subprocess worker exercised by refund_process_death_preserves_atomicity_and_exact_retry"]
+fn refund_crash_worker() {
+    let path = std::env::var_os("SORNIO_RETAIL_CRASH_DB").unwrap();
+    let mut s = authenticated(std::path::Path::new(&path));
+    let raw: String =
+        s.0.query_row("SELECT request FROM local_retail_pending", [], |r| r.get(0))
+            .unwrap();
+    s.post_retail(serde_json::from_str(&raw).unwrap()).unwrap();
+    panic!("Crash point was not reached");
+}
+
+#[test]
+fn refund_process_death_preserves_atomicity_and_exact_retry() {
+    for phase in ["before_commit", "after_commit"] {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("s.db");
+        let mut s = seed(&path);
+        let sale = sale_req(&s, "sale", &[("cash", 10000)]);
+        perform(&mut s, sale);
+        let request = return_req(&s, "interrupted-return", "sale", 500);
+        s.prepare_retail(request.clone()).unwrap();
+        let business = |s: &Store| {
+            let mut rows = snapshots(s);
+            rows.remove(9);
+            rows
+        };
+        let before = business(&s);
+        drop(s);
+        let exit = std::process::Command::new(std::env::current_exe().unwrap())
+            .args([
+                "--exact",
+                "payments::tests::refund_crash_worker",
+                "--ignored",
+            ])
+            .env("SORNIO_RETAIL_CRASH_DB", &path)
+            .env("SORNIO_RETAIL_CRASH_ID", "interrupted-return")
+            .env("SORNIO_RETAIL_CRASH_PHASE", phase)
+            .status()
+            .unwrap();
+        assert_eq!(
+            exit.code(),
+            Some(if phase == "before_commit" { 88 } else { 89 })
+        );
+        let mut s = authenticated(&path);
+        if phase == "before_commit" {
+            assert_eq!(business(&s), before);
+        }
+        let receipt = s.post_retail(request.clone()).unwrap();
+        let committed = business(&s);
+        assert_eq!(s.post_retail(request.clone()).unwrap(), receipt);
+        assert_eq!(business(&s), committed);
+        let mut changed = request;
+        if let Action::Return { reason, .. } = &mut changed.action {
+            *reason = "Changed retry payload".into();
+        }
+        assert!(matches!(
+            s.post_retail(changed),
+            Err(StoreError::OperationConflict)
+        ));
+        assert_eq!(business(&s), committed);
+        assert_eq!(s.list_products().unwrap()[0].stock_milli, 99500);
+        assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "5000");
+        assert_eq!(
+            s.0.query_row("SELECT COUNT(*) FROM local_retail_returns", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            1
+        );
+        journals_balance(&s);
+    }
+}
+
+#[test]
+fn concurrent_closing_and_sale_have_one_serialized_outcome() {
+    for _ in 0..8 {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("s.db");
+        let mut a = seed(&path);
+        let mut b = authenticated(&path);
+        let day = today(&a.0).unwrap();
+        let close = req(
+            "close",
+            Action::Close {
+                day: day.clone(),
+                username: "owner".into(),
+                through: summary(&a.0, &a.1, &day, "owner").unwrap().through,
+                counted_paise: 0,
+            },
+        );
+        a.prepare_retail(close.clone()).unwrap();
+        let sale = if let Action::Sale { mut invoice, .. } =
+            sale_req(&b, "sale", &[("cash", 10000)]).action
+        {
+            invoice.tender = Tender::Cash;
+            invoice
+        } else {
+            unreachable!()
+        };
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+        let other = barrier.clone();
+        let worker = std::thread::spawn(move || {
+            other.wait();
+            a.post_retail(close)
+        });
+        barrier.wait();
+        let sold = b.post_invoice(sale);
+        let closed = worker.join().unwrap();
+        match (closed, sold) {
+            (Ok(_), Err(StoreError::DayClosed)) => {
+                assert_eq!(b.list_invoices(0).unwrap().len(), 0);
+                assert_eq!(b.list_products().unwrap()[0].stock_milli, 100000);
+            }
+            (Err(StoreError::PaymentConflict), Ok(_)) => {
+                assert_eq!(b.list_invoices(0).unwrap().len(), 1);
+                assert_eq!(b.list_products().unwrap()[0].stock_milli, 99000);
+            }
+            result => panic!("Non-serialized result: {result:?}"),
+        }
+        journals_balance(&b);
+    }
+}

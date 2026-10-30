@@ -1536,7 +1536,11 @@ impl Store {
                     .to_string()
             ],
         )?;
+        #[cfg(test)]
+        crash_point(id, "before_commit");
         tx.commit()?;
+        #[cfg(test)]
+        crash_point(id, "after_commit");
         Ok(receipt)
     }
     pub(crate) fn retail_view(
@@ -1643,6 +1647,17 @@ impl Store {
             }
         }
         Err(StoreError::InvalidPayment)
+    }
+}
+
+// Only subprocess regression tests can activate these points. Neither the
+// hook nor its environment-variable handling exists in production builds.
+#[cfg(test)]
+fn crash_point(id: &str, phase: &str) {
+    if std::env::var("SORNIO_RETAIL_CRASH_ID").ok().as_deref() == Some(id)
+        && std::env::var("SORNIO_RETAIL_CRASH_PHASE").ok().as_deref() == Some(phase)
+    {
+        std::process::exit(if phase == "before_commit" { 88 } else { 89 });
     }
 }
 fn sale_clear(db: &Connection) -> Result<(), StoreError> {

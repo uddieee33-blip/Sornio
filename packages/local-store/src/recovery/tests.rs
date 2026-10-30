@@ -970,3 +970,78 @@ fn integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_fina
     assert!(view.payments.iter().all(|p| !p.externally_verified));
     assert_eq!(w.pending_inventory().unwrap().unwrap().operation_id, "rice");
 }
+
+#[test]
+fn restored_copy_does_not_revoke_an_independent_original_or_merge_operation_histories() {
+    let d = tempfile::tempdir().unwrap();
+    let mut original = seeded(&d.path().join("original.db"));
+    let archive = d.path().join("backup");
+    export(&mut original, &archive, SECRET).unwrap();
+    let original_generation = generation(&original.0).unwrap();
+    let mut copy = Workspace::new(Store::open(&d.path().join("copy.db"), KEY).unwrap());
+    let preview = copy.preview_backup(&archive, "", SECRET, LOGIN).unwrap();
+    copy.restore_backup(
+        &archive,
+        d.path(),
+        "",
+        SECRET,
+        LOGIN,
+        &preview,
+        &preview.confirmation,
+    )
+    .unwrap();
+    copy.unlock(LOGIN).unwrap();
+    let request = sale("same-id-on-independent-copies", 1);
+    let original_receipt = original.post_invoice(request.clone()).unwrap();
+    let mut conflicting = request.clone();
+    conflicting.lines[0].quantity_milli = 2500;
+    let copy_receipt = copy.post_invoice(conflicting).unwrap();
+    assert_eq!(original_receipt.id, copy_receipt.id);
+    assert_ne!(original_receipt.total_paise, copy_receipt.total_paise);
+    assert_eq!(original.post_invoice(request).unwrap(), original_receipt);
+    assert_eq!(generation(&original.0).unwrap(), original_generation);
+    assert_ne!(
+        generation(&copy.into_recovery_store().0).unwrap(),
+        original_generation
+    );
+    // This passing test demonstrates a limitation, NOT distributed exactly-once:
+    // separate files remain separate authorities until the LAN fencing protocol exists.
+}
+
+#[test]
+fn duplicate_restore_with_old_preview_cannot_replace_the_workspace_twice() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live.db"));
+    let archive = d.path().join("backup");
+    export(&mut s, &archive, SECRET).unwrap();
+    let p = preview(&mut s, &archive, SECRET, LOGIN).unwrap();
+    restore(
+        &mut s,
+        &archive,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &p,
+        &p.confirmation,
+    )
+    .unwrap();
+    let mut w = Workspace::new(s);
+    w.unlock(LOGIN).unwrap();
+    let mut s = w.into_recovery_store();
+    let before = digest(&s.0).unwrap();
+    let epoch = generation(&s.0).unwrap();
+    assert!(matches!(
+        restore(
+            &mut s,
+            &archive,
+            d.path(),
+            SECRET,
+            LOGIN,
+            &p,
+            &p.confirmation
+        ),
+        Err(StoreError::RecoveryChanged)
+    ));
+    assert_eq!(digest(&s.0).unwrap(), before);
+    assert_eq!(generation(&s.0).unwrap(), epoch);
+}
