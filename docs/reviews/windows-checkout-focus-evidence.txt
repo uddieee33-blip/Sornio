@@ -1,0 +1,129 @@
+Checkout focus and print-test synchronization evidence — 30 October 2026
+Initial PR130 head: e3bc4d999928c1aa85e64e618f87cc573f77207a
+Main: 97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6
+Production focus fix/test/workflow: 82a6ef3dd85bc0bdefa54bdfe1b55a34d9ef2f55
+Customer-test synchronization: 59fcaf73aae634330c4c727cf517a2bc25da64e1
+Environment: Ubuntu 24.04.3, Node 24.22.1, Playwright 1.62.1, Chrome for Testing 156.0.8078.73.
+No Rust/schema/financial native code changed. Its retained evidence at e3bc4d99 is 174 passes per native profile, not a new native run on this increment.
+Commands:
+ npm run build --prefix apps/desktop
+ node_modules/.bin/eslint apps/desktop/src/CheckoutPanel.tsx apps/desktop/check-focus.cjs
+ node_modules/.bin/eslint apps/desktop/check-customers.cjs
+ git diff --check
+All exited 0. ESLint emitted the existing Next pages-directory configuration notice; this task changes the Vite desktop tree.
+Browser command for each NAME:
+ NODE_PATH=/tmp/sornio-browser-tools/node_modules SORNIO_REVIEW_BRIDGE=<repo>/packages/local-store/target/debug/examples/cashier_review_bridge
+ node <repo>/apps/desktop/check-NAME.cjs http://127.0.0.1:1420 /tmp/sornio-chrome/chrome-headless-shell-linux64/chrome-headless-shell <capture-path>
+The native bridge binary from the prior checkpoint was reused; native source hashes remain unchanged. Each case uses synthetic data. Vite/tests share one command namespace.
+The initial focus case exited 1 as expected; the fixed case exited 0. The broad browser batch had 11 successes and 1 customer-test timing failure.
+After synchronizing that test with real print completion, targeted customers and statement-print both exited 0. All 12 distinct suites now have passing results for the relevant final code; this does not erase the retained initial failure or claim a single uninterrupted all-green batch.
+Two suites (ui/inventory-refresh) mock IPC. Ten use the native Workspace/SQLCipher bridge, with synthetic delay/print transport where stated. No Windows/Tauri/physical printer acceptance is claimed.
+
+Final source Git blob hashes:
+apps/desktop/src/CheckoutPanel.tsx fc3e65414259d582560b9c9e20987a64268f1bb4
+apps/desktop/check-focus.cjs b5eaf67b54893fad20593f68974af765e2ff401f
+apps/desktop/check-customers.cjs 18fb0c48b91aa88c6f04fce8606515fa4b4fa404
+.github/workflows/workspace-browser.yml b9c94bba54f7d4f8cb204e26e30c2bd54da22fa3
+Native bridge executable SHA256: f64ee5ad5a6aabd067421d85938e4b61c57c092214955fd37dc4a8138d7a6c78
+
+=== focus-before.log ===
+Delayed checkout readiness: {"activeId":"checkout-search","note":"Original note","search":" + intended edit","saveDisabled":true}
+AssertionError [ERR_ASSERTION]: checkout readiness stole focus from an active editor
++ actual - expected
+
++ 'checkout-search'
+- 'workspace-note'
+
+    at /workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-focus.cjs:60:12 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'checkout-search',
+  expected: 'workspace-note',
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+=== focus-after.log ===
+Delayed checkout readiness: {"activeId":"workspace-note","note":"Original note + intended edit","search":"","saveDisabled":false}
+Native focus integration passed: delayed checkout preserves active typing and save, explicit cashier refresh/F2 focus, no invoice created.
+
+=== focus-frontend.log ===
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> @sornio/desktop@0.3.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 38 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                      0.42 kB │ gzip:  0.30 kB
+dist/assets/icon-192-BC1gZTvk.png   49.06 kB
+dist/assets/index-VWOl3ERB.css      11.99 kB │ gzip:  3.33 kB
+dist/assets/index-CeESR5gf.js      329.03 kB │ gzip: 97.68 kB
+
+✓ built in 237ms
+
+=== focus-lint.log ===
+Pages directory cannot be found at /workspace/scratch/da8cf33c45c7/sornio/pages or /workspace/scratch/da8cf33c45c7/sornio/src/pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+
+=== focus-customer-lint.log ===
+Pages directory cannot be found at /workspace/scratch/da8cf33c45c7/sornio/pages or /workspace/scratch/da8cf33c45c7/sornio/src/pages. If using a custom path, please configure with the `no-html-link-for-pages` rule in your eslint config file.
+
+=== focus-suite-focus.log ===
+Delayed checkout readiness: {"activeId":"workspace-note","note":"Original note + intended edit","search":"","saveDisabled":false}
+Native focus integration passed: delayed checkout preserves active typing and save, explicit cashier refresh/F2 focus, no invoice created.
+
+=== focus-suite-ui.log ===
+Desktop mocked-IPC UI checks passed: browser guard, setup, mismatch, save/restore, dirty lock guard, failed lock, lock/unlock, wrong password, stale-save recovery, attempt-limit error, fractional stock, retry deduplication, negative/stale stock refusal, committed-write/read-failure handling and responsive light/dark access. Native acceptance remains separate.
+
+=== focus-suite-inventory-refresh.log ===
+Inventory refresh regression passed: committed reply loss, cross-panel receipt recovery, acknowledgement clears old delivery fields, one stock effect. Mocked IPC; no Windows/native claim.
+
+=== focus-suite-checkout.log ===
+Checkout integration passed: real SQLCipher/Workspace; stale background read fencing; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI.
+
+=== focus-suite-receipts.log ===
+{"keyboardReviewAndCommit4xCpuMs":375,"printLayouts":3,"extraFinancialPostsFromPrinting":0}
+Receipt React/native integration passed: keyboard exact-code/repeat guards; native invoice lookup; three PDF/CSS layouts; Punjabi font; original snapshot/history; printer refusal/retry; cancelled async print isolation; cashier ownership; revocation during font loading; unchanged financial state and empty browser storage. Not physical Windows printer acceptance.
+
+=== focus-suite-authorization.log ===
+Native authorization UI integration passed: owner provisioning, all staff roles, cashier sale, raw IPC denials, scope mismatch, native report redaction, role-change session revocation, disabled login refusal and append-only audit attribution.
+
+=== focus-suite-credentials.log ===
+Credential React/native integration passed: dirty-work guard, owner fresh-auth staff reset, revoked second session, cashier reset denial, mismatch refusal, lost committed reply/relogin recovery, owner/staff rotation, cleared secret inputs and empty browser storage.
+
+=== focus-suite-customers.log ===
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+0 !== 1
+
+    at /workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-customers.cjs:136:12 {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 0,
+  expected: 1,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+=== focus-suite-statement-print.log ===
+{"fullStatementRows":105,"closingBalancePaise":"10605","additionalRendererFinancialPosts":0,"printerCalls":5}
+Customer statement React/native printing passed: blank-print regression; all 105 rows beyond UI pagination; escaped markup; A4 PDF/repeated header CSS; printer refusal/retry; unchanged account history/stock/balances/billing outbox; before/during-font snapshot changes refused; one shared receipt/statement job; disabled cashier denied after font loading. Not Windows or physical printer acceptance.
+
+=== focus-suite-retail.log ===
+Retail React/native integration passed: original invoice split checkout, unverified UPI/card separation, wrong statement amount/duplicate reference refusal, exact lost sale/match retries, interrupted partial return recovery, cumulative tax/stock, pending versus manually matched refunds, CSV, cash variance/locking, closed-day sale refusal and native role/business isolation.
+
+=== focus-suite-inventory-recovery.log ===
+Inventory React/native recovery passed: committed reply loss, native process kill/restart, exact receipt replay, replacement-ID refusal, lost acknowledgement/retry, unlock recovery and unchanged stock.
+
+=== focus-suite-backup.log ===
+Real native backup integration passed: ciphertext, authentication rejection, preview, cleared secrets, explicit restore, financial preservation and forced restart.
+
+=== focus-customer-fixed-customers.log ===
+Customer React/native integration passed: profile/phone checkout lookup, atomic credit sale, partial/full cash repayment, lost prepare/post replies, exact retry, process restart, overpayment refusal, owner correction/reversal, overdue filter, escaped full statement/print, limit rollback, exact link retry/retained invoice, native permission and business isolation.
+
+=== focus-customer-fixed-statement-print.log ===
+{"fullStatementRows":105,"closingBalancePaise":"10605","additionalRendererFinancialPosts":0,"printerCalls":5}
+Customer statement React/native printing passed: blank-print regression; all 105 rows beyond UI pagination; escaped markup; A4 PDF/repeated header CSS; printer refusal/retry; unchanged account history/stock/balances/billing outbox; before/during-font snapshot changes refused; one shared receipt/statement job; disabled cashier denied after font loading. Not Windows or physical printer acceptance.
