@@ -128,12 +128,24 @@ async function stopBridge() {
     await entry('reversal', '', 'Duplicate opening corrected', opening); await button('Confirm credit entry').click(); await receipt(); await acknowledge();
     await button('Prepare full customer statement').click(); await button('Print customer statement').waitFor();
     await ready(); // A same-snapshot refresh must preserve the prepared document.
+    // A visible preview does not mean asynchronous authorization/font loading
+    // has reached the print call. Hold fonts to verify that ordering explicitly.
+    await page.evaluate(() => {
+      const ready = document.fonts.ready;
+      const gate = new Promise(resolve => { globalThis.releaseStatementFonts = resolve; });
+      Object.defineProperty(document.fonts, 'ready', { configurable: true, value: Promise.all([ready, gate]) });
+    });
     await button('Print customer statement').click();
     const printable = page.getByRole('region', { name: 'Printable customer statement', exact: true });
     assert.equal(await printable.locator('tbody tr').count(), 5);
     assert.equal(await printable.locator('script, img, iframe').count(), 0);
     await printable.getByText('Asha <shop>', { exact: true }).waitFor();
+    await page.locator('[data-sornio-print-kind="statement"]').waitFor({ state: 'attached' });
+    assert.equal(await page.evaluate(() => globalThis.printCount), 0, 'Print must wait for fonts and its second native authorization');
+    await page.evaluate(() => { globalThis.releaseStatementFonts(); });
+    await panel.getByText(/Check the printer or PDF output/).waitFor();
     assert.equal(await page.evaluate(() => globalThis.printCount), 1);
+    await page.evaluate(() => { delete document.fonts.ready; delete globalThis.releaseStatementFonts; });
     await page.emulateMedia({ media: 'print' });
     assert.equal(await page.locator('.customer-statement-print:visible').count(), 1, 'Prepared customer statement must not be blank in print media');
     await page.emulateMedia({ media: 'screen' });
