@@ -356,12 +356,20 @@ pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
     }
     Ok(())
 }
-pub(crate) fn session(db: &Connection, scope: Scope, p: &Principal) -> Result<Session, StoreError> {
+/// Capture the recovery generation in the transaction that authenticated or
+/// provisioned this principal. Reading it after commit could adopt a concurrent
+/// restore's generation and grant pre-restore authentication fresh authority.
+/// Publish the returned session only after this transaction commits successfully.
+pub(crate) fn session(
+    tx: &Transaction<'_>,
+    scope: Scope,
+    p: &Principal,
+) -> Result<Session, StoreError> {
     Ok(Session {
         scope,
         actor_id: p.id.clone(),
         revision: p.revision,
         expires: Instant::now() + Duration::from_secs(8 * 60 * 60),
-        generation: crate::recovery::generation(db)?,
+        generation: crate::recovery::generation(tx)?,
     })
 }

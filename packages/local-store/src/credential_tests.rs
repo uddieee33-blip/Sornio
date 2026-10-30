@@ -3,6 +3,98 @@ use crate::identity::{Role, StaffDetails};
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const OLD: &str = "Synthetic original password";
 const NEW: &str = "Synthetic replacement password";
+thread_local! {
+    // One-shot, thread-local scheduling seam; absent from production builds.
+    static AFTER_AUTH_COMMIT: std::cell::RefCell<Option<Box<dyn FnOnce()>>> =
+        const { std::cell::RefCell::new(None) };
+}
+pub(super) fn after_auth_commit() {
+    let callback = AFTER_AUTH_COMMIT.with(|slot| slot.borrow_mut().take());
+    if let Some(callback) = callback {
+        callback();
+    }
+}
+
+fn restore_during_session_publication(provisioning: bool) {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = if provisioning {
+        Workspace::new(Store::open(&path, KEY).unwrap())
+    } else {
+        let mut w = owner(&path);
+        w.lock();
+        w
+    };
+    let authenticated_generation = crate::recovery::generation(&w.store.0).unwrap();
+    let safety = d.path().to_path_buf();
+    let archive = d.path().join("before-restore.sorniobackup");
+    // Use a real second connection and the supported encrypted restore path.
+    // The Owner's identity/revision/password are unchanged, so only the
+    // generation fence can invalidate the earlier authentication.
+    AFTER_AUTH_COMMIT.with(|slot| {
+        *slot.borrow_mut() = Some(Box::new(move || {
+            const RECOVERY: &str = "Independent synthetic recovery secret";
+            let mut restorer = Workspace::new(Store::open(&path, KEY).unwrap());
+            restorer.login("owner", OLD).unwrap();
+            restorer.export_backup(&archive, OLD, RECOVERY).unwrap();
+            let preview = restorer
+                .preview_backup(&archive, OLD, RECOVERY, OLD)
+                .unwrap();
+            restorer
+                .restore_backup(
+                    &archive,
+                    &safety,
+                    OLD,
+                    RECOVERY,
+                    OLD,
+                    &preview,
+                    &preview.confirmation,
+                )
+                .unwrap();
+        }));
+    });
+    let status = if provisioning {
+        w.setup(OLD)
+    } else {
+        w.login("owner", OLD)
+    }
+    .unwrap();
+    assert_ne!(
+        crate::recovery::generation(&w.store.0).unwrap(),
+        authenticated_generation
+    );
+    assert!(
+        !status.unlocked,
+        "pre-restore authentication must remain fenced (provisioning={provisioning})"
+    );
+    assert!(matches!(
+        w.require(Permission::Settings),
+        Err(StoreError::Locked)
+    ));
+    assert!(matches!(w.load(), Err(StoreError::Locked)));
+    assert!(matches!(
+        w.save(
+            0,
+            Draft {
+                business_name: "Must not be saved".into(),
+                business_type: "general".into(),
+                note: "Pre-restore authority".into(),
+            }
+        ),
+        Err(StoreError::Locked)
+    ));
+    w.login("owner", OLD).unwrap();
+    assert!(w.require(Permission::Settings).is_ok());
+    assert!(w.load().unwrap().draft.is_none());
+}
+#[test]
+fn restore_between_login_commit_and_session_publication_cannot_unlock() {
+    restore_during_session_publication(false);
+}
+#[test]
+fn restore_between_provision_commit_and_session_publication_cannot_unlock() {
+    restore_during_session_publication(true);
+}
 fn owner(path: &std::path::Path) -> Workspace {
     let mut w = Workspace::new(Store::open(path, KEY).unwrap());
     w.setup(OLD).unwrap();

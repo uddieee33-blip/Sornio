@@ -255,8 +255,11 @@ impl Workspace {
         }
         let p = identity::principal(&tx, &id)?;
         identity::audit(&tx, &scope, Some(&p), "owner.provisioned", Some(&id))?;
+        let session = identity::session(&tx, scope, &p)?;
         tx.commit()?;
-        self.store.1 = Some(identity::session(&self.store.0, scope, &p)?);
+        #[cfg(test)]
+        credential_tests::after_auth_commit();
+        self.store.1 = Some(session);
         self.last_activity.set(Instant::now());
         self.status()
     }
@@ -328,8 +331,11 @@ impl Workspace {
                 return Err(StoreError::AccessUnavailable);
             }
             identity::audit(&tx, &scope, Some(&p), "session.unlocked", None)?;
+            let session = identity::session(&tx, scope, &p)?;
             tx.commit()?;
-            self.store.1 = Some(identity::session(&self.store.0, scope, &p)?);
+            #[cfg(test)]
+            credential_tests::after_auth_commit();
+            self.store.1 = Some(session);
             self.last_activity.set(Instant::now());
             self.status()
         } else {
