@@ -3,6 +3,8 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -92,6 +94,25 @@ class WindowsEvidenceContractTests(unittest.TestCase):
         (self.installer_dir / 'another-setup.exe').write_bytes(b'extra')
         with self.assertRaisesRegex(ValueError, 'exactly one'):
             self.run_check()
+
+    def test_cli_writes_blocked_pilot_evidence_only_after_success(self):
+        command = [sys.executable, str(Path(__file__).with_name('check-windows-evidence.py')),
+                   '--installer-dir', str(self.installer_dir), '--evidence-dir', str(self.evidence)]
+        run = subprocess.run(command, capture_output=True, text=True)
+        self.assertEqual(run.returncode, 0, run.stderr)
+        evidence = json.loads((self.evidence / 'windows-evidence-verification.json').read_text())
+        self.assertEqual(evidence['consumerPilotDecision'], 'blocked')
+        self.assertEqual(evidence['windowsEngineeringEvidence'], 'passed')
+        self.assertIn('BLOCKED', run.stdout)
+
+    def test_cli_failure_does_not_publish_success_evidence(self):
+        (self.evidence / 'windows-local-cash-receipt.png').unlink()
+        command = [sys.executable, str(Path(__file__).with_name('check-windows-evidence.py')),
+                   '--installer-dir', str(self.installer_dir), '--evidence-dir', str(self.evidence)]
+        run = subprocess.run(command, capture_output=True, text=True)
+        self.assertNotEqual(run.returncode, 0)
+        self.assertFalse((self.evidence / 'windows-evidence-verification.json').exists())
+        self.assertNotIn('BLOCKED.', run.stdout)
 
 
 if __name__ == '__main__':
