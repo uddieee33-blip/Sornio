@@ -80,7 +80,7 @@ Absent and verified absent, not assumed: `rustc`/`cargo` (no toolchain; `crates.
 | Installer-preservation helper | `python3 -m unittest … test_install_data.py` | 4 tests PASS | [installer-helper.log](independent-audit-2026-10-31/installer-helper.log) |
 | SQL/schema replay + attacks + upgrade | `npm run verify:local-schema` (new) | **92 checks PASS** | [schema.log](independent-audit-2026-10-31/schema.log) |
 | Native ↔ renderer contract | `npm run verify:desktop-contract` (new) | **25 checks PASS** | [desktop-contract.log](independent-audit-2026-10-31/desktop-contract.log) |
-| Invoice money parity | `npm run verify:money` (new) | **10 checks PASS**, 4,820 randomised invoices | [money.log](independent-audit-2026-10-31/money.log) |
+| Invoice money parity | `npm run verify:money` (new) | **11 checks PASS**, 4,820 randomised invoices | [money.log](independent-audit-2026-10-31/money.log) |
 | Rust unit/integration tests | `cargo test` | **BLOCKED** — no toolchain, registries unreachable | — |
 | SQLCipher open/encrypt/restart | — | **BLOCKED** — no SQLCipher library here | — |
 | Tauri/IPC/browser end-to-end | — | **BLOCKED** — no WebView2, no browser socket | — |
@@ -121,6 +121,8 @@ Four lists have to agree or a button silently fails, and none of them is compile
 The cashier sees a total before the sale is posted, computed in JavaScript, then the native writer recomputes it in Rust. Divergence means the customer is quoted one amount and charged another.
 
 4,820 deterministic random invoices (1–5 lines, magnitudes spanning a single packet to the full ₹90,00,00,00,000 ceiling, tax 0–100%) were generated and compared against a BigInt transcription of `billing::line_total` / `tax_total`, including refusal parity: the renderer may only refuse where the native writer refuses (zero subtotal, overflow). Plus half-paise rounding edges, per-invoice (not per-line) tax rounding, 8 accepted and 21 refused `parseFixedDecimal` forms, `money()` exactness beyond 2^53 (e.g. `'9007199254740993'` → `₹9,00,71,99,25,47,409.93`), and Indian digit grouping.
+
+Finally, because `CheckoutPanel` rebuilds a recovered pending sale's split by dividing stored paise by 100 and putting the result back into the amount fields, the recovered figure must re-parse to the same paise: 200,006 values were round-tripped through `parseFixedDecimal`, all exact, none in exponent form.
 
 The script re-reads the Rust rounding constants from `billing.rs` and fails if native rounding changes without this test being revisited. **Result: zero divergence, no unsafe integers, no overflow accepted.**
 

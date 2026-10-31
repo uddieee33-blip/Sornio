@@ -200,6 +200,25 @@ try {
   assert.ok(!/e\+/.test(quantity(9_000_000_000_000)), 'quantity() never renders exponent notation');
   check(true, 'quantity() renders whole, fractional and large millis exactly');
 
+  // --- recovery display: paise -> the typed field a cashier sees again ------
+  // CheckoutPanel restores a pending sale's split by dividing stored paise by
+  // 100 and putting the result back into the amount inputs. A float artefact
+  // there would show the cashier a different figure than the saved request.
+  // The invariant that matters is a round trip through the same parser the
+  // input uses: what the cashier is shown must re-parse to the saved paise.
+  let recoveryChecked = 0;
+  const roundTrips = (paise) => {
+    const shown = String(paise / 100);
+    if (/e/i.test(shown)) throw new Error(`recovered amount ${paise} renders in exponent form: ${shown}`);
+    if (parseFixedDecimal(shown, 2) !== paise) {
+      throw new Error(`recovered amount ${paise} shows as ${shown} and re-parses to ${parseFixedDecimal(shown, 2)}`);
+    }
+    recoveryChecked += 1;
+  };
+  for (let paise = 0; paise <= 200_000; paise += 1) roundTrips(paise);
+  for (const paise of [999_999, 1_234_567, 90_000_000_000, 899_999_999_999, 4_499_999_999_999]) roundTrips(paise);
+  check(true, `recovered split amounts re-parse to the saved paise for ${recoveryChecked} values`);
+
   // --- the shared fixtures still agree with this reference -----------------
   const fixtures = JSON.parse(readFileSync('packages/business-domain/fixtures/native-invoices.json', 'utf8'));
   for (const fixture of fixtures) {
