@@ -78,6 +78,12 @@ try {
     runtimeAbsentOfflineInstall = 'untested'
     physicalPrinterScannerPowerLoss = 'untested'
   } | ConvertTo-Json | Set-Content (Join-Path $evidence 'installer-lifecycle-result.json')
+  # Mark this review completed only after all native, uninstall and reinstall checks finish.
+  # Any earlier exception leaves installer-artifact.json at started-not-passed.
+  $artifactPath = Join-Path $evidence 'installer-artifact.json'
+  $artifactRecord = Get-Content -LiteralPath $artifactPath -Raw | ConvertFrom-Json
+  $artifactRecord.execution = 'passed'
+  $artifactRecord | ConvertTo-Json | Set-Content -LiteralPath $artifactPath
 } finally {
   Get-NetFirewallRule -Name "$prefix-*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
   Remove-Item Env:SORNIO_REVIEW_EXE -ErrorAction SilentlyContinue
