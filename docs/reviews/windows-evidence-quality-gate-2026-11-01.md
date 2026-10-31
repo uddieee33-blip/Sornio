@@ -27,7 +27,7 @@ The validator writes dist/native-review/windows-evidence-verification.json with 
 
 ## Executed local verification
 
-The new nine Python synthetic regression tests passed on the authoring environment. They validate the evidence checker itself using a fake installer, generated images, and dummy lifecycle metadata. **They do not execute a Windows installer, native Rust tests or any shop workflow.**
+The new eleven Python synthetic regression tests passed on the authoring environment. They validate the evidence checker itself using a fake installer, generated images, and dummy lifecycle metadata. Two additional tests exercise the command-line entry point, require a blocked pilot decision on success and ensure a failure cannot generate a success JSON artifact. **They do not execute a Windows installer, native Rust tests or any shop workflow.**
 
 Reproduce:
 
