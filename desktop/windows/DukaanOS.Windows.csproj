@@ -6,11 +6,15 @@
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
-    <AssemblyName>Sornio</AssemblyName>
-    <ApplicationTitle>Sornio</ApplicationTitle>
+    <AssemblyName>SornioHostedPreview</AssemblyName>
+    <ApplicationTitle>Sornio Hosted Preview (online only)</ApplicationTitle>
     <ApplicationIcon>Sornio.ico</ApplicationIcon>
     <Version>0.1.0</Version>
   </PropertyGroup>
+  <!-- This is NOT the Sornio product. It is an online-only WebView2 shell around the
+       hosted web app, kept for browser-side review. The shipped product is the
+       offline Tauri application in apps/desktop (see docs/windows-product-entry-point.md).
+       Its binary name must never collide with the product executable. -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.4314.35" />
   </ItemGroup>

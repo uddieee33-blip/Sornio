@@ -1,0 +1,12 @@
+# Environment
+
+Linux 6.1.158+ x86_64
+v22.22.3
+10.9.8
+Python 3.11.2
+sqlite 3.40.1
+
+rustc/cargo: absent (crates.io + static.rust-lang.org unreachable)
+SQLCipher: absent
+dotnet: absent
+Windows: absent
