@@ -62,6 +62,21 @@ MIGRATION_ORDER = [
     "lan_authority",
 ]
 
+# Schema version each module leaves behind, read off lib.rs's `if version < N`
+# guards. Used to upgrade a frozen legacy database without guessing.
+MODULE_VERSION = {
+    "workspace-v1-v3": 3,
+    "catalog": 4,
+    "billing": 5,
+    "checkout": 6,
+    "identity": 7,
+    "customers": 8,
+    "payments": 9,
+    "inventory_recovery": 10,
+    "recovery": 11,
+    "lan_authority": 12,
+}
+
 failures: list[str] = []
 checks = 0
 
@@ -221,12 +236,14 @@ def const_literals(source: str) -> dict[str, str]:
     return out
 
 
-def load_migrations() -> list[str]:
+def load_migrations() -> tuple[list[tuple[str, list[str]]], int]:
+    """Migration groups in execution order, plus the crate schema version."""
     lib = (SRC / "lib.rs").read_text()
     version = int(re.search(r"SCHEMA_VERSION: i64 = (\d+)", lib).group(1))
-    applied: list[str] = []
+    groups: list[tuple[str, list[str]]] = []
 
     # Schema v1 and v2 are inline batch strings inside Store::open.
+    applied: list[str] = []
     start, end = module_body(lib, "open_secret")
     for literal, is_include, _ in rust_string_literals(lib, start, end):
         if not is_include and "CREATE TABLE workspace_draft" in literal:
@@ -242,7 +259,9 @@ def load_migrations() -> list[str]:
         " retry_after INTEGER NOT NULL DEFAULT 0 CHECK (retry_after >= 0));",
     ]
 
+    groups.append(("workspace-v1-v3", applied))
     for module in MIGRATION_ORDER:
+        applied = []
         source = (SRC / f"{module}.rs").read_text()
         start, end = module_body(source, "migrate")
         body = source[start:end]
@@ -258,11 +277,12 @@ def load_migrations() -> list[str]:
                 continue
             for expanded in expand_loops(body, offset - start, literal):
                 applied += ddl_from_sql(expanded)
+        groups.append((module, applied))
 
     # Guard against MIGRATION_ORDER silently drifting from lib.rs.
     called = re.findall(r"(\w+)::migrate\(&tx\)", lib)
     check(called == MIGRATION_ORDER, f"migration order matches lib.rs ({len(called)} modules)")
-    return applied, version
+    return groups, version
 
 
 def fingerprint(db: sqlite3.Connection) -> dict:
@@ -730,9 +750,93 @@ def invariants(db: sqlite3.Connection) -> None:
     check(not stock_rows, f"every stock movement belongs to an invoice {stock_rows}")
 
 
+def upgrade_from_legacy(groups, version: int) -> None:
+    """Upgrade a frozen main-branch (schema v4) database to the current schema.
+
+    A migration that assumes an empty database passes on a fresh install and
+    fails in a shop that already has stock and drafts. The frozen fixture is the
+    same one the Rust upgrade tests load, so this exercises the real legacy
+    shape rather than a reconstruction.
+    """
+    legacy = CRATE / "fixtures" / "pr120-v4-schema.sql"
+    db = sqlite3.connect(":memory:")
+    db.execute("PRAGMA foreign_keys=ON")
+    db.execute("PRAGMA recursive_triggers=ON")
+    db.executescript(legacy.read_text())
+    check(
+        db.execute("PRAGMA user_version").fetchone()[0] == 4,
+        "frozen main-branch fixture really is schema 4",
+    )
+
+    # Ordinary shop data that must survive the upgrade untouched.
+    db.execute(
+        "INSERT INTO local_products(id,name,sku,unit,unit_price_paise,stock_milli,revision)"
+        " VALUES('legacy-rice','Legacy rice','RICE','kg',4250,17500,3)"
+    )
+    db.execute(
+        "INSERT INTO workspace_draft VALUES(1,7,?)",
+        (json.dumps({"businessName": "Legacy shop", "businessType": "kirana", "note": "keep"}),),
+    )
+    db.commit()
+
+    from_version = db.execute("PRAGMA user_version").fetchone()[0]
+    pending = [
+        (label, group)
+        for label, group in groups
+        if MODULE_VERSION[label] > from_version
+    ]
+    check(
+        [label for label, _ in pending] == MIGRATION_ORDER[1:],
+        f"a v4 database needs exactly the remaining migrations {[label for label, _ in pending]}",
+    )
+    for _, group in pending:
+        for statement in group:
+            db.execute(statement)
+    db.commit()
+
+    check(
+        db.execute("PRAGMA user_version").fetchone()[0] == version,
+        f"legacy v4 database upgrades to schema {version}",
+    )
+    product = db.execute(
+        "SELECT name,stock_milli,revision FROM local_products WHERE id='legacy-rice'"
+    ).fetchone()
+    check(product == ("Legacy rice", 17500, 3), f"legacy stock survives the upgrade {product}")
+    draft = db.execute("SELECT revision,payload FROM workspace_draft WHERE singleton=1").fetchone()
+    check(draft is not None and draft[0] == 7 and "Legacy shop" in draft[1], "legacy draft survives the upgrade")
+    check(db.execute("PRAGMA foreign_key_check").fetchall() == [], "upgraded database has no dangling references")
+
+    # The upgraded database must accept a normal sale, i.e. it is operational
+    # and not merely structurally present.
+    db.execute(
+        "INSERT INTO local_invoices(sequence,id,request,payload) VALUES(1,'legacy-sale-1','{}','{}')"
+    )
+    db.execute("INSERT INTO local_invoice_stock VALUES('legacy-sale-1','legacy-rice',500,17500,17000)")
+    db.execute("UPDATE local_products SET stock_milli=17000,revision=4 WHERE id='legacy-rice'")
+    db.execute("INSERT INTO local_billing_ledger VALUES('legacy-sale-1','cash',NULL,1116)")
+    db.execute("INSERT INTO local_billing_ledger VALUES('legacy-sale-1','revenue',NULL,-1063)")
+    db.execute("INSERT INTO local_billing_ledger VALUES('legacy-sale-1','tax_payable',NULL,-53)")
+    db.commit()
+    check(True, "an upgraded database accepts a posted sale and stock movement")
+    must_fail(
+        db,
+        "an upgraded database still refuses to rewrite the ledger",
+        "UPDATE local_billing_ledger SET amount_paise=1",
+    )
+
+    # The upgraded schema must match the fresh-install schema. A column, trigger
+    # or index that only exists on one path is a real upgrade defect.
+    fresh = build([statement for _, group in groups for statement in group])
+    now, then = fingerprint(db), fingerprint(fresh)
+    check(now["tables"] == then["tables"], f"upgraded tables match a fresh install {set(now['tables']) ^ set(then['tables'])}")
+    check(now["triggers"] == then["triggers"], "upgraded triggers match a fresh install")
+    check(now["indexes"] == then["indexes"], "upgraded indexes match a fresh install")
+
+
 def main() -> int:
     write = "--write" in sys.argv
-    statements, version = load_migrations()
+    groups, version = load_migrations()
+    statements = [statement for _, group in groups for statement in group]
     check(len(statements) > 60, f"extracted DDL statements from source ({len(statements)})")
 
     db = build(statements)
@@ -779,6 +883,9 @@ def main() -> int:
             print(f"     note: new tables since fixture: {added}")
     else:
         print("     no fixture yet; run with --write once and commit it")
+
+    print("\n-- upgrade from the frozen main-branch database --")
+    upgrade_from_legacy(groups, version)
 
     print("\n-- database guard attacks --")
     db2 = build(statements)
