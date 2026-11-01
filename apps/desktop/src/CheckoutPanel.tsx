@@ -28,7 +28,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
   const [tax, setTax] = useState('0');
   const [tender, setTender] = useState<'cash' | 'credit' | 'retail'>('cash');
   const [customer, setCustomer] = useState('');
-  const [paymentAmounts, setPaymentAmounts] = useState({ cash: '', upi: '', card: '' });
+  const [paymentAmounts, setPaymentAmounts] = useState({ cash: '', upi: '', card: '', credit: '' });
   const [paymentReferences, setPaymentReferences] = useState({ upi: '', card: '' });
   const retailRef = useRef<RetailRequest | null>(null);
   const [pending, setPending] = useState<CheckoutRequest | null>(null);
@@ -67,7 +67,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
     if (state.checkout) {
       const { request, invoice: saved, retailRequest } = state.checkout;
       retailRef.current = retailRequest ?? null;
-      if (retailRequest?.action.kind === 'sale') { const parts = retailRequest.action.payments; setPaymentAmounts({ cash: String(parts.filter(p => p.method === 'cash').reduce((a,p) => a + p.amountPaise, 0) / 100), upi: String(parts.filter(p => p.method === 'upi').reduce((a,p) => a + p.amountPaise, 0) / 100), card: String(parts.filter(p => p.method === 'card').reduce((a,p) => a + p.amountPaise, 0) / 100) }); }
+      if (retailRequest?.action.kind === 'sale') { const parts = retailRequest.action.payments; setPaymentAmounts({ cash: String(parts.filter(p => p.method === 'cash').reduce((a,p) => a + p.amountPaise, 0) / 100), upi: String(parts.filter(p => p.method === 'upi').reduce((a,p) => a + p.amountPaise, 0) / 100), card: String(parts.filter(p => p.method === 'card').reduce((a,p) => a + p.amountPaise, 0) / 100), credit: String(parts.filter(p => p.method === 'credit').reduce((a,p) => a + p.amountPaise, 0) / 100) }); }
       remember(request); setInvoice(saved); setRefused(false); setReview(false);
       setCart(request.lines.map(line => ({ productId: line.productId, typedQuantity: quantity(line.quantityMilli) })));
       setTax(String(request.taxBasisPoints / 100)); setTender(request.tender); setCustomer(request.customerId ?? '');
@@ -145,7 +145,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
       // for a timeout/reply loss, including after a window/app restart.
       let saved: Invoice;
       if (request.tender === 'retail') {
-        if (!retailRef.current) retailRef.current = { operationId: request.operationId, action: { kind: 'sale', invoice: request, payments: (['cash', 'upi', 'card'] as const).flatMap(method => { const amount = parseFixedDecimal(paymentAmounts[method] || '0', 2); return amount && amount > 0 ? [{ id: crypto.randomUUID(), method, amountPaise: amount, reference: method === 'cash' ? '' : paymentReferences[method] }] : []; }) } };
+        if (!retailRef.current) retailRef.current = { operationId: request.operationId, action: { kind: 'sale', invoice: request, payments: (['cash', 'upi', 'card', 'credit'] as const).flatMap(method => { const amount = parseFixedDecimal(paymentAmounts[method] || '0', 2); return amount && amount > 0 ? [{ id: crypto.randomUUID(), method, amountPaise: amount, reference: method === 'cash' || method === 'credit' ? '' : paymentReferences[method] }] : []; }) } };
         await invoke('prepare_local_retail', { r: retailRef.current });
         const receipt = await invoke<RetailReceipt>('post_local_retail', { r: retailRef.current });
         if (!receipt.data.invoice) throw new Error('The saved invoice could not be read. Retry the same sale.');
@@ -186,7 +186,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
       await invoke(pending.tender === 'retail' ? 'clear_local_retail' : 'clear_local_checkout', { operationId: pending.operationId, saved });
       if (!mounted.current) return;
       remember(null); setInvoice(null); setReview(false); setRefused(false);
-      if (saved) { setPaymentAmounts({ cash: '', upi: '', card: '' }); setPaymentReferences({ upi: '', card: '' }); setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch(''); }
+      if (saved) { setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch(''); }
       const state = await invoke<CashierState>('read_cashier_state');
       if (mounted.current) { apply(state); setFailed(false); if (pending.tender === 'retail') onPosted(); }
     } catch (error: unknown) {
@@ -209,7 +209,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
       });
       if (taxBasisPoints === null) throw new Error('Enter a tax percentage with up to 2 decimals.');
       preview = calculateNativeInvoice(lines, taxBasisPoints);
-      if (tender === 'retail') { const values = Object.values(paymentAmounts).map(v => parseFixedDecimal(v || '0', 2)); if (values.some(v => v === null || v < 0) || values.reduce<number>((n,v) => n + (v ?? 0), 0) !== preview.totalPaise) problem = 'Split payment amounts must equal the invoice total exactly.'; }
+      if (tender === 'retail') { const values = Object.values(paymentAmounts).map(v => parseFixedDecimal(v || '0', 2)); if (values.some(v => v === null || v < 0) || values.reduce<number>((n,v) => n + (v ?? 0), 0) !== preview.totalPaise) problem = 'Split payment amounts must equal the invoice total exactly.'; const credit = parseFixedDecimal(paymentAmounts.credit || '0', 2); if (credit && credit > 0 && (customer.length < 1 || customer.length > 80 || /[^A-Za-z0-9_-]/.test(customer))) problem = 'Enter a customer reference when part of the split is customer credit.'; }
       if (tender === 'credit' && (customer.length < 1 || customer.length > 80 || /[^A-Za-z0-9_-]/.test(customer))) problem = 'Enter a customer reference for credit (letters, numbers, dash or underscore).';
     } catch (error: unknown) {
       const detail = error instanceof Error ? error.message : '';
@@ -243,7 +243,7 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
   function postNew() {
     if (blocked || !preview || problem || taxBasisPoints === null) return;
     const request: CheckoutRequest = {
-      operationId: crypto.randomUUID(), taxBasisPoints, tender, customerId: tender === 'credit' ? customer : null,
+      operationId: crypto.randomUUID(), taxBasisPoints, tender, customerId: tender === 'credit' ? customer : tender === 'retail' && (parseFixedDecimal(paymentAmounts.credit || '0', 2) ?? 0) > 0 ? customer : null,
       lines: cart.map(line => ({ productId: line.productId, expectedRevision: productMap.get(line.productId)!.revision, quantityMilli: parseFixedDecimal(line.typedQuantity, 3)! })),
     };
     try { validateNativeInvoiceRequest(request.tender === 'retail' ? { ...request, tender: 'cash' } : request); } catch { setFailed(true); setMessage('Check the sale items and customer reference.'); return; }
@@ -304,13 +304,13 @@ export function CheckoutPanel({ disabled, refreshToken, customerRefreshToken, on
         })}</ul>
         <div className="checkout-options"><div><label htmlFor="sale-tax">Tax (%)</label><input id="sale-tax" inputMode="decimal" maxLength={8} value={tax} onChange={event => setTax(event.target.value)}/></div>
           <div><label htmlFor="sale-tender">Transaction type</label><select id="sale-tender" value={tender} onChange={event => setTender(event.target.value as 'cash' | 'credit' | 'retail')}><option value="cash">Cash</option><option value="retail">UPI / card / split</option><option value="credit">Credit</option></select></div>
-          {tender === 'credit' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken + refreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">Credit customer reference</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference.</small></div> : null}
+          {tender === 'credit' || tender === 'retail' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken + refreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">{tender === 'credit' ? 'Credit customer reference' : 'Customer reference for a credit split (optional)'}</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference. Required only when part of a split is customer credit.</small></div> : null}
         </div>
-        {tender === 'retail' ? <fieldset><legend>Record retail payment amounts</legend><p>Cash is recorded as received. UPI and card stay pending and unverified. A reference or screenshot does not verify a transfer.</p>{(['cash', 'upi', 'card'] as const).map(method => <div key={method}><label htmlFor={`split-${method}`}>Split {method === 'upi' ? 'UPI' : method} amount (₹)</label><input id={`split-${method}`} inputMode="decimal" maxLength={24} value={paymentAmounts[method]} onChange={e => setPaymentAmounts({ ...paymentAmounts, [method]: e.target.value })}/>{method !== 'cash' ? <><label htmlFor={`split-ref-${method}`}>{method === 'upi' ? 'UPI' : 'Card terminal'} reference (optional, unverified)</label><input id={`split-ref-${method}`} maxLength={80} value={paymentReferences[method]} onChange={e => setPaymentReferences({ ...paymentReferences, [method]: e.target.value })}/></> : null}</div>)}</fieldset> : null}
+        {tender === 'retail' ? <fieldset><legend>Record retail payment amounts</legend><p>Cash is recorded as received. UPI and card stay pending and unverified. A reference or screenshot does not verify a transfer. Customer credit stays outstanding on the customer’s account until repaid.</p>{(['cash', 'upi', 'card', 'credit'] as const).map(method => <div key={method}><label htmlFor={`split-${method}`}>Split {method === 'upi' ? 'UPI' : method === 'credit' ? 'customer credit' : method} amount (₹)</label><input id={`split-${method}`} inputMode="decimal" maxLength={24} value={paymentAmounts[method]} onChange={e => setPaymentAmounts({ ...paymentAmounts, [method]: e.target.value })}/>{method === 'upi' || method === 'card' ? <><label htmlFor={`split-ref-${method}`}>{method === 'upi' ? 'UPI' : 'Card terminal'} reference (optional, unverified)</label><input id={`split-ref-${method}`} maxLength={80} value={paymentReferences[method]} onChange={e => setPaymentReferences({ ...paymentReferences, [method]: e.target.value })}/></> : null}</div>)}</fieldset> : null}
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>
         {preview ? <p className="checkout-total">Subtotal: {money(preview.subtotalPaise)} · Tax: {money(preview.taxPaise)}<br/><output aria-live="polite">Total: {money(preview.totalPaise)}</output></p> : null}
-        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified.'} Save this sale on this PC?</p><button type="button" disabled={disabled || busy} ref={confirmButton} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
+        {review ? <div role="group" aria-label="Confirm sale"><p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified; any customer-credit amount stays outstanding on the customer’s account.'} Save this sale on this PC?</p><button type="button" disabled={disabled || busy} ref={confirmButton} onClick={postNew}>Confirm sale</button><button type="button" className="quiet-button" disabled={disabled || busy} onClick={() => setReview(false)}>Edit sale</button></div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={startConfirmation}>Review sale</button>}
       </> : null}
     </>}
