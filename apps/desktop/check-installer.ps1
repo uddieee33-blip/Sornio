@@ -44,6 +44,16 @@ function Write-Stage([string] $stage) {
   Write-Output ("::notice::installer lifecycle stage: " + $stage)
 }
 
+function Invoke-NativeCheck([string] $stage, [string[]] $args) {
+  Write-Stage $stage
+  $out = python apps/desktop/check-native.py @args 2>&1 | Tee-Object -Variable nativeOut
+  if ($LASTEXITCODE -ne 0) {
+    $tail = (($nativeOut | Select-Object -Last 40) -join "`n") -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+    Write-Output ("::error::check-native failed at '$stage': $tail")
+    throw "Native acceptance failed: $stage"
+  }
+}
+
 Write-Stage 'install'
 $app = Install-Review
 $env:SORNIO_REVIEW_EXE = $app
@@ -55,9 +65,7 @@ try {
   for ($index = 0; $index -lt $programs.Count; $index++) {
     New-NetFirewallRule -Name "$prefix-$index" -DisplayName "$prefix-$index" -Direction Outbound -Program $programs[$index] -Action Block | Out-Null
   }
-  Write-Stage 'installed offline fixture'
-  python apps/desktop/check-native.py
-  Check-Exit 'installed offline fixture'
+  Invoke-NativeCheck 'installed offline fixture' @()
   $manifest = Join-Path $evidence 'installer-data-sha256.json'
   Write-Stage 'snapshot stopped application data'
   python apps/desktop/check-install-data.py snapshot $dataDir $manifest
@@ -70,9 +78,7 @@ try {
   $null = Install-Review
   python apps/desktop/check-install-data.py verify $dataDir $manifest
   Check-Exit 'same-version reinstall data preservation'
-  Write-Stage 'reinstalled offline reopen'
-  python apps/desktop/check-native.py --verify-preserved
-  Check-Exit 'reinstalled offline reopen with original credentials'
+  Invoke-NativeCheck 'reinstalled offline reopen with original credentials' @('--verify-preserved')
   # Reopening legitimately changes SQLite files; preserve the new stopped state.
   python apps/desktop/check-install-data.py snapshot $dataDir $manifest
   Check-Exit 'post-reopen snapshot'
