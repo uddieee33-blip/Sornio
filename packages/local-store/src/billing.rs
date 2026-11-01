@@ -322,12 +322,10 @@ pub(crate) fn post_into(
         // of the invoice total stays in receivables until paid or matched.
         // The parts must sum exactly to the invoice total before any credit
         // or ledger row is written.
-        let paid = parts
-            .iter()
-            .try_fold(0i128, |v, p| {
-                v.checked_add(p.amount_paise as i128)
-                    .ok_or(StoreError::InvalidPayment)
-            })?;
+        let paid = parts.iter().try_fold(0i128, |v, p| {
+            v.checked_add(p.amount_paise as i128)
+                .ok_or(StoreError::InvalidPayment)
+        })?;
         if paid != invoice.total_paise as i128 {
             return Err(StoreError::InvalidPayment);
         }
