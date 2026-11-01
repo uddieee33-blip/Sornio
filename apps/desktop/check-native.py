@@ -432,7 +432,9 @@ try:
     activate("Choose encrypted backup…")
     pick_native_file("Choose encrypted Sornio backup", backup)
     shown = [t for t in ui_texts() if t.rstrip().endswith(".sorniobackup")]
-    assert any(os.path.normcase(t.rstrip()).endswith(os.path.normcase(str(backup))) for t in shown), (
+    # Compare by filename: WebView2 may split the displayed path into several
+    # text runs, so a shown run can carry just the file name.
+    assert any(os.path.normcase(t.rstrip()).endswith(os.path.normcase(backup.name)) for t in shown), (
         f"Choose dialog did not show the exported backup {backup!r}; texts ending in .sorniobackup: {shown!r}")
     fill("Current Owner password", PASSWORD)
     fill("Recovery passphrase", "WrongRecoveryPassphrase2026")
