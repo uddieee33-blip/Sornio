@@ -111,6 +111,12 @@ jobs:
         run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
       - name: Verify native scale and damaged-return recovery
         run: python apps/desktop/check-native-scale.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe --output dist/native-review/native-scale.json
+      - name: Test native-check argument forwarding (no product install needed)
+        # Pins the Invoke-NativeCheck contract: the fixture stage passes zero
+        # extra arguments and the preserved-reopen stage passes exactly
+        # '--verify-preserved'. Fails closed on a nonzero child exit.
+        shell: pwsh
+        run: pwsh -File apps/desktop/test-invoke-native-check.ps1
       - name: Verify installed offline app, recovery and lifecycle preservation
         shell: pwsh
         run: ./apps/desktop/check-installer.ps1

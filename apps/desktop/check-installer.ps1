@@ -39,24 +39,10 @@ function Uninstall-Review {
 function Check-Exit([string] $stage) {
   if ($LASTEXITCODE -ne 0) { throw "Native acceptance failed: $stage" }
 }
-function Write-Stage([string] $stage) {
-  # Progress markers surface in the check record even when raw logs expire.
-  Write-Output ("::notice::installer lifecycle stage: " + $stage)
-}
-
-function Invoke-NativeCheck([string] $stage, [string[]] $stageArgs) {
-  Write-Stage $stage
-  # Build the command explicitly: a parameter named $args makes `@args` splat
-  # ambiguous, and CI evidence (run 41311948027-era stage 'reinstalled offline
-  # reopen') showed the flag never reaching python that way.
-  $cmd = @('apps/desktop/check-native.py') + $stageArgs
-  $out = & python @cmd 2>&1 | Tee-Object -Variable nativeOut
-  if ($LASTEXITCODE -ne 0) {
-    $tail = (($nativeOut | Select-Object -Last 40) -join "`n") -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
-    Write-Output ("::error::check-native failed at '$stage': $tail")
-    throw "Native acceptance failed: $stage"
-  }
-}
+# Dot-source the stage runner (Write-Stage + Invoke-NativeCheck) so the
+# argument-forwarding regression test
+# (test-invoke-native-check.ps1) exercises the exact production function.
+. (Join-Path $PSScriptRoot 'lib/invoke-native-check.ps1')
 
 Write-Stage 'install'
 $app = Install-Review

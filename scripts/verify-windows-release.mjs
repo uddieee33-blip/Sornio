@@ -207,10 +207,19 @@ check(/cargo test --all-targets --release --locked --manifest-path packages\/loc
   'the product pipeline runs the native encrypted-store test suite before packaging');
 check(/check-installer\.ps1/.test(product.text),
   'the product pipeline runs the installed-application lifecycle acceptance script');
+check(/test-invoke-native-check\.ps1/.test(product.text),
+  'the product pipeline runs the Invoke-NativeCheck argument-forwarding regression test before installer acceptance');
 const lifecycle = read('apps/desktop/check-installer.ps1');
+// The stage runner is dot-sourced from lib/ so the argument-forwarding
+// regression test exercises the exact production function; analyze both files
+// together and require the dot-source so the function cannot silently move.
+const lifecycleLib = read('apps/desktop/lib/invoke-native-check.ps1');
+check(/\.\s*\(Join-Path \$PSScriptRoot 'lib\/invoke-native-check\.ps1'\)/.test(lifecycle),
+  'check-installer.ps1 dot-sources lib/invoke-native-check.ps1 (the analyzer reads the same stage runner)');
+const lifecycleAll = `${lifecycle}\n${lifecycleLib}`;
 check(/New-NetFirewallRule[\s\S]{0,400}Action Block/.test(lifecycle),
   'installed acceptance blocks outbound network for both the app and WebView2, proving offline operation');
-const lifecycleAnalysis = analyzeLifecycle(lifecycle, 'installed offline fixture');
+const lifecycleAnalysis = analyzeLifecycle(lifecycleAll, 'installed offline fixture');
 check(lifecycleAnalysis.ok,
   `installed acceptance fails the build if the offline fixture does not pass (stage invoked through a fail-closed exit-code guard: ${lifecycleAnalysis.stageCalls.join(', ') || 'none'}${lifecycleAnalysis.errors.length ? ` — ${lifecycleAnalysis.errors.join('; ')}` : ''})`);
 check(/actualVersionUpgrade = 'untested'/i.test(lifecycle) || /actualVersionUpgrade.*untested/i.test(lifecycle),

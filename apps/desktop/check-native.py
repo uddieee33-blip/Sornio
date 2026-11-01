@@ -210,7 +210,11 @@ try:
     if sys.argv[1:] not in ([], ['--verify-preserved']):
         raise ValueError('Unknown native acceptance mode')
     if '--verify-preserved' in sys.argv:
+        print('mode: --verify-preserved (the reinstalled workspace must unlock with the original credentials; a fresh-setup screen is forbidden)')
         field = launch()
+        if window.child_window(title='Business name for setup', control_type='Edit', visible_only=False).exists(timeout=0.1):
+            raise AssertionError('--verify-preserved reached a fresh-setup screen: the preserved workspace was '
+                                 'not found (argument forwarding or data preservation is broken)')
         assert field.get_value() == 'Sample local store'
         assert focus_control('Workspace note', 'Edit').get_value() == ORIGINAL_NOTE
         assert_balances('95.64', '0.00', '1.75')
