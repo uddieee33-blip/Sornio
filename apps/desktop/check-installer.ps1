@@ -44,9 +44,13 @@ function Write-Stage([string] $stage) {
   Write-Output ("::notice::installer lifecycle stage: " + $stage)
 }
 
-function Invoke-NativeCheck([string] $stage, [string[]] $args) {
+function Invoke-NativeCheck([string] $stage, [string[]] $stageArgs) {
   Write-Stage $stage
-  $out = python apps/desktop/check-native.py @args 2>&1 | Tee-Object -Variable nativeOut
+  # Build the command explicitly: a parameter named $args makes `@args` splat
+  # ambiguous, and CI evidence (run 41311948027-era stage 'reinstalled offline
+  # reopen') showed the flag never reaching python that way.
+  $cmd = @('apps/desktop/check-native.py') + $stageArgs
+  $out = & python @cmd 2>&1 | Tee-Object -Variable nativeOut
   if ($LASTEXITCODE -ne 0) {
     $tail = (($nativeOut | Select-Object -Last 40) -join "`n") -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
     Write-Output ("::error::check-native failed at '$stage': $tail")
