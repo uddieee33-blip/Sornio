@@ -58,12 +58,14 @@ jobs:
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
             sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
-            {
-              grep -E '^test .* FAILED$|^test result: FAILED|^error(\[|:)' "$log.clean" | head -40
-              awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -40
-              grep -E '^error(\[|:)' "$log.clean" | head -10
-              tail -25 "$log.clean"
-            } | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed 's/^/::error::/'
+            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+            { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
+              | sed 's/^/::error::failing tests: /'
+            { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
+              | sed 's/^/::error::compiler errors: /'
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+              | sed 's/^/::error::failure details: /'
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /'
           fi
           exit "$code"
       - name: Build independent Windows installer

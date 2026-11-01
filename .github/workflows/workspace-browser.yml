@@ -41,9 +41,12 @@ jobs:
           fi
           cargo fmt --manifest-path packages/local-store/Cargo.toml
           cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
+          # One annotation carries the whole diff; newlines escaped as %0A so
+          # the check-run API returns it in full instead of truncating a
+          # per-line annotation list.
           git diff -- packages apps \
-            | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' \
-            | head -80 | sed 's/^/::error::/'
+            | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' \
+            | tr -d '\n' | sed 's/^/::error::rustfmt diff: /'
           git checkout -- packages apps
           exit 1
       - name: Test native billing and inventory in debug and release
