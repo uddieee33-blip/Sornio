@@ -45,6 +45,10 @@ pub struct BackupPreview {
     pub outbox_events: i64,
     pub pending_checkout: bool,
     pub file_sha256: String,
+    /// Absolute destination the archive was actually written to (export) or
+    /// read from (preview), so a success message can never point at a
+    /// different file than the one verified.
+    pub file_path: String,
     pub current_fingerprint: String,
     pub confirmation: String,
 }
@@ -336,6 +340,7 @@ fn details(db: &Connection, manifest: &Manifest, sha: String) -> Result<BackupPr
             false
         },
         file_sha256: sha,
+        file_path: String::new(),
         current_fingerprint: String::new(),
         confirmation: format!("RESTORE {}", &manifest.id[..12]),
     })
@@ -510,6 +515,7 @@ pub(crate) fn export(
     #[cfg(test)]
     crash_point("backup");
     publish(temp, destination)?;
+    preview.file_path = destination.to_string_lossy().into_owned();
     let session = store.1.clone();
     let tx = writer(store)?;
     let actor = session
@@ -556,7 +562,8 @@ fn verified(source: &Path, secret: &str, original_password: &str) -> Result<Veri
     if page_size != "4096" || pages.checked_mul(4096) != i64::try_from(n).ok() {
         return Err(StoreError::InvalidBackup);
     }
-    let preview = details(&db, &manifest, file_hash(file.path())?)?;
+    let mut preview = details(&db, &manifest, file_hash(file.path())?)?;
+    preview.file_path = file.path().to_string_lossy().into_owned();
     drop(db);
     let store = Store::open_secret(file.path(), secret)?;
     let mut workspace = crate::access::Workspace::new(store);

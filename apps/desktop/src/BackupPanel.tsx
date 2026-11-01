@@ -4,7 +4,7 @@ import { errorCode, errorMessage } from './access';
 export type BackupPreview = {
   backupId: string; businessId: string; businessName: string; createdAt: number; schemaVersion: number;
   invoices: number; ledgerEntries: number; auditRecords: number; outboxEvents: number; pendingCheckout: boolean;
-  fileSha256: string; currentFingerprint: string; confirmation: string;
+  fileSha256: string; filePath: string; currentFingerprint: string; confirmation: string;
 };
 export function BackupPanel({ configured, allowExport = true, disabled = false, onBusyChange, onDirtyChange, onRestored, onLocked }: {
   configured: boolean; allowExport?: boolean; disabled?: boolean; onBusyChange?: (busy: boolean) => void;
@@ -44,7 +44,7 @@ export function BackupPanel({ configured, allowExport = true, disabled = false, 
         setFile(await invoke<string | null>('choose_local_backup') ?? '');
       } else if (action === 'export') {
         const saved = await invoke<BackupPreview | null>('export_local_backup', credentials);
-        if (saved) setMessage(`Encrypted backup saved and verified. Backup ID ${saved.backupId}. SHA-256 ${saved.fileSha256}. Keep the separate recovery passphrase safe.`);
+        if (saved) setMessage(`Encrypted backup saved and verified. Saved to: ${saved.filePath}. Backup ID ${saved.backupId}. SHA-256 ${saved.fileSha256}. Keep the separate recovery passphrase safe.`);
         else setMessage('Backup export cancelled.');
       } else if (action === 'preview') {
         setPreview(null);

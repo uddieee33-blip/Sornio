@@ -61,6 +61,36 @@ def message_visible(text):
     return any(text in control.window_text() for control in window.descendants())
 
 
+def message_text(substr):
+    """Full text of the first UIA control containing substr (may span lines)."""
+    for control in window.descendants():
+        text = control.window_text()
+        if substr in text:
+            return text
+    return None
+
+
+def list_sorniobackups():
+    """Top-level *.sorniobackup files in likely save locations (diagnostics only)."""
+    home = os.path.expanduser("~")
+    roots = {
+        os.environ.get("TEMP", ""),
+        os.path.join(home, "Documents"),
+        os.path.join(home, "Downloads"),
+        os.getcwd(),
+        str(EXE.parent),
+    }
+    found = []
+    for root in roots:
+        if root and os.path.isdir(root):
+            try:
+                for p in Path(root).glob("*.sorniobackup"):
+                    found.append(f"{p} ({p.stat().st_size} bytes)")
+            except OSError:
+                pass
+    return found
+
+
 def assert_locked():
     window.child_window(title="Local password", control_type="Edit").wait("visible enabled", timeout=30)
     for title in ("Business name", "Search items for sale", "Saved invoice ID"):
@@ -274,13 +304,33 @@ try:
     recovery_secret = "IndependentBackupPassphrase2026"
     backup = Path(os.environ["TEMP"]) / ("sornio-native-" + str(uuid4()) + ".sorniobackup")
     def pick_native_file(title, path):
+        """Drive the real OS save/open dialog to an exact path.
+
+        The modern dialog's filename Edit is set through UIA (Alt+N keyboard
+        focus is unreliable there) and the dialog's own Save/Open button is
+        clicked; the raw key sequence remains as fallback.
+        """
         dialog = Desktop(backend="uia").window(title=title)
         dialog.wait("visible", timeout=45)
         dialog.set_focus()
-        send_keys("%n", pause=0.1)
-        send_keys("^a{BACKSPACE}", pause=0.1)
-        send_keys(str(path), with_spaces=True, pause=0.01)
-        send_keys("{ENTER}", pause=0.1)
+        done = False
+        edit = dialog.child_window(title="File name:", control_type="Edit", visible_only=False)
+        if edit.wait("exists", timeout=15):
+            try:
+                edit.set_edit_text(str(path))
+                button = dialog.child_window(
+                    title=("Save" if "Export" in title else "Open"),
+                    control_type="Button", visible_only=False)
+                button.wait("exists enabled", timeout=10)
+                button.click_input()
+                done = True
+            except Exception:
+                done = False
+        if not done:
+            send_keys("%n", pause=0.1)
+            send_keys("^a{BACKSPACE}", pause=0.1)
+            send_keys(str(path), with_spaces=True, pause=0.01)
+            send_keys("{ENTER}", pause=0.1)
         dialog.wait_not("visible", timeout=45)
     original_note = focus_control("Workspace note", "Edit").get_value()
     activate("Open backup controls")
@@ -290,7 +340,22 @@ try:
     activate("Export encrypted backup…")
     pick_native_file("Export encrypted Sornio backup", backup)
     wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
-    assert backup.exists() and backup.stat().st_size >= 4096
+    saved_text = message_text("Encrypted backup saved and verified.") or ""
+    stated_match = re.search(r"Saved to: (.+?)\. Backup ID ", saved_text)
+    assert stated_match, f"Success message did not state the saved path: {saved_text!r}"
+    stated = Path(stated_match.group(1))
+    same_path = os.path.normcase(os.path.realpath(stated)) == os.path.normcase(os.path.realpath(backup))
+    if not same_path and stated.exists() and backup.exists():
+        try:
+            same_path = os.path.samefile(stated, backup)
+        except OSError:
+            same_path = False
+    assert same_path, f"Backup was saved to {stated!r}, not the chosen path {backup!r}"
+    if not (backup.exists() and backup.stat().st_size >= 4096):
+        found = list_sorniobackups()
+        raise AssertionError(
+            f"Backup missing or smaller than 4096 bytes at chosen path {backup} "
+            f"(app stated {stated}); *.sorniobackup found: {found or 'none'}")
     payload = backup.read_bytes()
     for secret in (PASSWORD, recovery_secret, original_note):
         assert secret.encode() not in payload, "Backup leaked plaintext"

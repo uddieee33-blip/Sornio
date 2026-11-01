@@ -42,6 +42,156 @@ const workflows = readdirSync(WORKFLOWS)
   .filter(name => name.endsWith('.yml'))
   .map(name => ({ name, path: join(WORKFLOWS, name), text: read(join(WORKFLOWS, name)) }));
 
+// --- 0. Structural analyzer for the fail-closed installer lifecycle ---------
+// check-installer.ps1 must fail the build when a native child process exits
+// non-zero. That invariant is proven structurally, not by matching one
+// helper's spelling: any helper function that runs a child process must throw
+// inside an `if (<exit code> -ne 0)` block and nowhere else (so the success
+// path is never blocked and a failure can never be swallowed), and every
+// lifecycle stage literal must be invoked through such a verified guard.
+function psScan(text) {
+  // Blank comments and string contents, preserving length and newlines, so
+  // brace/keyword matching is not confused by prose inside strings.
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const ch = text[i];
+    if (ch === '#') {
+      while (i < text.length && text[i] !== '\n') { out += ' '; i += 1; }
+    } else if (ch === "'" || ch === '"') {
+      const quote = ch;
+      out += quote; i += 1;
+      while (i < text.length && text[i] !== quote) {
+        if (quote === "'" && text[i] === "'" && text[i + 1] === "'") { out += '   '; i += 3; continue; }
+        if (quote === '"' && text[i] === '`') { out += '  '; i += 2; continue; }
+        out += text[i] === '\n' ? '\n' : ' '; i += 1;
+      }
+      out += quote; i += 1;
+    } else { out += ch; i += 1; }
+  }
+  return out;
+}
+function psMatchBrace(scan, open) {
+  let depth = 0;
+  for (let i = open; i < scan.length; i += 1) {
+    if (scan[i] === '{') depth += 1;
+    else if (scan[i] === '}') { depth -= 1; if (depth === 0) return i; }
+  }
+  return -1;
+}
+function psFunctions(text) {
+  const scan = psScan(text);
+  const fns = [];
+  const re = /\bfunction\s+([A-Za-z][\w-]*)\s*(\([^()]*\))?\s*\{/g;
+  let m;
+  while ((m = re.exec(scan))) {
+    const open = m.index + m[0].length - 1;
+    const close = psMatchBrace(scan, open);
+    if (close < 0) break;
+    fns.push({ name: m[1], body: text.slice(open + 1, close), bodyScan: scan.slice(open + 1, close) });
+    re.lastIndex = close + 1;
+  }
+  return fns;
+}
+function lifecycleGuards(text) {
+  const guards = new Set();
+  const offenders = [];
+  for (const fn of psFunctions(text)) {
+    const bodyScan = fn.bodyScan;
+    const condRe = /\bif\s*\(/g;
+    const blocks = [];
+    let hasExitCheck = false;
+    let throwInside = false;
+    let m;
+    while ((m = condRe.exec(bodyScan))) {
+      const pOpen = m.index + m[0].length - 1;
+      let depth = 0;
+      let j = pOpen;
+      for (; j < bodyScan.length; j += 1) {
+        if (bodyScan[j] === '(') depth += 1;
+        else if (bodyScan[j] === ')') { depth -= 1; if (depth === 0) break; }
+      }
+      if (j >= bodyScan.length) break;
+      const cond = bodyScan.slice(pOpen + 1, j);
+      let k = j + 1;
+      while (k < bodyScan.length && /\s/.test(bodyScan[k])) k += 1;
+      if (bodyScan[k] !== '{') { condRe.lastIndex = j + 1; continue; }
+      const close = psMatchBrace(bodyScan, k);
+      if (close < 0) break;
+      blocks.push([k + 1, close]);
+      if (/LASTEXITCODE\s*-ne\s*0|ExitCode\s*-ne\s*0/.test(cond)) {
+        hasExitCheck = true;
+        if (/\bthrow\b/.test(bodyScan.slice(k + 1, close))) throwInside = true;
+      }
+      condRe.lastIndex = close + 1;
+    }
+    let masked = bodyScan;
+    for (const [a, b] of blocks.sort((x, y) => y[0] - x[0])) {
+      masked = masked.slice(0, a) + ' '.repeat(b - a) + masked.slice(b);
+    }
+    const throwOutside = /\bthrow\b/.test(masked);
+    const runsChild = /\bStart-Process\b|\bpython\s|\bpy\s+-/.test(bodyScan);
+    if (hasExitCheck && throwInside && !throwOutside) guards.add(fn.name);
+    else if (runsChild) offenders.push(fn.name);
+  }
+  return { guards, offenders };
+}
+function analyzeLifecycle(text, stage) {
+  const { guards, offenders } = lifecycleGuards(text);
+  const errors = [];
+  if (offenders.length) {
+    errors.push(`child-process helpers without a fail-closed throw guard: ${offenders.join(', ')}`);
+  }
+  const callRe = new RegExp(`([A-Za-z][\\w-]*)\\s+'${stage.replace(/'/g, "''")}'`, 'g');
+  const stageCalls = [...text.matchAll(callRe)].map(m => m[1]);
+  if (!stageCalls.some(name => guards.has(name))) {
+    errors.push(`stage '${stage}' is not invoked through an exit-code guard (calls: ${stageCalls.join(', ') || 'none'})`);
+  }
+  return { ok: errors.length === 0, errors, guards: [...guards], stageCalls };
+}
+// Analyzer self-tests on synthetic samples: the two real shapes must pass,
+// and the three broken shapes must be rejected.
+const LIFECYCLE_SELF_TESTS = {
+  legacyCheckExit: `function Check-Exit([string] $stage) {
+  if ($LASTEXITCODE -ne 0) { throw "Native acceptance failed: $stage" }
+}
+Check-Exit 'installed offline fixture'
+`,
+  modernInvokeNativeCheck: `function Invoke-NativeCheck([string] $stage, [string[]] $args) {
+  Write-Output "stage: $stage"
+  $out = python apps/desktop/check-native.py @args 2>&1 | Tee-Object -Variable nativeOut
+  if ($LASTEXITCODE -ne 0) {
+    Write-Output "::error::check-native failed at '$stage'"
+    throw "Native acceptance failed: $stage"
+  }
+}
+Invoke-NativeCheck 'installed offline fixture' @()
+`,
+  guardWithoutThrow: `function Weak([string] $stage) {
+  python apps/desktop/check-native.py
+  if ($LASTEXITCODE -ne 0) { Write-Output "stage failed: $stage" }
+}
+Weak 'installed offline fixture'
+`,
+  unconditionalThrow: `function Always([string] $stage) {
+  python apps/desktop/check-native.py
+  throw "boom $stage"
+}
+Always 'installed offline fixture'
+`,
+  stageNeverInvoked: `function Check-Exit([string] $stage) {
+  if ($LASTEXITCODE -ne 0) { throw "Native acceptance failed: $stage" }
+}
+Check-Exit 'some other stage'
+`,
+};
+for (const [name, sample] of Object.entries(LIFECYCLE_SELF_TESTS)) {
+  const expectOk = name === 'legacyCheckExit' || name === 'modernInvokeNativeCheck';
+  const result = analyzeLifecycle(sample, 'installed offline fixture');
+  check(result.ok === expectOk,
+    `lifecycle analyzer self-test '${name}' ${expectOk ? 'accepts' : 'rejects'} as required${result.ok === expectOk ? '' : ` — ${result.errors.join('; ')}`}`);
+}
+
 // --- 1. Exactly one workflow may build a shop-facing Windows installer -------
 // Tauri's NSIS bundler writes `bundle/nsis/*-setup.exe`; that is the product.
 const installers = workflows.filter(w => /bundle\/nsis\/\*-setup\.exe/.test(w.text));
@@ -60,8 +210,9 @@ check(/check-installer\.ps1/.test(product.text),
 const lifecycle = read('apps/desktop/check-installer.ps1');
 check(/New-NetFirewallRule[\s\S]{0,400}Action Block/.test(lifecycle),
   'installed acceptance blocks outbound network for both the app and WebView2, proving offline operation');
-check(/Check-Exit 'installed offline fixture'/.test(lifecycle),
-  'installed acceptance fails the build if the offline fixture does not pass');
+const lifecycleAnalysis = analyzeLifecycle(lifecycle, 'installed offline fixture');
+check(lifecycleAnalysis.ok,
+  `installed acceptance fails the build if the offline fixture does not pass (stage invoked through a fail-closed exit-code guard: ${lifecycleAnalysis.stageCalls.join(', ') || 'none'}${lifecycleAnalysis.errors.length ? ` — ${lifecycleAnalysis.errors.join('; ')}` : ''})`);
 check(/actualVersionUpgrade = 'untested'/i.test(lifecycle) || /actualVersionUpgrade.*untested/i.test(lifecycle),
   'installed acceptance refuses to claim a real version upgrade it does not perform');
 check(/signatureStatus/.test(lifecycle), 'installed acceptance records the installer signature status as evidence');
