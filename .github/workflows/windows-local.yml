@@ -18,7 +18,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -26,6 +28,10 @@ jobs:
           workspaces: |
             packages/local-store
             apps/desktop/src-tauri
+      # Shared React components under lib/ resolve packages from the repo root.
+      # Installing only apps/desktop leaves lib/i18n.tsx unable to resolve react.
+      - name: Install shared root dependencies
+        run: npm ci
       - name: Install desktop dependencies
         run: npm ci --prefix apps/desktop
       - name: Build bundled frontend
