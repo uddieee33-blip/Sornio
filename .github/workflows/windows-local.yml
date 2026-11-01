@@ -49,15 +49,19 @@ jobs:
         # failure is visible in the check record even when raw logs expire.
         # The step still fails with cargo's own exit code; nothing is skipped.
         shell: bash
+        env:
+          CARGO_TERM_COLOR: never
         run: |
           set -o pipefail
           log="$(mktemp)"
           cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
-            grep -E '^test .* FAILED$|^failures:$|^test result: FAILED' "$log" \
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" \
               | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed 's/^/::error::/'
-            awk '/^failures:$/{f=1} f' "$log" | head -80 | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed 's/^/::error::/'
+            awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -40 \
+              | sed -e 's/%/%25/g' -e 's/\r/%0D/g' | sed 's/^/::error::/'
           fi
           exit "$code"
       - name: Build independent Windows installer
