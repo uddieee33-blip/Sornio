@@ -57,6 +57,16 @@ def activate(title):
     send_keys("{SPACE}", pause=0.1)
 
 
+def ui_descendants(control_type=None):
+    """Descendants tolerating transient UIA enumeration failures (see ui_texts)."""
+    try:
+        if control_type:
+            return window.descendants(control_type=control_type)
+        return window.descendants()
+    except Exception:
+        return []
+
+
 def ui_texts():
     """All descendant texts, tolerating transient UIA enumeration failures.
 
@@ -436,7 +446,16 @@ try:
     wait_until(60, 0.5, lambda: message_visible("Backup verified. Re-enter the passwords"))
     preview = window.child_window(title="Verified backup preview", control_type="Group", visible_only=False)
     preview.wait("exists", timeout=30)
-    phrase_title = next(c.window_text() for c in window.descendants(control_type="Edit") if re.match(r"^Type RESTORE [a-f0-9]{12} to restore$", c.window_text()))
+    phrase_title = None
+    for candidate in ui_descendants(control_type="Edit"):
+        try:
+            candidate_text = candidate.window_text()
+        except Exception:
+            continue
+        if re.match(r"^Type RESTORE [a-f0-9]{12} to restore$", candidate_text):
+            phrase_title = candidate_text
+            break
+    assert phrase_title, "Restore confirmation phrase field not found in the backup preview"
     phrase = re.match(r"^Type (RESTORE [a-f0-9]{12}) to restore$", phrase_title).group(1)
     for title in ("Current Owner password", "Recovery passphrase", "Original Owner password from backup"):
         assert focus_control(title, "Edit").get_value() == "", "Preview retained a password"
