@@ -50,9 +50,32 @@ jobs:
           git checkout -- packages apps
           exit 1
       - name: Test native billing and inventory in debug and release
+        # Emit failing tests / compiler errors as full-text ::error::
+        # annotations (newlines as %0A) so failures stay visible in the check
+        # record even when raw logs expire. Both runs still fail normally.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
         run: |
-          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml
-          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml
+          esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+          run_tests() {
+            local profile="$1"; shift
+            local log; log="$(mktemp)"
+            cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml "$@" 2>&1 | tee "$log" || true
+            local code=${PIPESTATUS[0]}
+            if [ "$code" -ne 0 ]; then
+              sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+              { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
+                | sed "s/^/::error::[$profile] failing tests: /"
+              { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
+                | sed "s/^/::error::[$profile] compiler errors: /"
+              { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+                | sed "s/^/::error::[$profile] failure details: /"
+            fi
+            return "$code"
+          }
+          run_tests debug || exit $?
+          run_tests release --release || exit $?
       - name: Build native cashier integration fixture
         run: cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge
       - name: Verify synthetic native scale and damaged-return recovery
