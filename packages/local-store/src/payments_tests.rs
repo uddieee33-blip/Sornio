@@ -1731,19 +1731,18 @@ fn split_sale_validation_credit_limit_and_atomicity_are_enforced_natively() {
     ));
     assert_eq!(snapshots(&s), before);
     // Unbalanced split: passes shape validation but never commits.
-    let unbalanced = split_sale_req(
-        &s,
-        "ub",
-        Some("c1"),
-        &[("cash", 60000), ("credit", 50000)],
-    );
+    let unbalanced = split_sale_req(&s, "ub", Some("c1"), &[("cash", 60000), ("credit", 50000)]);
     s.prepare_retail(unbalanced.clone()).unwrap();
     let prepared = snapshots(&s);
     assert!(matches!(
         s.post_retail(unbalanced.clone()),
         Err(StoreError::InvalidPayment)
     ));
-    assert_eq!(snapshots(&s), prepared, "failed commit must roll back completely");
+    assert_eq!(
+        snapshots(&s),
+        prepared,
+        "failed commit must roll back completely"
+    );
     s.clear_retail("ub", false).unwrap();
     // Credit limit: ₹400 credit against a ₹300 limit fails closed, atomically.
     let over = split_sale_req(
@@ -1754,11 +1753,12 @@ fn split_sale_validation_credit_limit_and_atomicity_are_enforced_natively() {
     );
     s.prepare_retail(over.clone()).unwrap();
     let prepared = snapshots(&s);
-    assert!(matches!(
-        s.post_retail(over),
-        Err(StoreError::CreditLimit)
-    ));
-    assert_eq!(snapshots(&s), prepared, "no invoice, stock, ledger or credit row may survive");
+    assert!(matches!(s.post_retail(over), Err(StoreError::CreditLimit)));
+    assert_eq!(
+        snapshots(&s),
+        prepared,
+        "no invoice, stock, ledger or credit row may survive"
+    );
     s.clear_retail("over", false).unwrap();
     assert_eq!(s.list_invoices(0).unwrap().len(), 0);
     assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
@@ -1806,7 +1806,13 @@ fn split_sale_repayment_and_credit_return_reconcile_without_duplicates() {
         100000,
         "sellable return restores stock once"
     );
-    assert_eq!(count(&s, "SELECT COUNT(*) FROM local_retail_returns WHERE id='ret-1'"), 1);
+    assert_eq!(
+        count(
+            &s,
+            "SELECT COUNT(*) FROM local_retail_returns WHERE id='ret-1'"
+        ),
+        1
+    );
     assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
     let balances = s.cashier_state().unwrap().balances;
     assert_eq!(balances.credit_paise, "0");

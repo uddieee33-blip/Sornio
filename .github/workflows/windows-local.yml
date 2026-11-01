@@ -54,7 +54,10 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          # `|| true` keeps the runner's default `bash -eo pipefail` from
+          # aborting before the diagnostics below; the real exit code is
+          # still captured from PIPESTATUS.
+          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
           code=${PIPESTATUS[0]}
           if [ "$code" -ne 0 ]; then
             sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
