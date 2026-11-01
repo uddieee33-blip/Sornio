@@ -597,15 +597,19 @@ pub(crate) fn invoice_posted(
     }
     let mut ids = BTreeSet::new();
     let mut cash = 0i64;
+    let mut credit_parts = 0usize;
     for p in parts {
         if !billing::valid_id(&p.id)
             || !ids.insert(&p.id)
             || !(1..=MAX_VALUE).contains(&p.amount_paise)
             || !matches!(p.method.as_str(), "cash" | "upi" | "card" | "credit")
             || (!p.reference.is_empty() && reference(&p.reference).is_err())
-            || (i.tender == Tender::Retail && p.method == "credit")
+            || (p.method == "credit" && i.customer_id.is_none())
         {
             return Err(StoreError::InvalidPayment);
+        }
+        if p.method == "credit" {
+            credit_parts += 1;
         }
         one(
             db,
@@ -625,10 +629,13 @@ pub(crate) fn invoice_posted(
                 .ok_or(StoreError::InvalidPayment)?;
         }
     }
+    if credit_parts > 1 || (credit_parts == 1) != i.customer_id.is_some() {
+        return Err(StoreError::InvalidPayment);
+    }
     if i.tender == Tender::Retail {
-        if i.customer_id.is_some() {
-            return Err(StoreError::InvalidPayment);
-        }
+        // Cash is banked immediately; upi/card parts stay in receivables until
+        // statement match, and the credit part stays there as customer debt
+        // until repayment, mirroring a full credit sale.
         journal(db, &i.id, None, &[("cash", cash), ("receivables", -cash)])?;
     }
     activity_at(db, s, &i.id, "invoice", cash, Some(&i.created_at))?;
@@ -1020,14 +1027,19 @@ fn validate(r: &Request) -> Result<(), StoreError> {
     match &r.action {
         Action::Sale { invoice, payments } => {
             invoice.validate()?;
+            // A retail sale may split the tender across cash/upi/card parts
+            // plus at most one "credit" part that books the remainder as
+            // customer credit. The credit part exists iff a customer is set.
+            let credit_parts = payments.iter().filter(|p| p.method == "credit").count();
             if invoice.operation_id != r.operation_id
                 || invoice.tender != Tender::Retail
-                || invoice.customer_id.is_some()
                 || payments.is_empty()
                 || payments.len() > 8
+                || credit_parts > 1
+                || (credit_parts == 1) != invoice.customer_id.is_some()
                 || payments.iter().any(|p| {
                     !billing::valid_id(&p.id)
-                        || !matches!(p.method.as_str(), "cash" | "upi" | "card")
+                        || !matches!(p.method.as_str(), "cash" | "upi" | "card" | "credit")
                         || !(1..=MAX_VALUE).contains(&p.amount_paise)
                         || p.reference.len() > 80
                 })

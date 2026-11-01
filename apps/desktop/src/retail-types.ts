@@ -1,7 +1,9 @@
 import type { NativeInvoiceRequest } from '../../../packages/business-domain/src/native-invoice';
 import type { Invoice } from './billing-types';
 export type CheckoutRequest = Omit<NativeInvoiceRequest, 'tender'> & { tender: 'cash' | 'credit' | 'retail' };
-export type PaymentPart = { id: string; method: 'cash' | 'upi' | 'card'; amountPaise: number; reference: string };
+// 'credit' is the customer-credit part of a split sale; the native store is
+// the only authority that accepts it and books the receivable.
+export type PaymentPart = { id: string; method: 'cash' | 'upi' | 'card' | 'credit'; amountPaise: number; reference: string };
 export type ReturnDisposition = 'sellable' | 'damaged' | 'no_restock';
 export type ReturnLine = { lineIndex: number; quantityMilli: number; disposition?: ReturnDisposition };
 export type RefundPart = { paymentId: string; amountPaise: number };

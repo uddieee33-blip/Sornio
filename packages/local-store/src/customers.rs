@@ -473,6 +473,65 @@ pub(crate) fn post_sale(
     bump(tx, id, c.revision)?;
     Ok(())
 }
+/// Split retail sale: only the credit part of the invoice increases the
+/// customer's debt. The paid parts were already banked or remain in
+/// receivables through the retail journal, exactly like a full credit sale's
+/// unpaid remainder. Runs inside the original invoice transaction.
+pub(crate) fn post_split_credit(
+    tx: &Transaction<'_>,
+    session: &Option<identity::Session>,
+    invoice: &Invoice,
+    customer_id: &str,
+    amount: i64,
+) -> Result<(), StoreError> {
+    if !(1..=MAX_VALUE).contains(&amount) || amount > invoice.total_paise {
+        return Err(StoreError::InvalidCredit);
+    }
+    if tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM local_customer_ops WHERE operation_id=?1) OR EXISTS(SELECT 1 FROM local_customer_pending WHERE operation_id=?1) OR EXISTS(SELECT 1 FROM local_customer_canceled WHERE operation_id=?1)",
+        [&invoice.id],
+        |r| r.get::<_, bool>(0),
+    )? {
+        return Err(StoreError::OperationConflict);
+    }
+    crate::payments::unclaimed(tx, &invoice.id)?;
+    if session.is_none() {
+        tx.execute(
+            "INSERT OR IGNORE INTO local_customers VALUES(?1,?1,NULL,NULL,30,1)",
+            [customer_id],
+        )?;
+    }
+    let c = customer(tx, customer_id)?;
+    let next = add(
+        c.balance_paise
+            .parse::<i128>()
+            .map_err(|_| StoreError::CreditUnavailable)?,
+        amount as i128,
+    )?;
+    if c.credit_limit_paise
+        .is_some_and(|limit| next > limit as i128)
+    {
+        return Err(StoreError::CreditLimit);
+    }
+    let due: String = tx.query_row(
+        "SELECT date(?1,'+330 minutes',printf('+%d days',?2))",
+        params![invoice.created_at, c.credit_days],
+        |r| r.get(0),
+    )?;
+    entry(
+        tx,
+        &invoice.id,
+        customer_id,
+        "sale",
+        amount,
+        Some(&due),
+        Some(&invoice.id),
+        None,
+        "Split sale credit",
+    )?;
+    bump(tx, customer_id, c.revision)?;
+    Ok(())
+}
 pub(crate) fn quote_invoice_return(
     db: &Connection,
     invoice: &str,

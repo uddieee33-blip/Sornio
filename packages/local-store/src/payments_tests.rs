@@ -1569,3 +1569,194 @@ fn concurrent_closing_and_sale_have_one_serialized_outcome() {
         journals_balance(&b);
     }
 }
+
+fn customer_profile(id: &str, limit: Option<i64>) -> SaveCustomer {
+    SaveCustomer {
+        operation_id: format!("create-{id}"),
+        id: id.into(),
+        name: format!("Customer {id}"),
+        phone: Some("+91 98765 43210".into()),
+        credit_limit_paise: limit,
+        credit_days: 30,
+        expected_revision: None,
+    }
+}
+/// Retail invoice for 10 units of rice: total 100000 paise (₹1000), optionally
+/// attached to a customer so one payment part may be "credit".
+fn split_sale_req(s: &Store, id: &str, customer: Option<&str>, parts: &[(&str, i64)]) -> Request {
+    req(
+        id,
+        Action::Sale {
+            invoice: PostInvoice {
+                operation_id: id.into(),
+                lines: vec![BillLine {
+                    product_id: "rice".into(),
+                    expected_revision: s.list_products().unwrap()[0].revision,
+                    quantity_milli: 10000,
+                }],
+                tax_basis_points: 0,
+                tender: Tender::Retail,
+                customer_id: customer.map(str::to_owned),
+            },
+            payments: parts
+                .iter()
+                .enumerate()
+                .map(|(i, (method, amount))| PaymentPart {
+                    id: format!("{id}-p-{i}"),
+                    method: (*method).into(),
+                    amount_paise: *amount,
+                    reference: String::new(),
+                })
+                .collect(),
+        },
+    )
+}
+fn count(s: &Store, sql: &str) -> i64 {
+    s.0.query_row(sql, [], |r| r.get(0)).unwrap()
+}
+#[test]
+fn split_cash_and_customer_credit_sale_posts_one_atomic_sale() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    s.save_customer(customer_profile("c1", None)).unwrap();
+    // ₹1000 invoice: ₹600 cash now, ₹400 outstanding as customer credit.
+    let r = split_sale_req(&s, "split-1", Some("c1"), &[("cash", 60000), ("credit", 40000)]);
+    let out = perform(&mut s, r.clone());
+    assert_eq!(out.data["invoice"]["totalPaise"], 100000);
+    assert_eq!(out.data["invoice"]["customerId"], "c1");
+    assert_eq!(s.list_invoices(0).unwrap().len(), 1, "invoice created exactly once");
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 90000, "stock deducted exactly once");
+    assert_eq!(count(&s, "SELECT COUNT(*) FROM local_invoice_stock WHERE invoice_id='split-1'"), 1);
+    assert_eq!(count(&s, "SELECT COUNT(*) FROM local_billing_audit WHERE invoice_id='split-1'"), 1);
+    assert_eq!(count(&s, "SELECT COUNT(*) FROM local_billing_outbox WHERE invoice_id='split-1'"), 1);
+    // The receipt represents amounts received and amounts outstanding.
+    let payments = invoice_payments(&s.0, "split-1").unwrap();
+    assert_eq!(payments.len(), 2);
+    assert_eq!(payments[0].method, "cash");
+    assert_eq!(payments[0].amount_paise, 60000);
+    assert_eq!(payments[0].status, "recorded");
+    assert_eq!(payments[1].method, "credit");
+    assert_eq!(payments[1].amount_paise, 40000);
+    assert_eq!(payments[1].status, "credit_due");
+    assert!(!payments.iter().any(|p| p.externally_verified));
+    // Drawer holds the cash part; the receivable equals the credit part.
+    let balances = s.cashier_state().unwrap().balances;
+    assert_eq!(balances.cash_paise, "60000");
+    assert_eq!(balances.credit_paise, "40000");
+    // Customer subledger records exactly one sale entry for the credit part.
+    let c = s.find_customers("c1", false).unwrap()[0].clone();
+    assert_eq!(c.balance_paise, "40000");
+    assert_eq!(
+        count(&s, "SELECT COUNT(*) FROM local_credit_entries WHERE customer_id='c1' AND kind='sale' AND amount_paise=40000"),
+        1
+    );
+    // Durable identity: exact retry replays; a changed request conflicts.
+    let saved = snapshots(&s);
+    assert_eq!(s.post_retail(r.clone()).unwrap(), out);
+    assert_eq!(snapshots(&s), saved);
+    let changed = split_sale_req(&s, "split-1", Some("c1"), &[("cash", 50000), ("credit", 50000)]);
+    assert!(matches!(
+        s.post_retail(changed),
+        Err(StoreError::OperationConflict)
+    ));
+    assert_eq!(snapshots(&s), saved);
+    journals_balance(&s);
+    // Restart keeps the same state.
+    drop(s);
+    let s = authenticated(&d.path().join("s.db"));
+    assert_eq!(s.list_invoices(0).unwrap().len(), 1);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 90000);
+    assert_eq!(s.cashier_state().unwrap().balances.credit_paise, "40000");
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "40000");
+}
+#[test]
+fn split_sale_validation_credit_limit_and_atomicity_are_enforced_natively() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    s.save_customer(customer_profile("c1", Some(30000))).unwrap();
+    // A credit part without a customer is refused before any write.
+    let before = snapshots(&s);
+    let no_customer = split_sale_req(&s, "nc", None, &[("cash", 60000), ("credit", 40000)]);
+    assert!(matches!(
+        s.post_retail(no_customer),
+        Err(StoreError::InvalidPayment)
+    ));
+    // Two credit parts are refused.
+    let two = split_sale_req(&s, "two", Some("c1"), &[("credit", 40000), ("credit", 40000), ("cash", 20000)]);
+    assert!(matches!(s.post_retail(two), Err(StoreError::InvalidPayment)));
+    // A customer without a credit part is refused.
+    let cust_no_credit = split_sale_req(&s, "cnc", Some("c1"), &[("cash", 100000)]);
+    assert!(matches!(
+        s.post_retail(cust_no_credit),
+        Err(StoreError::InvalidPayment)
+    ));
+    assert_eq!(snapshots(&s), before);
+    // Unbalanced split: passes shape validation but never commits.
+    let unbalanced = split_sale_req(&s, "ub", Some("c1"), &[("cash", 60000), ("credit", 50000)]);
+    s.prepare_retail(unbalanced.clone()).unwrap();
+    let prepared = snapshots(&s);
+    assert!(matches!(
+        s.post_retail(unbalanced.clone()),
+        Err(StoreError::InvalidPayment)
+    ));
+    assert_eq!(snapshots(&s), prepared, "failed commit must roll back completely");
+    s.clear_retail("ub", false).unwrap();
+    // Credit limit: ₹400 credit against a ₹300 limit fails closed, atomically.
+    let over = split_sale_req(&s, "over", Some("c1"), &[("cash", 60000), ("credit", 40000)]);
+    s.prepare_retail(over.clone()).unwrap();
+    let prepared = snapshots(&s);
+    assert!(matches!(
+        s.post_retail(over),
+        Err(StoreError::CreditLimit)
+    ));
+    assert_eq!(snapshots(&s), prepared, "no invoice, stock, ledger or credit row may survive");
+    s.clear_retail("over", false).unwrap();
+    assert_eq!(s.list_invoices(0).unwrap().len(), 0);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
+    journals_balance(&s);
+}
+#[test]
+fn split_sale_repayment_and_credit_return_reconcile_without_duplicates() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    s.save_customer(customer_profile("c1", None)).unwrap();
+    let r = split_sale_req(&s, "split-2", Some("c1"), &[("cash", 60000), ("credit", 40000)]);
+    perform(&mut s, r);
+    // Customer repays ₹100: receivable drops exactly once, idempotently.
+    let c = s.find_customers("c1", false).unwrap()[0].clone();
+    let repayment = CreditRequest {
+        operation_id: "repay-1".into(),
+        customer_id: "c1".into(),
+        expected_revision: c.revision,
+        kind: CreditKind::Repayment,
+        amount_paise: 10000,
+        reason: "Cash repayment at counter".into(),
+        due_on: None,
+        reverse_of: None,
+    };
+    let receipt = s.post_credit(repayment.clone(), false).unwrap();
+    assert_eq!(receipt.balance_paise, "30000");
+    let balances = s.cashier_state().unwrap().balances;
+    assert_eq!(balances.cash_paise, "70000");
+    assert_eq!(balances.credit_paise, "30000");
+    let saved = snapshots(&s);
+    assert_eq!(s.post_credit(repayment, false).unwrap(), receipt);
+    assert_eq!(snapshots(&s), saved);
+    // Full return refunds the cash part and clears the remaining debt.
+    let ret = return_req(&s, "ret-1", "split-2", 10000);
+    let out = perform(&mut s, ret.clone());
+    assert_eq!(out.data["stockRestored"], true);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000, "sellable return restores stock once");
+    assert_eq!(count(&s, "SELECT COUNT(*) FROM local_retail_returns WHERE id='ret-1'"), 1);
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
+    let balances = s.cashier_state().unwrap().balances;
+    assert_eq!(balances.credit_paise, "0");
+    // ₹600 sale cash + ₹100 repayment were both refunded on the full return.
+    assert_eq!(balances.cash_paise, "0");
+    assert_eq!(out.data["cashOutPaise"], 70000);
+    let saved = snapshots(&s);
+    assert_eq!(s.post_retail(ret).unwrap(), out);
+    assert_eq!(snapshots(&s), saved);
+    journals_balance(&s);
+}

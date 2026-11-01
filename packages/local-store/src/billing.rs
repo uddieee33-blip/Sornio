@@ -317,6 +317,25 @@ pub(crate) fn post_into(
     }
     if invoice.tender != Tender::Retail {
         crate::customers::post_sale(tx, session, &invoice)?;
+    } else if let Some(parts) = retail {
+        // Split tender: only the credit part becomes customer debt; the rest
+        // of the invoice total stays in receivables until paid or matched.
+        let credit = parts
+            .iter()
+            .filter(|p| p.method == "credit")
+            .try_fold(0i64, |v, p| {
+                v.checked_add(p.amount_paise)
+                    .ok_or(StoreError::InvalidPayment)
+            })?;
+        if credit > 0 {
+            let customer_id = invoice
+                .customer_id
+                .clone()
+                .ok_or(StoreError::InvalidCredit)?;
+            crate::customers::post_split_credit(tx, session, &invoice, &customer_id, credit)?;
+        } else if invoice.customer_id.is_some() {
+            return Err(StoreError::InvalidPayment);
+        }
     }
     crate::payments::invoice_posted(tx, session, &invoice, retail)?;
     let event=serde_json::json!({"version":1,"kind":"invoice.posted","operationId":invoice.id,"invoice":invoice}).to_string();
