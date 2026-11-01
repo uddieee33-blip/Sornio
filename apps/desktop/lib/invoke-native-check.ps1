@@ -16,7 +16,11 @@ function Invoke-NativeCheck([string] $stage, [string[]] $stageArgs) {
   Write-Stage $stage
   # Build the command explicitly and splat a plain array via the call operator.
   $cmd = @('apps/desktop/check-native.py') + $stageArgs
-  $out = & python @cmd 2>&1 | Tee-Object -Variable nativeOut
+  # No output-consuming assignment: the child's merged stdout/stderr must stay
+  # observable by the caller, while Tee-Object still captures it into
+  # $nativeOut for the ::error:: annotation tail. $LASTEXITCODE is still set
+  # by the native command, so a nonzero exit keeps failing the stage.
+  & python @cmd 2>&1 | Tee-Object -Variable nativeOut
   if ($LASTEXITCODE -ne 0) {
     $tail = (($nativeOut | Select-Object -Last 40) -join "`n") -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
     Write-Output ("::error::check-native failed at '$stage': $tail")
