@@ -39,7 +39,12 @@ function Uninstall-Review {
 function Check-Exit([string] $stage) {
   if ($LASTEXITCODE -ne 0) { throw "Native acceptance failed: $stage" }
 }
+function Write-Stage([string] $stage) {
+  # Progress markers surface in the check record even when raw logs expire.
+  Write-Output ("::notice::installer lifecycle stage: " + $stage)
+}
 
+Write-Stage 'install'
 $app = Install-Review
 $env:SORNIO_REVIEW_EXE = $app
 $prefix = 'Sornio-installer-review-' + [guid]::NewGuid().ToString()
@@ -50,22 +55,28 @@ try {
   for ($index = 0; $index -lt $programs.Count; $index++) {
     New-NetFirewallRule -Name "$prefix-$index" -DisplayName "$prefix-$index" -Direction Outbound -Program $programs[$index] -Action Block | Out-Null
   }
+  Write-Stage 'installed offline fixture'
   python apps/desktop/check-native.py
   Check-Exit 'installed offline fixture'
   $manifest = Join-Path $evidence 'installer-data-sha256.json'
+  Write-Stage 'snapshot stopped application data'
   python apps/desktop/check-install-data.py snapshot $dataDir $manifest
   Check-Exit 'snapshot stopped application data'
+  Write-Stage 'uninstall and data preservation'
   Uninstall-Review
   python apps/desktop/check-install-data.py verify $dataDir $manifest
   Check-Exit 'uninstallation data preservation'
+  Write-Stage 'same-version reinstall'
   $null = Install-Review
   python apps/desktop/check-install-data.py verify $dataDir $manifest
   Check-Exit 'same-version reinstall data preservation'
+  Write-Stage 'reinstalled offline reopen'
   python apps/desktop/check-native.py --verify-preserved
   Check-Exit 'reinstalled offline reopen with original credentials'
   # Reopening legitimately changes SQLite files; preserve the new stopped state.
   python apps/desktop/check-install-data.py snapshot $dataDir $manifest
   Check-Exit 'post-reopen snapshot'
+  Write-Stage 'final uninstall'
   Uninstall-Review
   python apps/desktop/check-install-data.py verify $dataDir $manifest
   Check-Exit 'final uninstallation data preservation'
@@ -84,6 +95,10 @@ try {
   $artifactRecord = Get-Content -LiteralPath $artifactPath -Raw | ConvertFrom-Json
   $artifactRecord.execution = 'passed'
   $artifactRecord | ConvertTo-Json | Set-Content -LiteralPath $artifactPath
+} catch {
+  $msg = $_.Exception.Message -replace '%','%25' -replace "`r",'%0D' -replace "`n",'%0A'
+  Write-Output ("::error::installer lifecycle failed: $msg")
+  throw
 } finally {
   Get-NetFirewallRule -Name "$prefix-*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
   Remove-Item Env:SORNIO_REVIEW_EXE -ErrorAction SilentlyContinue
