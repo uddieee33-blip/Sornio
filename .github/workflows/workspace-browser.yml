@@ -87,7 +87,12 @@ jobs:
           npm install --prefix "$RUNNER_TEMP/sornio-browser" --no-package-lock playwright@1.62.1
           node "$RUNNER_TEMP/sornio-browser/node_modules/playwright/cli.js" install --with-deps chromium
       - name: Run browser acceptance
+        # On failure, emit the runner output tail as a ::error:: annotation so
+        # the exact failing assertion is visible even when raw logs expire.
+        # The step still fails with the script's own exit code.
+        shell: bash
         run: |
+          set -o pipefail
           npm run start > /tmp/sornio-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" || true' EXIT
@@ -95,9 +100,20 @@ jobs:
             if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then break; fi
             sleep 1
           done
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs
+          log=/tmp/sornio-browser-acceptance.log
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs 2>&1 | tee "$log" || true
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            { tail -40 "$log"; echo '--- server log tail ---'; tail -20 /tmp/sornio-server.log; } \
+              | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::browser acceptance failure: /'
+          fi
+          exit "$code"
       - name: Build and review local desktop access UI
+        # Same failure-annotation treatment as the browser acceptance step.
+        shell: bash
         run: |
+          set -o pipefail
           npm ci --prefix apps/desktop
           npm run build --prefix apps/desktop
           npm run dev --prefix apps/desktop > /tmp/sornio-desktop-server.log 2>&1 &
@@ -107,18 +123,31 @@ jobs:
             if curl -fsS http://127.0.0.1:1420 > /dev/null; then break; fi
             sleep 1
           done
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-ui.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-focus.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-inventory-refresh.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-checkout.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-receipts.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/receipts
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-authorization.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-backup.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-credentials.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-customers.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-statement-print.cjs http://127.0.0.1:1420 "" /tmp/sornio-screenshots/customer-statements
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-retail.cjs
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node apps/desktop/check-inventory-recovery.cjs
+          export NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules"
+          log=/tmp/sornio-desktop-checks.log
+          : > "$log"
+          run_check() {
+            local name="$1"; shift
+            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log" || true
+            local code=${PIPESTATUS[0]}
+            if [ "$code" -ne 0 ]; then
+              tail -40 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
+                | sed "s/^/::error::desktop UI check $name failed: /"
+              exit "$code"
+            fi
+          }
+          run_check check-ui
+          run_check check-focus
+          run_check check-inventory-refresh
+          run_check check-checkout http://127.0.0.1:1420 "" /tmp/sornio-screenshots/checkout
+          run_check check-receipts http://127.0.0.1:1420 "" /tmp/sornio-screenshots/receipts
+          run_check check-authorization
+          run_check check-backup
+          run_check check-credentials
+          run_check check-customers
+          run_check check-statement-print http://127.0.0.1:1420 "" /tmp/sornio-screenshots/customer-statements
+          run_check check-retail
+          run_check check-inventory-recovery
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
