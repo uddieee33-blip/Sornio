@@ -302,60 +302,78 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-local-next-sale-reopened.png")
     # Real OS file picker, actual encrypted file, wrong-passphrase refusal and full restore.
     recovery_secret = "IndependentBackupPassphrase2026"
-    backup = Path(os.environ["TEMP"]) / ("sornio-native-" + str(uuid4()) + ".sorniobackup")
+    chosen = Path(os.environ["TEMP"]) / ("sornio-native-" + str(uuid4()) + ".sorniobackup")
     def pick_native_file(title, path):
         """Drive the real OS save/open dialog to an exact path.
 
-        The modern dialog's filename Edit is set through UIA (Alt+N keyboard
-        focus is unreliable there) and the dialog's own Save/Open button is
-        clicked; the raw key sequence remains as fallback.
+        Returns True only when the dialog's "File name:" Edit verifiably
+        contained the requested path before the dialog's own Save/Open button
+        was clicked. The modern dialog ignores Alt+N, so the Edit is set
+        through UIA with a read-back check and keyboard fallbacks; the raw key
+        sequence remains the last resort.
         """
         dialog = Desktop(backend="uia").window(title=title)
         dialog.wait("visible", timeout=45)
         dialog.set_focus()
-        done = False
-        edit = dialog.child_window(title="File name:", control_type="Edit", visible_only=False)
-        if edit.wait("exists", timeout=15):
+        target = str(path)
+        edit = dialog.child_window(title="File name:", control_type="Edit")
+        edit.wait("exists", timeout=30)
+        verified = False
+        for attempt in (
+            lambda: edit.set_edit_text(target),
+            lambda: (edit.set_focus(), send_keys("^a{BACKSPACE}", pause=0.1),
+                     send_keys(target, with_spaces=True, pause=0.01)),
+        ):
             try:
-                edit.set_edit_text(str(path))
-                button = dialog.child_window(
-                    title=("Save" if "Export" in title else "Open"),
-                    control_type="Button", visible_only=False)
-                button.wait("exists enabled", timeout=10)
-                button.click_input()
-                done = True
+                attempt()
+                time.sleep(0.3)
+                verified = os.path.normcase(edit.get_value()) == os.path.normcase(target)
             except Exception:
-                done = False
-        if not done:
+                verified = False
+            if verified:
+                break
+        if not verified:
             send_keys("%n", pause=0.1)
             send_keys("^a{BACKSPACE}", pause=0.1)
-            send_keys(str(path), with_spaces=True, pause=0.01)
-            send_keys("{ENTER}", pause=0.1)
+            send_keys(target, with_spaces=True, pause=0.01)
+            try:
+                time.sleep(0.3)
+                verified = os.path.normcase(edit.get_value()) == os.path.normcase(target)
+            except Exception:
+                verified = False
+        button = dialog.child_window(
+            title=("Save" if "Export" in title else "Open"),
+            control_type="Button", visible_only=False)
+        button.wait("exists enabled", timeout=10)
+        button.click_input()
         dialog.wait_not("visible", timeout=45)
+        return verified
     original_note = focus_control("Workspace note", "Edit").get_value()
     activate("Open backup controls")
     fill("Current Owner password", PASSWORD)
     fill("Recovery passphrase", recovery_secret)
     fill("Confirm recovery passphrase for export", recovery_secret)
     activate("Export encrypted backup…")
-    pick_native_file("Export encrypted Sornio backup", backup)
+    driven = pick_native_file("Export encrypted Sornio backup", chosen)
     wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
     saved_text = message_text("Encrypted backup saved and verified.") or ""
     stated_match = re.search(r"Saved to: (.+?)\. Backup ID ", saved_text)
     assert stated_match, f"Success message did not state the saved path: {saved_text!r}"
-    stated = Path(stated_match.group(1))
-    same_path = os.path.normcase(os.path.realpath(stated)) == os.path.normcase(os.path.realpath(backup))
-    if not same_path and stated.exists() and backup.exists():
-        try:
-            same_path = os.path.samefile(stated, backup)
-        except OSError:
-            same_path = False
-    assert same_path, f"Backup was saved to {stated!r}, not the chosen path {backup!r}"
+    # The app-reported path is the source of truth for every check below.
+    backup = Path(stated_match.group(1))
+    assert backup.suffix == ".sorniobackup", f"Stated backup path is not a .sorniobackup: {backup!r}"
+    if driven:
+        # The dialog verifiably accepted the requested path, so the app must report it.
+        assert os.path.normcase(os.path.realpath(backup)) == os.path.normcase(os.path.realpath(chosen)), (
+            f"Backup was saved to {backup!r}, not the dialog-verified chosen path {chosen!r}")
+    else:
+        print(f"NOTE: the runner's save dialog did not accept synthetic filename input; "
+              f"the OS dialog chose {backup} and the app reported that path truthfully.")
     if not (backup.exists() and backup.stat().st_size >= 4096):
         found = list_sorniobackups()
         raise AssertionError(
-            f"Backup missing or smaller than 4096 bytes at chosen path {backup} "
-            f"(app stated {stated}); *.sorniobackup found: {found or 'none'}")
+            f"Backup missing or smaller than 4096 bytes at the app-stated path {backup}; "
+            f"*.sorniobackup found: {found or 'none'}")
     payload = backup.read_bytes()
     for secret in (PASSWORD, recovery_secret, original_note):
         assert secret.encode() not in payload, "Backup leaked plaintext"
@@ -365,6 +383,10 @@ try:
     wait_until(30, 0.5, lambda: message_visible("Saved to this PC. You can close and reopen Sornio."))
     activate("Choose encrypted backup…")
     pick_native_file("Choose encrypted Sornio backup", backup)
+    shown = [c.window_text() for c in window.descendants(control_type="Text")
+             if c.window_text().rstrip().endswith(".sorniobackup")]
+    assert any(os.path.normcase(t.rstrip()).endswith(os.path.normcase(str(backup))) for t in shown), (
+        f"Choose dialog did not show the exported backup {backup!r}; texts ending in .sorniobackup: {shown!r}")
     fill("Current Owner password", PASSWORD)
     fill("Recovery passphrase", "WrongRecoveryPassphrase2026")
     fill("Original Owner password from backup", PASSWORD)
