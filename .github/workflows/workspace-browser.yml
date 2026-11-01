@@ -30,9 +30,22 @@ jobs:
         with:
           workspaces: packages/local-store
       - name: Check native Rust formatting
+        # On failure, apply rustfmt and emit the resulting diff as ::error::
+        # annotations so the exact required formatting is visible in the check
+        # record even when raw logs expire. The step still fails.
+        shell: bash
         run: |
-          cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
-          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+          if cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check \
+            && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check; then
+            exit 0
+          fi
+          cargo fmt --manifest-path packages/local-store/Cargo.toml
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
+          git diff -- packages apps \
+            | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' \
+            | head -80 | sed 's/^/::error::/'
+          git checkout -- packages apps
+          exit 1
       - name: Test native billing and inventory in debug and release
         run: |
           cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml
