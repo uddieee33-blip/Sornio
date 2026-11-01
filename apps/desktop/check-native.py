@@ -358,11 +358,26 @@ try:
             send_keys("%n", pause=0.1)
             send_keys("^a{BACKSPACE}", pause=0.1)
             send_keys(target, with_spaces=True, pause=0.01)
-        button = dialog.child_window(
-            title=("Save" if "Export" in title else "Open"),
-            control_type="Button", visible_only=False)
-        button.wait("exists enabled", timeout=10)
-        button.click_input()
+        wanted = "Save" if "Export" in title else "Open"
+        button = None
+        try:
+            for candidate in dialog.descendants(control_type="Button"):
+                try:
+                    if wanted.lower() in candidate.window_text().lower():
+                        button = candidate
+                        break
+                except Exception:
+                    continue
+        except Exception:
+            button = None
+        if button is not None:
+            try:
+                button.wait("exists enabled", timeout=10)
+                button.click_input()
+            except Exception:
+                send_keys("{ENTER}", pause=0.1)  # the dialog's default action
+        else:
+            send_keys("{ENTER}", pause=0.1)
         dialog.wait_not("visible", timeout=45)
         return verified
     original_note = focus_control("Workspace note", "Edit").get_value()
