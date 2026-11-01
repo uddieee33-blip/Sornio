@@ -324,7 +324,8 @@ pub(crate) fn post_into(
             .iter()
             .filter(|p| p.method == "credit")
             .try_fold(0i64, |v, p| {
-                v.checked_add(p.amount_paise).ok_or(StoreError::InvalidPayment)
+                v.checked_add(p.amount_paise)
+                    .ok_or(StoreError::InvalidPayment)
             })?;
         if credit > 0 {
             let customer_id = invoice
