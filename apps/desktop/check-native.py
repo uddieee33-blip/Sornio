@@ -57,14 +57,35 @@ def activate(title):
     send_keys("{SPACE}", pause=0.1)
 
 
+def ui_texts():
+    """All descendant texts, tolerating transient UIA enumeration failures.
+
+    While the WebView re-renders, descendants() can raise (observed:
+    KeyError: None for an element with a null control type) and individual
+    window_text() calls can hit stale elements. Callers poll these helpers in
+    wait_until loops, so a transient error must be an empty result, not a
+    crash.
+    """
+    try:
+        controls = window.descendants()
+    except Exception:
+        return []
+    texts = []
+    for control in controls:
+        try:
+            texts.append(control.window_text())
+        except Exception:
+            continue
+    return texts
+
+
 def message_visible(text):
-    return any(text in control.window_text() for control in window.descendants())
+    return any(text in t for t in ui_texts())
 
 
 def message_text(substr):
     """Full text of the first UIA control containing substr (may span lines)."""
-    for control in window.descendants():
-        text = control.window_text()
+    for text in ui_texts():
         if substr in text:
             return text
     return None
@@ -385,8 +406,7 @@ try:
     wait_until(30, 0.5, lambda: message_visible("Saved to this PC. You can close and reopen Sornio."))
     activate("Choose encrypted backup…")
     pick_native_file("Choose encrypted Sornio backup", backup)
-    shown = [c.window_text() for c in window.descendants(control_type="Text")
-             if c.window_text().rstrip().endswith(".sorniobackup")]
+    shown = [t for t in ui_texts() if t.rstrip().endswith(".sorniobackup")]
     assert any(os.path.normcase(t.rstrip()).endswith(os.path.normcase(str(backup))) for t in shown), (
         f"Choose dialog did not show the exported backup {backup!r}; texts ending in .sorniobackup: {shown!r}")
     fill("Current Owner password", PASSWORD)
