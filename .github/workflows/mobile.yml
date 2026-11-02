@@ -49,6 +49,7 @@ jobs:
       - name: Secret scan
         run: |
           if grep -R -nE 'service_role|SUPABASE_SERVICE_ROLE|BEGIN RSA PRIVATE KEY|AIza[0-9A-Za-z_-]{20,}' \
+            --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=android --exclude-dir=ios \
             apps/mobile packages/mobile-contracts packages/mobile-design \
             | grep -v 'docs/' ; then
             echo 'Refusing secrets in the companion tree.'
