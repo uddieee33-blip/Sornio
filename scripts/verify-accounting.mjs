@@ -303,6 +303,329 @@ console.log('Invoice arithmetic and settlement:');
   check('services remain sellable without physical stock', validateSaleStock([{ productId: 'svc', quantity: 2, rate: 100 }], [service]).ok);
 }
 
+// Phase 2 hardening: QuantityMilli aggregation, BigInt COGS, explicit rejection, rollback & idempotent replay.
+{
+  const postingSource = readFileSync(join(root, 'lib/accounting-posting.ts'), 'utf8');
+  check('postSale never falls back to legacy float money() rounding', !/\bmoney\s*\(/.test(postingSource));
+
+  const { validateSaleStock } = await import(compile(join(root, 'lib/sale-stock.ts')));
+  const { postSale } = await import(compile(join(root, 'lib/accounting-posting.ts')));
+  const { buildMovement, reconcileLedger } = await import(compile(join(root, 'lib/inventory/index.ts')));
+
+  const makeItem = (id, name, stock, cost, price = 100, unit = 'kg') => ({
+    id,
+    name,
+    category: 'Grocery',
+    itemType: 'product',
+    price,
+    cost,
+    stock,
+    reorderLevel: 1,
+    unit,
+    supplier: 'Direct',
+    status: 'Active',
+  });
+
+  // 1. 0.1 + 4.01 exact QuantityMilli (4110) and half-paisa COGS boundary (4.11 * 0.50 = 2.055 -> ₹2.06, never float ₹2.05).
+  {
+    const grain = makeItem('grain', 'Loose grain', 10, 0.5, 1.0);
+    const opening = buildMovement({
+      id: 'mv-open-grain',
+      productId: grain.id,
+      productName: grain.name,
+      at: '2026-11-01T00:00:00.000Z',
+      reason: 'opening',
+      delta: 10,
+      balanceBefore: 0,
+      note: 'Opening count',
+      unit: 'kg',
+    });
+    const validated = validateSaleStock(
+      [
+        { productId: 'grain', quantity: 0.1, rate: 1.0 },
+        { productId: 'grain', quantity: 4.01, rate: 1.0 },
+      ],
+      [grain],
+    );
+    check(
+      'validateSaleStock aggregates 0.1 + 4.01 as exact 4110 QuantityMilli (4.11)',
+      validated.ok && validated.quantitiesMilli.get('grain') === 4110 && validated.quantities.get('grain') === 4.11,
+    );
+
+    const posted = postSale(
+      { products: [grain], transactions: [], stockMovements: [opening] },
+      {
+        operationId: 'sale-01-401',
+        lines: [
+          { productId: 'grain', quantity: 0.1, rate: 1.0 },
+          { productId: 'grain', quantity: 4.01, rate: 1.0 },
+        ],
+        method: 'Cash',
+        description: 'Counter grain sale',
+        date: '2026-11-02',
+        taxRate: 5,
+      },
+    );
+    const snap = summarizeFinancials(posted.transactions, posted.products, []);
+    const ledger = reconcileLedger(posted.products, posted.stockMovements);
+    const revenueEntry = posted.transactions.find((t) => t.type === 'sale' && t.account === 'revenue');
+    const taxEntry = posted.transactions.find((t) => t.account === 'tax');
+    const cashEntry = posted.transactions.find((t) => t.account === 'cash');
+    const cogsEntry = posted.transactions.find((t) => t.type === 'stock_adjustment' && t.account === 'inventory');
+    check(
+      '0.1 + 4.01 posts exact ₹2.06 COGS (eliminating 1-paisa float drift), clean movement note, single stock deduction and balanced journal',
+      snap.cogs === 2.06 &&
+        cogsEntry?.amount === 2.06 &&
+        posted.products[0].stock === 5.89 &&
+        posted.stockChanges.length === 1 &&
+        posted.stockChanges[0].delta === -4.11 &&
+        posted.stockChanges[0].note === 'Sold — 4.11 × Loose grain' &&
+        ledger.ok &&
+        Math.round((revenueEntry.amount + taxEntry.amount) * 100) === Math.round(cashEntry.amount * 100) &&
+        cashEntry.amount === posted.total,
+    );
+  }
+
+  // 2. 0.001 + 0.002 exact milli-unit aggregation (3 milli = 0.003).
+  {
+    const saffron = makeItem('saffron', 'Saffron', 1, 1000, 1500, 'kg');
+    const validated = validateSaleStock(
+      [
+        { productId: 'saffron', quantity: 0.001, rate: 1500 },
+        { productId: 'saffron', quantity: 0.002, rate: 1500 },
+      ],
+      [saffron],
+    );
+    const posted = postSale(
+      { products: [saffron], transactions: [], stockMovements: [] },
+      {
+        lines: [
+          { productId: 'saffron', quantity: 0.001, rate: 1500 },
+          { productId: 'saffron', quantity: 0.002, rate: 1500 },
+        ],
+        method: 'UPI',
+        description: 'Weighed saffron',
+        date: '2026-11-02',
+      },
+    );
+    const snap = summarizeFinancials(posted.transactions, posted.products, []);
+    check(
+      '0.001 + 0.002 aggregates to 3 QuantityMilli (0.003) with exact ₹4.50 revenue, ₹3.00 COGS and 0.997 remaining stock',
+      validated.ok &&
+        validated.quantitiesMilli.get('saffron') === 3 &&
+        posted.total === 4.5 &&
+        snap.revenue === 4.5 &&
+        snap.cogs === 3 &&
+        snap.upiBalance === 4.5 &&
+        posted.products[0].stock === 0.997 &&
+        posted.stockChanges.length === 1,
+    );
+  }
+
+  // 3. Multiple duplicate SKU lines across multiple products + half-paisa rounding boundaries.
+  {
+    const rice = makeItem('rice', 'Basmati rice', 20, 0.3, 5.0, 'kg');
+    const dal = makeItem('dal', 'Moong dal', 10, 5.0, 10.0, 'kg');
+    const deliveryFee = { ...makeItem('fee', 'Packing', 0, 0, 10, 'pcs'), itemType: 'service' };
+    const posted = postSale(
+      { products: [rice, dal, deliveryFee], transactions: [], stockMovements: [] },
+      {
+        lines: [
+          { productId: 'rice', quantity: 0.1, rate: 5.0 },
+          { productId: 'dal', quantity: 0.001, rate: 5.0 }, // 0.005 rupee -> 1 paisa half-up
+          { productId: 'rice', quantity: 4.01, rate: 5.0 },
+          { productId: 'dal', quantity: 1.999, rate: 10.0 },
+          { productId: 'fee', quantity: 1, rate: 10.0 },
+        ],
+        method: 'Credit',
+        credit: true,
+        customerId: 'cust-1',
+        invoiceId: 'INV-MULTI-1',
+        description: 'Multi-SKU duplicate lines',
+        date: '2026-11-02',
+        taxRate: 5,
+      },
+    );
+    const snap = summarizeFinancials(posted.transactions, posted.products, [{ openingBalance: 0 }]);
+    // rice COGS: 4110 milli * 30 paise = 123300 -> +500 / 1000 = 123 paise (₹1.23)
+    // dal COGS: 2000 milli * 500 paise = 1000000 -> +500 / 1000 = 1000 paise (₹10.00) -> total COGS = ₹11.23
+    check(
+      'multiple duplicate SKU lines emit one stock movement per physical SKU, exact half-up paise COGS (₹11.23) and balanced receivables',
+      posted.stockChanges.length === 2 &&
+        posted.products.find((p) => p.id === 'rice').stock === 15.89 &&
+        posted.products.find((p) => p.id === 'dal').stock === 8 &&
+        snap.cogs === 11.23 &&
+        snap.customerReceivables === posted.total &&
+        Math.round((posted.subtotal + posted.tax) * 100) === Math.round(posted.total * 100),
+    );
+  }
+
+  // 4. Zero-value rejection & integer overflow rejection (both revenue and COGS).
+  {
+    const item = makeItem('item', 'Test item', 1_000_000_000, 10, 100);
+    let zeroQty = false,
+      zeroSubtotal = false,
+      subPaisaZero = false,
+      qtyOverflow = false,
+      cogsOverflow = false;
+    try {
+      postSale({ products: [item], transactions: [], stockMovements: [] }, { lines: [{ productId: 'item', quantity: 0, rate: 100 }], method: 'Cash', description: 'z', date: '2026-11-02' });
+    } catch {
+      zeroQty = true;
+    }
+    try {
+      postSale({ products: [item], transactions: [], stockMovements: [] }, { lines: [{ productId: 'item', quantity: 1, rate: 0 }], method: 'Cash', description: 'z', date: '2026-11-02' });
+    } catch {
+      zeroSubtotal = true;
+    }
+    try {
+      postSale({ products: [item], transactions: [], stockMovements: [] }, { lines: [{ productId: 'item', quantity: 0.001, rate: 4.99 }], method: 'Cash', description: 'z', date: '2026-11-02' });
+    } catch {
+      subPaisaZero = true;
+    }
+    const maxLineQty = 6_000_000_000; // 6e12 milli each -> 12e12 > 9e12 NATIVE_INVOICE_MAX
+    qtyOverflow = !validateSaleStock(
+      [
+        { productId: 'item', quantity: maxLineQty, rate: 1 },
+        { productId: 'item', quantity: maxLineQty, rate: 1 },
+      ],
+      [{ id: 'item', name: 'Test item', itemType: 'product', stock: 9_000_000_000 }],
+    ).ok;
+    const priceyCostItem = makeItem('costly', 'High cost', 2000, 90_000_000, 1);
+    try {
+      postSale(
+        { products: [priceyCostItem], transactions: [], stockMovements: [] },
+        { lines: [{ productId: 'costly', quantity: 1000.001, rate: 1 }], method: 'Cash', description: 'overflow cogs', date: '2026-11-02' },
+      );
+    } catch {
+      cogsOverflow = true;
+    }
+    check(
+      'zero-value sales and integer overflows in repeated quantities or COGS are explicitly rejected',
+      zeroQty && zeroSubtotal && subPaisaZero && qtyOverflow && cogsOverflow,
+    );
+  }
+
+  // 5. Insufficient stock, multi-line sale rollback & failed ledger posting (invalid product cost).
+  {
+    const grain = makeItem('grain', 'Loose grain', 4.109, 0.5, 1.0);
+    const exactBoundaryFail = validateSaleStock(
+      [
+        { productId: 'grain', quantity: 0.1, rate: 1.0 },
+        { productId: 'grain', quantity: 4.01, rate: 1.0 },
+      ],
+      [grain],
+    );
+    const goodSku = makeItem('good', 'Good SKU', 10, 20, 50);
+    const shortSku = makeItem('short', 'Short SKU', 1, 20, 50);
+    const badCostSku = makeItem('badcost', 'Sub-paise cost SKU', 10, 12.345, 50);
+    const negCostSku = makeItem('negcost', 'Negative cost SKU', 10, -5, 50);
+    const initialState = {
+      products: [goodSku, shortSku, badCostSku, negCostSku],
+      transactions: [],
+      stockMovements: [],
+    };
+    let insufficientRolledBack = false,
+      subPaiseCostRejected = false,
+      negativeCostRejected = false;
+    try {
+      postSale(initialState, {
+        lines: [
+          { productId: 'good', quantity: 2, rate: 50 },
+          { productId: 'short', quantity: 1.001, rate: 50 },
+        ],
+        method: 'Cash',
+        description: 'Rollback check',
+        date: '2026-11-02',
+      });
+    } catch {
+      insufficientRolledBack = true;
+    }
+    try {
+      postSale(initialState, {
+        lines: [
+          { productId: 'good', quantity: 2, rate: 50 },
+          { productId: 'badcost', quantity: 1, rate: 50 },
+        ],
+        method: 'Cash',
+        description: 'Sub-paise COGS fail',
+        date: '2026-11-02',
+      });
+    } catch {
+      subPaiseCostRejected = true;
+    }
+    try {
+      postSale(initialState, {
+        lines: [{ productId: 'negcost', quantity: 1, rate: 50 }],
+        method: 'Cash',
+        description: 'Negative COGS fail',
+        date: '2026-11-02',
+      });
+    } catch {
+      negativeCostRejected = true;
+    }
+    check(
+      'insufficient stock and failed COGS ledger postings reject explicitly and roll back without mutating prior lines',
+      !exactBoundaryFail.ok &&
+        insufficientRolledBack &&
+        subPaiseCostRejected &&
+        negativeCostRejected &&
+        initialState.products[0].stock === 10 &&
+        initialState.transactions.length === 0 &&
+        initialState.stockMovements.length === 0,
+    );
+  }
+
+  // 6. Idempotent operation replay (including when initial commit exhausted stock to 0) & conflicting replay rejection.
+  {
+    const exactStock = makeItem('exact', 'Exact pouch', 4.11, 0.5, 1.0);
+    const first = postSale(
+      { products: [exactStock], transactions: [], stockMovements: [] },
+      {
+        operationId: 'op-replay-411',
+        lines: [
+          { productId: 'exact', quantity: 0.1, rate: 1.0 },
+          { productId: 'exact', quantity: 4.01, rate: 1.0 },
+        ],
+        method: 'Cash',
+        description: 'Replayable sale',
+        date: '2026-11-02',
+      },
+    );
+    const replayed = postSale(first, {
+      operationId: 'op-replay-411',
+      lines: [
+        { productId: 'exact', quantity: 0.1, rate: 1.0 },
+        { productId: 'exact', quantity: 4.01, rate: 1.0 },
+      ],
+      method: 'Cash',
+      description: 'Replayable sale',
+      date: '2026-11-02',
+    });
+    let conflictRejected = false;
+    try {
+      postSale(first, {
+        operationId: 'op-replay-411',
+        lines: [{ productId: 'exact', quantity: 1, rate: 1.0 }],
+        method: 'Cash',
+        description: 'Conflicting replay',
+        date: '2026-11-02',
+      });
+    } catch {
+      conflictRejected = true;
+    }
+    check(
+      'idempotent operation replay preserves single stock deduction and exact ledger entries while rejecting altered payloads',
+      first.products[0].stock === 0 &&
+        replayed.products[0].stock === 0 &&
+        replayed.transactions.length === first.transactions.length &&
+        replayed.stockMovements.length === first.stockMovements.length &&
+        replayed.stockChanges.length === 1 &&
+        conflictRejected,
+    );
+  }
+}
+
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);
 

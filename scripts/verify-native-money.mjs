@@ -57,7 +57,7 @@ try {
     '--strict', '--skipLibCheck', '--ignoreConfig'], { stdio: 'inherit' });
   const { calculateNativeInvoice } = require(join(out, 'packages/business-domain/src/native-invoice.js'));
   const { parseFixedDecimal } = require(join(out, 'packages/business-domain/src/fixed-decimal.js'));
-  const { money, quantity } = require(join(out, 'apps/desktop/src/billing-types.js'));
+  const { formatPaiseInput, money, quantity } = require(join(out, 'apps/desktop/src/billing-types.js'));
 
   // The Rust contract, transcribed into BigInt exactly once.
   const reference = (lines, bps) => {
@@ -208,16 +208,30 @@ try {
   // input uses: what the cashier is shown must re-parse to the saved paise.
   let recoveryChecked = 0;
   const roundTrips = (paise) => {
-    const shown = String(paise / 100);
+    const shown = formatPaiseInput(paise, '0');
     if (/e/i.test(shown)) throw new Error(`recovered amount ${paise} renders in exponent form: ${shown}`);
-    if (parseFixedDecimal(shown, 2) !== paise) {
+    if (String(parseFixedDecimal(shown, 2)) !== String(paise)) {
       throw new Error(`recovered amount ${paise} shows as ${shown} and re-parses to ${parseFixedDecimal(shown, 2)}`);
     }
     recoveryChecked += 1;
   };
   for (let paise = 0; paise <= 200_000; paise += 1) roundTrips(paise);
-  for (const paise of [999_999, 1_234_567, 90_000_000_000, 899_999_999_999, 4_499_999_999_999]) roundTrips(paise);
-  check(true, `recovered split amounts re-parse to the saved paise for ${recoveryChecked} values`);
+  for (const paise of [999_999, 1_234_567, 90_000_000_000, 899_999_999_999, 4_499_999_999_999, 8_999_999_999_999, MAX]) roundTrips(paise);
+  assert.equal(formatPaiseInput(0), '', 'formatPaiseInput(0) clears empty split slots');
+  assert.equal(formatPaiseInput(0, '0'), '0', 'formatPaiseInput(0, "0") preserves explicit zero credit limits');
+  assert.equal(formatPaiseInput(1050), '10.50', 'formatPaiseInput pads trailing zero paise');
+  assert.equal(formatPaiseInput('9007199254740993'), '90071992547409.93', 'formatPaiseInput preserves >2^53 paise without float division');
+  check(true, `formatPaiseInput round-trips saved paise through BigInt for ${recoveryChecked} values up to MAX`);
+
+  // --- pilot split-payment invariant: ₹1,000 = ₹600 Cash + ₹400 Credit ------
+  const splitInvoice = calculateNativeInvoice([{ quantityMilli: 1000, unitPricePaise: 100_000 }], 0);
+  const splitCash = parseFixedDecimal('600', 2);
+  const splitCredit = parseFixedDecimal('400', 2);
+  assert.equal(splitInvoice.totalPaise, 100_000, '₹1,000 item computes 100,000 paise');
+  assert.equal(splitCash + splitCredit, splitInvoice.totalPaise, '₹600 Cash + ₹400 Credit equals ₹1,000.00 exactly');
+  assert.notEqual(parseFixedDecimal('599.99', 2) + splitCredit, splitInvoice.totalPaise, '1-paisa short split does not match invoice total');
+  assert.notEqual(parseFixedDecimal('600.01', 2) + splitCredit, splitInvoice.totalPaise, '1-paisa excess split does not match invoice total');
+  check(true, 'split-payment arithmetic enforces exact ₹1,000 = ₹600 Cash + ₹400 Credit paise parity');
 
   // --- the shared fixtures still agree with this reference -----------------
   const fixtures = JSON.parse(readFileSync('packages/business-domain/fixtures/native-invoices.json', 'utf8'));

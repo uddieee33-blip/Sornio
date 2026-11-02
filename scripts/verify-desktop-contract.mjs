@@ -104,10 +104,16 @@ check(/render_customer_statement/.test(readFileSync(join(RENDERER, 'CustomerPane
 const nativeCustomer = readFileSync('packages/local-store/src/customers.rs', 'utf8');
 check(/fn escape\(/.test(nativeCustomer) && /'&' => "&amp;"/.test(nativeCustomer), 'native statement text is escaped before it reaches the DOM');
 
-// 8. Money is never formatted through floating point.
+// 8. Money is never formatted through floating point across the renderer.
 const billingTypes = readFileSync(join(RENDERER, 'billing-types.ts'), 'utf8');
 check(/function money\(paise: number \| string\)[\s\S]*BigInt\(paise\)/.test(billingTypes), 'money() formats cumulative balances with BigInt');
+check(/function formatPaiseInput\(paise: number \| string[\s\S]*BigInt\(paise\)/.test(billingTypes), 'formatPaiseInput() formats editable paise amounts with BigInt');
 check(!/parseFloat\(|Number\(.*Paise/.test(billingTypes), 'billing display never converts paise with parseFloat/Number');
+for (const file of rendererFiles) {
+  const source = readFileSync(file, 'utf8');
+  assert.ok(!/Paise\s*\/\s*100\b/.test(source), `${file} divides *Paise by 100 in floating point`);
+}
+check(true, 'no desktop renderer file divides paise balances by 100 in floating point');
 
 // 9. Printing re-checks authority before opening the dialog.
 const printing = readFileSync(join(RENDERER, 'receipt-print.ts'), 'utf8');
@@ -115,5 +121,21 @@ const printIndex = printing.indexOf('window.print()');
 const lastAuthorize = printing.lastIndexOf('await authorize()');
 check(printIndex > lastAuthorize && lastAuthorize > 0, 'native authority is re-checked immediately before window.print()');
 check(/Returning\/cancelling does not prove that paper was produced/.test(printing), 'printing never claims a document was produced');
+
+// 10. Punjabi receipt translations and counter keyboard safety remain complete.
+const savedInvoiceSource = readFileSync(join(RENDERER, 'SavedInvoice.tsx'), 'utf8');
+const punjabiCatalog = JSON.parse(readFileSync(join(RENDERER, 'locales/pa.json'), 'utf8'));
+const translatedLiterals = [...savedInvoiceSource.matchAll(/translate\(\s*'([^']+)'\s*\)/g)].map(m => m[1]);
+const missingPunjabi = translatedLiterals.filter(key => typeof punjabiCatalog[key] !== 'string' || !punjabiCatalog[key].trim());
+check(translatedLiterals.length >= 15 && missingPunjabi.length === 0, `all ${translatedLiterals.length} SavedInvoice receipt phrases exist in locales/pa.json`);
+const checkoutSource = readFileSync(join(RENDERER, 'CheckoutPanel.tsx'), 'utf8');
+for (const key of ['F2', 'F3', 'F4', 'F8', 'Escape']) {
+  assert.ok(checkoutSource.includes(`event.key === '${key}'`), `CheckoutPanel missing ${key} shortcut`);
+}
+check(true, 'CheckoutPanel binds F2, F3, F4, F8 and Escape counter shortcuts');
+const customerSource = readFileSync(join(RENDERER, 'CustomerPanel.tsx'), 'utf8');
+const retailSource = readFileSync(join(RENDERER, 'RetailPanel.tsx'), 'utf8');
+check(customerSource.includes("event.key === 'Escape'") && retailSource.includes("event.key === 'Escape'"), 'CustomerPanel and RetailPanel review prompts support Escape dismissal');
+check(retailSource.includes('function requireReason()'), 'RetailPanel surfaces explicit guidance when a required correction/return reason is empty');
 
 console.log(`\n${checks} desktop contract checks passed`);

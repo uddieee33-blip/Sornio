@@ -3,14 +3,13 @@ import type { FormEvent } from 'react';
 import { invoke } from './native';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import { errorCode, errorMessage } from './access';
+import { money, quantity } from './billing-types';
+import type { Product } from './billing-types';
 
-type Product = { id: string; name: string; sku: string; unit: string; unitPricePaise: number; stockMilli: number; revision: number };
 type AddProduct = { operationId: string; name: string; sku: string; unit: string; unitPricePaise: number; openingStockMilli: number };
 type AdjustStock = { operationId: string; productId: string; expectedRevision: number; deltaMilli: number; reason: string };
 type Pending = { command: 'add_local_product'; request: AddProduct } | { command: 'adjust_local_stock'; request: AdjustStock };
 const empty = { name: '', sku: '', unit: 'pcs', price: '', quantity: '' };
-const quantity = (value: number) => (value / 1000).toLocaleString('en-IN', { maximumFractionDigits: 3 });
-const money = (value: number) => (value / 100).toLocaleString('en-IN', { style: 'currency', currency: 'INR' });
 
 export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirtyChange, onBusyChange, refreshToken, onSaved }: {
   canAdd: boolean; canCorrect: boolean; refreshToken: number; onSaved: () => void; disabled: boolean; onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void;
