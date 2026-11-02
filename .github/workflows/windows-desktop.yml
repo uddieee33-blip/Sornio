@@ -44,7 +44,7 @@ jobs:
           cd dist/windows
           zip -q -r ../Sornio-Hosted-Preview-x64.zip .
       - name: Upload review package
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v7.0.2
         with:
           name: Sornio-Hosted-Preview-x64
           path: dist/Sornio-Hosted-Preview-x64.zip
@@ -89,7 +89,7 @@ jobs:
           if ($uninstall.ExitCode -ne 0) { throw "Uninstall failed: $($uninstall.ExitCode)" }
           if (Test-Path (Join-Path $target 'SornioHostedPreview.exe')) { throw 'Uninstall left the application EXE behind.' }
           if ((Get-Content $marker) -ne 'preserve-owner-profile') { throw 'Uninstall modified owner data.' }
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: Sornio-Hosted-Preview-Setup-x64
           path: dist/installer/Sornio-Hosted-Preview-Setup-x64.exe
