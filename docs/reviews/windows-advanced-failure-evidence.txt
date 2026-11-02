@@ -1,0 +1,516 @@
+Advanced failure challenge execution evidence — synthetic data only.
+Starting head 7dabef1add3caa48c92afd31276186a8831bbb31. Final SHA and hosted CI are recorded in PR #130.
+Commands: RUSTUP_HOME=/tmp/sornio-rustup CARGO_HOME=/tmp/sornio-cargo OPENSSL_NO_VENDOR=1 OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu OPENSSL_INCLUDE_DIR=/usr/include RUST_TEST_THREADS=4 /tmp/sornio-cargo/bin/cargo test --locked --all-targets --manifest-path packages/local-store/Cargo.toml
+Same command with --release; cargo fmt --manifest-path packages/local-store/Cargo.toml; git diff --check.
+161 passed per profile (155 library + six security), zero failures. Three subprocess workers ignored standalone are exercised by passing parents. The independent-fork test passes by demonstrating a remaining distributed-authority hazard, not by establishing LAN correctness.
+The /tmp Rust toolchain was missing on resume; installation was restored before these commands. An initial invocation failed before execution because cargo was absent. No test was suppressed. Bundled SQLCipher uses the system OpenSSL provider locally; Windows encryption/dependencies remain unchanged.
+No fresh browser or Windows acceptance was executed for this increment. Earlier 11-suite browser evidence belongs to named checkpoint 7dabef1.
+Administrative observations: /branches/main reports protected=false, protection.enabled=false, enforcement_level=off, contexts/checks empty. Protection endpoint 403 Resource not accessible by integration; rulesets endpoint 403 private-plan eligibility error; check-run endpoint outside allowed connector routes. These errors do not diagnose runner startup. Parent-head runs Windows40951880292/core40951880262/browser40951880138 each have failed jobs, runner_id=0, steps=[]; Windows job123721834943 log returns404 BlobNotFound.
+
+Operating system:
+PRETTY_NAME="Ubuntu 24.04.3 LTS"
+NAME="Ubuntu"
+VERSION_ID="24.04"
+VERSION="24.04.3 LTS (Noble Numbat)"
+VERSION_CODENAME=noble
+ID=ubuntu
+ID_LIKE=debian
+HOME_URL="https://www.ubuntu.com/"
+SUPPORT_URL="https://help.ubuntu.com/"
+BUG_REPORT_URL="https://bugs.launchpad.net/ubuntu/"
+PRIVACY_POLICY_URL="https://www.ubuntu.com/legal/terms-and-policies/privacy-policy"
+UBUNTU_CODENAME=noble
+LOGO=ubuntu-logo
+
+Kernel: Linux-6.18.57-x86_64-with-glibc2.39
+
+=== challenge-native-debug.log ===
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded num-traits v0.2.19
+  Downloaded rand_core v0.10.1
+  Downloaded foldhash v0.1.5
+  Downloaded wait-timeout v0.2.1
+  Downloaded generic-array v0.14.7
+  Downloaded find-msvc-tools v0.1.15
+  Downloaded fnv v1.0.7
+  Downloaded indexmap v2.14.2
+  Downloaded hashbrown v0.15.5
+  Downloaded fallible-streaming-iterator v0.1.9
+  Downloaded rusty-fork v0.3.1
+  Downloaded quote v1.0.47
+  Downloaded fastrand v2.5.0
+  Downloaded smallvec v1.16.4
+  Downloaded bytes v1.12.1
+  Downloaded hashlink v0.10.0
+  Downloaded equivalent v1.0.3
+  Downloaded memchr v2.8.3
+  Downloaded cpufeatures v0.2.17
+  Downloaded itoa v1.0.18
+  Downloaded hashbrown v0.17.1
+  Downloaded rusqlite v0.37.0
+  Downloaded borsh-derive v1.8.1
+  Downloaded getrandom v0.3.4
+  Downloaded sha2 v0.10.9
+  Downloaded cpufeatures v0.3.1
+  Downloaded unicode-ident v1.0.27
+  Downloaded zmij v1.0.23
+  Downloaded toml_datetime v1.1.2+spec-1.1.0
+  Downloaded chacha20 v0.10.2
+  Downloaded toml_edit v0.25.17+spec-1.1.0
+  Downloaded core_detect v1.0.0
+  Downloaded digest v0.10.7
+  Downloaded thiserror-impl v2.0.21
+  Downloaded thiserror v2.0.21
+  Downloaded rand_core v0.6.4
+  Downloaded zeroize v1.9.1
+  Downloaded bit-set v0.11.1
+  Downloaded cfg-if v1.0.5
+  Downloaded subtle v2.6.1
+  Downloaded crypto-common v0.1.7
+  Downloaded unarray v0.1.4
+  Downloaded block-buffer v0.10.4
+  Downloaded cfg_aliases v0.2.2
+  Downloaded errno v0.3.14
+  Downloaded proc-macro-crate v3.5.0
+  Downloaded quick-error v1.2.3
+  Downloaded rand_xorshift v0.5.0
+  Downloaded fallible-iterator v0.3.0
+  Downloaded tempfile v3.27.0
+  Downloaded once_cell v1.21.4
+  Downloaded base64ct v1.8.3
+  Downloaded version_check v0.9.5
+  Downloaded toml_parser v1.1.5+spec-1.1.0
+  Downloaded autocfg v1.5.1
+  Downloaded pkg-config v0.3.34
+  Downloaded bit-vec v0.10.1
+  Downloaded argon2 v0.5.3
+  Downloaded shlex v2.0.1
+  Downloaded blake2 v0.10.6
+  Downloaded password-hash v0.5.0
+  Downloaded typenum v1.20.1
+  Downloaded serde_core v1.0.229
+  Downloaded syn v3.0.9
+  Downloaded borsh v1.8.1
+  Downloaded rand v0.10.3
+  Downloaded serde_derive v1.0.229
+  Downloaded getrandom v0.4.3
+  Downloaded proc-macro2 v1.0.107
+  Downloaded serde v1.0.229
+  Downloaded bitflags v2.13.2
+  Downloaded openssl-sys v0.9.117
+  Downloaded cc v1.10.0
+  Downloaded serde_json v1.0.154
+  Downloaded vcpkg v0.2.15
+  Downloaded proptest v1.12.0
+  Downloaded winnow v1.0.4
+  Downloaded regex-syntax v0.8.11
+  Downloaded rustix v1.1.5
+  Downloaded libc v0.2.191
+  Downloaded linux-raw-sys v0.12.1
+  Downloaded libsqlite3-sys v0.35.0
+  Downloaded openssl-src v300.6.1+3.6.3
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.70s
+     Running unittests src/lib.rs (packages/local-store/target/debug/deps/sornio_local_store-88709470fdf4f97e)
+
+running 158 tests
+test access::credential_tests::fresh_authentication_uses_persistent_failed_attempt_budget ... ok
+test access::credential_tests::owner_rotation_removes_legacy_verifier_and_requires_existing_secret ... ok
+test access::credential_tests::password_change_revokes_other_sessions_survives_lost_reply_and_preserves_data ... ok
+test access::tests::accounts_cannot_create_or_assign_owners_or_disable_the_owner ... ok
+test access::tests::audit_is_append_only_including_sqlite_replace_after_reopen ... ok
+test access::tests::authorization_is_rechecked_after_obtaining_the_database_writer_lock ... ok
+test access::credential_tests::reset_requires_owner_reauthentication_preserves_disabled_state_and_revokes_sessions ... ok
+test access::tests::encrypted_storage_and_temporary_data_policy_are_explicit_after_reopen ... ok
+test access::tests::disabling_and_role_changes_revoke_sessions_across_connections ... ok
+test access::tests::exact_replays_do_not_expose_other_cashiers_completed_receipts ... ok
+test access::tests::expiry_and_idle_lock_are_native_and_restart_never_restores_a_session ... ok
+test access::tests::ignored_authentication_counter_writes_fail_closed ... ok
+test access::tests::invalid_owner_fields_and_passwords_do_not_partially_provision ... ok
+test access::tests::every_role_is_enforced_by_native_data_methods ... ok
+test access::tests::locked_workspace_denies_all_sensitive_commands ... ok
+test access::tests::failed_attempts_persist_across_restart_unknown_user_and_clock_rollback ... ok
+test access::tests::malformed_hash_and_failed_auth_writes_never_unlock ... ok
+test access::tests::passive_access_and_session_polling_cannot_renew_an_idle_session ... ok
+test access::tests::native_dispatch_denials_are_audited_without_renderer_supplied_identity ... ok
+test access::tests::owner_creation_is_serialized_and_audit_failure_rolls_back_provisioning ... ok
+test access::tests::password_salts_are_unique_and_ipc_results_never_contain_secrets ... ok
+test access::tests::receipt_reads_preserve_posted_state_and_refuse_invalid_or_missing_ids ... ok
+test access::tests::privileged_mutations_and_audits_commit_or_rollback_together ... ok
+test access::tests::scope_and_sessions_cannot_cross_business_databases ... ok
+test access::tests::user_facing_errors_do_not_include_database_or_parser_payloads ... ok
+test access::tests::separate_cashiers_cannot_read_confirm_or_cancel_anothers_checkpoint ... ok
+test billing::reliability_tests::cash_credit_and_zero_tax_ledgers_are_correct_per_invoice ... ok
+test billing::reliability_tests::changed_operation_data_never_changes_committed_state ... ok
+test billing::reliability_tests::commit_time_failure_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+
+running 1 test
+test access::tests::saved_receipt_lookup_enforces_actor_scope_and_revocation_after_acknowledgement ... ok
+test access::credential_tests::credential_writes_and_required_audit_roll_back_on_statement_and_commit_failure ... ok
+test access::tests::v6_migration_preserves_data_and_requires_the_existing_owners_password ... ok
+test billing::reliability_tests::committed_billing_survives_process_exit_relock_unlock_and_exact_retry ... ok
+test billing::reliability_tests::process_worker ... ok
+test billing::reliability_tests::committed_sale_contains_complete_aggregated_records_and_replays_unchanged ... ok
+test billing::reliability_tests::racing_distinct_sales_cannot_oversell_or_duplicate_records ... ok
+test billing::reliability_tests::upi_references_and_renderer_paid_flags_cannot_settle_an_invoice ... ok
+
+running 1 test
+test billing::reliability_tests::frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency ... ok
+test billing::reliability_tests::ignored_required_writes_must_abort_the_sale ... ok
+test billing::tests::crash_worker ... ok
+test billing::tests::cash_credit_restart_and_exact_retry ... ok
+test billing::reliability_tests::uncommitted_billing_process_exit_rolls_back_every_effect_before_exact_retry ... ok
+test billing::tests::full_disk_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::tests::invoice_numbers_are_transactional_unique_and_stable_on_retry ... ok
+test billing::tests::later_product_or_ledger_failure_rolls_back_and_operation_can_retry ... ok
+
+running 1 test
+test billing::tests::posted_records_reject_replace_update_and_delete_after_reopen ... ok
+test billing::tests::process_death_before_commit_preserves_stock_and_records ... ok
+test billing::tests::repeated_lines_are_aggregated_and_overselling_is_atomic ... ok
+test billing::tests::shared_request_validation_contract ... ok
+test billing::tests::shared_rounding_vectors ... ok
+test billing::tests::failures_at_every_write_boundary_rollback_all_effects ... ok
+test billing::reliability_tests::write_failures_preserve_prior_sales_and_retry_after_reopen ... ok
+test billing::tests::simultaneous_exact_retries_post_once ... ok
+test catalog::tests::failed_event_write_rolls_back_stock_and_product_creation ... ok
+test billing::tests::stale_connection_validation_lock_and_immutability ... ok
+test catalog::tests::full_database_does_not_leave_a_partial_stock_change ... ok
+test catalog::tests::malformed_values_and_history_rewrites_are_rejected ... ok
+test billing::tests::shared_multi_line_money_contract_posts_authoritative_totals ... ok
+test catalog::tests::stale_connections_negative_stock_and_changed_retries_are_rejected ... ok
+test billing::tests::v4_migration_preserves_catalogue_and_access ... ok
+test catalog::tests::stock_and_idempotency_survive_restart ... ok
+test checkout::tests::canceled_or_replaced_checkpoint_cannot_post_late ... ok
+test checkout::tests::cancellation_and_confirmation_are_serialized_across_connections ... ok
+test checkout::tests::checkpoint_and_receipt_survive_restart_and_retry ... ok
+test checkout::tests::failed_post_retains_checkpoint_for_restart_retry ... ok
+test checkout::tests::checkpoint_commands_require_unlock_and_failed_writes_do_not_post ... ok
+test customers::tests::accounting_corrections_are_append_only_balanced_and_reversible_once ... ok
+test catalog::tests::version_three_migration_keeps_drafts_password_and_locking ... ok
+test customers::tests::canceled_credit_ids_fence_delayed_posting ... ok
+test customers::tests::commit_failure_never_returns_a_receipt_or_partial_payment ... ok
+test customers::tests::cancellation_and_collection_serialize_without_losing_money ... ok
+test customers::tests::credit_journals_audits_and_outbox_are_immutable_after_reopen ... ok
+test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok
+test customers::tests::credit_limits_are_checked_inside_original_invoice_transaction ... ok
+test customers::tests::customer_profiles_use_stable_business_ids_and_exact_retries ... ok
+test customers::tests::history_pagination_and_print_include_every_entry_at_one_immutable_snapshot ... ok
+test customers::tests::enormous_balances_cross_ipc_as_exact_decimal_strings ... ok
+test customers::tests::linking_an_existing_credit_sale_retains_invoice_and_transfer_history ... ok
+test customers::tests::overpayment_changed_ids_and_stale_account_versions_never_mutate_history ... ok
+test customers::tests::partial_full_repayments_and_general_ledger_balances_are_atomic_and_exact ... ok
+test customers::tests::all_required_credit_writes_rollback_together_and_retry_after_reopen ... ok
+test customers::tests::prepared_cash_collection_survives_restart_exact_retry_and_acknowledgement ... ok
+test customers::tests::printable_customer_data_is_escaped_and_has_no_active_content ... ok
+test customers::tests::prepared_operation_ids_cannot_be_claimed_by_profile_or_other_actor ... ok
+test customers::tests::native_roles_deny_corrections_policy_changes_and_cross_business_access ... ok
+test customers::tests::schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity ... ok
+test customers::tests::settled_sales_do_not_hide_later_backdated_opening_dues ... ok
+test customers::tests::simultaneous_collections_cannot_double_collect_a_stale_balance ... ok
+test customers::tests::subledger_failure_rolls_back_original_invoice_stock_general_ledger_and_outbox ... ok
+test customers::tests::privileged_audit_failure_rolls_back_the_whole_collection ... ok
+test inventory_recovery::tests::deferred_commit_failure_rolls_back_stock_receipt_audit_and_outbox ... ok
+test inventory_recovery::tests::ignored_creation_event_never_leaves_an_unreplayable_item ... ok
+test customers::tests::generated_credit_collections_preserve_debt_cash_and_exact_replay ... ok
+test inventory_recovery::tests::inventory_crash_worker ... ignored, subprocess-only worker, exercised by process_termination_preserves_inventory_atomicity
+test inventory_recovery::tests::inventory_attribution_and_outbox_cannot_be_rewritten_or_replaced ... ok
+
+running 1 test
+test inventory_recovery::tests::lost_inventory_reply_survives_restart_and_requires_ack_before_another_id ... ok
+test inventory_recovery::tests::exact_and_competing_inventory_requests_serialize_across_connections ... ok
+test inventory_recovery::tests::receipts_cannot_cross_staff_or_business_scope_and_revoked_sessions_cannot_write ... ok
+
+running 1 test
+test payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight ... ok
+test inventory_recovery::tests::schema_nine_migration_preserves_inventory_and_legacy_operation_ids ... ok
+test payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow ... ok
+test payments::tests::cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent ... ok
+test inventory_recovery::tests::process_termination_preserves_inventory_atomicity ... ok
+test payments::tests::changed_or_unbalanced_splits_and_forged_verification_are_refused_atomically ... ok
+test payments::tests::closing_variance_is_native_and_closed_drawer_blocks_late_atomic_sales ... ok
+test payments::tests::competing_partial_returns_cannot_restore_or_refund_more_than_was_sold ... ok
+test payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations ... ok
+test payments::tests::deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock ... ok
+test payments::tests::duplicate_bank_reference_cannot_settle_two_payments_even_with_spacing ... ok
+test inventory_recovery::tests::every_required_inventory_write_rolls_back_together_on_ignored_or_failed_writes ... ok
+test payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome ... ok
+test payments::tests::interrupted_cashier_sale_can_be_adopted_by_owner_without_duplicate_posting ... ok
+test payments::tests::invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence ... ok
+test payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history ... ok
+test payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react ... ok
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+test payments::tests::opening_float_correction_is_append_only_and_invalidates_a_stale_close ... ok
+test payments::tests::partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total ... ok
+test payments::tests::pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds ... ok
+test payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary ... ok
+test payments::tests::refund_crash_worker ... ignored, subprocess worker exercised by refund_process_death_preserves_atomicity_and_exact_retry
+test payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement ... ok
+
+running 1 test
+test payments::tests::settlement_history_and_exports_are_append_only_formula_safe_and_exact ... ok
+test payments::tests::simultaneous_exact_settlement_retries_post_once ... ok
+
+running 1 test
+test payments::tests::split_sale_uses_original_invoice_and_never_verifies_digital_payments ... ok
+test payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected ... ok
+test payments::tests::refund_process_death_preserves_atomicity_and_exact_retry ... ok
+test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok
+test recovery::tests::crash_worker ... ignored, subprocess crash worker only
+test payments::tests::generated_invalid_split_and_mid_transaction_failure_never_partially_commit ... ok
+test recovery::tests::duplicate_restore_with_old_preview_cannot_replace_the_workspace_twice ... ok
+test recovery::tests::full_target_database_rolls_restore_back_without_losing_current_data ... ok
+test recovery::tests::all_non_owner_roles_and_expired_or_revoked_owners_cannot_start_recovery ... ok
+test payments::tests::generated_split_returns_conserve_money_stock_and_closing ... ok
+test recovery::tests::forced_termination_does_not_publish_partial_backup_or_commit_partial_restore ... ok
+test recovery::tests::integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_financial_table ... ok
+test recovery::tests::legacy_v6_archive_preserves_business_identity_and_migrates_individual_owner ... ok
+test recovery::tests::internal_name_lookalikes_and_manifest_named_triggers_are_not_trusted ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+test recovery::tests::other_business_confirmation_stale_preview_storage_and_native_auth_are_checked ... ok
+test recovery::tests::recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_error ... ok
+test recovery::tests::owner_only_backup_preserves_customer_payments_and_revokes_staff_sessions ... ok
+test recovery::tests::recovery_refuses_ignored_audit_writes_and_substituted_archives_without_losing_live_data ... ok
+test recovery::tests::new_device_uses_new_device_key_and_original_login_and_locks_old_sessions ... ok
+2026-10-30 15:44:04.892: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 15:44:04.892: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 15:44:04.892: ERROR CORE sqlcipher_codec_ctx_set_error 1
+2026-10-30 15:44:05.142: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 15:44:05.142: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 15:44:05.142: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::restored_copy_does_not_revoke_an_independent_original_or_merge_operation_histories ... ok
+test tests::database_failure_never_reports_a_successful_save ... ok
+test tests::encrypted_draft_survives_close_and_reopen ... ok
+test tests::history_write_failure_rolls_back_both_save_and_restore ... ok
+test tests::restoring_creates_a_new_revision_and_survives_reopen ... ok
+test recovery::tests::snapshot_excludes_uncommitted_sale_and_restore_preserves_original_on_required_write_failure ... ok
+test tests::retention_is_bounded_and_pruned_revisions_cannot_be_restored ... ok
+test tests::stale_writers_and_invalid_input_leave_original_intact ... ok
+test tests::stale_restore_and_missing_copy_cannot_replace_newer_work ... ok
+test recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed ... ok
+test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok
+2026-10-30 15:44:08.361: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 15:44:08.361: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 15:44:08.361: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test tests::version_one_migration_preserves_draft_and_seeds_history ... ok
+test tests::wrong_key_does_not_replace_data ... ok
+test recovery::tests::snapshot_restore_preserves_finance_identity_pending_work_and_retries ... ok
+
+test result: ok. 155 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 118.06s
+
+     Running unittests examples/cashier_review_bridge.rs (packages/local-store/target/debug/examples/cashier_review_bridge-d229812b00396014)
+
+running 6 tests
+test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.11s
+
+
+=== challenge-native-release.log ===
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `release` profile [optimized] target(s) in 12.86s
+     Running unittests src/lib.rs (packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90)
+
+running 158 tests
+test access::credential_tests::fresh_authentication_uses_persistent_failed_attempt_budget ... ok
+test access::credential_tests::owner_rotation_removes_legacy_verifier_and_requires_existing_secret ... ok
+test access::credential_tests::password_change_revokes_other_sessions_survives_lost_reply_and_preserves_data ... ok
+test access::tests::accounts_cannot_create_or_assign_owners_or_disable_the_owner ... ok
+test access::credential_tests::reset_requires_owner_reauthentication_preserves_disabled_state_and_revokes_sessions ... ok
+test access::tests::audit_is_append_only_including_sqlite_replace_after_reopen ... ok
+test access::tests::authorization_is_rechecked_after_obtaining_the_database_writer_lock ... ok
+test access::tests::disabling_and_role_changes_revoke_sessions_across_connections ... ok
+test access::tests::encrypted_storage_and_temporary_data_policy_are_explicit_after_reopen ... ok
+test access::tests::exact_replays_do_not_expose_other_cashiers_completed_receipts ... ok
+test access::tests::expiry_and_idle_lock_are_native_and_restart_never_restores_a_session ... ok
+test access::tests::every_role_is_enforced_by_native_data_methods ... ok
+test access::tests::invalid_owner_fields_and_passwords_do_not_partially_provision ... ok
+test access::tests::ignored_authentication_counter_writes_fail_closed ... ok
+test access::tests::failed_attempts_persist_across_restart_unknown_user_and_clock_rollback ... ok
+test access::tests::locked_workspace_denies_all_sensitive_commands ... ok
+test access::tests::malformed_hash_and_failed_auth_writes_never_unlock ... ok
+test access::tests::native_dispatch_denials_are_audited_without_renderer_supplied_identity ... ok
+test access::tests::passive_access_and_session_polling_cannot_renew_an_idle_session ... ok
+test access::tests::password_salts_are_unique_and_ipc_results_never_contain_secrets ... ok
+test access::credential_tests::credential_writes_and_required_audit_roll_back_on_statement_and_commit_failure ... ok
+test access::tests::receipt_reads_preserve_posted_state_and_refuse_invalid_or_missing_ids ... ok
+test access::tests::owner_creation_is_serialized_and_audit_failure_rolls_back_provisioning ... ok
+test access::tests::privileged_mutations_and_audits_commit_or_rollback_together ... ok
+test access::tests::user_facing_errors_do_not_include_database_or_parser_payloads ... ok
+test access::tests::separate_cashiers_cannot_read_confirm_or_cancel_anothers_checkpoint ... ok
+test access::tests::scope_and_sessions_cannot_cross_business_databases ... ok
+test billing::reliability_tests::cash_credit_and_zero_tax_ledgers_are_correct_per_invoice ... ok
+test access::tests::saved_receipt_lookup_enforces_actor_scope_and_revocation_after_acknowledgement ... ok
+test billing::reliability_tests::changed_operation_data_never_changes_committed_state ... ok
+test access::tests::v6_migration_preserves_data_and_requires_the_existing_owners_password ... ok
+
+running 1 test
+test billing::reliability_tests::commit_time_failure_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::reliability_tests::committed_sale_contains_complete_aggregated_records_and_replays_unchanged ... ok
+test billing::reliability_tests::process_worker ... ok
+test billing::reliability_tests::frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency ... ok
+
+running 1 test
+test billing::reliability_tests::racing_distinct_sales_cannot_oversell_or_duplicate_records ... ok
+test billing::reliability_tests::upi_references_and_renderer_paid_flags_cannot_settle_an_invoice ... ok
+test billing::reliability_tests::uncommitted_billing_process_exit_rolls_back_every_effect_before_exact_retry ... ok
+test billing::reliability_tests::committed_billing_survives_process_exit_relock_unlock_and_exact_retry ... ok
+test billing::tests::crash_worker ... ok
+test billing::tests::cash_credit_restart_and_exact_retry ... ok
+test billing::tests::full_disk_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::reliability_tests::ignored_required_writes_must_abort_the_sale ... ok
+test billing::tests::later_product_or_ledger_failure_rolls_back_and_operation_can_retry ... ok
+test billing::tests::invoice_numbers_are_transactional_unique_and_stable_on_retry ... ok
+test billing::tests::posted_records_reject_replace_update_and_delete_after_reopen ... ok
+
+running 1 test
+test billing::tests::repeated_lines_are_aggregated_and_overselling_is_atomic ... ok
+test billing::tests::process_death_before_commit_preserves_stock_and_records ... ok
+test billing::tests::shared_request_validation_contract ... ok
+test billing::tests::shared_rounding_vectors ... ok
+test billing::tests::simultaneous_exact_retries_post_once ... ok
+test billing::reliability_tests::write_failures_preserve_prior_sales_and_retry_after_reopen ... ok
+test billing::tests::failures_at_every_write_boundary_rollback_all_effects ... ok
+test billing::tests::stale_connection_validation_lock_and_immutability ... ok
+test catalog::tests::failed_event_write_rolls_back_stock_and_product_creation ... ok
+test catalog::tests::malformed_values_and_history_rewrites_are_rejected ... ok
+test billing::tests::v4_migration_preserves_catalogue_and_access ... ok
+test catalog::tests::full_database_does_not_leave_a_partial_stock_change ... ok
+test billing::tests::shared_multi_line_money_contract_posts_authoritative_totals ... ok
+test catalog::tests::stock_and_idempotency_survive_restart ... ok
+test catalog::tests::stale_connections_negative_stock_and_changed_retries_are_rejected ... ok
+test catalog::tests::version_three_migration_keeps_drafts_password_and_locking ... ok
+test checkout::tests::canceled_or_replaced_checkpoint_cannot_post_late ... ok
+test checkout::tests::cancellation_and_confirmation_are_serialized_across_connections ... ok
+test checkout::tests::checkpoint_commands_require_unlock_and_failed_writes_do_not_post ... ok
+test checkout::tests::checkpoint_and_receipt_survive_restart_and_retry ... ok
+test checkout::tests::failed_post_retains_checkpoint_for_restart_retry ... ok
+test customers::tests::accounting_corrections_are_append_only_balanced_and_reversible_once ... ok
+test customers::tests::canceled_credit_ids_fence_delayed_posting ... ok
+test customers::tests::cancellation_and_collection_serialize_without_losing_money ... ok
+test customers::tests::commit_failure_never_returns_a_receipt_or_partial_payment ... ok
+test customers::tests::credit_limits_are_checked_inside_original_invoice_transaction ... ok
+test customers::tests::credit_journals_audits_and_outbox_are_immutable_after_reopen ... ok
+test customers::tests::customer_profiles_use_stable_business_ids_and_exact_retries ... ok
+test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok
+test customers::tests::enormous_balances_cross_ipc_as_exact_decimal_strings ... ok
+test customers::tests::history_pagination_and_print_include_every_entry_at_one_immutable_snapshot ... ok
+test customers::tests::linking_an_existing_credit_sale_retains_invoice_and_transfer_history ... ok
+test customers::tests::overpayment_changed_ids_and_stale_account_versions_never_mutate_history ... ok
+test customers::tests::native_roles_deny_corrections_policy_changes_and_cross_business_access ... ok
+test customers::tests::partial_full_repayments_and_general_ledger_balances_are_atomic_and_exact ... ok
+test customers::tests::prepared_operation_ids_cannot_be_claimed_by_profile_or_other_actor ... ok
+test customers::tests::printable_customer_data_is_escaped_and_has_no_active_content ... ok
+test customers::tests::prepared_cash_collection_survives_restart_exact_retry_and_acknowledgement ... ok
+test customers::tests::schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity ... ok
+test customers::tests::settled_sales_do_not_hide_later_backdated_opening_dues ... ok
+test customers::tests::privileged_audit_failure_rolls_back_the_whole_collection ... ok
+test customers::tests::simultaneous_collections_cannot_double_collect_a_stale_balance ... ok
+test customers::tests::all_required_credit_writes_rollback_together_and_retry_after_reopen ... ok
+test customers::tests::subledger_failure_rolls_back_original_invoice_stock_general_ledger_and_outbox ... ok
+test inventory_recovery::tests::deferred_commit_failure_rolls_back_stock_receipt_audit_and_outbox ... ok
+test inventory_recovery::tests::ignored_creation_event_never_leaves_an_unreplayable_item ... ok
+test inventory_recovery::tests::inventory_attribution_and_outbox_cannot_be_rewritten_or_replaced ... ok
+test inventory_recovery::tests::inventory_crash_worker ... ignored, subprocess-only worker, exercised by process_termination_preserves_inventory_atomicity
+test inventory_recovery::tests::lost_inventory_reply_survives_restart_and_requires_ack_before_another_id ... ok
+test inventory_recovery::tests::exact_and_competing_inventory_requests_serialize_across_connections ... ok
+
+running 1 test
+test inventory_recovery::tests::receipts_cannot_cross_staff_or_business_scope_and_revoked_sessions_cannot_write ... ok
+
+running 1 test
+test inventory_recovery::tests::schema_nine_migration_preserves_inventory_and_legacy_operation_ids ... ok
+test payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight ... ok
+test inventory_recovery::tests::process_termination_preserves_inventory_atomicity ... ok
+test payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow ... ok
+test payments::tests::cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent ... ok
+test payments::tests::closing_variance_is_native_and_closed_drawer_blocks_late_atomic_sales ... ok
+test payments::tests::changed_or_unbalanced_splits_and_forged_verification_are_refused_atomically ... ok
+test customers::tests::generated_credit_collections_preserve_debt_cash_and_exact_replay ... ok
+test payments::tests::competing_partial_returns_cannot_restore_or_refund_more_than_was_sold ... ok
+test payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations ... ok
+test payments::tests::duplicate_bank_reference_cannot_settle_two_payments_even_with_spacing ... ok
+test payments::tests::deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock ... ok
+test inventory_recovery::tests::every_required_inventory_write_rolls_back_together_on_ignored_or_failed_writes ... ok
+test payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome ... ok
+test payments::tests::interrupted_cashier_sale_can_be_adopted_by_owner_without_duplicate_posting ... ok
+test payments::tests::invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence ... ok
+test payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history ... ok
+test payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react ... ok
+test payments::tests::opening_float_correction_is_append_only_and_invalidates_a_stale_close ... ok
+test payments::tests::partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total ... ok
+test payments::tests::pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds ... ok
+test payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement ... ok
+test payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary ... ok
+test payments::tests::refund_crash_worker ... ignored, subprocess worker exercised by refund_process_death_preserves_atomicity_and_exact_retry
+
+running 1 test
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+test payments::tests::settlement_history_and_exports_are_append_only_formula_safe_and_exact ... ok
+
+running 1 test
+test payments::tests::simultaneous_exact_settlement_retries_post_once ... ok
+test payments::tests::refund_process_death_preserves_atomicity_and_exact_retry ... ok
+test payments::tests::split_sale_uses_original_invoice_and_never_verifies_digital_payments ... ok
+test payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected ... ok
+test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok
+test recovery::tests::crash_worker ... ignored, subprocess crash worker only
+test payments::tests::generated_invalid_split_and_mid_transaction_failure_never_partially_commit ... ok
+test recovery::tests::all_non_owner_roles_and_expired_or_revoked_owners_cannot_start_recovery ... ok
+test recovery::tests::duplicate_restore_with_old_preview_cannot_replace_the_workspace_twice ... ok
+test payments::tests::generated_split_returns_conserve_money_stock_and_closing ... ok
+test recovery::tests::integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_financial_table ... ok
+test recovery::tests::full_target_database_rolls_restore_back_without_losing_current_data ... ok
+test recovery::tests::internal_name_lookalikes_and_manifest_named_triggers_are_not_trusted ... ok
+test recovery::tests::forced_termination_does_not_publish_partial_backup_or_commit_partial_restore ... ok
+test recovery::tests::legacy_v6_archive_preserves_business_identity_and_migrates_individual_owner ... ok
+test recovery::tests::other_business_confirmation_stale_preview_storage_and_native_auth_are_checked ... ok
+test recovery::tests::owner_only_backup_preserves_customer_payments_and_revokes_staff_sessions ... ok
+test recovery::tests::recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_error ... ok
+test recovery::tests::new_device_uses_new_device_key_and_original_login_and_locks_old_sessions ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+test recovery::tests::recovery_refuses_ignored_audit_writes_and_substituted_archives_without_losing_live_data ... ok
+2026-10-30 15:44:47.598: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 15:44:47.598: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 15:44:47.598: ERROR CORE sqlcipher_codec_ctx_set_error 1
+2026-10-30 15:44:48.101: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 15:44:48.101: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 15:44:48.101: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::restored_copy_does_not_revoke_an_independent_original_or_merge_operation_histories ... ok
+test recovery::tests::snapshot_excludes_uncommitted_sale_and_restore_preserves_original_on_required_write_failure ... ok
+test tests::database_failure_never_reports_a_successful_save ... ok
+test tests::history_write_failure_rolls_back_both_save_and_restore ... ok
+test tests::encrypted_draft_survives_close_and_reopen ... ok
+test tests::restoring_creates_a_new_revision_and_survives_reopen ... ok
+test tests::retention_is_bounded_and_pruned_revisions_cannot_be_restored ... ok
+test tests::stale_writers_and_invalid_input_leave_original_intact ... ok
+test tests::stale_restore_and_missing_copy_cannot_replace_newer_work ... ok
+test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok
+test recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed ... ok
+test tests::version_one_migration_preserves_draft_and_seeds_history ... ok
+2026-10-30 15:44:50.363: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 15:44:50.363: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 15:44:50.363: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test tests::wrong_key_does_not_replace_data ... ok
+test recovery::tests::snapshot_restore_preserves_finance_identity_pending_work_and_retries ... ok
+
+test result: ok. 155 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 57.54s
+
+     Running unittests examples/cashier_review_bridge.rs (packages/local-store/target/release/examples/cashier_review_bridge-6a653f7132b46e45)
+
+running 6 tests
+test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.16s
+

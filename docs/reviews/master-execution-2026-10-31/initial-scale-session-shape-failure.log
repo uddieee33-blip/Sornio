@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "/workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-native-scale.py", line 128, in <module>
+    main()
+  File "/workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-native-scale.py", line 108, in main
+    scope = call("unlock_workspace", username="owner", password=secret)["scope"]
+            ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^
+KeyError: 'scope'

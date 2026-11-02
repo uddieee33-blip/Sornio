@@ -1,7 +1,10 @@
 name: Windows local workspace
 on:
   pull_request:
-    branches: [main]
+    # Include every base in the stacked draft-PR graph so PRs such as #134
+    # (based on hardening/...) and #131 (based on integration/...) actually
+    # trigger this acceptance workflow instead of silently never running.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
     paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
   workflow_dispatch:
 permissions:
@@ -9,57 +12,118 @@ permissions:
 jobs:
   local-windows:
     runs-on: windows-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       CARGO_TERM_COLOR: always
+      RUST_TEST_THREADS: '4'
+      CARGO_BUILD_JOBS: '2'
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
           cache: npm
-          cache-dependency-path: apps/desktop/package-lock.json
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           cache-on-failure: true
           workspaces: |
             packages/local-store
             apps/desktop/src-tauri
+      # Shared source files under lib/ and packages/ resolve packages from the
+      # repo root. Installing only apps/desktop leaves those imports unable to
+      # resolve react (TS2307 / TS2875), so the root install must run first.
+      - name: Install shared root dependencies
+        run: npm ci
       - name: Install desktop dependencies
         run: npm ci --prefix apps/desktop
       - name: Build bundled frontend
         run: npm run build --prefix apps/desktop
       - name: Test encrypted storage, Windows vault and restart behavior
-        run: cargo test --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target
+        # Emit each failing test as a workflow ::error:: annotation so the exact
+        # failure is visible in the check record even when raw logs expire.
+        # The step still fails with cargo's own exit code; nothing is skipped.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          set -o pipefail
+          log="$(mktemp)"
+          # `|| true` keeps the runner's default `bash -eo pipefail` from
+          # aborting before the diagnostics below; the real exit code is
+          # still captured from PIPESTATUS.
+          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+            { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
+              | sed 's/^/::error::failing tests: /'
+            { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
+              | sed 's/^/::error::compiler errors: /'
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+              | sed 's/^/::error::failure details: /'
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /'
+          fi
+          exit "$code"
+      - name: Test encrypted storage in the debug profile (overflow checks and debug assertions active)
+        # Debug builds keep integer overflow checks and debug_assert! enabled;
+        # the financial, inventory and recovery suites must pass there too, not
+        # only in release. The step fails with cargo's own exit code; failing
+        # tests are also emitted as ::error:: annotations like the release step.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          set -o pipefail
+          log="$(mktemp)"
+          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+            { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
+              | sed 's/^/::error::failing debug-profile tests: /'
+            { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
+              | sed 's/^/::error::compiler errors (debug): /'
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+              | sed 's/^/::error::debug failure details: /'
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /'
+          fi
+          exit "$code"
       - name: Build independent Windows installer
         run: npm run desktop:build --prefix apps/desktop
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: '3.12'
       - name: Install native accessibility review tooling
         run: python -m pip install pywinauto==0.6.9 Pillow==12.0.0
-      - name: Verify native offline access, checkout guards and receipt recovery
+      - name: Test ciphertext preservation helper
+        run: python -m unittest discover -s apps/desktop -p test_install_data.py
+      - name: Test Windows artifact evidence contract
+        run: python -m unittest discover -s apps/desktop -p test_windows_evidence.py
+      - name: Build native synthetic scale fixture
+        run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
+      - name: Verify native scale and damaged-return recovery
+        run: python apps/desktop/check-native-scale.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe --output dist/native-review/native-scale.json
+      - name: Test native-check argument forwarding (no product install needed)
+        # Pins the Invoke-NativeCheck contract: the fixture stage passes zero
+        # extra arguments and the preserved-reopen stage passes exactly
+        # '--verify-preserved'. Fails closed on a nonzero child exit.
         shell: pwsh
-        run: |
-          $prefix = 'Sornio-local-review-' + [guid]::NewGuid().ToString()
-          $app = (Resolve-Path 'apps/desktop/src-tauri/target/release/sornio-desktop.exe').Path
-          $runtimes = @(Get-ChildItem "${env:ProgramFiles(x86)}\Microsoft\EdgeWebView\Application\*\msedgewebview2.exe" -ErrorAction SilentlyContinue)
-          if ($runtimes.Count -eq 0) { throw 'Could not locate WebView2 to enforce the offline test.' }
-          $programs = @($app) + @($runtimes | ForEach-Object { $_.FullName })
-          $code = 1
-          try {
-            for ($index = 0; $index -lt $programs.Count; $index++) {
-              New-NetFirewallRule -Name "$prefix-$index" -DisplayName "$prefix-$index" -Direction Outbound -Program $programs[$index] -Action Block | Out-Null
-            }
-            python apps/desktop/check-native.py
-            $code = $LASTEXITCODE
-          } finally {
-            Get-NetFirewallRule -Name "$prefix-*" -ErrorAction SilentlyContinue | Remove-NetFirewallRule
-          }
-          if ($code -ne 0) { exit $code }
+        run: pwsh -File apps/desktop/test-invoke-native-check.ps1
+      - name: Verify installed offline app, recovery and lifecycle preservation
+        shell: pwsh
+        run: ./apps/desktop/check-installer.ps1
+      - name: Verify native screenshots, installer checksum and lifecycle evidence
+        run: python apps/desktop/check-windows-evidence.py --installer-dir apps/desktop/src-tauri/target/release/bundle/nsis --evidence-dir dist/native-review
       - name: Upload engineering installer
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Sornio-Local-Workspace-Review
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -67,9 +131,10 @@ jobs:
           retention-days: 7
       - name: Upload actual native screenshots
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: Sornio-Local-Native-Captures
           path: dist/native-review/
           if-no-files-found: ignore
           retention-days: 7
+

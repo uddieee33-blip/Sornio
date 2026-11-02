@@ -6,10 +6,31 @@ commands.allow = ["workspace_access_status", "setup_local_access", "unlock_works
 [[permission]]
 identifier = "local-stock"
 description = "Read and mutate bounded review stock through native authorization. No SQL, path, filesystem or network access."
-commands.allow = ["list_local_products", "add_local_product", "adjust_local_stock"]
+commands.allow = ["list_local_products", "add_local_product", "adjust_local_stock", "pending_local_inventory", "acknowledge_local_inventory"]
 
 
 [[permission]]
 identifier = "local-billing"
-description = "Post bounded cash/credit invoices and read local records through native unlock. No network or outbox acknowledgement."
-commands.allow = ["read_cashier_state", "prepare_local_checkout", "clear_local_checkout", "post_local_invoice", "list_local_invoices", "read_billing_outbox"]
+description = "Post bounded cash/credit invoices and read own or report-authorized saved invoices through native authorization. No network or outbox acknowledgement."
+commands.allow = ["read_cashier_state", "prepare_local_checkout", "clear_local_checkout", "post_local_invoice", "read_local_invoice", "list_local_invoices", "read_billing_outbox"]
+
+[[permission]]
+identifier = "local-identity"
+description = "Native local sessions and owner-only staff administration. No keys, SQL, paths or remote access."
+commands.allow = ["read_local_session", "list_local_staff", "create_local_staff", "change_local_staff", "change_local_password", "reset_local_staff_password", "read_identity_audit"]
+
+[[permission]]
+identifier = "local-customers"
+description = "Native scoped customer profiles, ledger, statements and authorized cash collection/corrections. No SQL, paths, keys or digital settlement."
+commands.allow = ["save_local_customer", "find_local_customers", "prepare_local_credit", "post_local_credit", "pending_local_credit", "clear_local_credit", "link_local_credit", "read_customer_statement", "render_customer_statement"]
+
+[[permission]]
+identifier = "local-retail"
+description = "Scoped native payment intents, manual matching, authorized returns and cashier closing. No gateway or external verification."
+commands.allow = ["prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
+
+
+[[permission]]
+identifier = "local-recovery"
+description = "Owner-authorized encrypted snapshots and restore using native pickers; no renderer paths or raw filesystem access."
+commands.allow = ["read_last_restore", "choose_local_backup", "export_local_backup", "preview_local_backup", "restore_local_backup"]

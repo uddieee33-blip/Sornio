@@ -46,3 +46,7 @@ desktop/**/obj/
 target/
 apps/desktop/src-tauri/gen/
 
+
+# Python bytecode from verification scripts and helpers
+__pycache__/
+*.pyc

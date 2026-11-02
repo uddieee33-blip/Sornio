@@ -1,0 +1,786 @@
+Native LAN authority evidence — 30 October 2026
+Initial PR130: cd6cf034de303924d41a79673abb5c68b44ccf41
+Implementation: 146c96eaf46a0141b263644d7714a9d58fe83479
+Main: 97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6
+Ubuntu 24.04.3; Rust 1.99.1; Node 24.22.1; Playwright 1.62.1; Chrome for Testing 156.0.8078.73.
+Native environment: RUST_TEST_THREADS=4 RUSTUP_HOME=/tmp/sornio-rustup CARGO_HOME=/tmp/sornio-cargo
+PATH=/tmp/sornio-cargo/bin:$PATH OPENSSL_NO_VENDOR=1 OPENSSL_LIB_DIR=/usr/lib/x86_64-linux-gnu OPENSSL_INCLUDE_DIR=/usr/include
+SQLCipher enabled; local Linux system OpenSSL override, with repository manifests unchanged.
+Final commands:
+ cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml
+ cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml
+ cargo build --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge
+ cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
+ git diff --check
+ npm run build --prefix apps/desktop
+All above exits 0 on the final source. Native results: 168 library + 6 command-security = 174 passes per profile; 3 subprocess workers exercised by parent tests.
+Browser: Vite and tests share one command/network namespace. Each script runs:
+ NODE_PATH=/tmp/sornio-browser-tools/node_modules SORNIO_REVIEW_BRIDGE=<repo>/packages/local-store/target/debug/examples/cashier_review_bridge
+ node <repo>/apps/desktop/check-NAME.cjs http://127.0.0.1:1420 /tmp/sornio-chrome/chrome-headless-shell-linux64/chrome-headless-shell <capture>
+Final batch: 10 pass, mocked UI timeout. One unchanged UI retry passes. Treat the timeout as unresolved intermittent evidence, not an all-green first run.
+LAN tests use synthetic VerifiedPeer fixtures at the native boundary, not actual TLS peers or physical terminals. No listener, IPC grant commands or pairing UI was enabled.
+
+Tested source Git blob hashes:
+packages/local-store/src/access.rs 58030ef630b43757526f5c07c91a7fc96c9af1c8
+packages/local-store/src/billing.rs a5f606fe04494e05a3638dfefde2dc0223846623
+packages/local-store/src/catalog.rs 8890c06b0d5c22a1228b16f5d655ab871ef6de3c
+packages/local-store/src/checkout.rs 7ce1d5b49676890943194de9c0ba4d45704561d5
+packages/local-store/src/customers_tests.rs a2661ec1f515fcc53ae6658422b67c2230b55f31
+packages/local-store/src/inventory_recovery_tests.rs 998515fa9ab0f04eeabc1ff38f6fa70f58c49a61
+packages/local-store/src/lib.rs 97bd0dd06d97dd0568369632cb995acf57d1fe03
+packages/local-store/src/payments_tests.rs de35ca97c7b2bb913ebdf0323c6788a0175a44ab
+packages/local-store/src/recovery.rs 642b57e7a62d65f720ae99a5ab034f68eae87fb3
+packages/local-store/src/recovery/tests.rs 7936861e0debef22fc3be30f7b231262fcbb90cd
+packages/local-store/fixtures/recovery-v11-schema.json ce46df8c09bc1f60b3ae009b55ae3fac787fc5af
+packages/local-store/src/lan-authority-schema.sql a758b3dd221994f39e384e77aee5635286bcffd9
+packages/local-store/src/lan_authority.rs c6fb7e9ed037266eb68034582cab8d8c81691b0a
+packages/local-store/src/lan_authority/tests.rs 668a5aafeba82dd65639db07b10a453f02cc298e
+Screenshot SHA256: 411fa40736f29d9051a261601358265566046517bc4f403bf4ea8c919be97bc9
+
+=== lan-authority-debug-final.log ===
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.58s
+     Running unittests src/lib.rs (packages/local-store/target/debug/deps/sornio_local_store-88709470fdf4f97e)
+
+running 171 tests
+test access::credential_tests::fresh_authentication_uses_persistent_failed_attempt_budget ... ok
+test access::credential_tests::owner_rotation_removes_legacy_verifier_and_requires_existing_secret ... ok
+test access::credential_tests::password_change_revokes_other_sessions_survives_lost_reply_and_preserves_data ... ok
+test access::credential_tests::reset_requires_owner_reauthentication_preserves_disabled_state_and_revokes_sessions ... ok
+test access::tests::accounts_cannot_create_or_assign_owners_or_disable_the_owner ... ok
+test access::credential_tests::restore_between_login_commit_and_session_publication_cannot_unlock ... ok
+test access::credential_tests::restore_between_provision_commit_and_session_publication_cannot_unlock ... ok
+test access::tests::audit_is_append_only_including_sqlite_replace_after_reopen ... ok
+test access::tests::authorization_is_rechecked_after_obtaining_the_database_writer_lock ... ok
+test access::tests::encrypted_storage_and_temporary_data_policy_are_explicit_after_reopen ... ok
+test access::tests::disabling_and_role_changes_revoke_sessions_across_connections ... ok
+test access::tests::exact_replays_do_not_expose_other_cashiers_completed_receipts ... ok
+test access::tests::expiry_and_idle_lock_are_native_and_restart_never_restores_a_session ... ok
+test access::tests::every_role_is_enforced_by_native_data_methods ... ok
+test access::tests::ignored_authentication_counter_writes_fail_closed ... ok
+test access::tests::invalid_owner_fields_and_passwords_do_not_partially_provision ... ok
+test access::tests::locked_workspace_denies_all_sensitive_commands ... ok
+test access::tests::malformed_hash_and_failed_auth_writes_never_unlock ... ok
+test access::tests::failed_attempts_persist_across_restart_unknown_user_and_clock_rollback ... ok
+test access::tests::passive_access_and_session_polling_cannot_renew_an_idle_session ... ok
+test access::tests::native_dispatch_denials_are_audited_without_renderer_supplied_identity ... ok
+test access::tests::owner_creation_is_serialized_and_audit_failure_rolls_back_provisioning ... ok
+test access::tests::password_salts_are_unique_and_ipc_results_never_contain_secrets ... ok
+test access::tests::receipt_reads_preserve_posted_state_and_refuse_invalid_or_missing_ids ... ok
+test access::tests::privileged_mutations_and_audits_commit_or_rollback_together ... ok
+test access::credential_tests::credential_writes_and_required_audit_roll_back_on_statement_and_commit_failure ... ok
+test access::tests::user_facing_errors_do_not_include_database_or_parser_payloads ... ok
+test access::tests::scope_and_sessions_cannot_cross_business_databases ... ok
+test billing::reliability_tests::cash_credit_and_zero_tax_ledgers_are_correct_per_invoice ... ok
+test access::tests::separate_cashiers_cannot_read_confirm_or_cancel_anothers_checkpoint ... ok
+test billing::reliability_tests::changed_operation_data_never_changes_committed_state ... ok
+test billing::reliability_tests::commit_time_failure_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::reliability_tests::committed_sale_contains_complete_aggregated_records_and_replays_unchanged ... ok
+
+running 1 test
+test access::tests::v6_migration_preserves_data_and_requires_the_existing_owners_password ... ok
+test billing::reliability_tests::frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency ... ok
+test billing::reliability_tests::process_worker ... ok
+test billing::reliability_tests::committed_billing_survives_process_exit_relock_unlock_and_exact_retry ... ok
+test billing::reliability_tests::ignored_required_writes_must_abort_the_sale ... ok
+test billing::reliability_tests::racing_distinct_sales_cannot_oversell_or_duplicate_records ... ok
+test billing::reliability_tests::upi_references_and_renderer_paid_flags_cannot_settle_an_invoice ... ok
+
+running 1 test
+test access::tests::saved_receipt_lookup_enforces_actor_scope_and_revocation_after_acknowledgement ... ok
+test billing::tests::crash_worker ... ok
+test billing::tests::cash_credit_restart_and_exact_retry ... ok
+test billing::tests::full_disk_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::tests::invoice_numbers_are_transactional_unique_and_stable_on_retry ... ok
+test billing::reliability_tests::uncommitted_billing_process_exit_rolls_back_every_effect_before_exact_retry ... ok
+test billing::tests::later_product_or_ledger_failure_rolls_back_and_operation_can_retry ... ok
+
+running 1 test
+test billing::tests::posted_records_reject_replace_update_and_delete_after_reopen ... ok
+test billing::tests::repeated_lines_are_aggregated_and_overselling_is_atomic ... ok
+test billing::tests::process_death_before_commit_preserves_stock_and_records ... ok
+test billing::tests::shared_request_validation_contract ... ok
+test billing::tests::shared_rounding_vectors ... ok
+test billing::tests::failures_at_every_write_boundary_rollback_all_effects ... ok
+test billing::reliability_tests::write_failures_preserve_prior_sales_and_retry_after_reopen ... ok
+test billing::tests::simultaneous_exact_retries_post_once ... ok
+test catalog::tests::failed_event_write_rolls_back_stock_and_product_creation ... ok
+test billing::tests::stale_connection_validation_lock_and_immutability ... ok
+test catalog::tests::full_database_does_not_leave_a_partial_stock_change ... ok
+test catalog::tests::malformed_values_and_history_rewrites_are_rejected ... ok
+test catalog::tests::stale_connections_negative_stock_and_changed_retries_are_rejected ... ok
+test catalog::tests::stock_and_idempotency_survive_restart ... ok
+test billing::tests::v4_migration_preserves_catalogue_and_access ... ok
+test billing::tests::shared_multi_line_money_contract_posts_authoritative_totals ... ok
+test checkout::tests::canceled_or_replaced_checkpoint_cannot_post_late ... ok
+test checkout::tests::cancellation_and_confirmation_are_serialized_across_connections ... ok
+test checkout::tests::checkpoint_and_receipt_survive_restart_and_retry ... ok
+test checkout::tests::failed_post_retains_checkpoint_for_restart_retry ... ok
+test checkout::tests::checkpoint_commands_require_unlock_and_failed_writes_do_not_post ... ok
+test customers::tests::accounting_corrections_are_append_only_balanced_and_reversible_once ... ok
+test catalog::tests::version_three_migration_keeps_drafts_password_and_locking ... ok
+test customers::tests::canceled_credit_ids_fence_delayed_posting ... ok
+test customers::tests::commit_failure_never_returns_a_receipt_or_partial_payment ... ok
+test customers::tests::cancellation_and_collection_serialize_without_losing_money ... ok
+test customers::tests::credit_journals_audits_and_outbox_are_immutable_after_reopen ... ok
+test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok
+test customers::tests::credit_limits_are_checked_inside_original_invoice_transaction ... ok
+test customers::tests::customer_profiles_use_stable_business_ids_and_exact_retries ... ok
+test customers::tests::history_pagination_and_print_include_every_entry_at_one_immutable_snapshot ... ok
+test customers::tests::enormous_balances_cross_ipc_as_exact_decimal_strings ... ok
+test customers::tests::linking_an_existing_credit_sale_retains_invoice_and_transfer_history ... ok
+test customers::tests::overpayment_changed_ids_and_stale_account_versions_never_mutate_history ... ok
+test customers::tests::partial_full_repayments_and_general_ledger_balances_are_atomic_and_exact ... ok
+test customers::tests::all_required_credit_writes_rollback_together_and_retry_after_reopen ... ok
+test customers::tests::prepared_cash_collection_survives_restart_exact_retry_and_acknowledgement ... ok
+test customers::tests::prepared_operation_ids_cannot_be_claimed_by_profile_or_other_actor ... ok
+test customers::tests::printable_customer_data_is_escaped_and_has_no_active_content ... ok
+test customers::tests::schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity ... ok
+test customers::tests::settled_sales_do_not_hide_later_backdated_opening_dues ... ok
+test customers::tests::native_roles_deny_corrections_policy_changes_and_cross_business_access ... ok
+test customers::tests::simultaneous_collections_cannot_double_collect_a_stale_balance ... ok
+test customers::tests::subledger_failure_rolls_back_original_invoice_stock_general_ledger_and_outbox ... ok
+test customers::tests::privileged_audit_failure_rolls_back_the_whole_collection ... ok
+test inventory_recovery::tests::deferred_commit_failure_rolls_back_stock_receipt_audit_and_outbox ... ok
+test inventory_recovery::tests::ignored_creation_event_never_leaves_an_unreplayable_item ... ok
+test customers::tests::generated_credit_collections_preserve_debt_cash_and_exact_replay ... ok
+test inventory_recovery::tests::inventory_crash_worker ... ignored, subprocess-only worker, exercised by process_termination_preserves_inventory_atomicity
+test inventory_recovery::tests::inventory_attribution_and_outbox_cannot_be_rewritten_or_replaced ... ok
+
+running 1 test
+test inventory_recovery::tests::lost_inventory_reply_survives_restart_and_requires_ack_before_another_id ... ok
+test inventory_recovery::tests::exact_and_competing_inventory_requests_serialize_across_connections ... ok
+test inventory_recovery::tests::receipts_cannot_cross_staff_or_business_scope_and_revoked_sessions_cannot_write ... ok
+
+running 1 test
+test inventory_recovery::tests::schema_nine_migration_preserves_inventory_and_legacy_operation_ids ... ok
+test inventory_recovery::tests::process_termination_preserves_inventory_atomicity ... ok
+test lan_authority::tests::device_and_operation_history_cannot_be_deleted_or_replaced ... ok
+test lan_authority::tests::committed_reply_loss_restart_duplicate_and_conflicting_identity_have_one_effect ... ok
+test lan_authority::tests::migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collision ... ok
+test lan_authority::tests::human_password_rotation_idle_expiry_and_unknown_device_fail_closed ... ok
+test lan_authority::tests::enrollment_requires_fresh_owner_and_replay_never_reenables_revoked_device ... ok
+test lan_authority::tests::required_gateway_writes_roll_back_invoice_stock_ledger_and_outbox ... ok
+test lan_authority::tests::peer_human_scope_permission_and_revocation_are_intersected_on_every_request ... ok
+test lan_authority::tests::simultaneous_duplicate_requests_share_one_durable_receipt ... ok
+test payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight ... ok
+test lan_authority::tests::two_native_clients_competing_for_last_stock_cannot_oversell ... ok
+test payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow ... ok
+test payments::tests::cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent ... ok
+test inventory_recovery::tests::every_required_inventory_write_rolls_back_together_on_ignored_or_failed_writes ... ok
+test lan_authority::tests::restore_disables_devices_and_quarantines_old_sessions_and_operation_generations ... ok
+test payments::tests::changed_or_unbalanced_splits_and_forged_verification_are_refused_atomically ... ok
+test payments::tests::closing_variance_is_native_and_closed_drawer_blocks_late_atomic_sales ... ok
+test payments::tests::deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock ... ok
+test payments::tests::duplicate_bank_reference_cannot_settle_two_payments_even_with_spacing ... ok
+test payments::tests::competing_partial_returns_cannot_restore_or_refund_more_than_was_sold ... ok
+test payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations ... ok
+test payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome ... ok
+test payments::tests::interrupted_cashier_sale_can_be_adopted_by_owner_without_duplicate_posting ... ok
+test payments::tests::invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence ... ok
+test payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history ... ok
+test payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react ... ok
+test payments::tests::opening_float_correction_is_append_only_and_invalidates_a_stale_close ... ok
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+test payments::tests::partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total ... ok
+test payments::tests::pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds ... ok
+test payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary ... ok
+test payments::tests::refund_crash_worker ... ignored, subprocess worker exercised by refund_process_death_preserves_atomicity_and_exact_retry
+
+running 1 test
+test payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement ... ok
+test payments::tests::settlement_history_and_exports_are_append_only_formula_safe_and_exact ... ok
+
+running 1 test
+test payments::tests::simultaneous_exact_settlement_retries_post_once ... ok
+test payments::tests::split_sale_uses_original_invoice_and_never_verifies_digital_payments ... ok
+test payments::tests::refund_process_death_preserves_atomicity_and_exact_retry ... ok
+test payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected ... ok
+test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok
+test recovery::tests::crash_worker ... ignored, subprocess crash worker only
+test payments::tests::generated_invalid_split_and_mid_transaction_failure_never_partially_commit ... ok
+test payments::tests::generated_split_returns_conserve_money_stock_and_closing ... ok
+test recovery::tests::full_target_database_rolls_restore_back_without_losing_current_data ... ok
+test recovery::tests::duplicate_restore_with_old_preview_cannot_replace_the_workspace_twice ... ok
+test recovery::tests::internal_name_lookalikes_and_manifest_named_triggers_are_not_trusted ... ok
+test recovery::tests::integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_financial_table ... ok
+test recovery::tests::all_non_owner_roles_and_expired_or_revoked_owners_cannot_start_recovery ... ok
+test recovery::tests::forced_termination_does_not_publish_partial_backup_or_commit_partial_restore ... ok
+test recovery::tests::legacy_v6_archive_preserves_business_identity_and_migrates_individual_owner ... ok
+test recovery::tests::other_business_confirmation_stale_preview_storage_and_native_auth_are_checked ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+test recovery::tests::recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_error ... ok
+test recovery::tests::new_device_uses_new_device_key_and_original_login_and_locks_old_sessions ... ok
+test recovery::tests::owner_only_backup_preserves_customer_payments_and_revokes_staff_sessions ... ok
+test recovery::tests::recovery_refuses_ignored_audit_writes_and_substituted_archives_without_losing_live_data ... ok
+2026-10-30 17:36:32.607: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 17:36:32.607: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 17:36:32.607: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::restored_copy_does_not_revoke_an_independent_original_or_merge_operation_histories ... ok
+2026-10-30 17:36:34.980: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 17:36:34.980: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 17:36:34.980: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::snapshot_excludes_uncommitted_sale_and_restore_preserves_original_on_required_write_failure ... ok
+test tests::database_failure_never_reports_a_successful_save ... ok
+test tests::encrypted_draft_survives_close_and_reopen ... ok
+test tests::history_write_failure_rolls_back_both_save_and_restore ... ok
+test recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration ... ok
+test tests::retention_is_bounded_and_pruned_revisions_cannot_be_restored ... ok
+test tests::restoring_creates_a_new_revision_and_survives_reopen ... ok
+test tests::stale_restore_and_missing_copy_cannot_replace_newer_work ... ok
+test tests::stale_writers_and_invalid_input_leave_original_intact ... ok
+test recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed ... ok
+test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok
+test tests::version_one_migration_preserves_draft_and_seeds_history ... ok
+2026-10-30 17:36:38.370: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 17:36:38.370: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 17:36:38.370: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test tests::wrong_key_does_not_replace_data ... ok
+test recovery::tests::snapshot_restore_preserves_finance_identity_pending_work_and_retries ... ok
+
+test result: ok. 168 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 144.52s
+
+     Running unittests examples/cashier_review_bridge.rs (packages/local-store/target/debug/examples/cashier_review_bridge-d229812b00396014)
+
+running 6 tests
+test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.20s
+
+
+=== lan-authority-release-final.log ===
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `release` profile [optimized] target(s) in 10.17s
+     Running unittests src/lib.rs (packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90)
+
+running 171 tests
+test access::credential_tests::fresh_authentication_uses_persistent_failed_attempt_budget ... ok
+test access::credential_tests::owner_rotation_removes_legacy_verifier_and_requires_existing_secret ... ok
+test access::credential_tests::password_change_revokes_other_sessions_survives_lost_reply_and_preserves_data ... ok
+test access::credential_tests::reset_requires_owner_reauthentication_preserves_disabled_state_and_revokes_sessions ... ok
+test access::tests::accounts_cannot_create_or_assign_owners_or_disable_the_owner ... ok
+test access::tests::audit_is_append_only_including_sqlite_replace_after_reopen ... ok
+test access::tests::authorization_is_rechecked_after_obtaining_the_database_writer_lock ... ok
+test access::tests::disabling_and_role_changes_revoke_sessions_across_connections ... ok
+test access::credential_tests::restore_between_login_commit_and_session_publication_cannot_unlock ... ok
+test access::credential_tests::credential_writes_and_required_audit_roll_back_on_statement_and_commit_failure ... ok
+test access::tests::encrypted_storage_and_temporary_data_policy_are_explicit_after_reopen ... ok
+test access::credential_tests::restore_between_provision_commit_and_session_publication_cannot_unlock ... ok
+test access::tests::exact_replays_do_not_expose_other_cashiers_completed_receipts ... ok
+test access::tests::ignored_authentication_counter_writes_fail_closed ... ok
+test access::tests::expiry_and_idle_lock_are_native_and_restart_never_restores_a_session ... ok
+test access::tests::failed_attempts_persist_across_restart_unknown_user_and_clock_rollback ... ok
+test access::tests::invalid_owner_fields_and_passwords_do_not_partially_provision ... ok
+test access::tests::locked_workspace_denies_all_sensitive_commands ... ok
+test access::tests::every_role_is_enforced_by_native_data_methods ... ok
+test access::tests::malformed_hash_and_failed_auth_writes_never_unlock ... ok
+test access::tests::native_dispatch_denials_are_audited_without_renderer_supplied_identity ... ok
+test access::tests::passive_access_and_session_polling_cannot_renew_an_idle_session ... ok
+test access::tests::password_salts_are_unique_and_ipc_results_never_contain_secrets ... ok
+test access::tests::owner_creation_is_serialized_and_audit_failure_rolls_back_provisioning ... ok
+test access::tests::receipt_reads_preserve_posted_state_and_refuse_invalid_or_missing_ids ... ok
+test access::tests::privileged_mutations_and_audits_commit_or_rollback_together ... ok
+test access::tests::user_facing_errors_do_not_include_database_or_parser_payloads ... ok
+test access::tests::separate_cashiers_cannot_read_confirm_or_cancel_anothers_checkpoint ... ok
+test access::tests::scope_and_sessions_cannot_cross_business_databases ... ok
+test billing::reliability_tests::cash_credit_and_zero_tax_ledgers_are_correct_per_invoice ... ok
+test access::tests::saved_receipt_lookup_enforces_actor_scope_and_revocation_after_acknowledgement ... ok
+test access::tests::v6_migration_preserves_data_and_requires_the_existing_owners_password ... ok
+test billing::reliability_tests::changed_operation_data_never_changes_committed_state ... ok
+
+running 1 test
+test billing::reliability_tests::commit_time_failure_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::reliability_tests::committed_sale_contains_complete_aggregated_records_and_replays_unchanged ... ok
+test billing::reliability_tests::process_worker ... ok
+test billing::reliability_tests::frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency ... ok
+test billing::reliability_tests::racing_distinct_sales_cannot_oversell_or_duplicate_records ... ok
+
+running 1 test
+test billing::reliability_tests::committed_billing_survives_process_exit_relock_unlock_and_exact_retry ... ok
+test billing::reliability_tests::upi_references_and_renderer_paid_flags_cannot_settle_an_invoice ... ok
+test billing::reliability_tests::uncommitted_billing_process_exit_rolls_back_every_effect_before_exact_retry ... ok
+test billing::tests::crash_worker ... ok
+test billing::tests::cash_credit_restart_and_exact_retry ... ok
+test billing::reliability_tests::ignored_required_writes_must_abort_the_sale ... ok
+test billing::tests::full_disk_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::tests::later_product_or_ledger_failure_rolls_back_and_operation_can_retry ... ok
+test billing::tests::invoice_numbers_are_transactional_unique_and_stable_on_retry ... ok
+test billing::tests::posted_records_reject_replace_update_and_delete_after_reopen ... ok
+
+running 1 test
+test billing::tests::repeated_lines_are_aggregated_and_overselling_is_atomic ... ok
+test billing::tests::process_death_before_commit_preserves_stock_and_records ... ok
+test billing::tests::shared_request_validation_contract ... ok
+test billing::tests::shared_rounding_vectors ... ok
+test billing::tests::simultaneous_exact_retries_post_once ... ok
+test billing::reliability_tests::write_failures_preserve_prior_sales_and_retry_after_reopen ... ok
+test billing::tests::failures_at_every_write_boundary_rollback_all_effects ... ok
+test billing::tests::stale_connection_validation_lock_and_immutability ... ok
+test catalog::tests::failed_event_write_rolls_back_stock_and_product_creation ... ok
+test catalog::tests::malformed_values_and_history_rewrites_are_rejected ... ok
+test billing::tests::v4_migration_preserves_catalogue_and_access ... ok
+test catalog::tests::full_database_does_not_leave_a_partial_stock_change ... ok
+test catalog::tests::stale_connections_negative_stock_and_changed_retries_are_rejected ... ok
+test catalog::tests::stock_and_idempotency_survive_restart ... ok
+test billing::tests::shared_multi_line_money_contract_posts_authoritative_totals ... ok
+test catalog::tests::version_three_migration_keeps_drafts_password_and_locking ... ok
+test checkout::tests::canceled_or_replaced_checkpoint_cannot_post_late ... ok
+test checkout::tests::checkpoint_commands_require_unlock_and_failed_writes_do_not_post ... ok
+test checkout::tests::cancellation_and_confirmation_are_serialized_across_connections ... ok
+test checkout::tests::checkpoint_and_receipt_survive_restart_and_retry ... ok
+test checkout::tests::failed_post_retains_checkpoint_for_restart_retry ... ok
+test customers::tests::accounting_corrections_are_append_only_balanced_and_reversible_once ... ok
+test customers::tests::canceled_credit_ids_fence_delayed_posting ... ok
+test customers::tests::cancellation_and_collection_serialize_without_losing_money ... ok
+test customers::tests::commit_failure_never_returns_a_receipt_or_partial_payment ... ok
+test customers::tests::credit_journals_audits_and_outbox_are_immutable_after_reopen ... ok
+test customers::tests::credit_limits_are_checked_inside_original_invoice_transaction ... ok
+test customers::tests::customer_profiles_use_stable_business_ids_and_exact_retries ... ok
+test customers::tests::enormous_balances_cross_ipc_as_exact_decimal_strings ... ok
+test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok
+test customers::tests::linking_an_existing_credit_sale_retains_invoice_and_transfer_history ... ok
+test customers::tests::history_pagination_and_print_include_every_entry_at_one_immutable_snapshot ... ok
+test customers::tests::overpayment_changed_ids_and_stale_account_versions_never_mutate_history ... ok
+test customers::tests::partial_full_repayments_and_general_ledger_balances_are_atomic_and_exact ... ok
+test customers::tests::native_roles_deny_corrections_policy_changes_and_cross_business_access ... ok
+test customers::tests::prepared_operation_ids_cannot_be_claimed_by_profile_or_other_actor ... ok
+test customers::tests::printable_customer_data_is_escaped_and_has_no_active_content ... ok
+test customers::tests::prepared_cash_collection_survives_restart_exact_retry_and_acknowledgement ... ok
+test customers::tests::schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity ... ok
+test customers::tests::settled_sales_do_not_hide_later_backdated_opening_dues ... ok
+test customers::tests::all_required_credit_writes_rollback_together_and_retry_after_reopen ... ok
+test customers::tests::privileged_audit_failure_rolls_back_the_whole_collection ... ok
+test customers::tests::simultaneous_collections_cannot_double_collect_a_stale_balance ... ok
+test customers::tests::subledger_failure_rolls_back_original_invoice_stock_general_ledger_and_outbox ... ok
+test inventory_recovery::tests::deferred_commit_failure_rolls_back_stock_receipt_audit_and_outbox ... ok
+test inventory_recovery::tests::ignored_creation_event_never_leaves_an_unreplayable_item ... ok
+test inventory_recovery::tests::inventory_attribution_and_outbox_cannot_be_rewritten_or_replaced ... ok
+test inventory_recovery::tests::inventory_crash_worker ... ignored, subprocess-only worker, exercised by process_termination_preserves_inventory_atomicity
+test inventory_recovery::tests::lost_inventory_reply_survives_restart_and_requires_ack_before_another_id ... ok
+
+running 1 test
+test inventory_recovery::tests::exact_and_competing_inventory_requests_serialize_across_connections ... ok
+test inventory_recovery::tests::receipts_cannot_cross_staff_or_business_scope_and_revoked_sessions_cannot_write ... ok
+
+running 1 test
+test inventory_recovery::tests::schema_nine_migration_preserves_inventory_and_legacy_operation_ids ... ok
+test inventory_recovery::tests::process_termination_preserves_inventory_atomicity ... ok
+test lan_authority::tests::device_and_operation_history_cannot_be_deleted_or_replaced ... ok
+test lan_authority::tests::committed_reply_loss_restart_duplicate_and_conflicting_identity_have_one_effect ... ok
+test customers::tests::generated_credit_collections_preserve_debt_cash_and_exact_replay ... ok
+test lan_authority::tests::enrollment_requires_fresh_owner_and_replay_never_reenables_revoked_device ... ok
+test lan_authority::tests::human_password_rotation_idle_expiry_and_unknown_device_fail_closed ... ok
+test lan_authority::tests::migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collision ... ok
+test lan_authority::tests::peer_human_scope_permission_and_revocation_are_intersected_on_every_request ... ok
+test lan_authority::tests::required_gateway_writes_roll_back_invoice_stock_ledger_and_outbox ... ok
+test lan_authority::tests::simultaneous_duplicate_requests_share_one_durable_receipt ... ok
+test payments::tests::business_day_uses_the_invoice_posting_timestamp_across_ist_midnight ... ok
+test lan_authority::tests::two_native_clients_competing_for_last_stock_cannot_oversell ... ok
+test payments::tests::cash_variance_preserves_large_integer_values_and_refuses_overflow ... ok
+test payments::tests::cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent ... ok
+test payments::tests::changed_or_unbalanced_splits_and_forged_verification_are_refused_atomically ... ok
+test payments::tests::closing_variance_is_native_and_closed_drawer_blocks_late_atomic_sales ... ok
+test lan_authority::tests::restore_disables_devices_and_quarantines_old_sessions_and_operation_generations ... ok
+test payments::tests::competing_partial_returns_cannot_restore_or_refund_more_than_was_sold ... ok
+test payments::tests::competing_staff_cannot_match_one_bank_reference_to_two_allocations ... ok
+test payments::tests::deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock ... ok
+test payments::tests::duplicate_bank_reference_cannot_settle_two_payments_even_with_spacing ... ok
+test inventory_recovery::tests::every_required_inventory_write_rolls_back_together_on_ignored_or_failed_writes ... ok
+test payments::tests::concurrent_closing_and_sale_have_one_serialized_outcome ... ok
+test payments::tests::interrupted_cashier_sale_can_be_adopted_by_owner_without_duplicate_posting ... ok
+test payments::tests::invalid_or_unbounded_checkpoint_inputs_are_refused_before_persistence ... ok
+test payments::tests::manual_match_checks_amount_reference_and_reversal_retains_history ... ok
+test payments::tests::native_rbac_and_cross_business_denials_do_not_depend_on_react ... ok
+test payments::tests::opening_float_correction_is_append_only_and_invalidates_a_stale_close ... ok
+test payments::tests::partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total ... ok
+test payments::tests::pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds ... ok
+test payments::tests::prepared_settlement_survives_restart_and_exact_acknowledgement ... ok
+test payments::tests::reconciliation_csv_uses_the_journal_posting_day_at_an_ist_boundary ... ok
+test payments::tests::refund_crash_worker ... ignored, subprocess worker exercised by refund_process_death_preserves_atomicity_and_exact_retry
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+
+running 1 test
+test payments::tests::settlement_history_and_exports_are_append_only_formula_safe_and_exact ... ok
+test payments::tests::simultaneous_exact_settlement_retries_post_once ... ok
+
+running 1 test
+test payments::tests::split_sale_uses_original_invoice_and_never_verifies_digital_payments ... ok
+test payments::tests::refund_process_death_preserves_atomicity_and_exact_retry ... ok
+test payments::tests::stale_closing_quote_and_duplicate_closings_are_rejected ... ok
+test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok
+test recovery::tests::crash_worker ... ignored, subprocess crash worker only
+test payments::tests::generated_invalid_split_and_mid_transaction_failure_never_partially_commit ... ok
+test payments::tests::generated_split_returns_conserve_money_stock_and_closing ... ok
+test recovery::tests::all_non_owner_roles_and_expired_or_revoked_owners_cannot_start_recovery ... ok
+test recovery::tests::duplicate_restore_with_old_preview_cannot_replace_the_workspace_twice ... ok
+test recovery::tests::full_target_database_rolls_restore_back_without_losing_current_data ... ok
+test recovery::tests::integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_financial_table ... ok
+test recovery::tests::internal_name_lookalikes_and_manifest_named_triggers_are_not_trusted ... ok
+test recovery::tests::legacy_v6_archive_preserves_business_identity_and_migrates_individual_owner ... ok
+test recovery::tests::forced_termination_does_not_publish_partial_backup_or_commit_partial_restore ... ok
+test recovery::tests::other_business_confirmation_stale_preview_storage_and_native_auth_are_checked ... ok
+test recovery::tests::recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_error ... ok
+test recovery::tests::owner_only_backup_preserves_customer_payments_and_revokes_staff_sessions ... ok
+test recovery::tests::new_device_uses_new_device_key_and_original_login_and_locks_old_sessions ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+2026-10-30 17:37:52.296: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 17:37:52.296: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 17:37:52.296: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::recovery_refuses_ignored_audit_writes_and_substituted_archives_without_losing_live_data ... ok
+test recovery::tests::snapshot_excludes_uncommitted_sale_and_restore_preserves_original_on_required_write_failure ... ok
+test recovery::tests::restored_copy_does_not_revoke_an_independent_original_or_merge_operation_histories ... ok
+test tests::database_failure_never_reports_a_successful_save ... ok
+test tests::encrypted_draft_survives_close_and_reopen ... ok
+test recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration ... ok
+2026-10-30 17:37:55.193: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 17:37:55.193: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 17:37:55.193: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test tests::history_write_failure_rolls_back_both_save_and_restore ... ok
+test recovery::tests::snapshot_restore_preserves_finance_identity_pending_work_and_retries ... ok
+test tests::retention_is_bounded_and_pruned_revisions_cannot_be_restored ... ok
+test tests::restoring_creates_a_new_revision_and_survives_reopen ... ok
+test tests::stale_writers_and_invalid_input_leave_original_intact ... ok
+test tests::stale_restore_and_missing_copy_cannot_replace_newer_work ... ok
+test tests::unsupported_schema_and_invalid_keys_are_rejected ... ok
+2026-10-30 17:37:56.494: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-10-30 17:37:56.494: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-10-30 17:37:56.494: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test tests::wrong_key_does_not_replace_data ... ok
+test tests::version_one_migration_preserves_draft_and_seeds_history ... ok
+test recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed ... ok
+
+test result: ok. 168 passed; 0 failed; 3 ignored; 0 measured; 0 filtered out; finished in 61.86s
+
+     Running unittests examples/cashier_review_bridge.rs (packages/local-store/target/release/examples/cashier_review_bridge-6a653f7132b46e45)
+
+running 6 tests
+test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.67s
+
+
+=== lan-authority-bridge-final.log ===
+    Blocking waiting for file lock on build directory
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.49s
+
+=== lan-authority-frontend.log ===
+npm warn Unknown env config "http-proxy". This will stop working in the next major version of npm.
+
+> @sornio/desktop@0.3.0 build
+> tsc --noEmit && vite build
+
+vite v8.3.5 building client environment for production...
+transforming...
+✓ 38 modules transformed.
+rendering chunks...
+computing gzip size...
+dist/index.html                      0.42 kB │ gzip:  0.30 kB
+dist/assets/icon-192-BC1gZTvk.png   49.06 kB
+dist/assets/index-VWOl3ERB.css      11.99 kB │ gzip:  3.33 kB
+dist/assets/index-Lk3sBu5R.js      328.79 kB │ gzip: 97.58 kB
+
+✓ built in 636ms
+
+=== lan-authority-idle-before.log ===
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.85s
+     Running unittests src/lib.rs (packages/local-store/target/debug/deps/sornio_local_store-88709470fdf4f97e)
+
+running 1 test
+test lan_authority::tests::human_password_rotation_idle_expiry_and_unknown_device_fail_closed ... FAILED
+
+failures:
+
+---- lan_authority::tests::human_password_rotation_idle_expiry_and_unknown_device_fail_closed stdout ----
+
+thread 'lan_authority::tests::human_password_rotation_idle_expiry_and_unknown_device_fail_closed' (292) panicked at src/lan_authority/tests.rs:289:5:
+assertion `left == right` failed: passive catalog refresh cannot renew human activity
+  left: Instant { tv_sec: 2666, tv_nsec: 264148718 }
+ right: Instant { tv_sec: 1767, tv_nsec: 263966313 }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    lan_authority::tests::human_password_rotation_idle_expiry_and_unknown_device_fail_closed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 170 filtered out; finished in 2.94s
+
+error: test failed, to rerun pass `--lib`
+
+=== lan-authority-link-failure.log ===
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+error: linking with `cc` failed: exit status: 1
+  |
+  = note:  "cc" "-m64" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/rustcQGJ9cm/symbols.o" "<17 object files omitted>" "-Wl,--as-needed" "-Wl,-Bstatic" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/libgetrandom-cba36bb54b2b0101.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libtest-*,libgetopts-*,librustc_std_workspace_std-*}.rlib" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/{libsha2-9d4aabfcedba3ed8,libserde_json-91dd2fa637220b5b,libmemchr-06612286196d868b,libitoa-d2a7e90627a4bc45,libzmij-1f3def37de6d9ad3,libproptest-c9fb7e8abd1557a0,libunarray-7909b750e5cf9b62,libregex_syntax-a853c2d17579d940,librand_xorshift-18bb9f6897c957de,libchacha20-9432e28ac3b42423,libcpufeatures-5de309e66a5d72bc,librand-8149cd5136d3f0db,librusty_fork-64fe48601b695f01,libwait_timeout-deeb9c432e69cb9f,libtempfile-f3d4d236cc7b63e8,libgetrandom-588493b745c2ff34,librand_core-85e25ee1728a8298,libcfg_if-4c4bf4df28a59937,libfastrand-4256e106befb5387,libonce_cell-542183d1c1819761,librustix-85d9580427f7d48c,liblinux_raw_sys-b29eaaeae92cd74a,libfnv-3c7a2f41d215b820,libquick_error-139aa2bfc8ec8fb2,libbit_set-eba1f4a23a6c3e32,libbit_vec-379891fa2c00d114,libargon2-f5712adfa2d218f0,libcpufeatures-08791a2c8cbb5f40,libzeroize-5c35dfe41e2d7ab8,libblake2-e05fd879c55e12d4,libdigest-2054f1a64acb4cf6,libblock_buffer-7bc053e7a8e5bfa7,libcrypto_common-f253a56f533de56e,libgeneric_array-7c5cbf9fe436fd03,libtypenum-0de90cd716a304b9,libpassword_hash-310cffe396d31de9,libsubtle-a146f6f1b0752ee2,libbase64ct-8c892e577e24d997,librand_core-27ed30efcbcd9556,libthiserror-d66685da4a3a7f9d,libserde-3a8e00671525d578,libserde_core-98501f3c45766ae2,librusqlite-b12efceede8d300a,libbitflags-ec102962704ab1c9,libsmallvec-caab11d9e7fc365c,libhashlink-c99d537fd7a63258,libhashbrown-e9eaa9b6a2d71892,libfoldhash-c8ab970b6de338c0,liblibsqlite3_sys-041168a6657621d7,libopenssl_sys-4ec94a696822b911,liblibc-34e983634f114512,libfallible_streaming_iterator-322e3bf2a3500003,libfallible_iterator-c10df8eddfb7c1cf}.rlib" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib/{libstd-*,libpanic_unwind-*,libobject-*,libmemchr-*,libaddr2line-*,libgimli-*,libcfg_if-*,librustc_demangle-*,libstd_detect-*,libhashbrown-*,librustc_std_workspace_alloc-*,libminiz_oxide-*,libadler2-*,libunwind-*,liblibc-*,librustc_std_workspace_core-*,liballoc-*,libcore-*,libcompiler_builtins-*}.rlib" "-Wl,-Bdynamic" "-lssl" "-lcrypto" "-lgcc_s" "-lutil" "-lrt" "-lpthread" "-lm" "-ldl" "-lc" "-L" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/rustcQGJ9cm/raw-dylibs" "-B<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/bin/gcc-ld" "-fuse-ld=lld" "-Wl,--eh-frame-hdr" "-Wl,-z,noexecstack" "-L" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/build/libsqlite3-sys-4a3d88574433356f/out" "-L" "/usr/lib/x86_64-linux-gnu" "-L" "<sysroot>/lib/rustlib/x86_64-unknown-linux-gnu/lib" "-o" "/workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90" "-Wl,--gc-sections" "-pie" "-Wl,-z,relro,-z,now" "-Wl,-O1" "-Wl,--strip-debug" "-nodefaultlibs"
+  = note: some arguments are omitted. use `--verbose` to show all linker arguments
+  = note: rust-lld: error: undefined hidden symbol: core::slice::sort::stable::driftsort_main::<sornio_local_store::payments::Payment, <[sornio_local_store::payments::Payment]>::sort_by_key<i32, sornio_local_store::payments::quote::{closure#3}>::{closure#0}, alloc::vec::Vec<sornio_local_store::payments::Payment>>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(<[sornio_local_store::payments::Payment]>::sort_by_key::<i32, sornio_local_store::payments::quote::{closure#3}>)
+          
+          rust-lld: error: undefined hidden symbol: <alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value> as core::ops::drop::Drop>::drop
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(core::ptr::drop_glue::<serde_json::value::Value> (.llvm.6464913054754762232))
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<<serde_json::value::Value as serde_core::de::Deserialize>::deserialize::ValueVisitor as serde_core::de::Visitor>::visit_map::<serde_json::de::MapAccess<serde_json::read::StrRead>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<<serde_json::value::Value as serde_core::de::Deserialize>::deserialize::ValueVisitor as serde_core::de::Visitor>::visit_map::<serde_json::de::MapAccess<serde_json::read::StrRead>>)
+          >>> referenced 19 more times
+          
+          rust-lld: error: undefined hidden symbol: <alloc::collections::btree::map::IntoIter<alloc::string::String, serde_json::value::Value> as core::ops::drop::Drop>::drop
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(core::ptr::drop_glue::<core::option::Option<serde_json::value::Value>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(core::ptr::drop_glue::<serde_json::value::de::MapDeserializer>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(core::ptr::drop_glue::<serde_json::value::Value>)
+          >>> referenced 53 more times
+          
+          rust-lld: error: undefined hidden symbol: <sornio_local_store::catalog::AddProduct as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<&mut alloc::vec::Vec<u8>>>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(serde_json::ser::to_vec::<sornio_local_store::catalog::AddProduct>)
+          
+          rust-lld: error: undefined hidden symbol: <alloc::collections::btree::map::IntoIter<rusqlite::util::small_cstr::SmallCString, usize>>::dying_next (.llvm.8520258828721519079)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(core::ptr::drop_glue::<rusqlite::raw_statement::RawStatement> (.llvm.13486889708864494456))
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(core::ptr::drop_glue::<rusqlite::raw_statement::RawStatement> (.llvm.13486889708864494456))
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(core::ptr::drop_glue::<rusqlite::raw_statement::RawStatement> (.llvm.18282486354361213220))
+          >>> referenced 19 more times
+          
+          rust-lld: error: undefined hidden symbol: <alloc::collections::btree::map::BTreeMap<rusqlite::util::small_cstr::SmallCString, usize> as core::ops::drop::Drop>::drop
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(core::ptr::drop_glue::<rusqlite::raw_statement::RawStatement> (.llvm.13486889708864494456))
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(core::ptr::drop_glue::<rusqlite::raw_statement::RawStatement> (.llvm.18282486354361213220))
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.01
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.01.rcgu.o:(core::ptr::drop_glue::<rusqlite::raw_statement::RawStatement>)
+          >>> referenced 8 more times
+          
+          rust-lld: error: undefined hidden symbol: <alloc::collections::btree::map::BTreeMap<alloc::string::String, serde_json::value::Value>>::insert
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<<serde_json::value::Value as serde_core::de::Deserialize>::deserialize::ValueVisitor as serde_core::de::Visitor>::visit_map::<serde_json::de::MapAccess<serde_json::read::StrRead>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<<serde_json::value::Value as serde_core::de::Deserialize>::deserialize::ValueVisitor as serde_core::de::Visitor>::visit_map::<serde_json::de::MapAccess<serde_json::read::StrRead>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::post_retail)
+          >>> referenced 64 more times
+          
+          rust-lld: error: undefined hidden symbol: <alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(<sornio_local_store::payments::PaymentPart as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<&mut alloc::vec::Vec<u8>>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(<sornio_local_store::payments::ReturnLine as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<&mut alloc::vec::Vec<u8>>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.02
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.02.rcgu.o:(<sornio_local_store::payments::ReturnLine as serde_core::ser::Serialize>::serialize::<&mut serde_json::ser::Serializer<&mut alloc::vec::Vec<u8>>>)
+          >>> referenced 286 more times
+          
+          rust-lld: error: undefined hidden symbol: sornio_local_store::catalog::product_row
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.04
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.04.rcgu.o:(<rusqlite::statement::Statement>::query_row::<sornio_local_store::catalog::Product, [&alloc::string::String; 1], sornio_local_store::catalog::product_row>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.09
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.09.rcgu.o:(<core::iter::adapters::GenericShunt<rusqlite::row::MappedRows<sornio_local_store::catalog::product_row>, core::result::Result<core::convert::Infallible, rusqlite::error::Error>> as core::iter::traits::iterator::Iterator>::next)
+          
+          rust-lld: error: undefined hidden symbol: <alloc::collections::btree::map::IntoIter<alloc::string::String, serde_json::value::Value>>::dying_next (.llvm.8520258828721519079)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<serde_json::map::Map<alloc::string::String, serde_json::value::Value> as serde_core::de::Deserializer>::deserialize_any::<serde::private::de::content::TaggedContentVisitor<<sornio_local_store::payments::Action as serde_core::de::Deserialize>::deserialize::__Field>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<serde_json::map::Map<alloc::string::String, serde_json::value::Value> as serde_core::de::Deserializer>::deserialize_any::<serde::private::de::content::ContentVisitor>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<serde_json::map::Map<alloc::string::String, serde_json::value::Value> as serde_core::de::Deserializer>::deserialize_any::<<sornio_local_store::payments::Request as serde_core::de::Deserialize>::deserialize::__Visitor>)
+          >>> referenced 1 more times
+          
+          rust-lld: error: undefined hidden symbol: <alloc::raw_vec::RawVec<(serde_core::private::content::Content, serde_core::private::content::Content)>>::grow_one
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<serde_json::map::Map<alloc::string::String, serde_json::value::Value> as serde_core::de::Deserializer>::deserialize_any::<serde::private::de::content::TaggedContentVisitor<<sornio_local_store::payments::Action as serde_core::de::Deserialize>::deserialize::__Field>>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<serde_json::map::Map<alloc::string::String, serde_json::value::Value> as serde_core::de::Deserializer>::deserialize_any::<serde::private::de::content::ContentVisitor>)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.03
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.03.rcgu.o:(<serde::private::de::content::ContentVisitor as serde_core::de::Visitor>::visit_map::<serde_json::de::MapAccess<serde_json::read::StrRead>>)
+          >>> referenced 1 more times
+          
+          rust-lld: error: undefined hidden symbol: <rusqlite::Connection>::pragma_update::<&str>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          >>> referenced 22 more times
+          
+          rust-lld: error: undefined hidden symbol: core::ptr::drop_glue::<rusqlite::error::Error> (.llvm.17677244844310426671)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::commit_draft (.llvm.18282486354361213220))
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::load)
+          >>> referenced 47 more times
+          
+          rust-lld: error: undefined hidden symbol: <rusqlite::Connection>::pragma_query_value::<i64, <sornio_local_store::Store>::open_secret::{closure#1}>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          
+          rust-lld: error: undefined hidden symbol: <rusqlite::Connection>::pragma_query_value::<i64, <sornio_local_store::Store>::open_secret::{closure#2}>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          
+          rust-lld: error: undefined hidden symbol: anon.a2024fb624710d8cd0f28c0059c04169.98.llvm.8520258828721519079
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          
+          rust-lld: error: undefined hidden symbol: sornio_local_store::inventory_recovery::migrate
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::open_secret)
+          
+          rust-lld: error: undefined hidden symbol: <alloc::raw_vec::RawVec<sornio_local_store::SavedCopy>>::grow_one
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::saved_copies)
+          
+          rust-lld: error: undefined hidden symbol: <str>::trim_matches::<<char>::is_whitespace>
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::save)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::validate)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::add_product)
+          >>> referenced 6 more times
+          
+          rust-lld: error: undefined hidden symbol: <alloc::raw_vec::RawVecInner>::try_allocate_in
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::pending_inventory)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::add_product)
+          >>> referenced by sornio_local_store.857b780512d45fa2-cgu.00
+          >>>               /workspace/scratch/da8cf33c45c7/sornio/packages/local-store/target/release/deps/sornio_local_store-a1cec33445454c90.sornio_local_store.857b780512d45fa2-cgu.00.rcgu.o:(<sornio_local_store::Store>::post_retail)
+          >>> referenced 6 more times
+          
+          rust-lld: error: too many errors emitted, stopping now (use --error-limit=0 to see all errors)
+          collect2: error: ld returned 1 exit status
+          
+
+error: could not compile `sornio-local-store` (lib test) due to 1 previous error
+
+=== lan-authority-clean.log ===
+     Removed 47 files, 30.9MiB total
+
+=== lan-authority-final-browser-ui.log ===
+locator.click: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByRole('button', { name: 'Save local draft', exact: true })[22m
+[2m    - locator resolved to <button disabled type="submit">…</button>[22m
+[2m  - attempting click action[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not enabled[22m
+[2m    - retrying click action[22m
+[2m    - waiting 20ms[22m
+[2m    2 × waiting for element to be visible, enabled and stable[22m
+[2m      - element is not enabled[22m
+[2m    - retrying click action[22m
+[2m      - waiting 100ms[22m
+[2m    58 × waiting for element to be visible, enabled and stable[22m
+[2m       - element is not enabled[22m
+[2m     - retrying click action[22m
+[2m       - waiting 500ms[22m
+
+    at /workspace/scratch/da8cf33c45c7/sornio/apps/desktop/check-ui.cjs:130:73 {
+  log: [
+    "  - waiting for getByRole('button', { name: 'Save local draft', exact: true })",
+    '    - locator resolved to <button disabled type="submit">…</button>',
+    '  - attempting click action',
+    '    2 × waiting for element to be visible, enabled and stable',
+    '      - element is not enabled',
+    '    - retrying click action',
+    '    - waiting 20ms',
+    '    2 × waiting for element to be visible, enabled and stable',
+    '      - element is not enabled',
+    '    - retrying click action',
+    '      - waiting 100ms',
+    '    58 × waiting for element to be visible, enabled and stable',
+    '       - element is not enabled',
+    '     - retrying click action',
+    '       - waiting 500ms'
+  ],
+  name: 'TimeoutError'
+}
+
+=== lan-authority-final-browser-inventory-refresh.log ===
+Inventory refresh regression passed: committed reply loss, cross-panel receipt recovery, acknowledgement clears old delivery fields, one stock effect. Mocked IPC; no Windows/native claim.
+
+=== lan-authority-final-browser-checkout.log ===
+Checkout integration passed: real SQLCipher/Workspace; stale background read fencing; shared preview; kg/litre/metre/pcs quantities; no success before commit; cash/credit; stock/balance refresh; exact-ID retry after lost post/prepare replies; native-process restart and unlock recovery; stale-stock refusal/edit; saved-sale/read-failure handling; locking; responsive light/dark UI.
+
+=== lan-authority-final-browser-receipts.log ===
+{"keyboardReviewAndCommit4xCpuMs":305,"printLayouts":3,"extraFinancialPostsFromPrinting":0}
+Receipt React/native integration passed: keyboard exact-code/repeat guards; native invoice lookup; three PDF/CSS layouts; Punjabi font; original snapshot/history; printer refusal/retry; cancelled async print isolation; cashier ownership; revocation during font loading; unchanged financial state and empty browser storage. Not physical Windows printer acceptance.
+
+=== lan-authority-final-browser-authorization.log ===
+Native authorization UI integration passed: owner provisioning, all staff roles, cashier sale, raw IPC denials, scope mismatch, native report redaction, role-change session revocation, disabled login refusal and append-only audit attribution.
+
+=== lan-authority-final-browser-credentials.log ===
+Credential React/native integration passed: dirty-work guard, owner fresh-auth staff reset, revoked second session, cashier reset denial, mismatch refusal, lost committed reply/relogin recovery, owner/staff rotation, cleared secret inputs and empty browser storage.
+
+=== lan-authority-final-browser-customers.log ===
+Customer React/native integration passed: profile/phone checkout lookup, atomic credit sale, partial/full cash repayment, lost prepare/post replies, exact retry, process restart, overpayment refusal, owner correction/reversal, overdue filter, escaped full statement/print, limit rollback, exact link retry/retained invoice, native permission and business isolation.
+
+=== lan-authority-final-browser-statement-print.log ===
+{"fullStatementRows":105,"closingBalancePaise":"10605","additionalRendererFinancialPosts":0,"printerCalls":5}
+Customer statement React/native printing passed: blank-print regression; all 105 rows beyond UI pagination; escaped markup; A4 PDF/repeated header CSS; printer refusal/retry; unchanged account history/stock/balances/billing outbox; before/during-font snapshot changes refused; one shared receipt/statement job; disabled cashier denied after font loading. Not Windows or physical printer acceptance.
+
+=== lan-authority-final-browser-retail.log ===
+Retail React/native integration passed: original invoice split checkout, unverified UPI/card separation, wrong statement amount/duplicate reference refusal, exact lost sale/match retries, interrupted partial return recovery, cumulative tax/stock, pending versus manually matched refunds, CSV, cash variance/locking, closed-day sale refusal and native role/business isolation.
+
+=== lan-authority-final-browser-inventory-recovery.log ===
+Inventory React/native recovery passed: committed reply loss, native process kill/restart, exact receipt replay, replacement-ID refusal, lost acknowledgement/retry, unlock recovery and unchanged stock.
+
+=== lan-authority-final-browser-backup.log ===
+Real native backup integration passed: ciphertext, authentication rejection, preview, cleared secrets, explicit restore, financial preservation and forced restart.
+
+=== lan-authority-ui-retry.log ===
+Desktop mocked-IPC UI checks passed: browser guard, setup, mismatch, save/restore, dirty lock guard, failed lock, lock/unlock, wrong password, stale-save recovery, attempt-limit error, fractional stock, retry deduplication, negative/stale stock refusal, committed-write/read-failure handling and responsive light/dark access. Native acceptance remains separate.
+
+=== Initial native fixture failures (failure section) ===
+failures:
+
+---- catalog::tests::version_three_migration_keeps_drafts_password_and_locking stdout ----
+
+thread 'catalog::tests::version_three_migration_keeps_drafts_password_and_locking' (748) panicked at src/catalog.rs:457:41:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "table local_lan_devices already exists", sql: "CREATE TABLE local_lan_devices (\n id TEXT PRIMARY KEY NOT NULL,\n business_id TEXT NOT NULL REFERENCES local_identity(business_id),\n workspace_id TEXT NOT NULL REFERENCES local_identity(workspace_id),\n name TEXT NOT NULL,\n certificate_hash TEXT NOT NULL UNIQUE CHECK(length(certificate_hash)=64),\n capability TEXT NOT NULL CHECK(capability IN ('read_only','cashier')),\n enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),\n revision INTEGER NOT NULL CHECK(revision>0),\n generation TEXT NOT NULL\n);\nCREATE TRIGGER lan_device_identity_no_update BEFORE UPDATE ON local_lan_devices\n WHEN OLD.id<>NEW.id OR OLD.business_id<>NEW.business_id OR OLD.workspace_id<>NEW.workspace_id OR OLD.certificate_hash<>NEW.certificate_hash\n BEGIN SELECT RAISE(ABORT,'Device identity is immutable'); END;\nCREATE TRIGGER lan_device_no_delete BEFORE DELETE ON local_lan_devices\n BEGIN SELECT RAISE(ABORT,'Revoke devices instead of deleting them'); END;\nCREATE TABLE local_lan_operations (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n operation_id TEXT NOT NULL UNIQUE REFERENCES local_invoices(id),\n device_id TEXT NOT NULL REFERENCES local_lan_devices(id),\n actor_id TEXT NOT NULL REFERENCES local_principals(id),\n generation TEXT NOT NULL,\n request TEXT NOT NULL\n);\nCREATE TRIGGER lan_operation_no_update BEFORE UPDATE ON local_lan_operations\n BEGIN SELECT RAISE(ABORT,'LAN operation history is immutable'); END;\nCREATE TRIGGER lan_operation_no_delete BEFORE DELETE ON local_lan_operations\n BEGIN SELECT RAISE(ABORT,'LAN operation history is immutable'); END;\nPRAGMA user_version=12;\n", offset: 13 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances stdout ----
+
+thread 'checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances' (755) panicked at src/checkout.rs:436:45:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "table local_lan_devices already exists", sql: "CREATE TABLE local_lan_devices (\n id TEXT PRIMARY KEY NOT NULL,\n business_id TEXT NOT NULL REFERENCES local_identity(business_id),\n workspace_id TEXT NOT NULL REFERENCES local_identity(workspace_id),\n name TEXT NOT NULL,\n certificate_hash TEXT NOT NULL UNIQUE CHECK(length(certificate_hash)=64),\n capability TEXT NOT NULL CHECK(capability IN ('read_only','cashier')),\n enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),\n revision INTEGER NOT NULL CHECK(revision>0),\n generation TEXT NOT NULL\n);\nCREATE TRIGGER lan_device_identity_no_update BEFORE UPDATE ON local_lan_devices\n WHEN OLD.id<>NEW.id OR OLD.business_id<>NEW.business_id OR OLD.workspace_id<>NEW.workspace_id OR OLD.certificate_hash<>NEW.certificate_hash\n BEGIN SELECT RAISE(ABORT,'Device identity is immutable'); END;\nCREATE TRIGGER lan_device_no_delete BEFORE DELETE ON local_lan_devices\n BEGIN SELECT RAISE(ABORT,'Revoke devices instead of deleting them'); END;\nCREATE TABLE local_lan_operations (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n operation_id TEXT NOT NULL UNIQUE REFERENCES local_invoices(id),\n device_id TEXT NOT NULL REFERENCES local_lan_devices(id),\n actor_id TEXT NOT NULL REFERENCES local_principals(id),\n generation TEXT NOT NULL,\n request TEXT NOT NULL\n);\nCREATE TRIGGER lan_operation_no_update BEFORE UPDATE ON local_lan_operations\n BEGIN SELECT RAISE(ABORT,'LAN operation history is immutable'); END;\nCREATE TRIGGER lan_operation_no_delete BEFORE DELETE ON local_lan_operations\n BEGIN SELECT RAISE(ABORT,'LAN operation history is immutable'); END;\nPRAGMA user_version=12;\n", offset: 13 })
+
+---- recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration stdout ----
+
+thread 'recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration' (870) panicked at src/lan_authority.rs:393:10:
+called `Result::unwrap()` on an `Err` value: SqliteFailure(Error { code: ReadOnly, extended_code: 8 }, Some("attempt to write a readonly database"))
+
+---- tests::version_one_migration_preserves_draft_and_seeds_history stdout ----
+
+thread 'tests::version_one_migration_preserves_draft_and_seeds_history' (880) panicked at src/lib.rs:526:48:
+called `Result::unwrap()` on an `Err` value: Database(SqlInputError { error: Error { code: Unknown, extended_code: 1 }, msg: "table local_lan_devices already exists", sql: "CREATE TABLE local_lan_devices (\n id TEXT PRIMARY KEY NOT NULL,\n business_id TEXT NOT NULL REFERENCES local_identity(business_id),\n workspace_id TEXT NOT NULL REFERENCES local_identity(workspace_id),\n name TEXT NOT NULL,\n certificate_hash TEXT NOT NULL UNIQUE CHECK(length(certificate_hash)=64),\n capability TEXT NOT NULL CHECK(capability IN ('read_only','cashier')),\n enabled INTEGER NOT NULL CHECK(enabled IN (0,1)),\n revision INTEGER NOT NULL CHECK(revision>0),\n generation TEXT NOT NULL\n);\nCREATE TRIGGER lan_device_identity_no_update BEFORE UPDATE ON local_lan_devices\n WHEN OLD.id<>NEW.id OR OLD.business_id<>NEW.business_id OR OLD.workspace_id<>NEW.workspace_id OR OLD.certificate_hash<>NEW.certificate_hash\n BEGIN SELECT RAISE(ABORT,'Device identity is immutable'); END;\nCREATE TRIGGER lan_device_no_delete BEFORE DELETE ON local_lan_devices\n BEGIN SELECT RAISE(ABORT,'Revoke devices instead of deleting them'); END;\nCREATE TABLE local_lan_operations (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n operation_id TEXT NOT NULL UNIQUE REFERENCES local_invoices(id),\n device_id TEXT NOT NULL REFERENCES local_lan_devices(id),\n actor_id TEXT NOT NULL REFERENCES local_principals(id),\n generation TEXT NOT NULL,\n request TEXT NOT NULL\n);\nCREATE TRIGGER lan_operation_no_update BEFORE UPDATE ON local_lan_operations\n BEGIN SELECT RAISE(ABORT,'LAN operation history is immutable'); END;\nCREATE TRIGGER lan_operation_no_delete BEFORE DELETE ON local_lan_operations\n BEGIN SELECT RAISE(ABORT,'LAN operation history is immutable'); END;\nPRAGMA user_version=12;\n", offset: 13 })
+
+
+failures:
+    catalog::tests::version_three_migration_keeps_drafts_password_and_locking
+    checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances
+    recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration
+    tests::version_one_migration_preserves_draft_and_seeds_history
+
+test result: FAILED. 162 passed; 4 failed; 3 ignored; 0 measured; 0 filtered out; finished in 144.51s
+
+error: test failed, to rerun pass `--lib`

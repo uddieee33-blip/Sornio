@@ -1,0 +1,15 @@
+# Environment
+
+Linux e2b.local 6.1.158+ #1 SMP PREEMPT_DYNAMIC Mon May 11 18:48:24 UTC 2026 x86_64 GNU/Linux
+
+v22.22.3
+10.9.8
+Python 3.11.2
+sqlite 3.40.1
+
+rustc/cargo: not installed (crates.io and static.rust-lang.org are unreachable from this host)
+SQLCipher: not available (no sqlite3 CLI, no python sqlcipher module)
+Windows: not available
+2
+               total        used        free      shared  buff/cache   available
+Mem:            3939         689        1707           1        1805        3249

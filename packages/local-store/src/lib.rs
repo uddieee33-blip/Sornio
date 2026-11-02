@@ -9,12 +9,44 @@ pub mod access;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
+pub mod customers;
+pub mod identity;
+pub mod inventory_recovery;
+pub mod lan_authority;
+pub mod payments;
+pub mod recovery;
 
 #[cfg(windows)]
 pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("That saved invoice could not be found. Check its ID and reopen the receipt.")]
+    InvoiceMissing,
+    #[error("The encrypted backup could not be read or written. Keep the original files.")]
+    BackupStorage,
+    #[error(
+        "Backup could not be verified. Check the recovery passphrase and keep the original file."
+    )]
+    InvalidBackup,
+    #[error("Use a separate recovery passphrase of 14–128 characters.")]
+    InvalidRecoveryPassword,
+    #[error("This backup belongs to another business.")]
+    BackupBusinessMismatch,
+    #[error("Type the exact restore confirmation phrase.")]
+    RecoveryConfirmation,
+    #[error("The backup or current workspace changed. Preview again before restoring.")]
+    RecoveryChanged,
+    #[error("Check payment amounts, references, return quantities and closing values.")]
+    InvalidPayment,
+    #[error("Payment or closing changed. Refresh it before continuing.")]
+    PaymentConflict,
+    #[error("That reference already belongs to another active manual match.")]
+    DuplicateSettlement,
+    #[error("This cashier day is closed. An owner or manager must reopen it with a reason.")]
+    DayClosed,
+    #[error("This account has adjusted credit history. Automatic credit returns are unavailable; review an explicit accounting and stock correction.")]
+    ComplexCreditReturn,
     #[error("The local database could not be opened or saved. Keep the original files and retry.")]
     Database(#[from] rusqlite::Error),
     #[error("The database encryption key is invalid.")]
@@ -27,6 +59,14 @@ pub enum StoreError {
     Conflict,
     #[error("That saved copy is no longer available. Refresh saved copies and try again.")]
     MissingRevision,
+    #[error("This account does not have permission for that action.")]
+    Forbidden,
+    #[error("This request belongs to another business or workspace.")]
+    WorkspaceMismatch,
+    #[error("That account name already exists. Reload staff to confirm before retrying.")]
+    AccountExists,
+    #[error("Check the business, account name and role.")]
+    InvalidIdentity,
     #[error("Unlock this workspace to continue.")]
     Locked,
     #[error("Local access is already configured. Unlock with the existing password.")]
@@ -45,6 +85,24 @@ pub enum StoreError {
     InvalidDraft,
     #[error("Check the item name, unit, price and stock quantity.")]
     InvalidProduct,
+    #[error("Check the customer identifier, name, phone and credit settings.")]
+    InvalidCustomer,
+    #[error("Choose an existing customer account before recording credit.")]
+    CustomerMissing,
+    #[error("Check the amount, date and correction reason.")]
+    InvalidCredit,
+    #[error("This customer's account changed. Refresh its balance before continuing.")]
+    CreditConflict,
+    #[error("The repayment or correction exceeds this customer's outstanding balance.")]
+    Overpayment,
+    #[error("This sale would exceed the customer's credit limit.")]
+    CreditLimit,
+    #[error("A credit account with collections or adjustments cannot be relinked. Preserve its history and use an authorized correction.")]
+    CreditAlreadyCollected,
+    #[error(
+        "The credit entry could not be saved or read. Keep its operation ID and retry safely."
+    )]
+    CreditUnavailable,
     #[error("Check invoice items, tax rate and cash/credit customer reference.")]
     InvalidInvoice,
     #[error(
@@ -88,10 +146,10 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 6;
+const SCHEMA_VERSION: i64 = 12;
 const HISTORY_LIMIT: i64 = 20;
 
-pub struct Store(Connection);
+pub struct Store(Connection, Option<identity::Session>);
 
 impl Store {
     /// A random 256-bit hex secret comes from the native credential vault.
@@ -100,6 +158,11 @@ impl Store {
         if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(StoreError::InvalidKey);
         }
+        Self::open_secret(path, key)
+    }
+
+    // Only validated encrypted staging archives may use a recovery passphrase.
+    pub(crate) fn open_secret(path: &Path, key: &str) -> Result<Self, StoreError> {
         let mut db = Connection::open(path)?;
         db.busy_timeout(Duration::from_secs(5))?;
         db.pragma_update(None, "key", key)?;
@@ -123,6 +186,8 @@ impl Store {
         // could be replaced despite the UPDATE/DELETE guards.
         db.pragma_update(None, "recursive_triggers", "ON")?;
         db.pragma_update(None, "cipher_memory_security", "ON")?;
+        // Keep transient sorts and temporary customer/payment data off disk.
+        db.pragma_update(None, "temp_store", "MEMORY")?;
         if version < SCHEMA_VERSION {
             let tx = db.transaction_with_behavior(TransactionBehavior::Immediate)?;
             // Re-read after acquiring the write lock: another process may have
@@ -170,12 +235,30 @@ impl Store {
             if locked_version < 6 {
                 checkout::migrate(&tx)?;
             }
+            if locked_version < 7 {
+                identity::migrate(&tx)?;
+            }
+            if locked_version < 8 {
+                customers::migrate(&tx)?;
+            }
+            if locked_version < 9 {
+                payments::migrate(&tx)?;
+            }
+            if locked_version < 10 {
+                inventory_recovery::migrate(&tx)?;
+            }
+            if locked_version < 11 {
+                recovery::migrate(&tx)?;
+            }
+            if locked_version < 12 {
+                lan_authority::migrate(&tx)?;
+            }
             tx.commit()?;
         }
-        Ok(Self(db))
+        Ok(Self(db, None))
     }
 
-    pub fn load(&self) -> Result<Snapshot, StoreError> {
+    pub(crate) fn load(&self) -> Result<Snapshot, StoreError> {
         let raw: Option<(i64, String)> = self
             .0
             .query_row(
@@ -197,15 +280,26 @@ impl Store {
     }
 
     /// Return success only after SQLite commits; stale windows cannot overwrite.
-    pub fn save(&mut self, expected_revision: i64, draft: Draft) -> Result<Snapshot, StoreError> {
+    pub(crate) fn save(
+        &mut self,
+        expected_revision: i64,
+        draft: Draft,
+    ) -> Result<Snapshot, StoreError> {
         Self::validate(expected_revision, &draft)?;
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Settings,
+            "settings.saved",
+            None,
+        )?;
         Self::commit_draft(tx, expected_revision, draft)
     }
 
-    pub fn saved_copies(&self) -> Result<Vec<SavedCopy>, StoreError> {
+    pub(crate) fn saved_copies(&self) -> Result<Vec<SavedCopy>, StoreError> {
         let mut statement = self.0.prepare(
             "SELECT revision, payload FROM workspace_history ORDER BY revision DESC LIMIT ?1",
         )?;
@@ -225,7 +319,7 @@ impl Store {
 
     /// Fetch and restore under one write lock. Stale writers or pruned copies
     /// must leave the current draft and history untouched.
-    pub fn restore(
+    pub(crate) fn restore(
         &mut self,
         expected_revision: i64,
         source_revision: i64,
@@ -236,6 +330,13 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        crate::identity::guard(
+            &tx,
+            &self.1,
+            crate::identity::Permission::Settings,
+            "settings.restored",
+            None,
+        )?;
         let payload: String = tx
             .query_row(
                 "SELECT payload FROM workspace_history WHERE revision = ?1",
@@ -418,8 +519,9 @@ mod tests {
         {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
+            crate::lan_authority::remove_fixture_tables(&old.0);
             old.0
-                .execute_batch("DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
+                .execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
         }
         let migrated = Store::open(&path, KEY).unwrap();

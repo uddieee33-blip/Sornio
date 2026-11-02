@@ -1,0 +1,3 @@
+Shared domain checks passed: invoice rounding, invalid/overflow amounts, immutable inputs and eight business workspaces.
+Native invoice contract passed: 45 request fixtures, 13 money fixtures, line limits and invalid numeric inputs.
+Checkout display checks passed: exact paise including balances beyond JS safe integers, negative/zero balances and fractional units.

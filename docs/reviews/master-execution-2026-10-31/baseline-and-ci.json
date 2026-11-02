@@ -1,0 +1,194 @@
+{
+  "inspected_client_date": "2026-10-31",
+  "main": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+  "integration": "6043f52b0d166044766eedf2d5a1e76c8fce7595",
+  "baseline_tree": "949686eaab3984bac519261674e65bd17d8cfc89",
+  "remote_files": 536,
+  "matching_local_files": 146,
+  "missing_local_files": 390,
+  "initial_source_mismatches": 0,
+  "open_pulls": [
+    {
+      "number": 130,
+      "branch": "integration/windows-finance-recovery",
+      "head_sha": "6043f52b0d166044766eedf2d5a1e76c8fce7595",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": true
+    },
+    {
+      "number": 129,
+      "branch": "review/windows-controlled-pilot-hardening",
+      "head_sha": "364f42b2896f19aa070d5d853769d0212e7d9503",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": false
+    },
+    {
+      "number": 128,
+      "branch": "feature/windows-pos-keyboard-printing",
+      "head_sha": "08575a2ed7d17d826bc3961278901164b89b5e2b",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": false
+    },
+    {
+      "number": 127,
+      "branch": "feature/windows-gst-invoicing",
+      "head_sha": "345cd2b6d0db2bb4b83769a0d0b0c04ec4e0737c",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": false
+    },
+    {
+      "number": 126,
+      "branch": "feature/windows-shop-lan",
+      "head_sha": "129fce1ed9c60aaede0228dd5d41097f1580b938",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": true
+    },
+    {
+      "number": 125,
+      "branch": "feature/windows-encrypted-backup",
+      "head_sha": "69ed5db0106dfa2dbca1d157f98bc9dce0e7b586",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": true
+    },
+    {
+      "number": 124,
+      "branch": "feature/windows-retail-settlement",
+      "head_sha": "20e36b7a5d94af961d85b1f252769feb6c21cf51",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": false
+    },
+    {
+      "number": 123,
+      "branch": "feature/windows-customer-credit",
+      "head_sha": "e41f88941d7c9fc88905a01adfa15d2c504f55d7",
+      "base_sha": "6631eb04efb0cc155d2352113d744ddd2dea748d",
+      "state": "open",
+      "merged": false,
+      "draft": false
+    },
+    {
+      "number": 122,
+      "branch": "feature/windows-native-authorization",
+      "head_sha": "6631eb04efb0cc155d2352113d744ddd2dea748d",
+      "base_sha": "97bfe2f7f93f84ec6a8cd7b2db32a94eb2f712c6",
+      "state": "open",
+      "merged": false,
+      "draft": false
+    }
+  ],
+  "baseline_checks": [
+    {
+      "id": 124226124202,
+      "name": "Vercel Preview Comments",
+      "status": "completed",
+      "conclusion": "success",
+      "annotations": 0
+    },
+    {
+      "id": 124225694980,
+      "name": "Lint, types, build",
+      "status": "completed",
+      "conclusion": "failure",
+      "annotations": 2
+    },
+    {
+      "id": 124225694799,
+      "name": "browser",
+      "status": "completed",
+      "conclusion": "failure",
+      "annotations": 2
+    },
+    {
+      "id": 124225694356,
+      "name": "Dependency audit",
+      "status": "completed",
+      "conclusion": "failure",
+      "annotations": 2
+    },
+    {
+      "id": 124225694208,
+      "name": "local-windows",
+      "status": "completed",
+      "conclusion": "failure",
+      "annotations": 1
+    },
+    {
+      "id": 124225655611,
+      "name": "Supabase Preview",
+      "status": "completed",
+      "conclusion": "skipped",
+      "annotations": 0
+    }
+  ],
+  "jobs": [
+    {
+      "jobs": [
+        {
+          "id": 124225694208,
+          "name": "local-windows",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_id": 41103335761,
+          "logs_url": null,
+          "steps": null
+        }
+      ]
+    },
+    {
+      "jobs": [
+        {
+          "id": 124225694799,
+          "name": "browser",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_id": 41103335905,
+          "logs_url": null,
+          "steps": null
+        }
+      ]
+    },
+    {
+      "jobs": [
+        {
+          "id": 124225694356,
+          "name": "Dependency audit",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_id": 41103335542,
+          "logs_url": null,
+          "steps": null
+        },
+        {
+          "id": 124225694980,
+          "name": "Lint, types, build",
+          "status": "completed",
+          "conclusion": "failure",
+          "run_id": 41103335542,
+          "logs_url": null,
+          "steps": null
+        }
+      ]
+    }
+  ],
+  "windows_artifacts": {
+    "artifacts": []
+  },
+  "annotations_error": {
+    "error": "HTTPError: 400: GitHub Fetch URL is not an allowed public GitHub repository or search endpoint. (Response: None)",
+    "error_code": "INVALID_ARGUMENT"
+  }
+}

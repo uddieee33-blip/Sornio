@@ -13,6 +13,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
 const binary = resolve(process.env.SORNIO_REVIEW_BRIDGE || 'packages/local-store/target/debug/examples/cashier_review_bridge');
 const directory = mkdtempSync(join(tmpdir(), 'sornio-checkout-ui-'));
 const database = join(directory, 'synthetic.db');
+let nativeScope;
 let child, queue = [], stderr = '';
 function startBridge() {
   child = spawn(binary, [database], { stdio: ['pipe', 'pipe', 'pipe'] });
@@ -28,7 +29,12 @@ function rpc(command, args = {}) {
   return new Promise((resolve, reject) => { queue.push({ resolve, reject }); child.stdin.write(`${JSON.stringify({ command, args })}\n`); });
 }
 async function native(command, args = {}) {
-  const reply = await rpc(command, args); if (!reply.ok) throw new Error(JSON.stringify(reply.error)); return reply.value;
+  const reply = await rpc(command, { ...args, scope: nativeScope }); if (!reply.ok) throw new Error(JSON.stringify(reply.error));
+  if (['add_local_product', 'adjust_local_stock'].includes(command)) {
+    const ack = await rpc('acknowledge_local_inventory', { scope: nativeScope, operationId: args.request.operationId });
+    assert.equal(ack.ok, true, 'Fixture must acknowledge its known completed stock save');
+  }
+  return reply.value;
 }
 async function stopBridge() {
   if (child.exitCode !== null || child.signalCode !== null) return;
@@ -77,14 +83,18 @@ async function stopBridge() {
     const alert = text => page.getByRole('alert').filter({ hasText: text });
     const password = 'Review checkout password';
     await page.goto(baseUrl);
+    await label('Business name for setup').fill('Checkout review'); await label('Owner name').fill('Review owner');
     await label('Local password').fill(password); await label('Confirm password').fill(password);
     await button('Set up local access').click();
+    nativeScope = (await native('read_local_session')).scope;
+    await native('save_local_customer', { r: { operationId: 'profile-customer-1', id: 'customer-1', name: 'Customer One', phone: null, creditLimitPaise: null, creditDays: 30, expectedRevision: null } });
     await label('Item name').fill('Review rice'); await label('Item code (optional)').fill('RICE');
     await label('Stock unit').selectOption('kg'); await label('Unit price (₹)').fill('42.50'); await label('Opening stock').fill('10');
     await page.getByText('Checkout is ready. Totals are previews until the sale is saved.', { exact: true }).waitFor();
     holdNextRead = true;
     await button('Save item on this PC').click();
     await page.getByText('Saved item changes to this PC.', { exact: true }).waitFor();
+    await button('Acknowledge item save').click();
     await readReady;
     for (const [id, name, unit, price, stock] of [['oil','Review oil','litre',10000,5000],['cloth','Review cloth','metre',1999,3000],['widget','Review widget','pcs',199,2000]]) {
       await native('add_local_product', { request: { operationId: id, name, sku: id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });
@@ -135,7 +145,7 @@ async function stopBridge() {
     await add('Review rice','kg','0.750'); await label('Transaction type').selectOption('credit');
     assert.equal(await button('Review sale').isDisabled(),true);
     await label('Credit customer reference').fill('customer-1');
-    assert.deepEqual(await label('Transaction type').locator('option').allTextContents(),['Cash','Credit']);
+    assert.deepEqual(await label('Transaction type').locator('option').allTextContents(),['Cash','UPI / card / split','Credit']);
     losePost = true;
     await button('Review sale').click(); await button('Confirm sale').click();
     await alert('Posting reply was lost').waitFor();
@@ -165,7 +175,7 @@ async function stopBridge() {
     await stopBridge(); startBridge(); await page.reload();
     await page.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();
     assert.equal(await label('Saved invoice ID').count(),0);
-    assert.equal((await rpc('read_cashier_state')).error.code,'locked');
+    assert.equal((await rpc('read_cashier_state', {scope: nativeScope})).error.code,'locked');
     await label('Local password').fill(password); await button('Unlock workspace').click();
     await button('Retry same sale').waitFor();
     await button('Retry same sale').click(); await saved().waitFor();

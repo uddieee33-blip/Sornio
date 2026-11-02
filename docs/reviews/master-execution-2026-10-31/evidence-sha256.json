@@ -1,0 +1,97 @@
+[
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/baseline-and-ci.json",
+    "sha256": "ec6819cda8bd1fe9f7f5479d91e0a6b32ec9833abcc1c9980347aca65ecda869",
+    "bytes": 5151
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/desktop-build.log",
+    "sha256": "0534e2c96c8447111518c67b1b74a9099d8bc095ec68563e0a561d93fde930fe",
+    "bytes": 562
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/desktop-npm-audit.json",
+    "sha256": "b1d7e297df76bc2981add0fd696bc03d3a932b856799bcec85cce3d4be4f230e",
+    "bytes": 361
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/eslint.log",
+    "sha256": "e91ee3cd108a8724f38fcef898c77c14e1fa8e2d2d1ce309603e8886bcb8b74f",
+    "bytes": 241
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/initial-build-failure.log",
+    "sha256": "d87cb09c3566b446deaf0259dbd8e7fc47371e7aa528807391353c3b6bb76b26",
+    "bytes": 5228
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/initial-scale-fixture-failure.log",
+    "sha256": "425cf61fee7dcb5ec9499d07b35e82e083f81c479026c591040ffdb21a99684a",
+    "bytes": 644
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/initial-scale-session-shape-failure.log",
+    "sha256": "2454a2883d10be42812a93bfe4f8441ba0aebfde73c26477211ae33902a5bdcc",
+    "bytes": 434
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/install-helper.log",
+    "sha256": "f8d3123521a968559be4ef3d8feb43229f5855c618d7fcee304ce3713de1d5ad",
+    "bytes": 102
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/intermediate-release-link-failure.log",
+    "sha256": "09a2f942b1514041dce7a984ee43b95008f8dfd4d7f2d0ac7a245f4279ba9948",
+    "bytes": 15247
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/local-store-rust-audit.json",
+    "sha256": "76ac957f6d97de284f8e32b92852e15ddd459fa59ed939ea05757915db467dbc",
+    "bytes": 375
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/native-debug.log",
+    "sha256": "faa7de1464ebca648365227f5e68266f3e413f8b731a9a5729be2daec9420e5c",
+    "bytes": 19335
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/native-release.log",
+    "sha256": "7529958fcfb6db0017dd0a8fed8befa1f60dec1e0cc0f5495c635ffacd91b21b",
+    "bytes": 19432
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/native-scale.json",
+    "sha256": "03b504f8850590714ecbc95194fa845119d0e4509aec178d64c21b44278ca95d",
+    "bytes": 1073
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/returns-after.log",
+    "sha256": "4f0cc292f361ca4c7d04d8851b4d5712256b9fa4c74ab84f68bb4a91a663b3c1",
+    "bytes": 1956
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/returns-before.log",
+    "sha256": "6d5cfd998a37aea728a41eb3dcc974c0e76c66f4f7b3f4ccdf78029c8883e3ce",
+    "bytes": 4912
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/shared-domain.log",
+    "sha256": "d61e6004298815a4f02f2baf0670b79109560cf9563c9f0f1de24956d33ba8c5",
+    "bytes": 366
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/source-manifest.json",
+    "sha256": "a36ee3936b7c51e600f4795ab28178408cc5e41c64eacb9efa4b8f05a92ef1f9",
+    "bytes": 2459
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/tauri-rust-audit.json",
+    "sha256": "570d319313774d7d5c52b27588ab4cce04933af38bc29a85c810e1f27040b0dc",
+    "bytes": 6049
+  },
+  {
+    "path": "docs/reviews/master-execution-2026-10-31/verification-notes.md",
+    "sha256": "03f5bfe5e3019c8ae7bc760ccd74babb5b462b5d4508f199cf4ee1b797824428",
+    "bytes": 4395
+  }
+]

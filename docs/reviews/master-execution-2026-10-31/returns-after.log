@@ -1,0 +1,26 @@
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/da8cf33c45c7/sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.30s
+     Running unittests src/lib.rs (packages/local-store/target/debug/deps/sornio_local_store-88709470fdf4f97e)
+
+running 13 tests
+test customers::tests::commit_failure_never_returns_a_receipt_or_partial_payment ... ok
+test payments::tests::cash_and_credit_customer_returns_keep_existing_ledger_totals_consistent ... ok
+test payments::tests::deferred_commit_failure_never_returns_a_refund_receipt_or_partial_stock ... ok
+test payments::tests::damaged_return_refunds_once_without_reintroducing_sellable_stock ... ok
+test payments::tests::competing_partial_returns_cannot_restore_or_refund_more_than_was_sold ... ok
+test payments::tests::partial_returns_restore_exact_stock_and_round_cumulatively_to_original_total ... ok
+test payments::tests::pending_payment_returns_cancel_receivables_without_fake_cash_or_bank_refunds ... ok
+test payments::tests::return_disposition_preserves_legacy_bytes_and_rejects_unknown_values ... ok
+test recovery::tests::damaged_return_backup_restores_the_saved_result_without_restock_or_refund_replay ... ok
+test recovery::tests::integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_financial_table ... ok
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+test payments::tests::generated_non_restock_returns_preserve_refund_limits_and_stock ... ok
+test payments::tests::generated_split_returns_conserve_money_stock_and_closing ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 162 filtered out; finished in 34.39s
+
+     Running unittests examples/cashier_review_bridge.rs (packages/local-store/target/debug/examples/cashier_review_bridge-d229812b00396014)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s

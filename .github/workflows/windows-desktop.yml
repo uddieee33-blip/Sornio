@@ -1,12 +1,20 @@
-name: Windows desktop package
+name: Windows hosted preview (ONLINE ONLY — not the product)
 
+# This workflow builds `desktop/windows`, an online-only WebView2 shell around the
+# hosted web app. It is NOT the Sornio product and must never be handed to a shop.
+#
+# The product is the offline Tauri application in `apps/desktop`, built and
+# acceptance-tested by `.github/workflows/windows-local.yml`. See
+# docs/windows-product-entry-point.md.
+#
+# Deliberately manual-only:
+#   * no pull_request / push trigger, so a review build is never produced as a
+#     side effect of normal work and mistaken for a release;
+#   * artifact names are prefixed `Sornio-Hosted-Preview`, so no download can be
+#     confused with the product installer (which is an NSIS `*-setup.exe`);
+#   * `scripts/verify-windows-release.mjs` fails the product path if this file
+#     ever gains an automatic trigger or an artefact name that looks shippable.
 on:
-  pull_request:
-    branches: [main]
-    paths:
-      - 'desktop/windows/**'
-      - 'desktop/tests/**'
-      - '.github/workflows/windows-desktop.yml'
   workflow_dispatch:
 
 permissions:
@@ -14,7 +22,7 @@ permissions:
 
 jobs:
   package:
-    name: Build Windows x64 app
+    name: Build hosted preview (not the product)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,23 +36,23 @@ jobs:
         run: dotnet publish desktop/windows/DukaanOS.Windows.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=false -o dist/windows
       - name: Check package contents
         run: |
-          test -s dist/windows/Sornio.exe
+          test -s dist/windows/SornioHostedPreview.exe
           find dist/windows -type f -name WebView2Loader.dll -size +0c | grep -q .
           find dist/windows -type f -name Microsoft.Web.WebView2.Core.dll -size +0c | grep -q .
       - name: Bundle all runtime files
         run: |
           cd dist/windows
-          zip -q -r ../Sornio-Windows-x64.zip .
+          zip -q -r ../Sornio-Hosted-Preview-x64.zip .
       - name: Upload review package
         uses: actions/upload-artifact@v7
         with:
-          name: Sornio-Windows-x64
-          path: dist/Sornio-Windows-x64.zip
+          name: Sornio-Hosted-Preview-x64
+          path: dist/Sornio-Hosted-Preview-x64.zip
           if-no-files-found: error
           retention-days: 3
 
   installer:
-    name: Build Windows setup and verify installation
+    name: Build hosted preview setup and verify installation
     needs: package
     runs-on: windows-latest
     timeout-minutes: 15
@@ -52,11 +60,11 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v8
         with:
-          name: Sornio-Windows-x64
+          name: Sornio-Hosted-Preview-x64
           path: dist
       - name: Prepare installer payload
         shell: pwsh
-        run: Expand-Archive -LiteralPath dist/Sornio-Windows-x64.zip -DestinationPath dist/windows
+        run: Expand-Archive -LiteralPath dist/Sornio-Hosted-Preview-x64.zip -DestinationPath dist/windows
       - name: Compile setup
         shell: pwsh
         run: |
@@ -64,7 +72,7 @@ jobs:
           if (-not $compiler) { throw 'Inno Setup compiler is unavailable on this runner.' }
           & $compiler.FullName desktop/windows/setup.iss
           if ($LASTEXITCODE -ne 0) { throw 'Installer compilation failed.' }
-          Get-FileHash dist/installer/Sornio-Setup-x64.exe -Algorithm SHA256 | Format-List
+          Get-FileHash dist/installer/Sornio-Hosted-Preview-Setup-x64.exe -Algorithm SHA256 | Format-List
       - name: Verify install and uninstall preserve owner data
         shell: pwsh
         run: |
@@ -73,18 +81,18 @@ jobs:
           New-Item -ItemType Directory -Force -Path $profile | Out-Null
           $marker = Join-Path $profile 'installer-preservation-check.txt'
           Set-Content $marker 'preserve-owner-profile'
-          $setup = Start-Process dist/installer/Sornio-Setup-x64.exe -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $target + '"')) -Wait -PassThru
+          $setup = Start-Process dist/installer/Sornio-Hosted-Preview-Setup-x64.exe -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $target + '"')) -Wait -PassThru
           if ($setup.ExitCode -ne 0) { throw "Setup failed: $($setup.ExitCode)" }
-          if (-not (Test-Path (Join-Path $target 'Sornio.exe'))) { throw 'Installed EXE is missing.' }
+          if (-not (Test-Path (Join-Path $target 'SornioHostedPreview.exe'))) { throw 'Installed EXE is missing.' }
           if (-not (Get-ChildItem $target -Recurse -Filter WebView2Loader.dll)) { throw 'WebView2 runtime files are missing.' }
           $uninstall = Start-Process (Join-Path $target 'unins000.exe') -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART') -Wait -PassThru
           if ($uninstall.ExitCode -ne 0) { throw "Uninstall failed: $($uninstall.ExitCode)" }
-          if (Test-Path (Join-Path $target 'Sornio.exe')) { throw 'Uninstall left the application EXE behind.' }
+          if (Test-Path (Join-Path $target 'SornioHostedPreview.exe')) { throw 'Uninstall left the application EXE behind.' }
           if ((Get-Content $marker) -ne 'preserve-owner-profile') { throw 'Uninstall modified owner data.' }
       - uses: actions/upload-artifact@v7
         with:
-          name: Sornio-Windows-Setup-x64
-          path: dist/installer/Sornio-Setup-x64.exe
+          name: Sornio-Hosted-Preview-Setup-x64
+          path: dist/installer/Sornio-Hosted-Preview-Setup-x64.exe
           if-no-files-found: error
           retention-days: 7
 

@@ -1,0 +1,66 @@
+{
+  "remote_parent": "6043f52b0d166044766eedf2d5a1e76c8fce7595",
+  "schema": 12,
+  "files": [
+    {
+      "path": ".github/workflows/ci.yml",
+      "bytes": 3756,
+      "git_blob_sha": "39f9a8d4b729116c04ae7fd193deba302f4e7e83",
+      "sha256": "de3eba05497024608dc296806b9896b14bfed9eaf53a761a3d67718221698862"
+    },
+    {
+      "path": ".github/workflows/windows-local.yml",
+      "bytes": 3321,
+      "git_blob_sha": "d3e4b5487ec82407c71177a11c61c82da8b63161",
+      "sha256": "617226f67159877d79fcc706c0810b01f70716855e8cbf8ada70310c87f6cd75"
+    },
+    {
+      "path": ".github/workflows/workspace-browser.yml",
+      "bytes": 5170,
+      "git_blob_sha": "c74515d997f9eb4b4543b753ed9c813dad7c2ea5",
+      "sha256": "542ecf5303cfb395c5a7857241b9bbb8107ce9d89e0959ae9c20799888322a3a"
+    },
+    {
+      "path": "apps/desktop/check-retail.cjs",
+      "bytes": 14663,
+      "git_blob_sha": "d897b2da982005781ef4827ce31a36ba4d247521",
+      "sha256": "9091fce668274e0460f130712e787c5c0942994994c3f86230ec6d2b2fb9c579"
+    },
+    {
+      "path": "apps/desktop/src/RetailPanel.tsx",
+      "bytes": 20276,
+      "git_blob_sha": "36edcd43ffa6ca74a421e2de64f67ed8b72ea24e",
+      "sha256": "07f01773a6315b9f791505f8430127e1c56017365feed02bb499a9f3d883e077"
+    },
+    {
+      "path": "apps/desktop/src/retail-types.ts",
+      "bytes": 3988,
+      "git_blob_sha": "25c2620d7c36b5e0e3c26e0488bd55ed27841d79",
+      "sha256": "deaf2a5f555de2c77ca07b2ec7eda5aeeb1e1ac9336c0a86365e96bc8fa71218"
+    },
+    {
+      "path": "packages/local-store/src/payments.rs",
+      "bytes": 76896,
+      "git_blob_sha": "f2ab246b162f7ff1ea67b71af53c1aa427180126",
+      "sha256": "b4e09df1698e74f256f62e49e8e0730ce23b21407dd5c7cc2ae2971484a6d40d"
+    },
+    {
+      "path": "packages/local-store/src/payments_tests.rs",
+      "bytes": 58333,
+      "git_blob_sha": "bee882c2feac61a5569ba099c1085bb7a3a7c42d",
+      "sha256": "a12673005be80325dc86bd054a14c6bf35f7cd2ec0d5dc7571394fe9000f6ebe"
+    },
+    {
+      "path": "packages/local-store/src/recovery/tests.rs",
+      "bytes": 41433,
+      "git_blob_sha": "c75e0eccf395fe71c4076011b2c9363d4a59ef23",
+      "sha256": "a1bd78ae53f4c74e595406ea900015eba0b7ce3e12933a670159b043163bb23f"
+    },
+    {
+      "path": "apps/desktop/check-native-scale.py",
+      "bytes": 6929,
+      "git_blob_sha": "5b747a4c2abdf02fc43cfb3d452c96242eeb05ab",
+      "sha256": "8fdb22b04413f8406625be1deb75a01758939e5459e7e80704dd709405f60468"
+    }
+  ]
+}

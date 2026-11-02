@@ -1,0 +1,157 @@
+[
+  [
+    "index",
+    "local_products_sku",
+    "CREATE UNIQUE INDEX local_products_sku ON local_products(sku) WHERE sku <> ''"
+  ],
+  [
+    "table",
+    "local_billing_audit",
+    "CREATE TABLE local_billing_audit (\n invoice_id TEXT PRIMARY KEY REFERENCES local_invoices(id), payload TEXT NOT NULL\n)"
+  ],
+  [
+    "table",
+    "local_billing_ledger",
+    "CREATE TABLE local_billing_ledger (\n invoice_id TEXT NOT NULL REFERENCES local_invoices(id), account TEXT NOT NULL\n CHECK(account IN ('cash','receivables','revenue','tax_payable')),\n customer_id TEXT, amount_paise INTEGER NOT NULL CHECK(amount_paise<>0),\n PRIMARY KEY(invoice_id,account)\n)"
+  ],
+  [
+    "table",
+    "local_billing_outbox",
+    "CREATE TABLE local_billing_outbox (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n invoice_id TEXT NOT NULL UNIQUE REFERENCES local_invoices(id), payload TEXT NOT NULL\n)"
+  ],
+  [
+    "table",
+    "local_checkout",
+    "CREATE TABLE local_checkout (\n        singleton INTEGER PRIMARY KEY CHECK(singleton=1),\n        operation_id TEXT NOT NULL UNIQUE,\n        request TEXT NOT NULL\n    )"
+  ],
+  [
+    "table",
+    "local_checkout_canceled",
+    "CREATE TABLE local_checkout_canceled (operation_id TEXT PRIMARY KEY NOT NULL)"
+  ],
+  [
+    "table",
+    "local_inventory_events",
+    "CREATE TABLE local_inventory_events (\n        operation_id TEXT PRIMARY KEY NOT NULL,\n        product_id TEXT NOT NULL REFERENCES local_products(id),\n        kind TEXT NOT NULL CHECK(kind IN ('product_added','stock_adjusted')),\n        request TEXT NOT NULL,\n        result TEXT NOT NULL,\n        created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now'))\n    )"
+  ],
+  [
+    "table",
+    "local_invoice_stock",
+    "CREATE TABLE local_invoice_stock (\n invoice_id TEXT NOT NULL REFERENCES local_invoices(id),\n product_id TEXT NOT NULL REFERENCES local_products(id),\n quantity_milli INTEGER NOT NULL CHECK(quantity_milli>0),\n before_milli INTEGER NOT NULL CHECK(before_milli>=quantity_milli),\n after_milli INTEGER NOT NULL CHECK(after_milli=before_milli-quantity_milli),\n PRIMARY KEY(invoice_id,product_id)\n)"
+  ],
+  [
+    "table",
+    "local_invoices",
+    "CREATE TABLE local_invoices (\n sequence INTEGER PRIMARY KEY AUTOINCREMENT,\n id TEXT NOT NULL UNIQUE, request TEXT NOT NULL, payload TEXT NOT NULL\n)"
+  ],
+  [
+    "table",
+    "local_products",
+    "CREATE TABLE local_products (\n        id TEXT PRIMARY KEY NOT NULL,\n        name TEXT NOT NULL,\n        sku TEXT NOT NULL,\n        unit TEXT NOT NULL CHECK(unit IN ('pcs','kg','litre','metre')),\n        unit_price_paise INTEGER NOT NULL CHECK(unit_price_paise BETWEEN 0 AND 9000000000000),\n        stock_milli INTEGER NOT NULL CHECK(stock_milli BETWEEN 0 AND 9000000000000),\n        revision INTEGER NOT NULL CHECK(revision > 0)\n    )"
+  ],
+  [
+    "table",
+    "local_recovery_audit",
+    "CREATE TABLE local_recovery_audit (\n seq INTEGER PRIMARY KEY AUTOINCREMENT, operation_id TEXT NOT NULL UNIQUE,\n action TEXT NOT NULL, backup_id TEXT NOT NULL, created_at INTEGER NOT NULL)"
+  ],
+  [
+    "table",
+    "local_recovery_identity",
+    "CREATE TABLE local_recovery_identity (\n singleton INTEGER PRIMARY KEY CHECK(singleton = 1), business_id TEXT NOT NULL, generation TEXT NOT NULL)"
+  ],
+  [
+    "table",
+    "workspace_access",
+    "CREATE TABLE workspace_access (\n                    singleton INTEGER PRIMARY KEY CHECK (singleton = 1),\n                    password_hash TEXT,\n                    failed_attempts INTEGER NOT NULL DEFAULT 0 CHECK (failed_attempts BETWEEN 0 AND 5),\n                    retry_after INTEGER NOT NULL DEFAULT 0 CHECK (retry_after >= 0)\n                )"
+  ],
+  [
+    "table",
+    "workspace_draft",
+    "CREATE TABLE workspace_draft (\n                singleton INTEGER PRIMARY KEY CHECK (singleton = 1),\n                revision INTEGER NOT NULL CHECK (revision > 0),\n                payload TEXT NOT NULL\n                )"
+  ],
+  [
+    "table",
+    "workspace_history",
+    "CREATE TABLE workspace_history (\n                    revision INTEGER PRIMARY KEY CHECK (revision > 0),\n                    payload TEXT NOT NULL\n                )"
+  ],
+  [
+    "trigger",
+    "local_billing_audit_no_DELETE",
+    "CREATE TRIGGER local_billing_audit_no_DELETE BEFORE DELETE ON local_billing_audit BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_billing_audit_no_UPDATE",
+    "CREATE TRIGGER local_billing_audit_no_UPDATE BEFORE UPDATE ON local_billing_audit BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_billing_ledger_no_DELETE",
+    "CREATE TRIGGER local_billing_ledger_no_DELETE BEFORE DELETE ON local_billing_ledger BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_billing_ledger_no_UPDATE",
+    "CREATE TRIGGER local_billing_ledger_no_UPDATE BEFORE UPDATE ON local_billing_ledger BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_billing_outbox_no_DELETE",
+    "CREATE TRIGGER local_billing_outbox_no_DELETE BEFORE DELETE ON local_billing_outbox BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_billing_outbox_no_UPDATE",
+    "CREATE TRIGGER local_billing_outbox_no_UPDATE BEFORE UPDATE ON local_billing_outbox BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_checkout_canceled_no_delete",
+    "CREATE TRIGGER local_checkout_canceled_no_delete BEFORE DELETE ON local_checkout_canceled\n        BEGIN SELECT RAISE(ABORT,'Canceled checkout IDs cannot be reused'); END"
+  ],
+  [
+    "trigger",
+    "local_checkout_canceled_no_update",
+    "CREATE TRIGGER local_checkout_canceled_no_update BEFORE UPDATE ON local_checkout_canceled\n        BEGIN SELECT RAISE(ABORT,'Canceled checkout IDs cannot be reused'); END"
+  ],
+  [
+    "trigger",
+    "local_inventory_no_delete",
+    "CREATE TRIGGER local_inventory_no_delete BEFORE DELETE ON local_inventory_events\n        BEGIN SELECT RAISE(ABORT, 'Inventory history is append only'); END"
+  ],
+  [
+    "trigger",
+    "local_inventory_no_update",
+    "CREATE TRIGGER local_inventory_no_update BEFORE UPDATE ON local_inventory_events\n        BEGIN SELECT RAISE(ABORT, 'Inventory history is append only'); END"
+  ],
+  [
+    "trigger",
+    "local_invoice_stock_no_DELETE",
+    "CREATE TRIGGER local_invoice_stock_no_DELETE BEFORE DELETE ON local_invoice_stock BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_invoice_stock_no_UPDATE",
+    "CREATE TRIGGER local_invoice_stock_no_UPDATE BEFORE UPDATE ON local_invoice_stock BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_invoices_no_DELETE",
+    "CREATE TRIGGER local_invoices_no_DELETE BEFORE DELETE ON local_invoices BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_invoices_no_UPDATE",
+    "CREATE TRIGGER local_invoices_no_UPDATE BEFORE UPDATE ON local_invoices BEGIN SELECT RAISE(ABORT,'Posted billing records are immutable'); END"
+  ],
+  [
+    "trigger",
+    "local_recovery_audit_no_delete",
+    "CREATE TRIGGER local_recovery_audit_no_delete BEFORE DELETE ON local_recovery_audit\n BEGIN SELECT RAISE(ABORT, 'immutable recovery audit'); END"
+  ],
+  [
+    "trigger",
+    "local_recovery_audit_no_update",
+    "CREATE TRIGGER local_recovery_audit_no_update BEFORE UPDATE ON local_recovery_audit\n BEGIN SELECT RAISE(ABORT, 'immutable recovery audit'); END"
+  ]
+]

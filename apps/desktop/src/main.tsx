@@ -1,11 +1,18 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { createRoot } from 'react-dom/client';
-import { invoke, isTauri } from '@tauri-apps/api/core';
+import { isTauri } from '@tauri-apps/api/core';
+import { invoke } from './native';
 import type { PortalId } from '../../../packages/business-domain/src/business-types';
 import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
+import { RetailPanel } from './RetailPanel';
+import { CustomerPanel } from './CustomerPanel';
+import { StaffPanel } from './StaffPanel';
+import { BackupPanel } from './BackupPanel';
+import { CredentialsPanel } from './CredentialsPanel';
+import type { LocalSession } from './native';
 import { CheckoutPanel } from './CheckoutPanel';
 import { AccessGate } from './AccessGate';
 import { errorCode, errorMessage } from './access';
@@ -20,7 +27,10 @@ const types = [
   ['boutique', 'Boutique'], ['service', 'Services'],
 ] as const satisfies ReadonlyArray<readonly [PortalId, string]>;
 
-function App({ onLocked }: { onLocked: () => void }) {
+function App({ onLocked, session }: { onLocked: (detail?: string) => void; session: LocalSession }) {
+  const owner = session.principal.role === 'owner';
+  const canAdd = session.principal.role !== 'cashier';
+  const canCorrect = owner || session.principal.role === 'manager';
   const native = isTauri();
   const [snapshot, setSnapshot] = useState<Snapshot | null>(null);
   const [draft, setDraft] = useState<Draft>(empty);
@@ -29,16 +39,26 @@ function App({ onLocked }: { onLocked: () => void }) {
   const saving = useRef(false);
   const [reopenPrompt, setReopenPrompt] = useState(false);
   const [lockPrompt, setLockPrompt] = useState(false);
+  const [backupBusy, setBackupBusy] = useState(false), [backupDirty, setBackupDirty] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
+  const [credentialDirty, setCredentialDirty] = useState(false), [credentialBusy, setCredentialBusy] = useState(false), [staffRefresh, setStaffRefresh] = useState(0);
+  const [staffDirty, setStaffDirty] = useState(false), [staffBusy, setStaffBusy] = useState(false);
+  const staffChanged = useCallback(() => setStaffRefresh(value => value + 1), []);
   const [catalogBusy, setCatalogBusy] = useState(false);
   const [checkoutDirty, setCheckoutDirty] = useState(false);
   const [checkoutBusy, setCheckoutBusy] = useState(false);
+  const [customerBusy, setCustomerBusy] = useState(false);
+  const [customerDirty, setCustomerDirty] = useState(false);
+  const [retailBusy, setRetailBusy] = useState(false), [retailDirty, setRetailDirty] = useState(false), [retailRefresh, setRetailRefresh] = useState(0);
+  const [customerRefresh, setCustomerRefresh] = useState(0);
   const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [checkoutRefresh, setCheckoutRefresh] = useState(0);
-  const refreshInventory = useCallback(() => setInventoryRefresh(value => value + 1), []);
-  const refreshCheckout = useCallback(() => setCheckoutRefresh(value => value + 1), []);
+  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
+  const refreshCheckout = useCallback(() => { setCheckoutRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
+  const retailChanged = useCallback(() => { setCheckoutRefresh(value => value + 1); setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const dirty = catalogDirty || draftDirty || checkoutDirty;
+  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty;
+  const dirty = otherDirty || credentialDirty;
 
   useEffect(() => {
     if (!native) return;
@@ -100,7 +120,7 @@ function App({ onLocked }: { onLocked: () => void }) {
     } finally { saving.current = false; }
   }
 
-  const busy = checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
+  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -119,14 +139,14 @@ function App({ onLocked }: { onLocked: () => void }) {
       <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.3.0</p></div>
     </aside>
     <main id="main">
-      <header className="topbar"><span>Workspace / Local review</span><div className="topbar-actions"><span className="chip"><span className="status-dot"/> On this PC</span><button type="button" className="quiet-button" disabled={busy} onClick={() => void lock()}>Lock workspace</button></div></header>
+      <header className="topbar"><span>{session.businessName} · {session.principal.displayName} · {session.principal.role.replaceAll("_", " ")}</span><div className="topbar-actions"><span className="chip"><span className="status-dot"/> On this PC</span><button type="button" className="quiet-button" disabled={busy} onClick={() => void lock()}>Lock workspace</button></div></header>
       <div className="page">
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace"><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button className="quiet-button" type="button" disabled={busy} onClick={() => setLockPrompt(false)}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
-        {native && snapshot ? <CheckoutPanel disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
+        {native && snapshot ? <CheckoutPanel customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
         <div className="workspace-grid">
-          <form className="panel" onSubmit={(event) => void save(event)}>
+          {owner ? <form className="panel" onSubmit={(event) => void save(event)}>
             <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
             <p className="muted">Save a sample business and note, then reopen the app without internet to check that it stays here.</p>
             <fieldset disabled={!snapshot || busy}>
@@ -143,15 +163,21 @@ function App({ onLocked }: { onLocked: () => void }) {
                 <button type="button" disabled={busy} onClick={() => void reopen()}>Discard edits and reopen</button>
               </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) setReopenPrompt(true); else void reopen(); }}>Reopen saved draft</button>}
             </div> : null}
-          </form>
-          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Verified account setup, staff roles, LAN sync and cloud backup are still being brought into this app. This review does not replace your current business records.</p></aside>
+          </form> : null}
+          <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Owner and staff access is enforced on this PC. LAN pairing and cloud backup are not enabled. This review does not replace your current business records.</p></aside>
         </div>
-        {native && snapshot ? <InventoryPanel refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
-        {native && snapshot ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
+        {native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
+        {native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}
+        {native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}
+        {native && snapshot && owner ? <StaffPanel disabled={busy || credentialDirty} refreshToken={staffRefresh} onBusyChange={setStaffBusy} onDirtyChange={setStaffDirty}/> : null}
+        {native && snapshot ? <CredentialsPanel owner={owner} disabled={busy} blockedByDraft={otherDirty} onLocked={onLocked} onBusyChange={setCredentialBusy} onDirtyChange={setCredentialDirty} onStaffChanged={staffChanged}/> : null}
+        {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}
+        {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>
   </div>;
 }
 
-createRoot(document.getElementById('root')!).render(<AccessGate>{(onLocked) => <App onLocked={onLocked}/>}</AccessGate>);
+createRoot(document.getElementById('root')!).render(<AccessGate>{(onLocked, session) => <App onLocked={onLocked} session={session}/>}</AccessGate>);
+
 
