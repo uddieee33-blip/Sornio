@@ -115,7 +115,8 @@ writes are D/R. Hardware modules are D.
 
 ## L. Pull request
 
-Draft Phase 1 PR from `arena/5ed2bd28-sornio`. Do not merge automatically.
+Draft Phase 1 PR: https://github.com/uddieee33-blip/Sornio/pull/143
+from `arena/5ed2bd28-sornio`. Do not merge automatically.
 
 ## M. Remaining risks
 
