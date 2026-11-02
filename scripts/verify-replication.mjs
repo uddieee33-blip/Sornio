@@ -286,6 +286,8 @@ try {
   check(rust.includes('ReplicationSidecar'), 'native sidecar is durable SQLCipher state');
   check(rust.includes('payload_text'), 'native envelope carries outbox TEXT');
   check(rust.includes('does not open sockets'), 'native publisher crate does not open sockets');
+  check(!rust.includes('map.get(*key)'), 'timestamp walk borrows map keys');
+  check(rust.includes('validate_ack'), 'native publisher validates cloud acknowledgements');
   const desktopMain = readFileSync(join(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8');
   check(desktopMain.includes('reset_sidecar_file'), 'desktop restore discards sidecar acks');
 

@@ -7,11 +7,7 @@
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
-use std::{
-    path::Path,
-    sync::Mutex,
-    time::Duration,
-};
+use std::{path::Path, sync::Mutex, time::Duration};
 
 use crate::{Store, StoreError};
 
@@ -97,6 +93,8 @@ pub struct PublishAck {
     pub operation_id: String,
     pub cursor: String,
     pub duplicate: bool,
+    #[serde(default)]
+    pub business_id: Option<String>,
 }
 
 pub trait Transport {
@@ -217,8 +215,12 @@ impl ReplicationSidecar {
     }
 }
 
-pub fn reset_sidecar_file(path: &Path) {
-    let _ = std::fs::remove_file(path);
+pub fn reset_sidecar_file(path: &Path) -> Result<(), StoreError> {
+    match std::fs::remove_file(path) {
+        Ok(()) => Ok(()),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => Ok(()),
+        Err(_) => Err(StoreError::BackupStorage),
+    }
 }
 
 fn event_type(payload: &serde_json::Value) -> String {
@@ -240,7 +242,7 @@ fn occurred_at_iso(payload: &serde_json::Value) -> Result<String, StoreError> {
         match value {
             serde_json::Value::Object(map) => {
                 for key in ["createdAt", "occurredAt", "updatedAt"] {
-                    if let Some(serde_json::Value::String(stamp)) = map.get(*key) {
+                    if let Some(serde_json::Value::String(stamp)) = map.get(key) {
                         if stamp.ends_with('Z') {
                             return Some(stamp);
                         }
@@ -257,7 +259,68 @@ fn occurred_at_iso(payload: &serde_json::Value) -> Result<String, StoreError> {
         .ok_or(StoreError::InvalidInvoice)
 }
 
-pub fn envelope_from_row(identity: &PublisherIdentity, row: &ReplicationRow) -> Result<Envelope, StoreError> {
+fn cursor_ok(cursor: &str) -> bool {
+    !cursor.is_empty()
+        && cursor.len() <= 39
+        && cursor.bytes().all(|b| b.is_ascii_digit())
+        && !(cursor.len() > 1 && cursor.starts_with('0'))
+}
+
+pub fn parse_publish_ack(
+    expected_operation_id: &str,
+    identity: &PublisherIdentity,
+    body: &str,
+) -> Result<PublishAck, StoreError> {
+    if body.is_empty() || body.len() > 4096 {
+        return Err(StoreError::InvalidInvoice);
+    }
+    let remote: PublishAck = serde_json::from_str(body).map_err(|_| StoreError::InvalidInvoice)?;
+    validate_ack(expected_operation_id, identity, &remote)?;
+    Ok(remote)
+}
+
+pub fn validate_ack(
+    expected_operation_id: &str,
+    identity: &PublisherIdentity,
+    remote: &PublishAck,
+) -> Result<(), StoreError> {
+    if remote.operation_id != expected_operation_id {
+        return Err(StoreError::OperationConflict);
+    }
+    if !cursor_ok(&remote.cursor) {
+        return Err(StoreError::InvalidInvoice);
+    }
+    if let Some(business_id) = &remote.business_id {
+        if business_id != &identity.business_id {
+            return Err(StoreError::WorkspaceMismatch);
+        }
+    }
+    Ok(())
+}
+
+pub fn commit_local_ack(
+    sidecar: &mut ReplicationSidecar,
+    ack: &mut SidecarAck,
+    stream: &str,
+    sequence: i64,
+    expected_operation_id: &str,
+    identity: &PublisherIdentity,
+    remote: &PublishAck,
+) -> Result<(), StoreError> {
+    validate_ack(expected_operation_id, identity, remote)?;
+    let mut next = ack.clone();
+    if !next.acknowledge(stream, sequence) {
+        return Ok(());
+    }
+    sidecar.save(&next)?;
+    *ack = next;
+    Ok(())
+}
+
+pub fn envelope_from_row(
+    identity: &PublisherIdentity,
+    row: &ReplicationRow,
+) -> Result<Envelope, StoreError> {
     let payload: serde_json::Value =
         serde_json::from_str(&row.payload).map_err(|_| StoreError::InvalidInvoice)?;
     Ok(Envelope {
@@ -277,7 +340,7 @@ pub fn envelope_from_row(identity: &PublisherIdentity, row: &ReplicationRow) -> 
 }
 
 /// Publish unpublished rows. Caller must not hold a financial writer
-/// transaction. Sidecar ack is persisted only after the transport returns.
+/// transaction. Sidecar ack is persisted only after a validated ack.
 pub fn publish_unpublished<T: Transport>(
     store: &Store,
     sidecar: &mut ReplicationSidecar,
@@ -298,10 +361,15 @@ pub fn publish_unpublished<T: Transport>(
         let envelope = envelope_from_row(identity, &row)?;
         let json = serde_json::to_string(&envelope)?;
         let remote = transport.send(&json)?;
-        if !ack.acknowledge(row.stream, row.sequence) {
-            continue;
-        }
-        sidecar.save(&ack)?;
+        commit_local_ack(
+            sidecar,
+            &mut ack,
+            row.stream,
+            row.sequence,
+            &row.operation_id,
+            identity,
+            &remote,
+        )?;
         out.push(remote);
     }
     Ok(out)
@@ -371,6 +439,116 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{
+        access::Workspace,
+        billing::{BillLine, PostInvoice, Tender},
+        catalog::AddProduct,
+        Draft,
+    };
+    use std::sync::Mutex;
+
+    const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const LOGIN: &str = "Local test password!";
+
+    fn identity(generation: &str, business_id: &str) -> PublisherIdentity {
+        PublisherIdentity {
+            business_id: business_id.into(),
+            device_id: "device-publisher-01".into(),
+            restore_generation: generation.into(),
+        }
+    }
+
+    fn seeded(path: &Path) -> Store {
+        let mut workspace = Workspace::new(Store::open(path, KEY).unwrap());
+        workspace.setup(LOGIN).unwrap();
+        workspace
+            .save(
+                0,
+                Draft {
+                    business_name: "Replication shop".into(),
+                    business_type: "kirana".into(),
+                    note: "Private saved note".into(),
+                },
+            )
+            .unwrap();
+        workspace
+            .add_product(AddProduct {
+                operation_id: "rice".into(),
+                name: "Rice".into(),
+                sku: "RICE".into(),
+                unit: "kg".into(),
+                unit_price_paise: 80000,
+                opening_stock_milli: 10000,
+            })
+            .unwrap();
+        workspace.into_recovery_store()
+    }
+
+    fn cash_sale(id: &str) -> PostInvoice {
+        PostInvoice {
+            operation_id: id.into(),
+            lines: vec![BillLine {
+                product_id: "rice".into(),
+                expected_revision: 1,
+                quantity_milli: 1000,
+            }],
+            tax_basis_points: 0,
+            tender: Tender::Cash,
+            customer_id: None,
+        }
+    }
+
+    struct CountingTransport<T> {
+        inner: T,
+        sent: Mutex<usize>,
+    }
+
+    impl<T: Transport> Transport for CountingTransport<T> {
+        fn send(&self, envelope_json: &str) -> Result<PublishAck, StoreError> {
+            *self.sent.lock().unwrap() += 1;
+            self.inner.send(envelope_json)
+        }
+    }
+
+    struct FailTransport;
+    impl Transport for FailTransport {
+        fn send(&self, _envelope_json: &str) -> Result<PublishAck, StoreError> {
+            Err(StoreError::AccessUnavailable)
+        }
+    }
+
+    struct WrongOperationTransport;
+    impl Transport for WrongOperationTransport {
+        fn send(&self, _envelope_json: &str) -> Result<PublishAck, StoreError> {
+            Ok(PublishAck {
+                operation_id: "someone-else".into(),
+                cursor: "1".into(),
+                duplicate: false,
+                business_id: None,
+            })
+        }
+    }
+
+    struct EchoTransport;
+    impl Transport for EchoTransport {
+        fn send(&self, envelope_json: &str) -> Result<PublishAck, StoreError> {
+            let value: serde_json::Value =
+                serde_json::from_str(envelope_json).map_err(|_| StoreError::InvalidInvoice)?;
+            Ok(PublishAck {
+                operation_id: value
+                    .get("operationId")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or_default()
+                    .into(),
+                cursor: "1".into(),
+                duplicate: false,
+                business_id: value
+                    .get("businessId")
+                    .and_then(|v| v.as_str())
+                    .map(str::to_string),
+            })
+        }
+    }
 
     #[test]
     fn streams_are_independent() {
@@ -423,20 +601,21 @@ mod tests {
         assert_eq!(reset.restore_generation, "gen-2");
     }
 
-    struct RejectTransport;
-    impl Transport for RejectTransport {
-        fn send(&self, _envelope_json: &str) -> Result<PublishAck, StoreError> {
-            Err(StoreError::AccessUnavailable)
-        }
+    #[test]
+    fn sidecar_last_write_wins_without_corrupting_primary_key() {
+        let mut sidecar = ReplicationSidecar::open_memory().unwrap();
+        let mut first = SidecarAck::empty("gen-1");
+        first.acknowledge("billing", 1);
+        sidecar.save(&first).unwrap();
+        let mut second = SidecarAck::empty("gen-1");
+        second.acknowledge("billing", 2);
+        sidecar.save(&second).unwrap();
+        assert_eq!(sidecar.load("gen-1").unwrap().last_for("billing"), Some(2));
     }
 
     #[test]
     fn envelope_hashes_raw_outbox_text() {
-        let identity = PublisherIdentity {
-            business_id: "biz-kirana-01".into(),
-            device_id: "device-publisher-01".into(),
-            restore_generation: "gen-1".into(),
-        };
+        let identity = identity("gen-1", "biz-kirana-01");
         let raw = r#"{ "kind": "invoice.posted", "invoice": { "id": "bill-1", "createdAt": "2026-11-03T10:00:00.000Z" } }"#;
         let row = ReplicationRow {
             stream: "billing",
@@ -447,18 +626,164 @@ mod tests {
         let envelope = envelope_from_row(&identity, &row).unwrap();
         assert_eq!(envelope.payload_sha256, payload_sha256(raw));
         assert_eq!(envelope.payload_text, raw);
-        assert_ne!(envelope.payload_sha256, payload_sha256(&envelope.payload.to_string()));
+        assert_ne!(
+            envelope.payload_sha256,
+            payload_sha256(&envelope.payload.to_string())
+        );
+    }
+
+    #[test]
+    fn invalid_acknowledgments_never_advance_sidecar() {
+        let mut sidecar = ReplicationSidecar::open_memory().unwrap();
+        let mut ack = SidecarAck::empty("gen-1");
+        sidecar.save(&ack).unwrap();
+        let publisher = identity("gen-1", "biz-kirana-01");
+        let cases = [
+            PublishAck {
+                operation_id: "other".into(),
+                cursor: "1".into(),
+                duplicate: false,
+                business_id: None,
+            },
+            PublishAck {
+                operation_id: "bill-1".into(),
+                cursor: "".into(),
+                duplicate: false,
+                business_id: None,
+            },
+            PublishAck {
+                operation_id: "bill-1".into(),
+                cursor: "01".into(),
+                duplicate: false,
+                business_id: None,
+            },
+            PublishAck {
+                operation_id: "bill-1".into(),
+                cursor: "1".into(),
+                duplicate: false,
+                business_id: Some("biz-other-99".into()),
+            },
+        ];
+        for remote in cases {
+            let before = sidecar.load("gen-1").unwrap();
+            assert!(commit_local_ack(
+                &mut sidecar,
+                &mut ack,
+                "billing",
+                1,
+                "bill-1",
+                &publisher,
+                &remote,
+            )
+            .is_err());
+            assert_eq!(before.last_for("billing"), Some(0));
+            assert_eq!(ack.last_for("billing"), Some(0));
+        }
+        assert!(parse_publish_ack("bill-1", &publisher, "{").is_err());
+        assert!(parse_publish_ack("bill-1", &publisher, "").is_err());
+        assert!(parse_publish_ack(
+            "bill-1",
+            &publisher,
+            r#"{"operationId":"bill-1","duplicate":false}"#,
+        )
+        .is_err());
+        let ok = parse_publish_ack(
+            "bill-1",
+            &publisher,
+            r#"{"operationId":"bill-1","cursor":"1","duplicate":true,"businessId":"biz-kirana-01"}"#,
+        )
+        .unwrap();
+        commit_local_ack(
+            &mut sidecar,
+            &mut ack,
+            "billing",
+            1,
+            "bill-1",
+            &publisher,
+            &ok,
+        )
+        .unwrap();
+        assert_eq!(sidecar.load("gen-1").unwrap().last_for("billing"), Some(1));
+        commit_local_ack(
+            &mut sidecar,
+            &mut ack,
+            "billing",
+            1,
+            "bill-1",
+            &publisher,
+            &ok,
+        )
+        .unwrap();
+        assert_eq!(sidecar.load("gen-1").unwrap().last_for("billing"), Some(1));
     }
 
     #[test]
     fn failed_transport_does_not_persist_ack() {
-        let mut sidecar = ReplicationSidecar::open_memory().unwrap();
-        sidecar
-            .save(&SidecarAck::empty("gen-1"))
+        let dir = tempfile::tempdir().unwrap();
+        let mut store = seeded(&dir.path().join("live.db"));
+        let invoice = store.post_invoice(cash_sale("bill-cash-1")).unwrap();
+        assert_eq!(invoice.total_paise, 80000);
+        let generation = store.restore_generation().unwrap();
+        let business_id: String = store
+            .0
+            .query_row(
+                "SELECT business_id FROM local_recovery_identity WHERE singleton=1",
+                [],
+                |row| row.get(0),
+            )
             .unwrap();
-        let before = sidecar.load("gen-1").unwrap();
-        assert_eq!(before.last_for("billing"), Some(0));
-        let _ = RejectTransport;
-        assert_eq!(before.last_for("billing"), Some(0));
+        let publisher = identity(&generation, &business_id);
+        let mut sidecar = ReplicationSidecar::open_memory().unwrap();
+        sidecar.save(&SidecarAck::empty(&generation)).unwrap();
+        let unpublished = store
+            .unpublished_replication(&sidecar.load(&generation).unwrap())
+            .unwrap();
+        let billing = unpublished
+            .iter()
+            .find(|row| row.stream == "billing" && row.operation_id == "bill-cash-1")
+            .unwrap();
+        let flush = FlushLock::default();
+        let fail = CountingTransport {
+            inner: FailTransport,
+            sent: Mutex::new(0),
+        };
+        assert!(publish_unpublished(&store, &mut sidecar, &publisher, &fail, &flush).is_err());
+        assert_eq!(*fail.sent.lock().unwrap(), 1);
+        assert_eq!(
+            sidecar.load(&generation).unwrap().last_for("billing"),
+            Some(0)
+        );
+        let wrong = CountingTransport {
+            inner: WrongOperationTransport,
+            sent: Mutex::new(0),
+        };
+        assert!(publish_unpublished(&store, &mut sidecar, &publisher, &wrong, &flush).is_err());
+        assert_eq!(*wrong.sent.lock().unwrap(), 1);
+        assert_eq!(
+            sidecar.load(&generation).unwrap().last_for("billing"),
+            Some(0)
+        );
+        let ok = CountingTransport {
+            inner: EchoTransport,
+            sent: Mutex::new(0),
+        };
+        let acks = publish_unpublished(&store, &mut sidecar, &publisher, &ok, &flush).unwrap();
+        assert!(!acks.is_empty());
+        assert_eq!(
+            sidecar.load(&generation).unwrap().last_for("billing"),
+            Some(billing.sequence)
+        );
+        let stale = identity("gen-old", &business_id);
+        assert!(matches!(
+            publish_unpublished(&store, &mut sidecar, &stale, &ok, &flush),
+            Err(StoreError::WorkspaceMismatch)
+        ));
+    }
+
+    #[test]
+    fn missing_sidecar_file_reset_succeeds_and_directory_reset_fails_closed() {
+        let dir = tempfile::tempdir().unwrap();
+        reset_sidecar_file(&dir.path().join("missing.sqlite")).unwrap();
+        assert!(reset_sidecar_file(dir.path()).is_err());
     }
 }

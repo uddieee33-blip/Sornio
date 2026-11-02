@@ -724,8 +724,8 @@ async fn restore_local_backup(
     let sidecar = app
         .path()
         .app_local_data_dir()
-        .ok()
-        .map(|dir| dir.join("replication-sidecar.sqlite"));
+        .map_err(|_| CommandError::unavailable("Replication sidecar folder is unavailable."))?
+        .join("replication-sidecar.sqlite");
     with_recovery_workspace(state, scope, move |w| {
         let mut selected = selected.lock().map_err(|_| StoreError::AccessUnavailable)?;
         let path = selected.path.clone().ok_or(StoreError::InvalidBackup)?;
@@ -739,9 +739,7 @@ async fn restore_local_backup(
             &preview,
             &confirmation,
         )?;
-        if let Some(sidecar_path) = sidecar {
-            sornio_local_store::replication::reset_sidecar_file(&sidecar_path);
-        }
+        sornio_local_store::replication::reset_sidecar_file(&sidecar)?;
         Ok(receipt)
     })
     .await

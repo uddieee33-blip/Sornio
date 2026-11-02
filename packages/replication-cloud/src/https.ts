@@ -42,6 +42,9 @@ export function verifyStagingToken(secret: string): TokenVerifier {
   };
 }
 
+const MAX_BODY_BYTES = 256 * 1024;
+const REQUEST_TIMEOUT_MS = 10_000;
+
 export type StagingIngestHandler = (principal: Principal, body: unknown) => Promise<IngestAck>;
 
 export function listenStagingIngest(options: {
@@ -74,7 +77,16 @@ export function listenStagingIngest(options: {
           const header = request.headers.authorization;
           const token = typeof header === 'string' && header.startsWith('Bearer ') ? header.slice(7) : '';
           const chunks: Buffer[] = [];
-          for await (const chunk of request) chunks.push(chunk as Buffer);
+          let size = 0;
+          for await (const chunk of request) {
+            const buf = chunk as Buffer;
+            size += buf.length;
+            if (size > MAX_BODY_BYTES) {
+              fail(413, 'INVALID_ENVELOPE', 'Replication request is too large.');
+              return;
+            }
+            chunks.push(buf);
+          }
           let body: unknown;
           try {
             body = JSON.parse(Buffer.concat(chunks).toString('utf8') || 'null');
@@ -153,6 +165,9 @@ export function postStagingIngest(options: {
         });
       },
     );
+    request.setTimeout(REQUEST_TIMEOUT_MS, () => {
+      request.destroy(new ReplicationError('UNAUTHENTICATED', 'Replication request timed out.'));
+    });
     request.on('error', reject);
     request.write(JSON.stringify(options.body));
     request.end();
