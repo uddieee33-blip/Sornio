@@ -46,6 +46,13 @@ desktop/**/obj/
 target/
 apps/desktop/src-tauri/gen/
 
+# Expo / React Native companion
+apps/mobile/.expo/
+apps/mobile/android/.gradle/
+apps/mobile/android/app/build/
+apps/mobile/ios/Pods/
+apps/mobile/ios/build/
+
 
 # Python bytecode from verification scripts and helpers
 __pycache__/

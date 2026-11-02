@@ -1,6 +1,8 @@
 # Sornio Android connected review build
 
-This project packages the hosted Sornio workspace in an Android WebView. The same
+This project packages the hosted Sornio workspace in an Android WebView.
+The shared React Native companion lives in `apps/mobile` (`com.sornio.companion`)
+and does not replace this review package. See `docs/mobile/ANDROID-WEBVIEW-MIGRATION.md`. The same
 Dawn/Dusk and appearance controls drive the web content on Android and Windows.
 It is an initial connected companion, not an offline Android database or a Play
 Store release. No APK is claimed until the Android review workflow succeeds.
