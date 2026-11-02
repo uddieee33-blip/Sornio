@@ -16,10 +16,13 @@ const assert = require('node:assert/strict');
         if (command === 'pending_local_inventory') return structuredClone(s.receipt);
         if (command === 'acknowledge_local_inventory') { s.receipt = null; return null; }
         if (command === 'adjust_local_stock' || command === 'add_local_product') {
+          if (s.receipt && args.request.operationId !== s.receipt.operationId) {
+            throw { code: 'checkout_active', message: 'Another inventory receipt is waiting to be acknowledged.' };
+          }
           s.writes++;
           if (command === 'adjust_local_stock') { s.product.stockMilli += args.request.deltaMilli; s.product.revision++; }
           else s.product = { id: args.request.operationId, name: args.request.name, sku: args.request.sku, unit: args.request.unit, unitPricePaise: args.request.unitPricePaise, stockMilli: args.request.openingStockMilli, revision: 1 };
-          s.receipt = { command, request: args.request, product: structuredClone(s.product) };
+          s.receipt = { operationId: args.request.operationId, command, request: args.request, product: structuredClone(s.product) };
           throw { code: 'unavailable', message: 'Synthetic committed reply lost' };
         }
         throw new Error(`Unexpected command ${command}`);
@@ -60,7 +63,28 @@ const assert = require('node:assert/strict');
     for (const name of ['Item name', 'Item code (optional)', 'Unit price (₹)', 'Opening stock']) assert.equal(await label(name).inputValue(), '');
     await button('Save item on this PC').click();
     assert.equal(await page.evaluate(() => globalThis.review.writes), 1);
+    await page.evaluate(() => {
+      const s = globalThis.review;
+      s.product = { ...s.product, stockMilli: 7000, revision: 2 };
+      s.receipt = {
+        operationId: 'external-pending',
+        command: 'adjust_local_stock',
+        request: { operationId: 'external-pending', productId: s.product.id, expectedRevision: 1, deltaMilli: 2000, reason: 'External delivery' },
+        product: structuredClone(s.product),
+      };
+    });
+    await label('Item to adjust').selectOption(await page.evaluate(() => globalThis.review.product.id));
+    await label('Quantity change').fill('2'); await label('Reason for stock change').fill('Stale window delivery');
+    await button('Save stock change').click();
+    await page.getByRole('alert').filter({ hasText: 'Another inventory receipt is waiting to be acknowledged.' }).waitFor();
+    assert.equal(await button('Retry item save').count(), 0);
+    assert.equal(await button('Reload item counts').isDisabled(), false);
+    await button('Reload item counts').click();
+    await button('Acknowledge item save').waitFor();
+    await button('Acknowledge item save').click();
+    await page.getByText('Saved item change acknowledged.', { exact: true }).waitFor();
+    assert.equal(await page.evaluate(() => globalThis.review.writes), 1);
     assert.deepEqual(errors, []);
-    console.log('Inventory refresh regression passed: committed reply loss, cross-panel receipt recovery, acknowledgement clears old delivery fields, one stock effect. Mocked IPC; no Windows/native claim.');
+    console.log('Inventory refresh regression passed: committed reply loss, cross-panel receipt recovery, stale-window checkout_active reload recovery, acknowledgement clears old delivery fields, one stock effect. Mocked IPC; no Windows/native claim.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

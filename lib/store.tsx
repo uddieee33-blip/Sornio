@@ -2509,10 +2509,9 @@ export function DukaanStoreProvider({ children, initialIdentity = null, }: {
                         paymentMethod: method,
                         paymentStatus: 'pending',
                         receiptMode: current.settings.receiptMode,
-                        items: lines.map((l) => ({
+                        items: calculation.lines.map((l) => ({
                             ...l,
                             id: newId('it'),
-                            total: money(l.quantity * l.unitPrice),
                         })),
                         subtotal: posted.subtotal,
                         tax: posted.tax,

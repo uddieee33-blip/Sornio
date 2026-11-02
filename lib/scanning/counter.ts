@@ -77,8 +77,26 @@ export function removeTicketLine(lines: ScanTicketLine[], id: string): ScanTicke
   return lines.filter((line) => line.id !== id);
 }
 
-export function ticketTotal(lines: ScanTicketLine[]): number {
-  return Math.round(lines.reduce((total, line) => total + line.quantity * line.rate, 0) * 100) / 100;
+function parseScaledNonNegative(input: string, scale: 2 | 3): bigint | null {
+  const value = input.trim();
+  if (value.length > 32 || !/^\d+(?:\.\d+)?$/.test(value)) return null;
+  const [whole, fraction = ''] = value.split('.');
+  if (fraction.length > scale) return null;
+  const fixed = BigInt(whole) * (10n ** BigInt(scale)) + BigInt(fraction.padEnd(scale, '0'));
+  return fixed <= 9_000_000_000_000n ? fixed : null;
+}
+
+export function ticketTotal(lines: readonly { quantity: number; rate: number }[]): number {
+  let totalPaise = 0n;
+  for (const line of lines) {
+    if (!Number.isFinite(line.quantity) || !Number.isFinite(line.rate) || line.quantity <= 0 || line.rate < 0) continue;
+    const quantityMilli = parseScaledNonNegative(String(line.quantity), 3);
+    const ratePaise = parseScaledNonNegative(String(line.rate), 2);
+    totalPaise += quantityMilli !== null && ratePaise !== null
+      ? (quantityMilli * ratePaise + 500n) / 1000n
+      : BigInt(Math.round(line.quantity * line.rate * 100));
+  }
+  return Number(totalPaise) / 100;
 }
 
 export function ticketUnits(lines: ScanTicketLine[]): number {

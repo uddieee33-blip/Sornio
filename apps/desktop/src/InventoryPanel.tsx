@@ -97,9 +97,9 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
       if (!current.current) return;
       const code = errorCode(error);
       if (code === 'locked') { onLocked(); return; }
-      // Validation/conflict errors definitively refuse the mutation. An unknown
+      // Validation/conflict/guard errors definitively refuse the mutation. An unknown
       // transport/database error retains the exact ID and payload for safe retry.
-      if (['invalid_product', 'duplicate_sku', 'stock_conflict', 'operation_conflict'].includes(code ?? '')) setPending(null);
+      if (['invalid_product', 'duplicate_sku', 'stock_conflict', 'operation_conflict', 'checkout_active', 'forbidden', 'workspace_mismatch'].includes(code ?? '')) setPending(null);
       setFailed(true); setMessage(errorMessage(error, 'Save could not be confirmed. Retry this same save before editing.'));
     } finally { submitting.current = false; if (current.current) { setBusy(false); onBusyChange(false); } }
   }

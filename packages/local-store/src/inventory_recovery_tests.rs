@@ -331,3 +331,51 @@ fn process_termination_preserves_inventory_atomicity() {
         assert_eq!(s.list_products().unwrap()[0].stock_milli, 12000);
     }
 }
+#[test]
+fn missing_product_multi_row_guard_and_new_delivery_after_ack() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let before = snapshot(&s);
+    let mut missing = change("missing-op");
+    missing.product_id = "missing-item".into();
+    let res = s.adjust_stock(missing);
+    assert!(matches!(res, Err(StoreError::ProductMissing)));
+    assert_eq!(snapshot(&s), before);
+    let dup = s.adjust_stock(change("item"));
+    assert!(matches!(dup, Err(StoreError::OperationConflict)));
+    assert_eq!(snapshot(&s), before);
+    {
+        use rusqlite::Error::StatementChangedRows;
+        let mode = rusqlite::TransactionBehavior::Immediate;
+        let tx = s.0.transaction_with_behavior(mode).unwrap();
+        let setup = "CREATE TEMP TABLE p(v INT);INSERT INTO p VALUES(0),(0);";
+        tx.execute_batch(setup).unwrap();
+        let sql = "UPDATE local_products SET stock_milli=99000 WHERE id='rice'";
+        super::one(&tx, sql, []).unwrap();
+        let multi = super::one(&tx, "UPDATE p SET v=1", []);
+        assert!(matches!(
+            multi,
+            Err(StoreError::Database(StatementChangedRows(2)))
+        ));
+    }
+    assert_eq!(snapshot(&s), before);
+    let first = s.adjust_stock(change("deliv-1")).unwrap();
+    assert_eq!(first.stock_milli, 12000);
+    drop(s);
+    let mut s = authenticated(&path);
+    let mut altered = change("deliv-1");
+    altered.delta_milli = 3000;
+    let bad = s.adjust_stock(altered);
+    assert!(matches!(bad, Err(StoreError::OperationConflict)));
+    assert_eq!(s.adjust_stock(change("deliv-1")).unwrap(), first);
+    let busy = s.adjust_stock(change("deliv-2"));
+    assert!(matches!(busy, Err(StoreError::CheckoutActive)));
+    s.acknowledge_inventory("deliv-1").unwrap();
+    assert!(s.pending_inventory().unwrap().is_none());
+    let mut second = change("deliv-2");
+    second.expected_revision = 2;
+    let updated = s.adjust_stock(second).unwrap();
+    assert_eq!(updated.stock_milli, 14000);
+    assert_eq!(updated.revision, 3);
+}

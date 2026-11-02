@@ -355,6 +355,15 @@ check('Repeat scans stack on the ticket; weighed lines never merge', () => {
   assertEqual(C.ticketUnits(twoWeighings), 3 + 3 + 1.5, 'units add up across the ticket');
 
   assertEqual(C.ticketTotal(ticket), 280 * 3 + 900 * 3, 'the ticket adds up');
+  assertEqual(C.ticketTotal([{ quantity: 4.85, rate: 0.50 }]), 2.43, '4.85 x 0.50 rounds half-paise up to 2.43 like native billing');
+  assertEqual(
+    C.ticketTotal([
+      { quantity: 1.5, rate: 0.01 },
+      { quantity: 1.5, rate: 0.01 },
+    ]),
+    0.04,
+    'ticketTotal sums rounded line paise instead of unrounded floats',
+  );
   const corrected = C.setTicketQuantity(ticket, ticket[0].id, 1);
   assertEqual(corrected[0].quantity, 1, 'a cashier can correct the count');
   assertEqual(C.removeTicketLine(corrected, ticket[0].id).length, 1, 'and remove a line');
