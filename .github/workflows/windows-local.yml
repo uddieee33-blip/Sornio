@@ -123,7 +123,7 @@ jobs:
       - name: Verify native screenshots, installer checksum and lifecycle evidence
         run: python apps/desktop/check-windows-evidence.py --installer-dir apps/desktop/src-tauri/target/release/bundle/nsis --evidence-dir dist/native-review
       - name: Upload engineering installer
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Sornio-Local-Workspace-Review
           path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
@@ -131,7 +131,7 @@ jobs:
           retention-days: 7
       - name: Upload actual native screenshots
         if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Sornio-Local-Native-Captures
           path: dist/native-review/

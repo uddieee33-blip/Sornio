@@ -30,7 +30,7 @@ jobs:
       - name: Compile and lint Android app
         working-directory: mobile/android
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug
-      - uses: actions/upload-artifact@v7
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: Sornio-Android-review
           path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
