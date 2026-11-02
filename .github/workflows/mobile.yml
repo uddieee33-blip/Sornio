@@ -103,10 +103,14 @@ jobs:
           apk=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           test -f "$apk"
           echo "commit=${GITHUB_SHA}"
-          sha256sum "$apk"
+          hash=$(sha256sum "$apk")
+          echo "$hash"
+          echo "::notice::Companion debug APK $hash"
           aapt="$ANDROID_HOME/build-tools/35.0.0/aapt"
           if [ -x "$aapt" ]; then
-            "$aapt" dump badging "$apk" | head -20
+            badge=$("$aapt" dump badging "$apk" | head -5)
+            echo "$badge"
+            echo "::notice::$badge"
           fi
       - uses: actions/upload-artifact@v7.0.2
         with:
