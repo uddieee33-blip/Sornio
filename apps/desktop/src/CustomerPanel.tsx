@@ -3,7 +3,7 @@ import type { FormEvent } from 'react';
 import { invoke } from './native';
 import type { Role } from './native';
 import { errorCode, errorMessage } from './access';
-import { money } from './billing-types';
+import { formatPaiseInput, money } from './billing-types';
 import { clearPrintReceipt, printCustomerStatement } from './receipt-print';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import type { Customer, CreditKind, CreditReceipt, CreditRequest, PendingCredit, Statement } from './customer-types';
@@ -19,6 +19,7 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const [pending, setPending] = useState<PendingCredit | null>(null), [receipt, setReceipt] = useState<CreditReceipt | null>(null), [review, setReview] = useState(false), [refused, setRefused] = useState(false);
   const [ready, setReady] = useState(false);
   const pendingRef = useRef<PendingCredit | null>(null);
+  const confirmButton = useRef<HTMLButtonElement>(null);
   const printSnapshot = useRef<{ customerId: string; through: number; revision: number } | null>(null);
   const paper = useRef<HTMLElement>(null);
   const clearStatement = useCallback(() => { if (paper.current) clearPrintReceipt(paper.current); printSnapshot.current = null; setHtml(''); }, []);
@@ -27,13 +28,14 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const linkOperation = useRef<{ fingerprint: string; request: Record<string, unknown> } | null>(null);
   const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false), [message, setMessage] = useState('Opening customer accounts…');
   const mounted = useRef(false), submitting = useRef(false), readVersion = useRef(0), selection = useRef<string | null>(null);
+  useEffect(() => { if (review) confirmButton.current?.focus(); }, [review]);
   useEffect(() => { onDirtyChange(JSON.stringify(form) !== JSON.stringify(emptyProfile) || editing !== null || invoice !== '' || source !== '' || linkReason !== '' || pending === null && (review || amount !== '' || reason !== '' || due !== '' || reverse !== '')); }, [form, editing, invoice, source, linkReason, pending, review, amount, reason, due, reverse, onDirtyChange]);
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { const source = paper.current; return () => { if (source) clearPrintReceipt(source); }; }, [html]);
   const applyPending = useCallback((value: PendingCredit | null) => {
     if (!value && pendingRef.current) { setAmount(''); setReason(''); setDue(''); setReverse(''); setKind('repayment'); }
     pendingRef.current = value; setPending(value); setReceipt(value?.receipt ?? null); setReview(false); setRefused(false);
-    if (value) { selection.current = value.request.customerId; setKind(value.request.kind); setAmount(String(value.request.amountPaise / 100)); setReason(value.request.reason); setDue(value.request.dueOn ?? ''); setReverse(value.request.reverseOf ?? ''); }
+    if (value) { selection.current = value.request.customerId; setKind(value.request.kind); setAmount(formatPaiseInput(value.request.amountPaise)); setReason(value.request.reason); setDue(value.request.dueOn ?? ''); setReverse(value.request.reverseOf ?? ''); }
   }, []);
   const load = useCallback(async () => {
     const generation = ++readVersion.current;
@@ -165,13 +167,13 @@ export function CustomerPanel({ role, disabled, refreshToken, onChanged, onBusyC
       <button type="submit">Save customer</button>{editing !== null ? <button type="button" onClick={() => { setForm(emptyProfile); setEditing(null); }}>Cancel customer edit</button> : null}
     </fieldset></form> : null}
     {selected ? <section aria-labelledby="selected-customer-heading"><h3 id="selected-customer-heading">{selected.name} · {selected.id}</h3><p>Outstanding: {money(selected.balancePaise)} · Overdue: {money(selected.overduePaise)} · {selected.creditLimitPaise === null ? 'No credit limit' : `Limit: ${money(selected.creditLimitPaise)}`}</p>
-      {manage ? <button type="button" disabled={blocked} onClick={() => { setForm({ id: selected.id, name: selected.name, phone: selected.phone ?? '', limit: selected.creditLimitPaise === null ? '' : String(selected.creditLimitPaise / 100), days: String(selected.creditDays) }); setEditing(selected.revision); }}>Edit customer profile</button> : null}
+      {manage ? <button type="button" disabled={blocked} onClick={() => { setForm({ id: selected.id, name: selected.name, phone: selected.phone ?? '', limit: selected.creditLimitPaise === null ? '' : formatPaiseInput(selected.creditLimitPaise, '0'), days: String(selected.creditDays) }); setEditing(selected.revision); }}>Edit customer profile</button> : null}
       <fieldset disabled={blocked || review}><legend>Record customer credit entry</legend><label htmlFor="credit-kind">Credit entry type</label><select id="credit-kind" value={kind} onChange={e => setKind(e.target.value as CreditKind)}><option value="repayment">Cash repayment</option>{correct ? <><option value="opening_due">Opening due correction</option><option value="write_off">Write off due</option><option value="reversal">Reverse a credit entry</option></> : null}</select>
         {kind !== 'reversal' ? <><label htmlFor="credit-amount">Credit entry amount (₹)</label><input id="credit-amount" inputMode="decimal" maxLength={24} value={amount} onChange={e => setAmount(e.target.value)}/></> : <><label htmlFor="credit-reverse">Credit entry ID to reverse</label><input id="credit-reverse" maxLength={80} value={reverse} onChange={e => setReverse(e.target.value)}/></>}
         {kind === 'opening_due' ? <><label htmlFor="credit-due">Opening due date</label><input id="credit-due" type="date" value={due} onChange={e => setDue(e.target.value)}/></> : null}
         <label htmlFor="credit-reason">Credit entry reason</label><input id="credit-reason" maxLength={200} value={reason} onChange={e => setReason(e.target.value)}/>
       </fieldset>
-      {!pending ? review ? <div role="group" aria-label="Review credit entry"><p>{kind === 'repayment' ? `Receive ₹${amount} in cash from ${selected.name}, then confirm.` : 'This correction changes the credit ledger and retains its history. Confirm only after checking the account and reason.'}</p><button type="button" disabled={busy || disabled} onClick={() => { const r = buildRequest(); if (r) void confirm(r); }}>Confirm credit entry</button><button type="button" disabled={busy || disabled} onClick={() => setReview(false)}>Cancel credit review</button></div> : <button type="button" disabled={blocked} onClick={() => { if (buildRequest()) setReview(true); }}>Review credit entry</button> : null}
+      {!pending ? review ? <div role="group" aria-label="Review credit entry" onKeyDown={event => { if (event.key === 'Escape' && !busy && !disabled) { event.preventDefault(); setReview(false); } }}><p>{kind === 'repayment' ? `Receive ₹${amount} in cash from ${selected.name}, then confirm.` : 'This correction changes the credit ledger and retains its history. Confirm only after checking the account and reason.'}</p><button ref={confirmButton} type="button" disabled={busy || disabled} onClick={() => { const r = buildRequest(); if (r) void confirm(r); }}>Confirm credit entry</button><button type="button" disabled={busy || disabled} onClick={() => setReview(false)}>Cancel credit review</button></div> : <button type="button" disabled={blocked} onClick={() => { if (buildRequest()) setReview(true); }}>Review credit entry</button> : null}
       {statement ? <><h4>Customer transaction history</h4><p>Statement snapshot {statement.through} · Closing balance {money(statement.closingBalancePaise)}</p><table><thead><tr><th>Date</th><th>Type / reference</th><th>Change</th><th>Balance</th></tr></thead><tbody>{statement.entries.map(e => <tr key={e.sequence}><td>{new Date(e.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</td><td>{e.kind} · {e.operationId}<br/>{e.invoiceId ? `Invoice ${e.invoiceId}` : null}{e.reverseOf ? `Reverses ${e.reverseOf}` : null}<br/>{e.reason}</td><td>{money(e.amountPaise)}</td><td>{money(e.runningBalancePaise)}</td></tr>)}</tbody></table>{statement.hasMore ? <button type="button" disabled={busy || disabled} onClick={() => void more()}>Load more customer history</button> : null}<button type="button" disabled={busy || disabled} onClick={() => void preview()}>Prepare full customer statement</button></> : null}
       {correct ? <fieldset disabled={blocked}><legend>Link an existing unpaid credit sale</legend><label htmlFor="credit-link-invoice">Existing credit invoice ID</label><input id="credit-link-invoice" maxLength={80} value={invoice} onChange={e => setInvoice(e.target.value)}/><label htmlFor="credit-link-source">Existing source customer ID</label><input id="credit-link-source" maxLength={80} value={source} onChange={e => setSource(e.target.value)}/><label htmlFor="credit-link-reason">Credit link reason</label><input id="credit-link-reason" maxLength={200} value={linkReason} onChange={e => setLinkReason(e.target.value)}/><p>Moves an unrepaid sale to this account and retains the original invoice. Accounts with collections or adjustments need an explicit correction.</p><button type="button" onClick={() => void link()}>Link existing credit sale</button></fieldset> : null}
     </section> : null}

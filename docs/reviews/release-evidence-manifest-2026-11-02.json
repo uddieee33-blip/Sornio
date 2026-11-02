@@ -1,0 +1,155 @@
+{
+  "manifestSchemaVersion": "1.0.0",
+  "generatedAt": "2026-11-02T14:00:00+05:30",
+  "repository": "uddieee33-blip/Sornio",
+  "targetScope": "CONTROLLED SINGLE-PC WINDOWS PILOT",
+  "excludedScopes": [
+    "multi-pc-lan-pairing-and-sync",
+    "gst-tax-invoice-compliance",
+    "automated-bank-or-upi-payment-verification",
+    "public-self-serve-commercial-onboarding",
+    "cross-version-installer-upgrades",
+    "unattended-disaster-recovery",
+    "authenticode-or-ev-code-signing"
+  ],
+  "gitBaseline": {
+    "previousMainBranchCommit": "c8a0126b52b45d0fd817dd042057ae9778397dd5",
+    "mainBranchCommit": "37e8cf71fb297c9b8e76acb3637abf7ccdb78ddb",
+    "pr141": {
+      "number": 141,
+      "branch": "arena/d8cb03c5-sornio",
+      "verifiedRemoteCommit": "fc927d699f9259bdb38183758232581b4f1b01ff",
+      "state": "MERGED",
+      "merged": true,
+      "mergeCommit": "37e8cf71fb297c9b8e76acb3637abf7ccdb78ddb",
+      "mergedAt": "2026-11-02T13:17:19Z",
+      "mergedBy": "uddieee33-blip"
+    },
+    "phase2FollowUpCommit": {
+      "commit": "1d0fca8e596b8779795b1e03a97a7929013a50cb",
+      "scope": [
+        "lib/sale-stock.ts",
+        "lib/accounting-posting.ts",
+        "scripts/verify-accounting.mjs"
+      ],
+      "deliveryMode": "isolated_commit_on_post_pr141_follow_up_pr"
+    },
+    "nativeSchemaVersion": 12
+  },
+  "windowsReleaseCandidateEvidence": {
+    "testedCommit": "fc927d699f9259bdb38183758232581b4f1b01ff",
+    "workflow": {
+      "name": "Windows local workspace",
+      "file": ".github/workflows/windows-local.yml",
+      "runId": 41407861190,
+      "jobId": 125153887837,
+      "runnerName": "GitHub Actions 1000001012",
+      "os": "Windows (github-hosted)",
+      "startedAt": "2026-11-02T07:40:56Z",
+      "completedAt": "2026-11-02T08:13:43Z",
+      "conclusion": "success"
+    },
+    "installer": {
+      "productName": "Sornio Local Review",
+      "version": "0.3.0",
+      "identifier": "com.sornio.localreview",
+      "bundleFormat": "NSIS per-user (currentUser)",
+      "webview2InstallMode": "offlineInstaller",
+      "expectedFileGlob": "Sornio Local Review_0.3.0_x64-setup.exe",
+      "githubArtifactName": "Sornio-Local-Workspace-Review",
+      "githubArtifactId": 13125467927,
+      "githubArtifactArchiveSizeBytes": 222747503,
+      "githubArtifactArchiveSha256": "fcca65a40d458bce7ea5d2b67602a77f84230bdb387e9e4f962659ad9eccea31",
+      "createdAt": "2026-11-02T08:12:58Z",
+      "expiresAt": "2026-11-09T08:12:50Z",
+      "codeSigning": {
+        "signed": false,
+        "certificateThumbprintConfigured": null,
+        "authenticodeObservationVerifiedByGate": true,
+        "smartScreenRisk": "UNSIGNED_BINARY_WARNING_EXPECTED"
+      }
+    },
+    "nativeCapturesArtifact": {
+      "githubArtifactName": "Sornio-Local-Native-Captures",
+      "githubArtifactId": 13124929927,
+      "githubArtifactArchiveSizeBytes": 1276927,
+      "githubArtifactArchiveSha256": "6d8882bd94c0a39fa6edb1882a781194e4536848a25171a99313e64fc913bbe5",
+      "createdAt": "2026-11-02T08:12:59Z",
+      "expiresAt": "2026-11-09T08:12:58Z",
+      "requiredPngEvidence": [
+        "windows-first-setup.png",
+        "windows-local-cash-receipt.png",
+        "windows-retail-closing.png",
+        "windows-installed-preserved.png"
+      ]
+    },
+    "browserAcceptanceArtifact": {
+      "workflowRunId": 41407861212,
+      "jobId": 125153888804,
+      "githubArtifactName": "Sornio-workspace-review",
+      "githubArtifactId": 13125211437,
+      "githubArtifactArchiveSizeBytes": 9967035,
+      "githubArtifactArchiveSha256": "765757aaac009215cbcd7ce044896ed1d9ae4620314bd6646a6c41d1b2befd58",
+      "createdAt": "2026-11-02T07:57:15Z",
+      "expiresAt": "2026-11-09T07:57:13Z",
+      "conclusion": "success"
+    },
+    "durableArchival": {
+      "archivedToDurableStore": false,
+      "status": "ephemeral_github_actions_retention_only",
+      "retentionDays": 7,
+      "note": "Artifacts reside only in GitHub Actions temporary storage (expiring 2026-11-09) and have NOT been copied to or checksum-verified in an external durable release bucket."
+    },
+    "verifiedSubsystemsOnWindowsRunner": {
+      "sqlcipherReleaseSuite": "passed (step 9, 2026-11-02T07:42:57Z..07:43:29Z)",
+      "sqlcipherDebugOverflowSuite": "passed (step 10, 2026-11-02T07:43:29Z..07:43:36Z)",
+      "windowsCredentialManagerVault": "passed (step 9 & step 19)",
+      "syntheticScaleAndDamagedReturnRecovery": "passed (step 17, check-native-scale.py)",
+      "offlineStartupUnderOutboundFirewallBlock": "passed (step 19, check-installer.ps1 + New-NetFirewallRule on sornio-desktop.exe and msedgewebview2.exe)",
+      "stoppedDataPreservedAcrossUninstall": "passed (step 19, check-install-data.py SHA-256 verification)",
+      "sameVersionReinstallAndVaultReopen": "passed (step 19, check-native.py --verify-preserved)",
+      "finalUninstallPreservesData": "passed (step 19, check-install-data.py SHA-256 verification)",
+      "nativeEvidenceConsistencyGate": "passed (step 20, check-windows-evidence.py)"
+    },
+    "explicitlyUntestedWindowsGates": [
+      "actualVersionUpgrade",
+      "runtimeAbsentOfflineInstall",
+      "physicalPrinterScannerPowerLoss"
+    ]
+  },
+  "localContainerVerificationOnHead": {
+    "environment": "Linux sandbox (Node v22.22.3, Python 3, TypeScript 6.0.3 + tsgo 7.0.2; no local rustc/cargo or Playwright Chromium)",
+    "executedSuites": [
+      "npm run lint",
+      "npm run typecheck",
+      "npm run typecheck:native",
+      "npm run verify (all 30 verification scripts including 64 accounting checks, 12 native money checks, 31 desktop contract checks, 22-locale i18n check, local-schema check, windows-release static gate)",
+      "npm run build --prefix apps/desktop",
+      "npm run build",
+      "python3 -m unittest discover -s apps/desktop -p 'test_*.py'"
+    ],
+    "notExecutedLocallyRequireWindowsOrBrowserCi": [
+      "cargo test --manifest-path packages/local-store/Cargo.toml",
+      "apps/desktop/check-*.cjs (Playwright + cashier_review_bridge)",
+      "apps/desktop/check-installer.ps1 & apps/desktop/check-native.py (Windows runner UIA)"
+    ]
+  },
+  "releaseDecisions": {
+    "mergeCodeChanges": {
+      "decision": "CONDITIONAL GO",
+      "condition": "PR #141 (fc927d699f9259bdb38183758232581b4f1b01ff) was merged into main as 37e8cf71fb297c9b8e76acb3637abf7ccdb78ddb by uddieee33-blip at 2026-11-02T13:17:19Z. Follow-up PR on arena/d8cb03c5-sornio (Phase 2 QuantityMilli/BigInt COGS fix + Phases 3-6 pilot readiness & counter safety fixes) requires green GitHub checks and explicit founder merge authorization."
+    },
+    "automatedWindowsReleaseCandidate": {
+      "decision": "CONDITIONAL GO",
+      "condition": "PR #141 commit fc927d699f9259bdb38183758232581b4f1b01ff passed full Windows NSIS + SQLCipher + UIA acceptance; artifacts must be durably archived with SHA-256 verification before 2026-11-09T08:12:50Z, and any post-#141 desktop changes must re-run Windows local workspace CI."
+    },
+    "singlePcPhysicalShopPilot": {
+      "decision": "NO-GO",
+      "condition": "Blocked until all 15 steps in docs/reviews/windows-physical-pilot-acceptance-plan-2026-11-02.md pass on the actual shop-class Windows PC with real thermal/A4 printer, USB barcode scanner, Gurmukhi paper output, USB backup media, and clean-machine WebView2/SmartScreen handling."
+    },
+    "publicCommercialRelease": {
+      "decision": "NO-GO",
+      "condition": "Blocked: installer is unsigned (no Authenticode/EV certificate), cross-version installer upgrade path is untested, runtime-absent clean-PC offline WebView2 bootstrap is unverified on physical hardware, GST tax-invoice compliance is out of scope, digital payments have no automated external verification, and physical pilot results do not yet exist."
+    }
+  }
+}

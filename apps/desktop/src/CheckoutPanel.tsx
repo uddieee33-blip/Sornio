@@ -5,7 +5,7 @@ import { indianDay } from './retail-types';
 import type { CheckoutRequest, RetailRequest, RetailReceipt, RetailView } from './retail-types';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import { errorCode, errorMessage } from './access';
-import { money, quantity } from './billing-types';
+import { formatPaiseInput, money, quantity } from './billing-types';
 import type { CashierState, Invoice, Product } from './billing-types';
 import { CustomerLookup } from './CustomerLookup';
 import { SavedInvoice } from './SavedInvoice';
@@ -20,12 +20,6 @@ type FocusTarget =
 const emptyBalances = { cashPaise: '0', creditPaise: '0' };
 const refusedCodes = new Set(['invalid_payment', 'payment_conflict', 'day_closed', 'invalid_invoice', 'invalid_product', 'stock_conflict', 'customer_missing', 'credit_limit', 'credit_conflict']);
 const readyMessage = 'Checkout is ready. Totals are previews until the sale is saved.';
-
-function formatPaiseInput(paise: number): string {
-  if (paise <= 0) return '';
-  const rupees = Math.trunc(paise / 100), remainder = paise % 100;
-  return remainder === 0 ? String(rupees) : `${rupees}.${String(remainder).padStart(2, '0')}`;
-}
 
 function formatBasisPointsInput(bps: number): string {
   const whole = Math.trunc(bps / 100), remainder = bps % 100;
