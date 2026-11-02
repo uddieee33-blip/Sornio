@@ -1,4 +1,5 @@
 import { ReplicationError, type DeviceRole, type Principal, type TokenVerifier } from './types';
+import type { CloudStore } from './store';
 
 const ID = /^[A-Za-z0-9_-]{8,80}$/;
 const GENERATION = /^[A-Za-z0-9_-]{1,128}$/;
@@ -15,7 +16,28 @@ export function assertPrincipal(principal: Principal, nowMs: number): Principal 
   return principal;
 }
 
-export function requirePublisher(principal: Principal, nowMs: number): Principal {
+export function resolveEnrolled(store: CloudStore, presented: Principal, nowMs: number): Principal {
+  const token = assertPrincipal(presented, nowMs);
+  const enrolled = store.devices.get(token.deviceId);
+  if (!enrolled) throw new ReplicationError('UNAUTHENTICATED', 'This device is not enrolled.');
+  if (enrolled.revoked) throw new ReplicationError('REVOKED', 'This device has been revoked.');
+  if (enrolled.businessId !== token.businessId) {
+    throw new ReplicationError('WRONG_BUSINESS', 'Device is not enrolled for this business.');
+  }
+  if (enrolled.role !== token.role) {
+    throw new ReplicationError('FORBIDDEN', 'Credential role does not match enrollment.');
+  }
+  if (enrolled.restoreGeneration !== token.restoreGeneration) {
+    throw new ReplicationError('STALE_GENERATION', 'Restore generation does not match the enrolled device.');
+  }
+  return {
+    ...enrolled,
+    expiresAtMs: token.expiresAtMs,
+    displayName: token.displayName || enrolled.displayName,
+  };
+}
+
+export function requirePublisherRole(principal: Principal, nowMs: number): Principal {
   const ok = assertPrincipal(principal, nowMs);
   if (ok.role !== 'publisher') {
     throw new ReplicationError('FORBIDDEN', 'Only a desktop publisher may ingest financial events.');
@@ -23,8 +45,16 @@ export function requirePublisher(principal: Principal, nowMs: number): Principal
   return ok;
 }
 
-export function requireReader(principal: Principal, nowMs: number): Principal {
-  const ok = assertPrincipal(principal, nowMs);
+export function requirePublisher(store: CloudStore, principal: Principal, nowMs: number): Principal {
+  const ok = resolveEnrolled(store, principal, nowMs);
+  if (ok.role !== 'publisher') {
+    throw new ReplicationError('FORBIDDEN', 'Only a desktop publisher may ingest financial events.');
+  }
+  return ok;
+}
+
+export function requireReader(store: CloudStore, principal: Principal, nowMs: number): Principal {
+  const ok = resolveEnrolled(store, principal, nowMs);
   if (ok.role === 'publisher') {
     throw new ReplicationError('FORBIDDEN', 'Publisher credentials cannot read companion snapshots.');
   }

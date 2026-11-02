@@ -1,81 +1,51 @@
 # Phase 2 — Desktop outbox publishing and cloud read projections
 
-**Status:** Implemented on `arena/5ed2bd28-sornio` for founder review. Not a production GO. Not merged to `main`.
+**Status:** Hardened on `arena/5ed2bd28-sornio` for founder review. Not a production GO. Not merged to `main`.
 
-**Depends on Phase 1:** [PR #143](https://github.com/uddieee33-blip/Sornio/pull/143) (`6b4aa24`). Arena cannot open a stacked branch, so this work lives on the same session branch. Do not treat it as independent of unmerged companion contracts.
+**Depends on Phase 1:** [PR #143](https://github.com/uddieee33-blip/Sornio/pull/143). Arena cannot open a stacked branch, so Phase 1 companion and Phase 2 replication share this draft. Do not treat Phase 2 as independent of unmerged contracts.
 
-## What this phase is
+## Review-surface limitation
 
-Authenticated desktop publishing of the four native SQLCipher outboxes, plus a business-isolated cloud **read** projection that `parseCompanionSnapshot` / `decideSnapshotApply` can consume.
+Preferred split is Phase 1 (companion) vs Phase 2 (replication). Creating a second branch would leave PR #143's history or require a force-push. Arena tracks this session on `arena/5ed2bd28-sornio` only. Combined draft is retained on purpose.
 
-Native SQLCipher remains the only writable ledger. Cloud never posts, never holds the writer lock during network, and never blocks checkout.
+## Payment classification (native)
 
-## What this phase is not
+`PaymentPart.method` is `cash | upi | card | credit`.
 
-- Not live mobile reads. `apps/mobile` keeps `productionSyncEnabled: false`.
-- Not a financial schema bump. `SCHEMA_VERSION` stays **12**. Publisher acks are a sidecar keyed by `(restore_generation, stream)`.
-- Not hosted `sync_operating_records`. That table is a different product surface.
-- Not LAN certificate pairing reused as internet auth.
-- Not an auto-applied production migration.
-- Not a merge of #126 (LAN) or #127 (GST).
+| Method | Ledger meaning | Snapshot field |
+| --- | --- | --- |
+| cash | Banked immediately | `cashPaise` |
+| upi / card | Digital receivables until statement match | `digitalPaise` |
+| credit | Customer debt until repayment | `creditPaise` |
 
-## Native streams (independent AUTOINCREMENT)
+UPI and card are **not** customer credit. Schema v1 cannot represent digital tenders (`cash + credit = total`). Live desktop-outbox snapshots use **schema v2**: `cash + credit + digital = total`. Demo snapshots stay v1.
 
-| Stream | Table | Identity | Example payload |
-| --- | --- | --- | --- |
-| billing | `local_billing_outbox` | `invoice_id` | `{ version, kind: "invoice.posted", operationId, invoice }` |
-| customer | `local_customer_outbox` | `operation_id` | `{ version, scope, kind, operationId, value }` |
-| retail | `local_retail_outbox` | `operation_id` | `{ version, scope, actorId, receipt }` |
-| inventory | `local_inventory_outbox` | `operation_id` | `{ version, kind, operationId, product }` |
-
-There is no global sequence. Server idempotency is `(business_id, operation_id)`. Per-stream monotonicity is `(business_id, restore_generation, stream, stream_sequence)`.
-
-A ₹1,000 sale of ₹600 cash + ₹400 credit is `Tender::Retail` plus retail `PaymentPart`s. The invoice JSON does not carry the split; the retail receipt does.
+Incomplete retail allocations (`Tender::Retail` without a correlated receipt) are `pending` and are omitted from activity. `projectionComplete` is false until correlation succeeds. Invoice identity is the billing invoice id, never the retail operation id.
 
 ## Auth
 
-- Desktop publisher credentials are device-scoped, short-lived, and separate from owner/manager/cashier/auditor reader credentials.
-- Companion readers cannot ingest. Publishers cannot read snapshots.
-- Restore generation is fail-closed: mismatch rejects ingest and `decideSnapshotApply` discards the cache.
-- No admin/service-role secrets are embedded. TLS validation is not disabled.
+Every ingest and snapshot call resolves the presented credential against the **enrolled** device row. Revocation on the server wins over a stale token. Publisher cannot read. Cashier cannot read `native_replication.customers` (database grant + RLS, not only snapshot filtering).
 
-## Sidecar publisher
+## Persistence
 
-`packages/local-store/src/replication.rs` is ack math only. It does not change posting.
+- In-memory `CloudStore` is a test working set with clone/adopt atomicity.
+- PostgreSQL migration is review-only and is executed in PGlite. Posted invoices require `cash + digital + customer_credit = total`. Pending rows may exist without that equality.
+- Do not auto-apply to production.
 
-1. Local commit writes the financial outbox as today.
-2. The same process records unpublished rows in a sidecar keyed by restore generation.
-3. Flush copies those rows, **releases the writer lock**, then talks to the network.
-4. Ack advances only after the server accepts the envelope (or returns an idempotent duplicate).
-5. On restore, generation change resets the sidecar cursor so the restored outbox is republished.
+## Native publisher
 
-If the cloud is down, checkout still commits locally.
-
-## Cloud projection
-
-TypeScript harness: `packages/replication-cloud`.
-
-PostgreSQL review SQL: `packages/replication-cloud/sql/20261103000000_native_financial_replication.sql`.
-
-- Integer paise / milli only. Bounds match native `MAX_VALUE` (9_000_000_000_000).
-- Incomplete retail splits are withheld from activity until payment parts arrive.
-- Owner/manager/auditor see customer outstanding. Cashier does not.
-- Business A cannot read business B.
-
-Canonical cursor is a non-negative integer string compatible with `parseSyncCursor`.
+`Store::unpublished_replication` reads the four outboxes after a sidecar ack cursor. It does not open a network socket and must not run inside a financial writer transaction. HTTP flush is still TypeScript-side. This sandbox has no `rustc`.
 
 ## Proof
 
-Run `npm run verify:replication` (TypeScript ingest, projection, snapshot, failure injection).
+`npm run verify:replication` — 77 checks (classification, correlation, atomic ingest, enrolled revocation, PGlite migration, RLS).
 
-Rust sidecar tests run on Windows CI with the existing local-store suite. This Linux sandbox has no `rustc`.
+`npm run verify:mobile-contracts` — demo v1 still parses.
 
-## Production gates still closed
+## Remaining blockers
 
-| Gate | State |
-| --- | --- |
-| Merge to main | NO until founder authorization |
-| Production SQL apply | NO |
-| Mobile live reads | NO (`productionSyncEnabled: false`) |
-| Play / App Store | NO |
-| Treat unit tests as GO | NO |
+- No Windows debug end-to-end publish (no `rustc` here)
+- No production SQL, no live mobile reads
+- No HTTPS token issuer
+- SQL projector still uses a working-set apply then persists; not a standalone stored-procedure engine
+- Unit tests are not a production GO

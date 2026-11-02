@@ -1,14 +1,26 @@
 import { type Envelope, type Principal, type StreamName } from './types';
 
 export type InvoiceRow = {
-  operationId: string;
+  invoiceId: string;
+  billingOperationId: string;
+  retailOperationId: string | null;
   occurredAtIso: string;
   counterparty: string;
   totalPaise: bigint;
   cashPaise: bigint;
-  creditPaise: bigint;
-  splitComplete: boolean;
+  digitalPaise: bigint;
+  customerCreditPaise: bigint;
+  allocation: 'pending' | 'posted';
   customerId: string | null;
+  tender: 'cash' | 'credit' | 'retail';
+};
+
+export type PendingRetail = {
+  retailOperationId: string;
+  invoiceId: string;
+  occurredAtIso: string;
+  payloadSha256: string;
+  payments: unknown;
 };
 
 export type InventoryRow = {
@@ -32,15 +44,16 @@ export type CustomerRow = {
 export type StoredEvent = Envelope & { cursor: string };
 
 export class CloudStore {
-  readonly businesses = new Map<string, { name: string; portalId: Principal['portalId'] }>();
-  readonly devices = new Map<string, Principal>();
-  readonly events: StoredEvent[] = [];
-  readonly byOperation = new Map<string, StoredEvent>();
-  readonly streamHead = new Map<string, bigint>();
-  readonly invoices = new Map<string, InvoiceRow>();
-  readonly inventory = new Map<string, InventoryRow>();
-  readonly customers = new Map<string, CustomerRow>();
-  readonly statements = new Map<string, { id: string; occurredAtIso: string; narrative: string; amountPaise: bigint; direction: 'debit' | 'credit' }[]>();
+  businesses = new Map<string, { name: string; portalId: Principal['portalId'] }>();
+  devices = new Map<string, Principal>();
+  events: StoredEvent[] = [];
+  byOperation = new Map<string, StoredEvent>();
+  streamHead = new Map<string, bigint>();
+  invoices = new Map<string, InvoiceRow>();
+  pendingRetail = new Map<string, PendingRetail>();
+  inventory = new Map<string, InventoryRow>();
+  customers = new Map<string, CustomerRow>();
+  statements = new Map<string, { id: string; occurredAtIso: string; narrative: string; amountPaise: bigint; direction: 'debit' | 'credit' }[]>();
   cursorByBusiness = new Map<string, bigint>();
 
   registerBusiness(businessId: string, name: string, portalId: Principal['portalId']): void {
@@ -79,6 +92,38 @@ export class CloudStore {
     const next = this.cursor(businessId) + 1n;
     this.cursorByBusiness.set(businessId, next);
     return next.toString();
+  }
+
+  clone(): CloudStore {
+    const copy = new CloudStore();
+    copy.businesses = new Map(this.businesses);
+    copy.devices = new Map([...this.devices].map(([key, value]) => [key, { ...value }]));
+    copy.events = this.events.map((event) => ({ ...event }));
+    copy.byOperation = new Map(copy.events.map((event) => [`${event.businessId}|${event.operationId}`, event]));
+    copy.streamHead = new Map(this.streamHead);
+    copy.invoices = new Map([...this.invoices].map(([key, value]) => [key, { ...value }]));
+    copy.pendingRetail = new Map([...this.pendingRetail].map(([key, value]) => [key, { ...value }]));
+    copy.inventory = new Map([...this.inventory].map(([key, value]) => [key, { ...value }]));
+    copy.customers = new Map([...this.customers].map(([key, value]) => [key, { ...value }]));
+    copy.statements = new Map(
+      [...this.statements].map(([key, value]) => [key, value.map((line) => ({ ...line }))]),
+    );
+    copy.cursorByBusiness = new Map(this.cursorByBusiness);
+    return copy;
+  }
+
+  adopt(other: CloudStore): void {
+    this.businesses = other.businesses;
+    this.devices = other.devices;
+    this.events = other.events;
+    this.byOperation = other.byOperation;
+    this.streamHead = other.streamHead;
+    this.invoices = other.invoices;
+    this.pendingRetail = other.pendingRetail;
+    this.inventory = other.inventory;
+    this.customers = other.customers;
+    this.statements = other.statements;
+    this.cursorByBusiness = other.cursorByBusiness;
   }
 }
 

@@ -1,8 +1,16 @@
 import { CompanionError } from './errors';
 import { isStableId } from './identity';
 
-/** Hybrid Sync V1 schema. Bump only with a documented translation change. */
+/** Hybrid Sync V1 schema. Demo snapshots stay on 1. */
 export const MOBILE_SYNC_SCHEMA_VERSION = 1 as const;
+/** Live desktop-outbox snapshots may use 2 to carry digital (UPI/card) paise. */
+export const MOBILE_SYNC_SCHEMA_VERSION_V2 = 2 as const;
+export const MOBILE_SYNC_SCHEMA_VERSIONS = [1, 2] as const;
+export type MobileSyncSchemaVersion = (typeof MOBILE_SYNC_SCHEMA_VERSIONS)[number];
+
+export function isMobileSyncSchemaVersion(value: unknown): value is MobileSyncSchemaVersion {
+  return value === 1 || value === 2;
+}
 
 export const SYNC_PHASES = [
   'never_synced',
@@ -27,7 +35,7 @@ const GENERATION_PATTERN = /^[A-Za-z0-9_-]{1,128}$/;
 export type SyncStatus = {
   connectivity: Connectivity;
   phase: SyncPhase;
-  schemaVersion: typeof MOBILE_SYNC_SCHEMA_VERSION;
+  schemaVersion: MobileSyncSchemaVersion;
   cursor: SyncCursor | null;
   restoreGeneration: RestoreGeneration | null;
   lastSuccessIso: string | null;
@@ -58,7 +66,7 @@ export function compareCursor(a: SyncCursor, b: SyncCursor): -1 | 0 | 1 {
 }
 
 export type SyncEnvelope = {
-  schemaVersion: typeof MOBILE_SYNC_SCHEMA_VERSION;
+  schemaVersion: MobileSyncSchemaVersion;
   businessId: string;
   restoreGeneration: RestoreGeneration;
   cursor: SyncCursor;
@@ -74,7 +82,7 @@ export type AppliedSnapshotDecision =
   | { ok: false; error: CompanionError };
 
 export function decideSnapshotApply(current: SyncEnvelope | null, incoming: SyncEnvelope): AppliedSnapshotDecision {
-  if (incoming.schemaVersion !== MOBILE_SYNC_SCHEMA_VERSION) {
+  if (!isMobileSyncSchemaVersion(incoming.schemaVersion)) {
     return {
       ok: false,
       error: new CompanionError('INVALID_PAYLOAD', 'Unsupported companion schema version.'),

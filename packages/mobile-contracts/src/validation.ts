@@ -5,9 +5,10 @@ import { parseIsoTimestamp } from './session';
 import type { ActivityItem, CompanionSnapshot, CustomerSummary, InventoryItem, MoneySplit } from './snapshot';
 import { ACTIVITY_KINDS, ACTIVITY_STATUSES } from './snapshot';
 import {
-  MOBILE_SYNC_SCHEMA_VERSION,
+  isMobileSyncSchemaVersion,
   parseRestoreGeneration,
   parseSyncCursor,
+  type MobileSyncSchemaVersion,
 } from './sync';
 
 function record(value: unknown): value is Record<string, unknown> {
@@ -21,18 +22,28 @@ function text(value: unknown, min: number, max: number, label: string): string {
   return value;
 }
 
-function moneySplit(value: unknown, label: string): MoneySplit {
+function moneySplit(value: unknown, label: string, schemaVersion: MobileSyncSchemaVersion): MoneySplit {
   if (!record(value)) throw new CompanionError('INVALID_PAYLOAD', `${label} is missing.`);
   const totalPaise = parsePaise(value.totalPaise);
   const cashPaise = parsePaise(value.cashPaise);
   const creditPaise = parsePaise(value.creditPaise);
-  if (addPaise(cashPaise, creditPaise) !== totalPaise) {
-    throw new CompanionError('INVALID_PAYLOAD', `${label} cash and credit must equal the total.`);
+  if (schemaVersion === 1) {
+    if (value.digitalPaise != null && parsePaise(value.digitalPaise) !== parsePaise('0')) {
+      throw new CompanionError('INVALID_PAYLOAD', `${label} v1 cannot carry digital tenders.`);
+    }
+    if (addPaise(cashPaise, creditPaise) !== totalPaise) {
+      throw new CompanionError('INVALID_PAYLOAD', `${label} cash and credit must equal the total.`);
+    }
+    return { totalPaise, cashPaise, creditPaise };
   }
-  return { totalPaise, cashPaise, creditPaise };
+  const digitalPaise = parsePaise(value.digitalPaise);
+  if (addPaise(addPaise(cashPaise, creditPaise), digitalPaise) !== totalPaise) {
+    throw new CompanionError('INVALID_PAYLOAD', `${label} cash, credit and digital must equal the total.`);
+  }
+  return { totalPaise, cashPaise, creditPaise, digitalPaise };
 }
 
-function activityItem(value: unknown): ActivityItem {
+function activityItem(value: unknown, schemaVersion: MobileSyncSchemaVersion): ActivityItem {
   if (!record(value)) throw new CompanionError('INVALID_PAYLOAD', 'Invalid activity row.');
   if (!isStableId(value.id) || !isStableId(value.sourceTransactionId)) {
     throw new CompanionError('INVALID_PAYLOAD', 'Activity ids are invalid.');
@@ -46,9 +57,16 @@ function activityItem(value: unknown): ActivityItem {
   const amountPaise = parsePaise(value.amountPaise);
   const cashPaise = parsePaise(value.cashPaise);
   const creditPaise = parsePaise(value.creditPaise);
-  if (addPaise(cashPaise, creditPaise) !== amountPaise) {
-    throw new CompanionError('INVALID_PAYLOAD', 'Activity cash and credit must equal the amount.');
-  }
+  const split = moneySplit(
+    {
+      totalPaise: amountPaise,
+      cashPaise,
+      creditPaise,
+      digitalPaise: value.digitalPaise,
+    },
+    'Activity',
+    schemaVersion,
+  );
   return {
     id: value.id,
     sourceTransactionId: value.sourceTransactionId,
@@ -57,9 +75,10 @@ function activityItem(value: unknown): ActivityItem {
     occurredAtIso: parseIsoTimestamp(value.occurredAtIso, 'Activity time'),
     counterparty: text(value.counterparty, 1, 120, 'Counterparty'),
     narrative: text(value.narrative, 1, 240, 'Narrative'),
-    amountPaise,
-    cashPaise,
-    creditPaise,
+    amountPaise: split.totalPaise,
+    cashPaise: split.cashPaise,
+    creditPaise: split.creditPaise,
+    ...(schemaVersion === 2 ? { digitalPaise: split.digitalPaise } : {}),
   };
 }
 
@@ -124,9 +143,10 @@ export function parseCompanionSnapshot(value: unknown): CompanionSnapshot {
 
 function parseCompanionSnapshotInner(value: unknown): CompanionSnapshot {
   if (!record(value)) throw new CompanionError('INVALID_PAYLOAD', 'Snapshot is not an object.');
-  if (value.schemaVersion !== MOBILE_SYNC_SCHEMA_VERSION) {
+  if (!isMobileSyncSchemaVersion(value.schemaVersion)) {
     throw new CompanionError('INVALID_PAYLOAD', 'Unsupported companion schema version.');
   }
+  const schemaVersion = value.schemaVersion;
   if (value.mode !== 'demo' && value.mode !== 'live') {
     throw new CompanionError('INVALID_PAYLOAD', 'Snapshot mode must be demo or live.');
   }
@@ -156,7 +176,7 @@ function parseCompanionSnapshotInner(value: unknown): CompanionSnapshot {
     throw new CompanionError('INVALID_PAYLOAD', 'Alert list is invalid.');
   }
   const overview = {
-    todaySales: moneySplit(value.overview.todaySales, 'Today sales'),
+    todaySales: moneySplit(value.overview.todaySales, 'Today sales', schemaVersion),
     todayCollectionsPaise: parsePaise(value.overview.todayCollectionsPaise),
     outstandingCreditPaise: parsePaise(value.overview.outstandingCreditPaise),
     lowStockCount:
@@ -196,7 +216,7 @@ function parseCompanionSnapshotInner(value: unknown): CompanionSnapshot {
     }
   }
   return {
-    schemaVersion: MOBILE_SYNC_SCHEMA_VERSION,
+    schemaVersion,
     mode: value.mode,
     businessId: value.businessId,
     businessName: text(value.businessName, 1, 120, 'Business name'),
@@ -207,8 +227,16 @@ function parseCompanionSnapshotInner(value: unknown): CompanionSnapshot {
     cursor: parseSyncCursor(value.cursor),
     producedAtIso: parseIsoTimestamp(value.producedAtIso, 'Snapshot time'),
     source: value.source,
+    projectionComplete:
+      schemaVersion === 2
+        ? value.projectionComplete === true || value.projectionComplete === false
+          ? value.projectionComplete
+          : (() => {
+              throw new CompanionError('INVALID_PAYLOAD', 'Schema v2 snapshots must declare projection completeness.');
+            })()
+        : undefined,
     overview,
-    activity: value.activity.map(activityItem),
+    activity: value.activity.map((row) => activityItem(row, schemaVersion)),
     inventory,
     customers: value.customers.map(customerSummary),
     statements,

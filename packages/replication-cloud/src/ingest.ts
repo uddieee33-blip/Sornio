@@ -17,17 +17,12 @@ export function ingestEnvelope(
   digest: DigestFn,
   nowMs: number,
 ): IngestAck {
-  const publisher = requirePublisher(principal, nowMs);
+  const publisher = requirePublisher(store, principal, nowMs);
   const envelope = parseEnvelope(raw, digest);
   if (envelope.businessId !== publisher.businessId || envelope.deviceId !== publisher.deviceId) {
-    throw new ReplicationError('WRONG_BUSINESS', 'Envelope identity does not match the publisher.');
+    throw new ReplicationError('WRONG_BUSINESS', 'Envelope identity does not match the enrolled publisher.');
   }
-  const enrolled = store.devices.get(publisher.deviceId);
-  const expectedGeneration = enrolled?.restoreGeneration ?? publisher.restoreGeneration;
-  if (
-    envelope.restoreGeneration !== publisher.restoreGeneration ||
-    envelope.restoreGeneration !== expectedGeneration
-  ) {
+  if (envelope.restoreGeneration !== publisher.restoreGeneration) {
     throw new ReplicationError('STALE_GENERATION', 'Restore generation does not match the enrolled publisher.');
   }
   const duplicate = store.byOperation.get(`${publisher.businessId}|${envelope.operationId}`);
@@ -44,11 +39,17 @@ export function ingestEnvelope(
     if (sequence <= last) throw new ReplicationError('DUPLICATE_SEQUENCE', 'Stream sequence already committed.');
     throw new ReplicationError('GAP', 'Stream sequence skipped a gap.');
   }
-  const cursor = store.nextCursor(publisher.businessId);
-  const stored: Envelope & { cursor: string } = { ...envelope, cursor };
-  projectEvent(store, envelope);
-  store.events.push(stored);
-  store.byOperation.set(`${publisher.businessId}|${envelope.operationId}`, stored);
-  store.streamHead.set(headKey, sequence);
-  return { operationId: envelope.operationId, cursor, duplicate: false };
+  const draft = store.clone();
+  try {
+    const cursor = draft.nextCursor(publisher.businessId);
+    const stored: Envelope & { cursor: string } = { ...envelope, cursor };
+    projectEvent(draft, envelope);
+    draft.events.push(stored);
+    draft.byOperation.set(`${publisher.businessId}|${envelope.operationId}`, stored);
+    draft.streamHead.set(headKey, sequence);
+    store.adopt(draft);
+    return { operationId: envelope.operationId, cursor, duplicate: false };
+  } catch (error) {
+    throw error;
+  }
 }

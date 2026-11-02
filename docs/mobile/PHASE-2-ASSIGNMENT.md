@@ -43,7 +43,8 @@ disabled in the app until Phase 3.
 See [PHASE-2-DESKTOP-CLOUD-REPLICATION.md](./PHASE-2-DESKTOP-CLOUD-REPLICATION.md).
 
 - Financial `SCHEMA_VERSION` remains 12. Publisher acks are a sidecar.
-- Cloud ingest/projection: `packages/replication-cloud` (TypeScript harness + review-only SQL).
-- Sidecar ack math: `packages/local-store/src/replication.rs`.
-- Proof: `npm run verify:replication` (62 checks). Rust sidecar tests run on Windows CI.
-- `productionSyncEnabled` remains false. Not a production GO. Do not merge #143/#126/#127 from this work.
+- UPI/card are digital receivables, not customer credit. Live snapshots use companion schema v2.
+- Cloud ingest/projection: `packages/replication-cloud` (atomic working set + review-only SQL executed in PGlite).
+- Native unpublished outbox reader: `Store::unpublished_replication`.
+- Proof: `npm run verify:replication` (77 checks). Rust tests run on Windows CI.
+- `productionSyncEnabled` remains false. Combined Phase 1+2 draft retained; Arena cannot open a stacked PR. Do not merge #143/#126/#127 from this work.

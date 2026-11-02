@@ -1,5 +1,6 @@
+import { allocationForTender, classifyPayments, parsePaymentParts } from './payments';
 import { ReplicationError, type Envelope } from './types';
-import { CloudStore, tenantKey, type CustomerRow, type InventoryRow, type InvoiceRow } from './store';
+import { CloudStore, tenantKey, type CustomerRow, type InventoryRow, type InvoiceRow, type PendingRetail } from './store';
 
 const MAX = 9_000_000_000_000n;
 
@@ -7,16 +8,20 @@ function record(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
 }
 
-function integer(value: unknown, label: string): bigint {
+function integer(value: unknown, label: string, signed = false): bigint {
   if (typeof value === 'number') {
     if (!Number.isInteger(value)) throw new ReplicationError('INVALID_ENVELOPE', `${label} must be an integer.`);
     const parsed = BigInt(value);
-    if (parsed > MAX || parsed < -MAX) throw new ReplicationError('INVALID_ENVELOPE', `${label} exceeds native bounds.`);
+    if (parsed > MAX || parsed < (signed ? -MAX : 0n)) {
+      throw new ReplicationError('INVALID_ENVELOPE', `${label} exceeds native bounds.`);
+    }
     return parsed;
   }
   if (typeof value === 'string' && /^-?(0|[1-9]\d*)$/.test(value)) {
     const parsed = BigInt(value);
-    if (parsed > MAX || parsed < -MAX) throw new ReplicationError('INVALID_ENVELOPE', `${label} exceeds native bounds.`);
+    if (parsed > MAX || parsed < (signed ? -MAX : 0n)) {
+      throw new ReplicationError('INVALID_ENVELOPE', `${label} exceeds native bounds.`);
+    }
     return parsed;
   }
   throw new ReplicationError('INVALID_ENVELOPE', `${label} must be an integer.`);
@@ -26,34 +31,53 @@ function text(value: unknown, fallback: string): string {
   return typeof value === 'string' && value.length > 0 ? value.slice(0, 120) : fallback;
 }
 
+function completeInvoice(row: InvoiceRow, cash: bigint, digital: bigint, credit: bigint, retailOperationId: string | null): void {
+  if (cash + digital + credit !== row.totalPaise) {
+    throw new ReplicationError('CONFLICT', 'Linked payment totals disagree with the invoice.');
+  }
+  row.cashPaise = cash;
+  row.digitalPaise = digital;
+  row.customerCreditPaise = credit;
+  row.retailOperationId = retailOperationId;
+  row.allocation = 'posted';
+}
+
+function applyPendingToInvoice(store: CloudStore, envelope: Envelope, row: InvoiceRow): void {
+  const pending = store.pendingRetail.get(tenantKey(envelope.businessId, row.invoiceId));
+  if (!pending) return;
+  const classified = classifyPayments(pending.payments, row.totalPaise, row.customerId);
+  completeInvoice(row, classified.cashPaise, classified.digitalPaise, classified.customerCreditPaise, pending.retailOperationId);
+  store.pendingRetail.delete(tenantKey(envelope.businessId, row.invoiceId));
+}
+
 function applyInvoice(store: CloudStore, envelope: Envelope): void {
   const payload = record(envelope.payload) ? envelope.payload : {};
   const invoice = record(payload.invoice) ? payload.invoice : payload;
   const total = integer(invoice.totalPaise, 'Invoice total');
-  const tender = invoice.tender;
   const customerId = typeof invoice.customerId === 'string' ? invoice.customerId : null;
-  const counterparty = text(invoice.customerName, customerId ?? 'Walk-in');
-  let cash = 0n;
-  let credit = 0n;
-  let splitComplete = false;
-  if (tender === 'cash') {
-    cash = total;
-    splitComplete = true;
-  } else if (tender === 'credit') {
-    credit = total;
-    splitComplete = true;
+  const invoiceId = typeof invoice.id === 'string' ? invoice.id : envelope.operationId;
+  if (invoiceId !== envelope.operationId) {
+    throw new ReplicationError('INVALID_ENVELOPE', 'Billing operation identity must equal the invoice identity.');
   }
+  const tender = invoice.tender;
+  const seed = allocationForTender(tender, total, customerId);
+  if (!seed) throw new ReplicationError('INVALID_ENVELOPE', 'Unknown invoice tender.');
   const row: InvoiceRow = {
-    operationId: envelope.operationId,
+    invoiceId,
+    billingOperationId: envelope.operationId,
+    retailOperationId: null,
     occurredAtIso: envelope.occurredAtIso,
-    counterparty,
+    counterparty: text(invoice.customerName, customerId ?? 'Walk-in'),
     totalPaise: total,
-    cashPaise: cash,
-    creditPaise: credit,
-    splitComplete,
+    cashPaise: seed.cashPaise,
+    digitalPaise: seed.digitalPaise,
+    customerCreditPaise: seed.customerCreditPaise,
+    allocation: seed.complete ? 'posted' : 'pending',
     customerId,
+    tender: tender as InvoiceRow['tender'],
   };
-  store.invoices.set(tenantKey(envelope.businessId, envelope.operationId), row);
+  store.invoices.set(tenantKey(envelope.businessId, invoiceId), row);
+  if (!seed.complete) applyPendingToInvoice(store, envelope, row);
   const lines = Array.isArray(invoice.lines) ? invoice.lines : [];
   for (const line of lines) {
     if (!record(line) || typeof line.productId !== 'string') continue;
@@ -67,32 +91,63 @@ function applyInvoice(store: CloudStore, envelope: Envelope): void {
   }
 }
 
-function applyRetailSale(store: CloudStore, envelope: Envelope): void {
-  const payload = record(envelope.payload) ? envelope.payload : {};
+function retailInvoiceId(payload: Record<string, unknown>, envelope: Envelope): string {
   const receipt = record(payload.receipt) ? payload.receipt : payload;
   const data = record(receipt.data) ? receipt.data : {};
   const invoice = record(data.invoice) ? data.invoice : null;
-  const payments = Array.isArray(data.payments) ? data.payments : [];
   const invoiceId =
     (invoice && typeof invoice.id === 'string' && invoice.id) ||
     (typeof data.invoiceId === 'string' && data.invoiceId) ||
-    envelope.operationId;
-  const row = store.invoices.get(tenantKey(envelope.businessId, invoiceId));
-  if (!row || payments.length === 0) return;
-  let cash = 0n;
-  let other = 0n;
-  for (const part of payments) {
-    if (!record(part)) continue;
-    const amount = integer(part.amountPaise, 'Payment part');
-    if (part.method === 'cash') cash += amount;
-    else other += amount;
+    null;
+  if (!invoiceId) {
+    throw new ReplicationError('INVALID_ENVELOPE', 'Retail sale is missing the invoice identity.');
   }
-  if (cash + other !== row.totalPaise) {
-    throw new ReplicationError('INVALID_ENVELOPE', 'Retail payments must equal the invoice total.');
+  if (invoiceId === envelope.operationId) {
+    throw new ReplicationError('INVALID_ENVELOPE', 'Retail operation identity must not be reused as the invoice identity.');
   }
-  row.cashPaise = cash;
-  row.creditPaise = other;
-  row.splitComplete = true;
+  return invoiceId;
+}
+
+function applyRetailSale(store: CloudStore, envelope: Envelope): void {
+  const payload = record(envelope.payload) ? envelope.payload : {};
+  const receipt = record(payload.receipt) ? payload.receipt : payload;
+  const kind = typeof receipt.kind === 'string' ? receipt.kind : envelope.eventType;
+  if (kind !== 'sale' && kind !== 'retail.sale') return;
+  const data = record(receipt.data) ? receipt.data : {};
+  const invoiceId = retailInvoiceId(payload, envelope);
+  const payments = data.payments;
+  parsePaymentParts(payments);
+  const existing = store.invoices.get(tenantKey(envelope.businessId, invoiceId));
+  const pending: PendingRetail = {
+    retailOperationId: envelope.operationId,
+    invoiceId,
+    occurredAtIso: envelope.occurredAtIso,
+    payloadSha256: envelope.payloadSha256,
+    payments,
+  };
+  if (!existing) {
+    const prior = store.pendingRetail.get(tenantKey(envelope.businessId, invoiceId));
+    if (prior && prior.payloadSha256 !== envelope.payloadSha256) {
+      throw new ReplicationError('CONFLICT', 'A different retail receipt already targets this invoice.');
+    }
+    store.pendingRetail.set(tenantKey(envelope.businessId, invoiceId), pending);
+    return;
+  }
+  if (existing.tender !== 'retail') {
+    throw new ReplicationError('CONFLICT', 'A non-retail invoice cannot take retail payment parts.');
+  }
+  const classified = classifyPayments(payments, existing.totalPaise, existing.customerId);
+  if (existing.allocation === 'posted') {
+    if (
+      existing.cashPaise !== classified.cashPaise ||
+      existing.digitalPaise !== classified.digitalPaise ||
+      existing.customerCreditPaise !== classified.customerCreditPaise
+    ) {
+      throw new ReplicationError('CONFLICT', 'Linked payment totals disagree with the invoice.');
+    }
+    return;
+  }
+  completeInvoice(existing, classified.cashPaise, classified.digitalPaise, classified.customerCreditPaise, envelope.operationId);
 }
 
 function applyCustomer(store: CloudStore, envelope: Envelope): void {
@@ -102,13 +157,15 @@ function applyCustomer(store: CloudStore, envelope: Envelope): void {
   if (kind === 'customer.saved') {
     const id = typeof value.id === 'string' ? value.id : envelope.operationId;
     const existing = store.customers.get(tenantKey(envelope.businessId, id));
-    const outstanding = typeof value.balancePaise === 'string' ? integer(value.balancePaise, 'Balance') : existing?.outstandingPaise ?? 0n;
+    const outstanding =
+      typeof value.balancePaise === 'string' ? integer(value.balancePaise, 'Balance', true) : existing?.outstandingPaise ?? 0n;
     const row: CustomerRow = {
       customerId: id,
       name: text(value.name, existing?.name ?? id),
       phone: typeof value.phone === 'string' ? value.phone : existing?.phone ?? null,
       outstandingPaise: outstanding,
-      creditLimitPaise: value.creditLimitPaise == null ? existing?.creditLimitPaise ?? null : integer(value.creditLimitPaise, 'Credit limit'),
+      creditLimitPaise:
+        value.creditLimitPaise == null ? existing?.creditLimitPaise ?? null : integer(value.creditLimitPaise, 'Credit limit'),
       lastActivityIso: envelope.occurredAtIso,
     };
     store.customers.set(tenantKey(envelope.businessId, id), row);
@@ -119,8 +176,7 @@ function applyCustomer(store: CloudStore, envelope: Envelope): void {
     if (!customerId) return;
     const amount = integer(value.amountPaise, 'Credit amount');
     const creditKind = typeof value.kind === 'string' ? value.kind : kind;
-    const delta =
-      creditKind === 'repayment' || creditKind === 'write_off' ? -amount : amount;
+    const delta = creditKind === 'repayment' || creditKind === 'write_off' ? -amount : amount;
     const direction: 'debit' | 'credit' = delta < 0n ? 'credit' : 'debit';
     bumpCustomer(
       store,
@@ -131,7 +187,7 @@ function applyCustomer(store: CloudStore, envelope: Envelope): void {
       envelope.occurredAtIso,
       direction,
       creditKind,
-      typeof value.balancePaise === 'string' ? integer(value.balancePaise, 'Balance') : null,
+      typeof value.balancePaise === 'string' ? integer(value.balancePaise, 'Balance', true) : null,
     );
   }
 }
@@ -145,7 +201,7 @@ function applyInventory(store: CloudStore, envelope: Envelope): void {
     productId: product.id,
     name: text(product.name, product.id),
     sku: text(product.sku, product.id).slice(0, 40),
-    quantityMilli: qty < 0n ? 0n : qty,
+    quantityMilli: qty,
     reorderMilli: integer(product.reorderMilli ?? 0, 'Reorder'),
     updatedAtIso: envelope.occurredAtIso,
   };
@@ -188,8 +244,9 @@ function bumpCustomer(
 }
 
 export function projectEvent(store: CloudStore, envelope: Envelope): void {
-  if (envelope.eventType === 'invoice.posted' || envelope.stream === 'billing') applyInvoice(store, envelope);
+  if (envelope.stream === 'billing') applyInvoice(store, envelope);
   else if (envelope.stream === 'retail') applyRetailSale(store, envelope);
   else if (envelope.stream === 'customer') applyCustomer(store, envelope);
   else if (envelope.stream === 'inventory') applyInventory(store, envelope);
+  else throw new ReplicationError('INVALID_ENVELOPE', 'Unknown stream identity.');
 }

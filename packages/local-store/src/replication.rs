@@ -4,7 +4,10 @@
 //! state lives in a SQLCipher sidecar keyed by restore generation so a restored
 //! ledger is republished instead of skipped. Network I/O never holds the
 //! financial writer lock.
+use rusqlite::params;
 use sha2::{Digest, Sha256};
+
+use crate::{Store, StoreError};
 
 pub const STREAMS: [&str; 4] = ["billing", "customer", "retail", "inventory"];
 
@@ -55,6 +58,71 @@ pub fn payload_sha256(payload: &str) -> String {
 
 pub fn should_publish(last_acked: i64, sequence: i64) -> bool {
     sequence > last_acked
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ReplicationRow {
+    pub stream: &'static str,
+    pub sequence: i64,
+    pub operation_id: String,
+    pub payload: String,
+}
+
+impl Store {
+    /// Read unpublished outbox rows. Query only — never opens a network socket
+    /// and must not be called while a financial writer transaction is open.
+    pub fn unpublished_replication(
+        &self,
+        ack: &SidecarAck,
+    ) -> Result<Vec<ReplicationRow>, StoreError> {
+        if ack.last_sequence.iter().any(|n| *n < 0) {
+            return Err(StoreError::InvalidInvoice);
+        }
+        let mut rows = Vec::new();
+        rows.extend(self.read_outbox(
+            "billing",
+            "SELECT sequence, invoice_id, payload FROM local_billing_outbox \
+             WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
+            ack.last_for("billing").unwrap_or(0),
+        )?);
+        rows.extend(self.read_outbox(
+            "customer",
+            "SELECT sequence, operation_id, payload FROM local_customer_outbox \
+             WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
+            ack.last_for("customer").unwrap_or(0),
+        )?);
+        rows.extend(self.read_outbox(
+            "retail",
+            "SELECT sequence, operation_id, payload FROM local_retail_outbox \
+             WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
+            ack.last_for("retail").unwrap_or(0),
+        )?);
+        rows.extend(self.read_outbox(
+            "inventory",
+            "SELECT sequence, operation_id, payload FROM local_inventory_outbox \
+             WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
+            ack.last_for("inventory").unwrap_or(0),
+        )?);
+        Ok(rows)
+    }
+
+    fn read_outbox(
+        &self,
+        stream: &'static str,
+        sql: &str,
+        after: i64,
+    ) -> Result<Vec<ReplicationRow>, StoreError> {
+        let mut statement = self.0.prepare(sql)?;
+        let mapped = statement.query_map(params![after], |row| {
+            Ok(ReplicationRow {
+                stream,
+                sequence: row.get(0)?,
+                operation_id: row.get(1)?,
+                payload: row.get(2)?,
+            })
+        })?;
+        Ok(mapped.collect::<Result<Vec<_>, _>>()?)
+    }
 }
 
 #[cfg(test)]

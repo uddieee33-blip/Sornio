@@ -1,10 +1,18 @@
 -- Phase 2 native financial replication.
 -- REVIEW ONLY. Do not apply to production automatically.
 -- Isolated from hosted sync_operating_records.
--- Paise and milli quantities are stored as BIGINT (exact integers).
--- Bounds match native MAX_VALUE: 9_000_000_000_000.
+-- Paise and milli quantities are BIGINT. Bounds match native MAX_VALUE: 9_000_000_000_000.
+-- Incomplete retail allocations are stored as allocation_status = 'pending' and
+-- are never visible through companion snapshot views.
 
 CREATE SCHEMA IF NOT EXISTS native_replication;
+
+DO $$ BEGIN CREATE ROLE sornio_publisher NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE sornio_owner NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE sornio_manager NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE sornio_cashier NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE sornio_auditor NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
+DO $$ BEGIN CREATE ROLE authenticated NOLOGIN; EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
 CREATE TABLE native_replication.businesses (
   business_id TEXT PRIMARY KEY CHECK (business_id ~ '^[A-Za-z0-9_-]{8,80}$'),
@@ -46,7 +54,7 @@ CREATE TABLE native_replication.events (
 CREATE TABLE native_replication.stream_heads (
   business_id TEXT NOT NULL REFERENCES native_replication.businesses(business_id),
   restore_generation TEXT NOT NULL,
-  stream TEXT NOT NULL,
+  stream TEXT NOT NULL CHECK (stream IN ('billing','customer','retail','inventory')),
   last_sequence BIGINT NOT NULL CHECK (last_sequence >= 0),
   PRIMARY KEY (business_id, restore_generation, stream)
 );
@@ -60,15 +68,34 @@ CREATE TABLE native_replication.projection_cursor (
 
 CREATE TABLE native_replication.invoices (
   business_id TEXT NOT NULL REFERENCES native_replication.businesses(business_id),
-  operation_id TEXT NOT NULL,
+  invoice_id TEXT NOT NULL,
+  billing_operation_id TEXT NOT NULL,
+  retail_operation_id TEXT,
   occurred_at TIMESTAMPTZ NOT NULL,
   counterparty TEXT NOT NULL,
+  customer_id TEXT,
+  tender TEXT NOT NULL CHECK (tender IN ('cash','credit','retail')),
   total_paise BIGINT NOT NULL CHECK (total_paise BETWEEN 0 AND 9000000000000),
   cash_paise BIGINT NOT NULL CHECK (cash_paise BETWEEN 0 AND 9000000000000),
-  credit_paise BIGINT NOT NULL CHECK (credit_paise BETWEEN 0 AND 9000000000000),
-  split_complete BOOLEAN NOT NULL,
-  PRIMARY KEY (business_id, operation_id),
-  CHECK (cash_paise + credit_paise = total_paise)
+  digital_paise BIGINT NOT NULL CHECK (digital_paise BETWEEN 0 AND 9000000000000),
+  customer_credit_paise BIGINT NOT NULL CHECK (customer_credit_paise BETWEEN 0 AND 9000000000000),
+  allocation_status TEXT NOT NULL CHECK (allocation_status IN ('pending','posted')),
+  PRIMARY KEY (business_id, invoice_id),
+  CHECK (
+    allocation_status = 'pending'
+    OR (cash_paise + digital_paise + customer_credit_paise = total_paise)
+  ),
+  CHECK (allocation_status = 'pending' OR retail_operation_id IS NOT NULL OR tender <> 'retail')
+);
+
+CREATE TABLE native_replication.pending_retail (
+  business_id TEXT NOT NULL REFERENCES native_replication.businesses(business_id),
+  invoice_id TEXT NOT NULL,
+  retail_operation_id TEXT NOT NULL,
+  payload JSONB NOT NULL,
+  payload_sha256 TEXT NOT NULL,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  PRIMARY KEY (business_id, invoice_id)
 );
 
 CREATE TABLE native_replication.inventory (
@@ -100,23 +127,57 @@ CREATE TABLE native_replication.acks (
   PRIMARY KEY (business_id, operation_id)
 );
 
+CREATE OR REPLACE FUNCTION native_replication.jwt_claim(key TEXT) RETURNS TEXT
+LANGUAGE sql STABLE AS $$
+  SELECT NULLIF(current_setting('request.jwt.claims', true), '')::json ->> key
+$$;
+
+CREATE VIEW native_replication.posted_invoices AS
+  SELECT * FROM native_replication.invoices WHERE allocation_status = 'posted';
+
 ALTER TABLE native_replication.events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.invoices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.pending_retail ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.projection_cursor ENABLE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.acks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.events FORCE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.invoices FORCE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.pending_retail FORCE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.inventory FORCE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.customers FORCE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.projection_cursor FORCE ROW LEVEL SECURITY;
 
--- RLS uses authenticated JWT business_id. Service-role is not granted to clients.
-CREATE POLICY events_tenant ON native_replication.events
-  USING (business_id = current_setting('request.jwt.claims', true)::json->>'business_id');
-CREATE POLICY invoices_tenant ON native_replication.invoices
-  USING (business_id = current_setting('request.jwt.claims', true)::json->>'business_id');
-CREATE POLICY inventory_tenant ON native_replication.inventory
-  USING (business_id = current_setting('request.jwt.claims', true)::json->>'business_id');
-CREATE POLICY customers_tenant ON native_replication.customers
-  USING (business_id = current_setting('request.jwt.claims', true)::json->>'business_id');
+CREATE POLICY events_publisher_insert ON native_replication.events
+  FOR INSERT TO sornio_publisher
+  WITH CHECK (
+    business_id = native_replication.jwt_claim('business_id')
+    AND native_replication.jwt_claim('role') = 'publisher'
+  );
+
+CREATE POLICY invoices_readers ON native_replication.invoices
+  FOR SELECT TO sornio_owner, sornio_manager, sornio_cashier, sornio_auditor
+  USING (
+    business_id = native_replication.jwt_claim('business_id')
+    AND allocation_status = 'posted'
+  );
+
+CREATE POLICY inventory_readers ON native_replication.inventory
+  FOR SELECT TO sornio_owner, sornio_manager, sornio_cashier, sornio_auditor
+  USING (business_id = native_replication.jwt_claim('business_id'));
+
+CREATE POLICY customers_restricted ON native_replication.customers
+  FOR SELECT TO sornio_owner, sornio_manager, sornio_auditor
+  USING (business_id = native_replication.jwt_claim('business_id'));
+
+CREATE POLICY cursor_readers ON native_replication.projection_cursor
+  FOR SELECT TO sornio_owner, sornio_manager, sornio_cashier, sornio_auditor
+  USING (business_id = native_replication.jwt_claim('business_id'));
 
 REVOKE ALL ON SCHEMA native_replication FROM PUBLIC;
-GRANT USAGE ON SCHEMA native_replication TO authenticated;
-GRANT SELECT ON native_replication.invoices, native_replication.inventory, native_replication.customers, native_replication.projection_cursor TO authenticated;
--- Ingest uses a dedicated publisher role, never the companion reader role.
+GRANT USAGE ON SCHEMA native_replication TO sornio_publisher, sornio_owner, sornio_manager, sornio_cashier, sornio_auditor;
 GRANT INSERT ON native_replication.events TO sornio_publisher;
+GRANT SELECT ON native_replication.invoices, native_replication.posted_invoices, native_replication.inventory, native_replication.projection_cursor TO sornio_owner, sornio_manager, sornio_cashier, sornio_auditor;
+GRANT SELECT ON native_replication.customers TO sornio_owner, sornio_manager, sornio_auditor;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA native_replication TO sornio_publisher;

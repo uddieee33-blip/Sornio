@@ -1,4 +1,4 @@
-import { requirePublisher } from './auth';
+import { requirePublisherRole } from './auth';
 import { buildEnvelope } from './envelope';
 import { ingestEnvelope } from './ingest';
 import { CloudStore } from './store';
@@ -81,7 +81,7 @@ export class DesktopPublisher {
   }
 
   async flush(nowMs: number): Promise<IngestAck[]> {
-    requirePublisher(this.principal, nowMs);
+    requirePublisherRole(this.principal, nowMs);
     if (this.principal.restoreGeneration !== this.ack.restoreGeneration) {
       this.ack = emptyAck(this.principal.restoreGeneration);
     }

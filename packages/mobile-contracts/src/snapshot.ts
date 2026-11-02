@@ -1,7 +1,7 @@
 import type { PortalId, Role } from './identity';
 import type { PaiseString, QuantityMilliString } from './money';
 import type { RestoreGeneration, SyncCursor } from './sync';
-import { MOBILE_SYNC_SCHEMA_VERSION } from './sync';
+import type { MobileSyncSchemaVersion } from './sync';
 
 export const ACTIVITY_KINDS = [
   'invoice',
@@ -19,6 +19,11 @@ export type MoneySplit = {
   totalPaise: PaiseString;
   cashPaise: PaiseString;
   creditPaise: PaiseString;
+  /**
+   * UPI + card paise awaiting statement match. Absent on schema v1.
+   * Never customer credit. cash + credit + digital = total on schema v2.
+   */
+  digitalPaise?: PaiseString;
 };
 
 export type FinancialOverview = {
@@ -39,6 +44,7 @@ export type ActivityItem = {
   amountPaise: PaiseString;
   cashPaise: PaiseString;
   creditPaise: PaiseString;
+  digitalPaise?: PaiseString;
 };
 
 export type InventoryItem = {
@@ -78,7 +84,7 @@ export type BusinessAlert = {
 };
 
 export type CompanionSnapshot = {
-  schemaVersion: typeof MOBILE_SYNC_SCHEMA_VERSION;
+  schemaVersion: MobileSyncSchemaVersion;
   mode: 'demo' | 'live';
   businessId: string;
   businessName: string;
@@ -89,6 +95,8 @@ export type CompanionSnapshot = {
   cursor: SyncCursor;
   producedAtIso: string;
   source: 'desktop-outbox' | 'demo';
+  /** Schema v2 only. False when ingested events are waiting on a correlated stream. */
+  projectionComplete?: boolean;
   overview: FinancialOverview;
   activity: ActivityItem[];
   inventory: InventoryItem[];
