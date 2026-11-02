@@ -1,7 +1,7 @@
 # Phase 2 assignment — native outbox to cloud read projections
 
 Priority: CRITICAL  
-Depends on: Phase 1 companion contracts (`packages/mobile-contracts`)
+Depends on: Phase 1 companion contracts (`packages/mobile-contracts`) and unmerged [PR #143](https://github.com/uddieee33-blip/Sornio/pull/143). Arena cannot open a stacked branch, so implementation lives on `arena/5ed2bd28-sornio`.
 
 ## Objective
 
@@ -37,3 +37,13 @@ Phase 2 is done when a Windows debug build can post one cash+credit invoice
 offline, reconnect, and a contract test against the cloud returns the same
 paise strings the companion parser accepts — with production adapter still
 disabled in the app until Phase 3.
+
+## Implementation notes (this branch)
+
+See [PHASE-2-DESKTOP-CLOUD-REPLICATION.md](./PHASE-2-DESKTOP-CLOUD-REPLICATION.md).
+
+- Financial `SCHEMA_VERSION` remains 12. Publisher acks are a sidecar.
+- Cloud ingest/projection: `packages/replication-cloud` (TypeScript harness + review-only SQL).
+- Sidecar ack math: `packages/local-store/src/replication.rs`.
+- Proof: `npm run verify:replication` (62 checks). Rust sidecar tests run on Windows CI.
+- `productionSyncEnabled` remains false. Not a production GO. Do not merge #143/#126/#127 from this work.

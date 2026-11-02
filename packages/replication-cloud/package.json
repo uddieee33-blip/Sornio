@@ -1,0 +1,7 @@
+{
+  "name": "@sornio/replication-cloud",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Phase 2 authenticated desktop outbox ingest and companion read projections. Not live mobile sync."
+}
