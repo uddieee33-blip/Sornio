@@ -22,6 +22,8 @@ export type NativeOutboxRow = {
   sequence: number;
   operationId: string;
   payload: unknown;
+  /** Native outbox TEXT. Digest this, never a re-serialized object. */
+  payloadText?: string;
   occurredAtIso: string;
 };
 
@@ -35,6 +37,8 @@ export type Envelope = {
   operationId: string;
   eventType: string;
   payload: unknown;
+  /** Exact native outbox TEXT when provided. Digest is of this string. */
+  payloadText?: string;
   occurredAtIso: string;
   payloadSha256: string;
 };

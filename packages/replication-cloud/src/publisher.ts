@@ -49,6 +49,10 @@ export class InMemoryTransport implements Transport {
   }
 }
 
+export type SidecarStore = {
+  persist(ack: SidecarAck): void | Promise<void>;
+};
+
 export class DesktopPublisher {
   readonly pending: NativeOutboxRow[] = [];
   ack: SidecarAck;
@@ -60,6 +64,7 @@ export class DesktopPublisher {
     private readonly digest: DigestFn,
     private readonly transport: Transport,
     generation: string,
+    private readonly sidecar?: SidecarStore,
   ) {
     this.ack = emptyAck(generation);
   }
@@ -98,6 +103,7 @@ export class DesktopPublisher {
       const envelope = buildEnvelope(this.principal, row, this.digest);
       const ack = await this.transport.send(envelope);
       this.ack.lastSequence[row.stream] = row.sequence;
+      if (this.sidecar) await this.sidecar.persist(this.ack);
       this.pending.splice(
         this.pending.findIndex((item) => item.stream === row.stream && item.sequence === row.sequence),
         1,

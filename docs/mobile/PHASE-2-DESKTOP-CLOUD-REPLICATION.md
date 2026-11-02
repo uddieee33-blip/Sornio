@@ -24,28 +24,31 @@ Incomplete retail allocations (`Tender::Retail` without a correlated receipt) ar
 
 ## Auth
 
-Every ingest and snapshot call resolves the presented credential against the **enrolled** device row. Revocation on the server wins over a stale token. Publisher cannot read. Cashier cannot read `native_replication.customers` (database grant + RLS, not only snapshot filtering).
+Every ingest and snapshot call resolves the presented credential against the **enrolled** device row. Revocation on the server wins over a stale token. Publisher cannot read. Cashier cannot read `native_replication.customers` or `customer_statements` (database grant + RLS + `security_invoker` views, not only snapshot filtering). JWT claims use `set_config(..., true)` inside the reader transaction (`SET LOCAL`). Enrollment is privileged: a publisher cannot self-enroll or un-revoke.
+
+Staging HTTPS uses an HMAC issuer local to the test. Clients do not carry a service-role key.
 
 ## Persistence
 
-- In-memory `CloudStore` is a test working set with clone/adopt atomicity.
-- PostgreSQL migration is review-only and is executed in PGlite. Posted invoices require `cash + digital + customer_credit = total`. Pending rows may exist without that equality.
-- Do not auto-apply to production.
+- PostgreSQL is the durable store. `ingestDurable` hydrates projections from SQL, applies one event, and commits event + stream head + cursor + all projections + ack in **one transaction**. Ack is inserted after projections. A rejected ingest rolls back and writes no ack.
+- Multi-worker safety is `SELECT … FOR UPDATE` on the business row plus unique `(business_id, restore_generation, stream, stream_sequence)` and `(…, operation_id)`. Not a process mutex.
+- Payload digest is SHA-256 of the **native outbox TEXT**, not `JSON.stringify` of a parsed object.
+- Posted invoices require `cash + digital + customer_credit = total`. Pending rows may exist without that equality.
+- Do not auto-apply SQL to production.
 
 ## Native publisher
 
-`Store::unpublished_replication` reads the four outboxes after a sidecar ack cursor. It does not open a network socket and must not run inside a financial writer transaction. HTTP flush is still TypeScript-side. This sandbox has no `rustc`.
+`Store::unpublished_replication` reads the four outboxes after a sidecar ack cursor. `ReplicationSidecar` persists those cursors in a SQLCipher file outside `SCHEMA_VERSION` (still 12). Restore deletes the sidecar file so a new generation is republished. `publish_unpublished` talks to a `Transport` only after the financial writer lock is released; this crate does not open sockets. HTTPS proof is the Node staging ingest.
 
 ## Proof
 
-`npm run verify:replication` — 77 checks (classification, correlation, atomic ingest, enrolled revocation, PGlite migration, RLS).
+`npm run verify:replication` — classification, correlation, atomic SQL ingest, restart hydrate, enrolled revocation, PGlite RLS with `SET LOCAL`, staging TLS ingest.
 
 `npm run verify:mobile-contracts` — demo v1 still parses.
 
-## Remaining blockers
+## Remaining blockers / not GO
 
-- No Windows debug end-to-end publish (no `rustc` here)
-- No production SQL, no live mobile reads
-- No HTTPS token issuer
-- SQL projector still uses a working-set apply then persists; not a standalone stored-procedure engine
-- Unit tests are not a production GO
+- No `rustc` in this sandbox, so native sidecar tests are source-level here; Windows CI must compile them
+- No production SQL apply, no live mobile reads, `productionSyncEnabled` remains false
+- Multi-worker concurrency is designed (row locks + uniques) but PGlite is one connection — true Postgres workers remain UNTESTED
+- No Play/App Store, no merge to `main`

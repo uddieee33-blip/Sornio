@@ -7,7 +7,8 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -41,6 +42,7 @@ const replicationFiles = [
   'snapshot.ts',
   'publisher.ts',
   'postgres.ts',
+  'https.ts',
   'index.ts',
 ].map((name) => join(root, 'packages/replication-cloud/src', name));
 
@@ -72,6 +74,11 @@ try {
       '--strict',
       '--skipLibCheck',
       '--ignoreConfig',
+      '--esModuleInterop',
+      '--types',
+      'node',
+      '--typeRoots',
+      join(root, 'node_modules/@types'),
     ],
     { stdio: 'inherit' },
   );
@@ -93,7 +100,15 @@ try {
     checkoutProceedsIfCloudDown,
     applyReplicationMigration,
     enrollSql,
+    enrollPrivileged,
+    revokePrivileged,
     setJwtClaims,
+    ingestDurable,
+    hydrateFromPostgres,
+    issueStagingToken,
+    verifyStagingToken,
+    listenStagingIngest,
+    postStagingIngest,
   } = require(join(out, 'replication-cloud/src/index.js'));
   const { parseCompanionSnapshot } = require(join(out, 'mobile-contracts/src/validation.js'));
   const { decideSnapshotApply } = require(join(out, 'mobile-contracts/src/sync.js'));
@@ -268,6 +283,11 @@ try {
   const rust = readFileSync(join(root, 'packages/local-store/src/replication.rs'), 'utf8');
   check(rust.includes('unpublished_replication'), 'native unpublished outbox reader is wired');
   check(rust.includes('never opens a network socket'), 'native reader does not take the network lock');
+  check(rust.includes('ReplicationSidecar'), 'native sidecar is durable SQLCipher state');
+  check(rust.includes('payload_text'), 'native envelope carries outbox TEXT');
+  check(rust.includes('does not open sockets'), 'native publisher crate does not open sockets');
+  const desktopMain = readFileSync(join(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8');
+  check(desktopMain.includes('reset_sidecar_file'), 'desktop restore discards sidecar acks');
 
   const classified = classifyPayments(
     [
@@ -278,6 +298,22 @@ try {
     null,
   );
   check(classified.cashPaise === 60000n && classified.digitalPaise === 40000n && classified.customerCreditPaise === 0n, 'UPI is digital not credit');
+
+  const nativeText = '{ "kind": "invoice.posted", "invoice": { "id": "bill-hash", "createdAt": "2026-11-03T10:00:00.000Z", "totalPaise": 100000, "tender": "cash", "customerId": null, "customerName": "Walk-in", "lines": [], "subtotalPaise": 100000, "taxPaise": 0, "taxBasisPoints": 0 } }';
+  const hashed = buildEnvelope(
+    actor('publisher'),
+    {
+      stream: 'billing',
+      sequence: 1,
+      operationId: 'bill-hash',
+      occurredAtIso: ISO,
+      payload: JSON.parse(nativeText),
+      payloadText: nativeText,
+    },
+    digest,
+  );
+  check(hashed.payloadSha256 === digest(nativeText), 'envelope digest is native outbox TEXT');
+  check(hashed.payloadSha256 !== digest(JSON.stringify(JSON.parse(nativeText))), 'envelope digest is not JSON.stringify of the parsed object');
 
   try {
     const unexpected = classifyPayments([{ id: 'pay-x', method: 'cheque', amountPaise: 100000 }], 100000, null);
@@ -484,7 +520,12 @@ try {
   const pub = enroll(sidecar, actor('publisher', { deviceId: 'device-publisher-flush' }));
   enroll(sidecar, actor('owner', { deviceId: 'device-owner-flush' }));
   const transport = new InMemoryTransport(sidecar, pub, digest, () => NOW);
-  const desktop = new DesktopPublisher(pub, digest, transport, 'gen-1');
+  const persistedAcks = [];
+  const desktop = new DesktopPublisher(pub, digest, transport, 'gen-1', {
+    persist(ack) {
+      persistedAcks.push({ restoreGeneration: ack.restoreGeneration, lastSequence: { ...ack.lastSequence } });
+    },
+  });
   desktop.noteCommit(productRow(1));
   desktop.noteCommit(invoiceRow(1, { id: 'bill-off', tender: 'cash', customerId: null, customerName: 'Walk-in', lines: [] }));
   desktop.writerLocked = true;
@@ -496,6 +537,7 @@ try {
   };
   await desktop.flush(NOW);
   check(lockedDuringSend === false, 'network flush does not hold the writer lock');
+  check(persistedAcks.length >= 1, 'sidecar ack is persisted only after a successful send');
   transport.failure = 'network';
   desktop.noteCommit(invoiceRow(2, { id: 'bill-offline', tender: 'cash', customerId: null, customerName: 'Walk-in', lines: [] }));
   try {
@@ -518,6 +560,13 @@ try {
   check(sql.includes("allocation_status = 'pending'"), 'incomplete invoices are explicit');
   check(sql.includes('sornio_cashier'), 'cashier is a distinct database role');
   check(!sql.includes('GRANT SELECT ON native_replication.customers TO sornio_cashier'), 'cashier is not granted customer ledger');
+  check(sql.includes('security_invoker'), 'posted invoice view uses invoker rights');
+  check(sql.includes('customer_statements'), 'customer statements persist in SQL');
+  const postgresSrc = readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8');
+  check(postgresSrc.includes("set_config('request.jwt.claims'"), 'JWT claims are set through set_config');
+  check(postgresSrc.includes(', true)'), 'JWT claims are transaction-local');
+  check(postgresSrc.includes('hydrateFromPostgres'), 'projections hydrate from PostgreSQL');
+  check(postgresSrc.includes('persistProjections'), 'all stream projections persist in the ingest transaction');
 
   const { PGlite } = await import('@electric-sql/pglite');
   const pg = new PGlite();
@@ -579,6 +628,7 @@ try {
   );
   await pg.exec('CREATE ROLE sornio_cashier_login LOGIN IN ROLE sornio_cashier');
   await pg.exec('CREATE ROLE sornio_owner_login LOGIN IN ROLE sornio_owner');
+  await pg.exec('BEGIN');
   await setJwtClaims(pg, { business_id: 'biz-kirana-01', role: 'cashier' });
   await pg.exec('SET ROLE sornio_cashier_login');
   let cashierBlocked = false;
@@ -587,14 +637,157 @@ try {
   } catch {
     cashierBlocked = true;
   }
-  await pg.exec('RESET ROLE');
+  try {
+    await pg.exec('ROLLBACK');
+  } catch {
+    // aborted
+  }
   check(cashierBlocked, 'cashier database role cannot read customer ledger');
 
+  await pg.exec('BEGIN');
   await setJwtClaims(pg, { business_id: 'biz-salon-99', role: 'owner' });
   await pg.exec('SET ROLE sornio_owner_login');
   const isolated = await pg.query(`SELECT COUNT(*)::int AS n FROM native_replication.invoices WHERE allocation_status = 'posted'`);
   await pg.exec('RESET ROLE');
+  await pg.exec('COMMIT');
   check(isolated.rows[0].n === 0, 'owner of another business sees zero posted invoices under RLS');
+
+  const durablePub = actor('publisher', { businessId: 'biz-durable-01', deviceId: 'device-publisher-dur' });
+  const durableOwn = actor('owner', { businessId: 'biz-durable-01', deviceId: 'device-owner-dur' });
+  const durableCash = actor('cashier', { businessId: 'biz-durable-01', deviceId: 'device-cashier-dur' });
+  await enrollPrivileged(pg, durablePub);
+  await enrollPrivileged(pg, durableOwn);
+  await enrollPrivileged(pg, durableCash);
+  await enrollPrivileged(pg, { ...durableOwn, role: 'publisher' });
+  const roleHeld = await pg.query(`SELECT role FROM native_replication.devices WHERE device_id = $1`, [durableOwn.deviceId]);
+  check(roleHeld.rows[0].role === 'owner', 'privileged enroll does not let a device change its own role');
+  await revokePrivileged(pg, durablePub.deviceId);
+  let unrevoke = false;
+  try {
+    await enrollPrivileged(pg, { ...durablePub, revoked: false });
+  } catch (error) {
+    unrevoke = error instanceof ReplicationError && error.code === 'REVOKED';
+  }
+  check(unrevoke, 'a revoked publisher cannot re-enroll or un-revoke itself');
+  await pg.query(`UPDATE native_replication.devices SET revoked = FALSE WHERE device_id = $1`, [durablePub.deviceId]);
+
+  await ingestDurable(pg, durablePub, buildEnvelope(durablePub, productRow(1), digest), digest, NOW);
+  await ingestDurable(pg, durablePub, buildEnvelope(durablePub, customerRow(1), digest), digest, NOW);
+  await ingestDurable(
+    pg,
+    durablePub,
+    buildEnvelope(durablePub, invoiceRow(1, { id: 'bill-durable', tender: 'cash', customerId: null, customerName: 'Walk-in' }), digest),
+    digest,
+    NOW,
+  );
+  const stock = await pg.query(`SELECT quantity_milli::text AS qty FROM native_replication.inventory WHERE business_id = $1`, [
+    durablePub.businessId,
+  ]);
+  check(stock.rows[0] && stock.rows[0].qty === '4000', 'inventory projection is written in the ingest transaction');
+  const customersSql = await pg.query(`SELECT name FROM native_replication.customers WHERE business_id = $1`, [durablePub.businessId]);
+  check(customersSql.rows.some((row) => row.name === 'Ravi Singh'), 'customer projection is written in the ingest transaction');
+  const acked = await pg.query(
+    `SELECT cursor FROM native_replication.acks WHERE business_id = $1 AND operation_id = $2`,
+    [durablePub.businessId, 'bill-durable'],
+  );
+  check(acked.rows[0] && acked.rows[0].cursor, 'ack is written only with the committed projection');
+
+  let gapAcked = true;
+  try {
+    await ingestDurable(
+      pg,
+      durablePub,
+      buildEnvelope(durablePub, invoiceRow(3, { id: 'bill-gap-durable', tender: 'cash', customerId: null, lines: [] }), digest),
+      digest,
+      NOW,
+    );
+    gapAcked = true;
+  } catch (error) {
+    gapAcked = false;
+    check(error instanceof ReplicationError && error.code === 'GAP', 'gapped durable ingest is rejected');
+  }
+  const gapRow = await pg.query(`SELECT COUNT(*)::int AS n FROM native_replication.acks WHERE operation_id = 'bill-gap-durable'`);
+  check(!gapAcked && gapRow.rows[0].n === 0, 'rejected ingest does not write an ack');
+
+  const restarted = await hydrateFromPostgres(pg, durablePub.businessId);
+  const restartedSnap = parseCompanionSnapshot(buildCompanionSnapshot(restarted, durableOwn, ISO, NOW));
+  check(restartedSnap.overview.todaySales.cashPaise === '100000', 'projections survive a process restart from PostgreSQL');
+  check(restartedSnap.inventory.some((item) => item.id === 'atta-001'), 'inventory survives restart');
+  check(restartedSnap.projectionComplete === true, 'restarted projection is complete');
+
+  const tlsDir = mkdtempSync(join(tmpdir(), 'sornio-tls-'));
+  const keyPath = join(tlsDir, 'key.pem');
+  const certPath = join(tlsDir, 'cert.pem');
+  execFileSync(
+    'openssl',
+    [
+      'req',
+      '-x509',
+      '-newkey',
+      'rsa:2048',
+      '-sha256',
+      '-days',
+      '1',
+      '-nodes',
+      '-keyout',
+      keyPath,
+      '-out',
+      certPath,
+      '-subj',
+      '/CN=127.0.0.1',
+      '-addext',
+      'subjectAltName=IP:127.0.0.1',
+    ],
+    { stdio: 'pipe' },
+  );
+  const secret = randomBytes(32).toString('hex');
+  const token = issueStagingToken(secret, durablePub);
+  check(verifyStagingToken(secret)(token).deviceId === durablePub.deviceId, 'staging issuer verifies its own token');
+  const server = await listenStagingIngest({
+    key: readFileSync(keyPath),
+    cert: readFileSync(certPath),
+    ingest: (principal, body) => ingestDurable(pg, principal, body, digest, NOW),
+    verify: verifyStagingToken(secret),
+    nowMs: () => NOW,
+  });
+  try {
+    const httpsAck = await postStagingIngest({
+      hostname: '127.0.0.1',
+      port: server.port,
+      ca: readFileSync(certPath),
+      token,
+      body: buildEnvelope(
+        durablePub,
+        invoiceRow(2, { id: 'bill-https', tender: 'cash', customerId: null, customerName: 'Walk-in', lines: [] }),
+        digest,
+      ),
+    });
+    check(httpsAck.duplicate === false, 'HTTPS ingest commits over TLS');
+    const httpsInvoice = await pg.query(
+      `SELECT allocation_status FROM native_replication.invoices WHERE invoice_id = 'bill-https'`,
+    );
+    check(httpsInvoice.rows[0] && httpsInvoice.rows[0].allocation_status === 'posted', 'HTTPS ingest persisted the invoice');
+    let stolen = false;
+    try {
+      await postStagingIngest({
+        hostname: '127.0.0.1',
+        port: server.port,
+        ca: readFileSync(certPath),
+        token: issueStagingToken(secret, durableOwn),
+        body: buildEnvelope(
+          durablePub,
+          invoiceRow(3, { id: 'bill-stolen', tender: 'cash', customerId: null, lines: [] }),
+          digest,
+        ),
+      });
+    } catch (error) {
+      stolen = error instanceof ReplicationError && error.code === 'FORBIDDEN';
+    }
+    check(stolen, 'owner token cannot ingest on the HTTPS publisher path');
+  } finally {
+    await server.close();
+    rmSync(tlsDir, { recursive: true, force: true });
+  }
 
   const docs = readFileSync(join(root, 'docs/mobile/PHASE-2-DESKTOP-CLOUD-REPLICATION.md'), 'utf8');
   check(docs.includes('#143') || docs.includes('PR #143'), 'Phase 1 PR dependency is documented');

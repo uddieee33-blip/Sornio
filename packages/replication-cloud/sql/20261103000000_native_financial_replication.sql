@@ -47,7 +47,7 @@ CREATE TABLE native_replication.events (
   payload_sha256 TEXT NOT NULL CHECK (payload_sha256 ~ '^[a-f0-9]{64}$'),
   occurred_at TIMESTAMPTZ NOT NULL,
   ingested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  UNIQUE (business_id, operation_id),
+  UNIQUE (business_id, restore_generation, stream, operation_id),
   UNIQUE (business_id, restore_generation, stream, stream_sequence)
 );
 
@@ -120,11 +120,25 @@ CREATE TABLE native_replication.customers (
   PRIMARY KEY (business_id, customer_id)
 );
 
+CREATE TABLE native_replication.customer_statements (
+  business_id TEXT NOT NULL,
+  customer_id TEXT NOT NULL,
+  line_id TEXT NOT NULL,
+  occurred_at TIMESTAMPTZ NOT NULL,
+  narrative TEXT NOT NULL,
+  amount_paise BIGINT NOT NULL CHECK (amount_paise BETWEEN 0 AND 9000000000000),
+  direction TEXT NOT NULL CHECK (direction IN ('debit','credit')),
+  PRIMARY KEY (business_id, customer_id, line_id),
+  FOREIGN KEY (business_id, customer_id) REFERENCES native_replication.customers(business_id, customer_id)
+);
+
 CREATE TABLE native_replication.acks (
   business_id TEXT NOT NULL REFERENCES native_replication.businesses(business_id),
+  restore_generation TEXT NOT NULL,
+  stream TEXT NOT NULL CHECK (stream IN ('billing','customer','retail','inventory')),
   operation_id TEXT NOT NULL,
   cursor TEXT NOT NULL,
-  PRIMARY KEY (business_id, operation_id)
+  PRIMARY KEY (business_id, restore_generation, stream, operation_id)
 );
 
 CREATE OR REPLACE FUNCTION native_replication.jwt_claim(key TEXT) RETURNS TEXT
@@ -132,7 +146,8 @@ LANGUAGE sql STABLE AS $$
   SELECT NULLIF(current_setting('request.jwt.claims', true), '')::json ->> key
 $$;
 
-CREATE VIEW native_replication.posted_invoices AS
+CREATE VIEW native_replication.posted_invoices
+  WITH (security_invoker = true) AS
   SELECT * FROM native_replication.invoices WHERE allocation_status = 'posted';
 
 ALTER TABLE native_replication.events ENABLE ROW LEVEL SECURITY;
@@ -142,12 +157,14 @@ ALTER TABLE native_replication.inventory ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.customers ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.projection_cursor ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.acks ENABLE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.customer_statements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.events FORCE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.invoices FORCE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.pending_retail FORCE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.inventory FORCE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.customers FORCE ROW LEVEL SECURITY;
 ALTER TABLE native_replication.projection_cursor FORCE ROW LEVEL SECURITY;
+ALTER TABLE native_replication.customer_statements FORCE ROW LEVEL SECURITY;
 
 CREATE POLICY events_publisher_insert ON native_replication.events
   FOR INSERT TO sornio_publisher
@@ -175,9 +192,18 @@ CREATE POLICY cursor_readers ON native_replication.projection_cursor
   FOR SELECT TO sornio_owner, sornio_manager, sornio_cashier, sornio_auditor
   USING (business_id = native_replication.jwt_claim('business_id'));
 
+CREATE POLICY statements_restricted ON native_replication.customer_statements
+  FOR SELECT TO sornio_owner, sornio_manager, sornio_auditor
+  USING (business_id = native_replication.jwt_claim('business_id'));
+
+CREATE POLICY pending_retail_hidden ON native_replication.pending_retail
+  FOR SELECT TO sornio_owner, sornio_auditor
+  USING (business_id = native_replication.jwt_claim('business_id'));
+
 REVOKE ALL ON SCHEMA native_replication FROM PUBLIC;
 GRANT USAGE ON SCHEMA native_replication TO sornio_publisher, sornio_owner, sornio_manager, sornio_cashier, sornio_auditor;
 GRANT INSERT ON native_replication.events TO sornio_publisher;
 GRANT SELECT ON native_replication.invoices, native_replication.posted_invoices, native_replication.inventory, native_replication.projection_cursor TO sornio_owner, sornio_manager, sornio_cashier, sornio_auditor;
-GRANT SELECT ON native_replication.customers TO sornio_owner, sornio_manager, sornio_auditor;
+GRANT SELECT ON native_replication.customers, native_replication.customer_statements TO sornio_owner, sornio_manager, sornio_auditor;
+GRANT SELECT ON native_replication.pending_retail TO sornio_owner, sornio_auditor;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA native_replication TO sornio_publisher;

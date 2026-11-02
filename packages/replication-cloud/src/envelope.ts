@@ -45,7 +45,7 @@ export function buildEnvelope(
   if (!ID.test(row.operationId)) {
     throw new ReplicationError('INVALID_ENVELOPE', 'Operation identity is invalid.');
   }
-  const payloadText = canonicalPayload(row.payload);
+  const payloadText = row.payloadText ?? canonicalPayload(row.payload);
   return {
     schemaVersion: REPLICATION_SCHEMA_VERSION,
     businessId: principal.businessId,
@@ -56,6 +56,7 @@ export function buildEnvelope(
     operationId: row.operationId,
     eventType: eventTypeOf(row.payload),
     payload: row.payload,
+    payloadText,
     occurredAtIso: row.occurredAtIso,
     payloadSha256: digest(payloadText),
   };
@@ -85,9 +86,18 @@ export function parseEnvelope(value: unknown, digest: DigestFn): Envelope {
   if (typeof value.payloadSha256 !== 'string' || !SHA.test(value.payloadSha256)) {
     throw new ReplicationError('INVALID_ENVELOPE', 'Payload digest is invalid.');
   }
-  const expected = digest(canonicalPayload(value.payload));
+  const payloadText = typeof value.payloadText === 'string' ? value.payloadText : canonicalPayload(value.payload);
+  const expected = digest(payloadText);
   if (expected !== value.payloadSha256) {
-    throw new ReplicationError('INVALID_ENVELOPE', 'Payload digest does not match the payload.');
+    throw new ReplicationError('INVALID_ENVELOPE', 'Payload digest does not match the native payload text.');
+  }
+  let payload: unknown = value.payload;
+  if (typeof value.payloadText === 'string') {
+    try {
+      payload = JSON.parse(value.payloadText);
+    } catch {
+      throw new ReplicationError('INVALID_ENVELOPE', 'Native payload text is not valid JSON.');
+    }
   }
   if (typeof value.businessId !== 'string' || typeof value.deviceId !== 'string' || typeof value.restoreGeneration !== 'string') {
     throw new ReplicationError('INVALID_ENVELOPE', 'Envelope identity fields are missing.');
@@ -101,7 +111,8 @@ export function parseEnvelope(value: unknown, digest: DigestFn): Envelope {
     streamSequence: value.streamSequence,
     operationId: value.operationId,
     eventType: value.eventType,
-    payload: value.payload,
+    payload,
+    payloadText: typeof value.payloadText === 'string' ? value.payloadText : undefined,
     occurredAtIso: value.occurredAtIso,
     payloadSha256: value.payloadSha256,
   };

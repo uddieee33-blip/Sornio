@@ -4,7 +4,19 @@ export { buildEnvelope, parseEnvelope, canonicalPayload, eventTypeOf } from './e
 export { ingestEnvelope } from './ingest';
 export { projectEvent } from './project';
 export { CloudStore } from './store';
-export { ingestEnvelopeSql, applyReplicationMigration, enrollSql, setJwtClaims } from './postgres';
+export {
+  ingestEnvelopeSql,
+  ingestDurable,
+  hydrateFromPostgres,
+  applyReplicationMigration,
+  enrollSql,
+  enrollPrivileged,
+  revokePrivileged,
+  setJwtClaims,
+  setJwtClaimsLocal,
+  snapshotFromPostgres,
+} from './postgres';
+export { issueStagingToken, verifyStagingToken, listenStagingIngest, postStagingIngest } from './https';
 export { buildCompanionSnapshot, toSyncEnvelope } from './snapshot';
 export {
   DesktopPublisher,
