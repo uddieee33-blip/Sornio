@@ -787,3 +787,7 @@ mod tests {
         assert!(reset_sidecar_file(dir.path()).is_err());
     }
 }
+
+#[cfg(test)]
+#[path = "replication_matrix_tests.rs"]
+mod replication_matrix_tests;

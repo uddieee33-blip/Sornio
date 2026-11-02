@@ -1,0 +1,48 @@
+name: Replication PostgreSQL
+on:
+  pull_request:
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31']
+    paths:
+      - 'packages/replication-cloud/**'
+      - 'packages/local-store/src/replication.rs'
+      - 'packages/local-store/src/replication_matrix_tests.rs'
+      - 'scripts/verify-replication-postgres.mjs'
+      - 'scripts/verify-replication.mjs'
+      - '.github/workflows/replication-postgres.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: Real PostgreSQL concurrency
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sornio
+          POSTGRES_PASSWORD: sornio-replication-ci
+          POSTGRES_DB: sornio_replication
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sornio -d sornio_replication"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://sornio:sornio-replication-ci@localhost:5432/sornio_replication
+      CI: true
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Real PostgreSQL ingest races
+        run: node scripts/verify-replication-postgres.mjs

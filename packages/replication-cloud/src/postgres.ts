@@ -36,6 +36,13 @@ function asIso(value: unknown): string {
   return new Date(parsed).toISOString();
 }
 
+function pgCode(error: unknown): string {
+  if (error && typeof error === 'object' && 'code' in error && typeof (error as { code: unknown }).code === 'string') {
+    return (error as { code: string }).code;
+  }
+  return '';
+}
+
 function asBigInt(value: unknown): bigint {
   if (typeof value === 'bigint') return value;
   if (typeof value === 'number' && Number.isInteger(value)) return BigInt(value);
@@ -354,6 +361,24 @@ async function persistProjections(db: SqlDatabase, businessId: string, store: Cl
 }
 
 export async function ingestDurable(
+  db: SqlDatabase,
+  presented: Principal,
+  raw: unknown,
+  digest: DigestFn,
+  nowMs: number,
+): Promise<IngestAck> {
+  try {
+    return await ingestDurableAttempt(db, presented, raw, digest, nowMs);
+  } catch (error) {
+    const code = pgCode(error);
+    if (code === '23505' || code === '40P01') {
+      return ingestDurableAttempt(db, presented, raw, digest, nowMs);
+    }
+    throw error;
+  }
+}
+
+async function ingestDurableAttempt(
   db: SqlDatabase,
   presented: Principal,
   raw: unknown,

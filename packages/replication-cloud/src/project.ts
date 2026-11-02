@@ -102,9 +102,9 @@ function retailInvoiceId(payload: Record<string, unknown>, envelope: Envelope): 
   if (!invoiceId) {
     throw new ReplicationError('INVALID_ENVELOPE', 'Retail sale is missing the invoice identity.');
   }
-  if (invoiceId === envelope.operationId) {
-    throw new ReplicationError('INVALID_ENVELOPE', 'Retail operation identity must not be reused as the invoice identity.');
-  }
+  // Native Action::Sale uses the invoice id as the retail operation id.
+  // Activity identity is still the invoice id from the payload. Billing and
+  // retail uniqueness is per stream, so the same operation id may exist on both.
   return invoiceId;
 }
 
