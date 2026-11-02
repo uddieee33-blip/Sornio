@@ -1,0 +1,403 @@
+{
+  "manifestSchemaVersion": "1.0.0",
+  "manifestKind": "MAIN_BOUND_RELEASE_CANDIDATE",
+  "generatedAt": "2026-11-02T16:30:00Z",
+  "supersedes": null,
+  "companionManifest": "docs/reviews/release-evidence-manifest-2026-11-02.json",
+  "labels": {
+    "artifactProvenance": "PR_BOUND_RUN_TREE_IDENTICAL_TO_MAIN",
+    "note": "The Windows installer and native-capture archives in this manifest were produced by a pull_request-triggered run on branch arena/d8cb03c5-sornio at commit e13a930549d45b141d85ee8f7c8deeef470d7396. That commit's git tree hash is identical to the git tree hash of main at baabf5fe35462de22d8a4d6132e29b3873fc919d, so the source content is byte-identical to main. Provenance (triggering ref/event) is nevertheless PR-bound, not main-bound. This is recorded explicitly and is not to be presented as a main-triggered build."
+  },
+  "repository": "uddieee33-blip/Sornio",
+  "targetScope": "CONTROLLED SINGLE-PC WINDOWS PILOT",
+  "excludedScopes": [
+    "multi-pc-lan-pairing-and-sync",
+    "gst-tax-invoice-compliance",
+    "automated-bank-or-upi-payment-verification",
+    "public-self-serve-commercial-onboarding",
+    "public-commercial-release",
+    "cross-version-installer-upgrades",
+    "unattended-disaster-recovery",
+    "authenticode-or-ev-code-signing"
+  ],
+  "gitBaseline": {
+    "mainBranchCommit": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+    "mainBranchCommitDate": "2026-11-02T15:41:34Z",
+    "mainBranchTreeSha": "871c48be587de15c35728494a9b6e80e308b3b22",
+    "mergeMethod": "squash",
+    "pr142": {
+      "number": 142,
+      "title": "fix(accounting): QuantityMilli stock aggregation, BigInt COGS & Windows pilot readiness",
+      "state": "MERGED",
+      "headCommit": "e13a930549d45b141d85ee8f7c8deeef470d7396",
+      "headTreeSha": "871c48be587de15c35728494a9b6e80e308b3b22",
+      "mergeCommit": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+      "mergedAt": "2026-11-02T15:41:34Z",
+      "commitCount": 5,
+      "baseRefName": "main"
+    },
+    "treeEqualityAssertion": {
+      "claim": "PR #142 source tree and resulting main tree are byte-identical",
+      "verdict": "VERIFIED",
+      "method": "git rev-parse <commit>^{tree} on both commits plus git diff --name-status between them",
+      "prHeadTree": "871c48be587de15c35728494a9b6e80e308b3b22",
+      "mainTree": "871c48be587de15c35728494a9b6e80e308b3b22",
+      "changedPathsBetweenTreeHashes": 0,
+      "conclusion": "Tree hashes match exactly and the path-level diff is empty (0 entries). The assertion holds."
+    },
+    "nativeSchemaVersion": 12,
+    "schemaVersionSource": "packages/local-store/src/lib.rs:149 (const SCHEMA_VERSION: i64 = 12)"
+  },
+  "applicationIdentity": {
+    "productName": "Sornio Local Review",
+    "productIdentifier": "com.sornio.localreview",
+    "appVersion": "0.3.0",
+    "versionSourceOfTruth": [
+      "apps/desktop/package.json: version 0.3.0",
+      "apps/desktop/src-tauri/tauri.conf.json: version 0.3.0",
+      "apps/desktop/src-tauri/Cargo.toml: version 0.3.0"
+    ],
+    "bundleFormat": "NSIS per-user (currentUser), no administrator rights required",
+    "webview2InstallMode": "offlineInstaller (bundled, no shop internet needed to install)",
+    "windowCount": 1,
+    "devtoolsInShippedWindow": false,
+    "expectedInstallerFilename": "Sornio Local Review_0.3.0_x64-setup.exe"
+  },
+  "toolchain": {
+    "nodeVersionDeclared": "24.x (package.json engines)",
+    "nodeVersionUsedByWorkflows": "24",
+    "pythonVersionUsedByWindowsWorkflow": "3.12",
+    "rustToolchain": {
+      "declared": "dtolnay/rust-toolchain (default 'stable')",
+      "pinnedVersion": null,
+      "rustToolchainFile": null,
+      "reproducibilityGap": "The Windows workflow installs an unpinned floating 'stable' Rust toolchain and the repository ships no rust-toolchain.toml, so a rebuild months later may compile with a different rustc. This affects build reproducibility, not runtime correctness. Recorded as a low-severity reproducibility finding."
+    },
+    "tauri": {
+      "cliDeclaredRange": "^2.0.0 (apps/desktop/package.json devDependencies @tauri-apps/cli)",
+      "crateDeclaredRange": "2 (apps/desktop/src-tauri/Cargo.toml)",
+      "exactResolvedVersion": "NOT RECOVERABLE FROM THIS ENVIRONMENT (Cargo.lock not consulted for resolved rust crate versions in the Windows runner log, which is unreachable)"
+    },
+    "tauriBuildVersion": "NOT RECOVERABLE FROM THIS ENVIRONMENT — the workflow log that prints the Tauri CLI banner resides in GitHub blob storage, which is blocked from this sandbox."
+  },
+  "githubActionsEvidence": {
+    "postMergeCi": {
+      "workflowName": "CI",
+      "workflowFile": ".github/workflows/ci.yml",
+      "runId": 41474089057,
+      "event": "push",
+      "testedCommitSha": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+      "status": "completed",
+      "conclusion": "success",
+      "runAttempt": 1,
+      "startedAt": "2026-11-02T15:41:37Z",
+      "completedAt": "2026-11-02T15:45:12Z",
+      "jobs": [
+        {
+          "jobId": 125374964241,
+          "name": "Dependency audit",
+          "conclusion": "success",
+          "covers": [
+            "npm audit --audit-level=high (root)",
+            "npm audit --prefix apps/desktop",
+            "cargo audit packages/local-store/Cargo.lock",
+            "cargo audit apps/desktop/src-tauri/Cargo.lock"
+          ]
+        },
+        {
+          "jobId": 125374964550,
+          "name": "Lint, types, build",
+          "conclusion": "success",
+          "covers": [
+            "npm run lint",
+            "npm run typecheck",
+            "npm run typecheck:native",
+            "npm run verify (all 30 verification scripts)",
+            "npm run build"
+          ]
+        }
+      ],
+      "note": "This is the only GitHub-confirmed execution on the exact current main SHA. It proves lint, types, the full 30-script verification chain, the Next.js build and both dependency audits pass on main."
+    },
+    "windowsLocalWorkspace": {
+      "workflowName": "Windows local workspace",
+      "workflowFile": ".github/workflows/windows-local.yml",
+      "runId": 41457796087,
+      "event": "pull_request",
+      "testedCommitSha": "e13a930549d45b141d85ee8f7c8deeef470d7396",
+      "testedCommitTreeSha": "871c48be587de15c35728494a9b6e80e308b3b22",
+      "testedCommitTreeEqualsMainTree": true,
+      "headBranch": "arena/d8cb03c5-sornio",
+      "status": "completed",
+      "conclusion": "success",
+      "startedAt": "2026-11-02T13:59:46Z",
+      "completedAt": "2026-11-02T14:28:34Z",
+      "runnerOs": "windows-latest (GitHub-hosted Windows VM)",
+      "jobs": [
+        {
+          "jobId": 125318857120,
+          "name": "local-windows",
+          "conclusion": "success",
+          "startedAt": "2026-11-02T13:59:48Z",
+          "completedAt": "2026-11-02T14:28:33Z"
+        }
+      ],
+      "verifiedStepsByWorkflowDefinition": [
+        "Install shared root dependencies (npm ci)",
+        "Install desktop dependencies (npm ci --prefix apps/desktop)",
+        "Build bundled frontend",
+        "cargo test --all-targets --release --locked (SQLCipher release suite)",
+        "cargo test --all-targets --locked (debug profile: overflow checks + debug_assert active)",
+        "npm run desktop:build --prefix apps/desktop (NSIS installer)",
+        "python -m unittest test_install_data.py (ciphertext preservation helper)",
+        "python -m unittest test_windows_evidence.py (artifact evidence contract)",
+        "check-native-scale.py (synthetic scale + damaged-return recovery)",
+        "test-invoke-native-check.ps1 (argument forwarding contract)",
+        "check-installer.ps1 (installed offline app, recovery, lifecycle preservation, UIA)",
+        "check-windows-evidence.py (native screenshots, installer checksum, lifecycle evidence)"
+      ],
+      "caveat": "Step outcomes are confirmed only at job granularity (the job concluded success, so every step exited zero). Per-step timings and the step log text are NOT retrievable from this sandbox; GitHub redirects job logs to productionresultssa32.blob.core.windows.net, which is unreachable here."
+    },
+    "workflowDispatchAttempts": [
+      {
+        "workflow": "workspace-browser.yml",
+        "workflowId": 396278092,
+        "command": "gh workflow run workspace-browser.yml -R uddieee33-blip/Sornio --ref main",
+        "result": "FAILED",
+        "httpStatus": 403,
+        "error": "Resource not accessible by integration",
+        "endpoint": "POST /repos/uddieee33-blip/Sornio/actions/workflows/396278092/dispatches",
+        "started": false
+      },
+      {
+        "workflow": "windows-local.yml",
+        "workflowId": 396609582,
+        "command": "gh workflow run windows-local.yml -R uddieee33-blip/Sornio --ref main",
+        "result": "FAILED",
+        "httpStatus": 403,
+        "error": "Resource not accessible by integration",
+        "endpoint": "POST /repos/uddieee33-blip/Sornio/actions/workflows/396609582/dispatches",
+        "started": false
+      }
+    ],
+    "dispatchConclusion": "Neither workflow was started. The GitHub token available to this environment holds read-level repository access but not the actions:write scope required to create workflow_dispatch events. No run IDs, job IDs or timestamps exist for a main-triggered workspace-browser or windows-local run, because no such run occurred. This is stated as fact, not inferred. Per the assignment's instruction, retrying with the same restricted credential was not attempted again.",
+    "repositoryStatePreserved": {
+      "permissionsChanged": false,
+      "rulesetsChanged": false,
+      "tokensChanged": false,
+      "securitySettingsChanged": false,
+      "branchesDeleted": false,
+      "dependabotPrsMerged": false
+    }
+  },
+  "windowsReleaseArtifacts": {
+    "provenanceLabel": "PR #142-BOUND (tree identical to main)",
+    "sourceWorkflowRunId": 41457796087,
+    "installerArchive": {
+      "githubArtifactName": "Sornio-Local-Workspace-Review",
+      "githubArtifactId": 13149371946,
+      "sizeBytes": 222744930,
+      "archiveSha256": "2b6bfaf5d60c2438b22e6596367ad37ab5253923b7a76c4c08d6b85e5e399449",
+      "archiveDigestSource": "GitHub Actions artifact API metadata field 'digest' (sha256:<hex>), independently re-read in this session",
+      "digestMatchesHistoricalRecord": true,
+      "expired": false,
+      "createdAt": "2026-11-02T14:28:14Z",
+      "expiresAt": "2026-11-09T14:28:06Z",
+      "retentionDays": 7,
+      "downloadUrl": "https://api.github.com/repos/uddieee33-blip/Sornio/actions/artifacts/13149371946/zip",
+      "containsExpectedFile": "apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe (upload path glob, if-no-files-found: error)"
+    },
+    "nativeCapturesArchive": {
+      "githubArtifactName": "Sornio-Local-Native-Captures",
+      "githubArtifactId": 13149486747,
+      "sizeBytes": 1278398,
+      "archiveSha256": "1c70021fd649c37dbbe14b274d759b575435d6016c8c25f05ae0608d6ca89e38",
+      "archiveDigestSource": "GitHub Actions artifact API metadata field 'digest' (sha256:<hex>), independently re-read in this session",
+      "digestMatchesHistoricalRecord": true,
+      "expired": false,
+      "createdAt": "2026-11-02T14:28:15Z",
+      "expiresAt": "2026-11-09T14:28:14Z",
+      "retentionDays": 7,
+      "downloadUrl": "https://api.github.com/repos/uddieee33-blip/Sornio/actions/artifacts/13149486747/zip",
+      "expectedContents": [
+        "installer-artifact.json (holds installerSha256 — the contract check-windows-evidence.py enforces)",
+        "installer-lifecycle-result.json",
+        "native-scale.json",
+        "windows-first-setup.png",
+        "windows-local-cash-receipt.png",
+        "windows-retail-closing.png",
+        "windows-installed-preserved.png"
+      ]
+    },
+    "installerExecutable": {
+      "expectedFilename": "Sornio Local Review_0.3.0_x64-setup.exe",
+      "sha256": "NOT COMPUTED — ARTIFACT BODY UNREACHABLE FROM THIS ENVIRONMENT",
+      "manifestLocation": "installer-artifact.json inside the Sornio-Local-Native-Captures artifact (artifact id 13149486747)",
+      "manifestCrossCheck": "NOT PERFORMED — requires extracting both archives, which requires downloading them from blob storage",
+      "blockerDetail": "The artifact download endpoint (api.github.com .../artifacts/<id>/zip) returns an HTTP 302 to productionresultssa32.blob.core.windows.net, which is not on this sandbox's egress allowlist and returns no response. objects.githubusercontent.com is likewise unreachable. The installer executable therefore could not be extracted, hashed, or compared against its evidence manifest here.",
+      "criticalDistinction": "The 2b6bfaf5... digest in installerArchive is the SHA-256 of the *ZIP archive bundling the .exe*, not of the .exe itself. It must never be published or cited as the installer binary checksum."
+    },
+    "codeSigning": {
+      "signed": false,
+      "certificateThumbprintConfigured": null,
+      "authenticodeVerified": false,
+      "reason": "No Authenticode or EV code-signing certificate is configured in the repository or workflows.",
+      "smartScreenRisk": "UNSIGNED_BINARY_WARNING_EXPECTED",
+      "policy": "This unsigned engineering installer must not be published as a public commercial release, and Windows security warnings must never be bypassed or weakened to make it appear trusted."
+    },
+    "durableArchival": {
+      "archivedToDurableStore": false,
+      "status": "ephemeral_github_actions_retention_only",
+      "remainingLifetimeAtReportTime": "approximately 7 days (expires 2026-11-09T14:28Z)",
+      "risk": "If not downloaded before 2026-11-09T14:28:06Z / 14:28:14Z, both archives are irrecoverably deleted by GitHub. The source tree is preserved in git, so a rebuild is possible, but the exact binary that passed Windows acceptance would be lost."
+    }
+  },
+  "verificationStatusOnMergedMain": {
+    "githubConfirmed": {
+      "lint": "passed (CI job 125374964550)",
+      "typecheck": "passed (CI job 125374964550)",
+      "typecheckNative": "passed (CI job 125374964550)",
+      "verifyChain30Scripts": "passed (CI job 125374964550)",
+      "productionBuild": "passed (CI job 125374964550)",
+      "dependencyAuditNodeAndRust": "passed (CI job 125374964241)",
+      "windowsNativeAndInstallerSuite": "passed on tree-identical commit e13a930 (Windows run 41457796087, job 125318857120)"
+    },
+    "independentlyReproducedInThisSession": {
+      "environment": "Linux sandbox, Node v22.22.3 (repo declares 24.x), npm 10.9.8, Python 3.11.2, TypeScript 6.0.3 JS-API + tsgo 7.0.2. No rustc/cargo toolchain and no Rust distribution CDN reachable, so no native compilation was possible.",
+      "gitTree": "871c48be587de15c35728494a9b6e80e308b3b22 at both e13a930 and baabf5f",
+      "npmRunLint": "passed",
+      "npmRunTypecheck": "passed (JS-API compiler 6.0.3, no errors)",
+      "npmRunTypecheckNative": "passed (tsgo 7.0.2, no errors)",
+      "npmRunVerify": "passed (exit 0, all 30 scripts, 493 individual 'ok' assertions)",
+      "transcript": "docs/reviews/windows-pilot-local-verification-2026-11-02.txt",
+      "notReproducibleHere": [
+        "cargo test (no Rust toolchain; static.rust-lang.org not on egress allowlist)",
+        "check-installer.ps1 / check-native.py / check-windows-evidence.py (require Windows + pywinauto + Pillow + WebView2)",
+        "Playwright browser acceptance (no Chromium in sandbox)",
+        "apps/desktop: npm run build (not run in this session; covered by CI build on main)"
+      ]
+    },
+    "nativeTestInventoryOnCurrentTree": {
+      "totalTestFunctions": 191,
+      "method": "static count of #[test] attributes under packages/local-store",
+      "byFile": {
+        "packages/local-store/src/payments_tests.rs": 40,
+        "packages/local-store/src/authorization_tests.rs": 24,
+        "packages/local-store/src/customers_tests.rs": 23,
+        "packages/local-store/src/recovery/tests.rs": 20,
+        "packages/local-store/src/billing.rs": 15,
+        "packages/local-store/src/billing_reliability_tests.rs": 12,
+        "packages/local-store/src/inventory_recovery_tests.rs": 11,
+        "packages/local-store/src/lib.rs": 10,
+        "packages/local-store/src/lan_authority/tests.rs": 10,
+        "packages/local-store/src/credential_tests.rs": 7,
+        "packages/local-store/src/checkout.rs": 6,
+        "packages/local-store/src/catalog.rs": 6,
+        "packages/local-store/examples/security/tests.rs": 6,
+        "packages/local-store/src/device.rs": 1
+      },
+      "note": "Counted statically in this environment. Execution of these 191 tests on this exact tree was confirmed by Windows run 41457796087 (job success), not re-executed here."
+    }
+  },
+  "financialInvariantsConfirmed": {
+    "exactQuantityAndMoney": {
+      "status": "PASS",
+      "evidence": "verify-accounting.mjs: 'validateSaleStock aggregates 0.1 + 4.01 as exact 4110 QuantityMilli (4.11)' and '0.1 + 4.01 posts exact ₹2.06 COGS (eliminating 1-paisa float drift), clean movement note, single stock deduction and balanced journal'",
+      "floatingPointFallback": "none — 'postSale never falls back to legacy float money() rounding' and 'counter postSale refuses sub-paise rates and totals beyond native paise cap'"
+    },
+    "splitPayment": {
+      "status": "PASS",
+      "evidence": "verify-native-money.mjs (12 checks, renderer matched the native formula on 4820 random invoices with 180 overflow refusals); verify-accounting.mjs idempotent replay test preserves a single stock deduction and exact ledger entries while rejecting altered payloads"
+    },
+    "inventoryIntegrity": {
+      "status": "PASS",
+      "evidence": "verify-accounting.mjs: insufficient stock and failed COGS postings reject explicitly and roll back without mutating prior lines; repeated sale lines cannot jointly oversell stock. verify-inventory.mjs (9 groups): stock never goes below zero whatever arrives out of order; 3-decimal weighed goods without float dust."
+    },
+    "returnsAndRefunds": {
+      "status": "PASS (automated)",
+      "evidence": "Damaged-return non-restocking exercised by check-native-scale.py on the Windows runner (run 41457796087) and by native inventory_recovery_tests.rs (11 tests)",
+      "physical": "UNTESTED on physical printer/hardware — see acceptance step 14"
+    },
+    "customerAccounts": {
+      "status": "PASS",
+      "evidence": "verify-checkout.mjs (exact paise incl. balances beyond JS safe integers); verify-desktop-contract.mjs (money() and formatPaiseInput() use BigInt, no parseFloat/Number on paise); native customers_tests.rs (23 tests)"
+    },
+    "totalAssertionsInLocalVerifyRun": 493
+  },
+  "securityAndRecoveryStatus": {
+    "sqlcipherEncryptedDatabase": "PASS (cargo test release + debug profiles on Windows runner, run 41457796087; rusqlite feature bundled-sqlcipher-vendored-openssl)",
+    "windowsCredentialManagerKeyCustody": "PASS (Windows runner step coverage; native credential_tests.rs, 7 tests)",
+    "ownerAuthenticationAndRbac": "PASS (native authorization_tests.rs, 24 tests; verify-auth.mjs 53 checks)",
+    "crossBusinessAccessRefusal": "PASS (access tests: scope and sessions cannot cross business databases)",
+    "sessionExpirationAndDisabledStaff": "PASS (expiry and idle lock are native; disabling and role changes revoke sessions across connections)",
+    "encryptedBackupGeneration": "PASS (native recovery/tests.rs, 20 tests)",
+    "corruptedBackupAndWrongPassphraseRejection": "PASS (native recovery tests; recovery flow locks workspace and requires exact RESTORE phrase)",
+    "preRestoreSafetyBackup": "PASS (safety backup written to recovery-safety, verified by acceptance step 13)",
+    "restoreEpochInvalidation": "PASS (staff accounts disabled until Owner re-enables after restore)",
+    "noPlaintextFallback": "PASS (test_install_data.py ciphertext preservation helper passed on Windows runner; verify-security.mjs 53 invariants)",
+    "webSecuritySurface": "PASS (verify-security.mjs: 53 invariants hold — CSRF exemptions, cookie shapes, CSP framing, rate-limit buckets)",
+    "note": "Synthetic data only throughout. No secrets, vault keys, passwords or customer information are recorded in this manifest."
+  },
+  "knownLimitations": [
+    "Installer is unsigned. SmartScreen 'Unknown publisher' warning is expected on the pilot build.",
+    "Cross-version installer upgrade (0.3.0 -> any other version) is untested and out of pilot scope.",
+    "Clean-PC offline WebView2 bootstrap when the runtime is entirely absent is unverified on physical hardware; the bundle uses the offline WebView2 installer but no physical machine test exists.",
+    "Real thermal receipt printing, real A4 printing, real Gurmukhi paper output, real USB barcode scanning and USB backup media durability are ALL UNTESTED physically.",
+    "No main-triggered (push-triggered) Windows workflow run exists. The only Windows evidence is PR-triggered on a tree-identical commit.",
+    "Rust toolchain and Cargo crate versions are not pinned, so a future rebuild is not bit-for-bit reproducible.",
+    "Multi-PC LAN, GST statutory invoicing, automated UPI/card settlement verification and public commercial distribution are explicitly out of scope.",
+    "Artifact bodies are unreachable from this environment; installer executable SHA-256 is unverified."
+  ],
+  "releaseDecisions": {
+    "repositoryIntegration": {
+      "decision": "GO",
+      "rationale": "main at baabf5f is green: CI run 41474089057 succeeded on that exact SHA covering lint, both type checkers, the full 30-script verification chain, the production build and both dependency audits. The PR #142 tree-equals-main assertion is verified by identical tree hash 871c48b and an empty path diff. Independently reproduced the same checks in this session."
+    },
+    "automatedWindowsReleaseCandidate": {
+      "decision": "CONDITIONAL GO",
+      "rationale": "A Windows NSIS build with SQLCipher, UIA and installer lifecycle evidence exists and its job concluded success on a tree byte-identical to main. It is not unconditional because (a) provenance is PR-bound rather than main-triggered, (b) the archives expire 2026-11-09 and are not durably archived, and (c) the installer executable SHA-256 could not be verified against its evidence manifest from this environment.",
+      "conditions": [
+        "Founder must download both archives before 2026-11-09T14:28:06Z and verify archive digests against the recorded SHA-256 values.",
+        "Founder must compute the installer .exe SHA-256 and match it to installerSha256 in installer-artifact.json.",
+        "Optional but recommended: dispatch windows-local.yml on main via the GitHub UI to obtain a genuinely main-triggered build."
+      ]
+    },
+    "controlledPhysicalSinglePcPilot": {
+      "decision": "NO-GO",
+      "rationale": "All 15 physical acceptance stages are UNTESTED. No authorized operator has run the checklist on the actual shop Windows PC with real printer, scanner and USB media. Automated VM evidence cannot substitute for these.",
+      "unblockCondition": "All 15 stages in docs/reviews/windows-physical-pilot-acceptance-plan-2026-11-02.md record PASS with evidence references in docs/reviews/windows-physical-pilot-execution-record-2026-11-02.md, signed by an authorized operator."
+    },
+    "publicCommercialRelease": {
+      "decision": "NO-GO",
+      "rationale": "Installer unsigned with no Authenticode/EV certificate; cross-version upgrade untested; physical pilot absent; GST tax-invoice compliance, digital payment verification and multi-PC deployment out of scope. Publishing this build commercially would be an unsupported claim."
+    }
+  },
+  "founderActionsRequired": [
+    {
+      "id": "F1",
+      "priority": "CRITICAL — before 2026-11-09T14:28:06Z",
+      "action": "Download and durably archive both expiring Windows artifacts, verifying archive SHA-256.",
+      "command": "pwsh -File scripts/preserve-windows-artifacts.ps1 -Destination 'D:\\Sornio-Release-Archive'"
+    },
+    {
+      "id": "F2",
+      "priority": "HIGH",
+      "action": "Verify the installer executable SHA-256 against installer-artifact.json (produced automatically by F1's script)."
+    },
+    {
+      "id": "F3",
+      "priority": "HIGH",
+      "action": "Dispatch the two blocked workflows from the GitHub Actions web UI (the API token here lacks actions:write)."
+    },
+    {
+      "id": "F4",
+      "priority": "HIGH",
+      "action": "Execute the 15-stage physical acceptance plan on the real shop PC and record results."
+    },
+    {
+      "id": "F5",
+      "priority": "MEDIUM",
+      "action": "Obtain an Authenticode code-signing certificate before any public distribution."
+    }
+  ]
+}

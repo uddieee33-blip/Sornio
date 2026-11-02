@@ -1,0 +1,1028 @@
+
+> dukaanos@0.1.0 verify
+> npm run verify:scanning && npm run verify:billing && npm run verify:accounting && npm run verify:inventory && npm run verify:import && npm run verify:lock && npm run verify:theme && npm run verify:motion && npm run verify:security && npm run verify:auth && npm run verify:onboarding && npm run verify:profile && npm run verify:pwa && npm run verify:team && npm run verify:team-database && npm run verify:i18n && npm run verify:render && npm run verify:recovery && npm run verify:database && npm run verify:owner-plans && npm run verify:key-console && npm run verify:reliability && npm run verify:operating-database && npm run verify:shopkeeper && npm run verify:workspace && npm run verify:local-schema && npm run verify:desktop-contract && npm run verify:money && npm run verify:windows-release && npm run verify:business-domain
+
+
+> dukaanos@0.1.0 verify:scanning
+> node scripts/verify-scanning.mjs
+
+Compiling the scanning engine…
+  ok    GTIN check digits match published retail codes
+  ok    EAN-13 guard bars, parity and digits survive a round-trip decode
+  ok    EAN-13 refuses a wrong check digit; EAN-8 and UPC-A encode correctly
+  ok    Code 128 start, switch and stop patterns match the specification
+  ok    Code 128 check symbol matches the published worked example
+  ok    Code 128 packs long digit runs and leaves short ones alone
+  ok    Internal codes carry a Luhn check digit and stay scannable
+  ok    In-store weigh labels build, validate, parse and reprint
+  ok    The code profiler names what it read and flags a misread
+  ok    Duplicate codes are reported rather than silently billed
+  ok    A scanned packet resolves to the item that carries its barcode
+  ok    A weigh-scale label bills the weight it carries, not a typed guess
+  ok    A misread, a duplicate and a stranger are all refused honestly
+  ok    Repeat scans stack on the ticket; weighed lines never merge
+  ok    a scanner is told apart from a person by the gaps between keystrokes
+  ok    the scanner test reports the code the way the counter would read it
+
+16 verification groups passed.
+
+> dukaanos@0.1.0 verify:billing
+> node scripts/verify-billing.mjs
+
+Compiling the plans layer…
+  ok    every plan sells something, and only the free plan is free
+  ok    every plan only ever names modules the catalogue actually has
+  ok    the free plan keeps the shop running and withholds only the automations
+  ok    the always-open modules can never be taken away by a plan
+  ok    paying for a longer period really is cheaper per month
+  ok    one plan is marked most-chosen, and it is a paid one
+  ok    what the landing page promises and what the console sells are the same objects
+  ok    a business that never chose anything gets the free plan, not a paywall
+  ok    a running trial has everything, and reports its days left
+  ok    full-trial portal access follows the signed subscription, with an independent plan gate
+  ok    a trial that has run out drops to the free plan and says why
+  ok    a paid period ends into grace, then into the free plan — never into a locked door
+  ok    expiry is derived from dates alone — a stale record cannot extend itself
+  ok    a locked module redirects to the page that unlocks it, and to nothing else
+  ok    the plan policy never touches routes outside the console
+  ok    sub-paths of a locked module are locked too
+  ok    the console is told which modules are paused, in its own trade words
+  ok    the free allowance counts UPI money in — and nothing else
+  ok    the gate refuses the metered path at the allowance, and nothing else
+  ok    a plan cookie round-trips, and a tampered one is worth nothing
+  ok    a forged plan record still cannot unlock a module
+  ok    activation codes are signed, single-purpose, and expire
+  ok    a renewal stacks, an upgrade starts today, and the price lock is real
+  ok    a hosted plan cookie retains its business scope
+  ok    the plan cookie is httpOnly and can never be rewritten by a script
+
+25 passed, 0 failed
+
+> dukaanos@0.1.0 verify:accounting
+> node scripts/verify-accounting.mjs
+
+Receivables (customer dues):
+  ok    a credit sale is revenue and owed, not cash
+  ok    collecting dues reduces receivables and adds cash
+  ok    opening balances count as receivables
+Payables (owed to suppliers):
+  ok    goods received on credit are payable and leave cash alone
+  ok    goods paid now leave the bank and owe nothing
+  ok    a supplier payment reduces payables and the bank
+Stock and alerts:
+  ok    inventory is on-hand times cost; negative stock is not hidden
+  ok    negative stock raises an oversold alert
+  ok    no oversold alert when stock is not negative
+Invoice arithmetic and settlement:
+  ok    invoice tax keeps paise instead of rounding to rupees
+  ok    half-paise line amounts round consistently
+  ok    fractional quantities produce two-decimal line totals
+  ok    decimal line amounts are summed as paise
+  ok    invalid invoice line is refused: {"name":""}
+  ok    invalid invoice line is refused: {"quantity":0}
+  ok    invalid invoice line is refused: {"quantity":-1}
+  ok    invalid invoice line is refused: {"quantity":null}
+  ok    invalid invoice line is refused: {"unitPrice":null}
+  ok    invalid invoice line is refused: {"unitPrice":-1}
+  ok    invalid invoice line is refused: {"unitPrice":1.234}
+  ok    invalid invoice line is refused: {"quantity":1.7976931348623157e+308}
+  ok    invalid tax is refused: -1
+  ok    invalid tax is refused: 101
+  ok    invalid tax is refused: NaN
+  ok    invalid tax is refused: Infinity
+  ok    a bill cannot be empty or worth zero
+  ok    a complimentary line can accompany a paid item
+  ok    draft-only row keys do not leak into stored invoice lines
+  ok    invoice and payment amounts display paise
+  ok    invoice numbering follows the greatest existing number
+  ok    only successful payments for this business reduce the bill
+  ok    overpayments never make a negative amount due
+  ok    legacy paid invoices do not become collectible without payment records
+  ok    rapid bill creation reserves two different invoice numbers
+  ok    walk-in bills save as unpaid and return the id to open
+  ok    an incomplete row prevents the whole bill from being saved
+  ok    credit cannot be mistaken for money received
+  ok    a collection limit leaves payments untouched
+  ok    the last collection uses only the unpaid balance
+  ok    a second confirmation before React commits cannot duplicate payment
+  ok    settling a part-paid bill records only remaining cash and revenue
+  ok    settled bills remain uncollectible after commit
+  ok    saved invoice and posted ledger agree on half-paise 4.85 x 0.5 = 2.43
+  ok    saved invoice and posted ledger agree on half-paise 4.85 x 0.7 = 3.4
+  ok    saved invoice and posted ledger agree on half-paise 2.9 x 0.75 = 2.18
+  ok    saved invoice and posted ledger agree on half-paise 4.265 x 1 = 4.27
+  ok    saved invoice and posted ledger agree on half-paise 4.395 x 1 = 4.4
+  ok    half-paise invoice tax posts identical paise across saved bill and ledger
+  ok    counter postSale rounds 4.85 x 0.50 revenue and cost to 2.43 and deducts exact stock
+  ok    counter postSale refuses sub-paise rates and totals beyond native paise cap
+  ok    repeated sale lines cannot jointly oversell stock
+  ok    sale validation groups repeated items before stock posting
+  ok    sale validation refuses non-finite quantities
+  ok    sale validation refuses non-finite rates
+  ok    sale validation refuses unknown products
+  ok    services remain sellable without physical stock
+  ok    postSale never falls back to legacy float money() rounding
+  ok    validateSaleStock aggregates 0.1 + 4.01 as exact 4110 QuantityMilli (4.11)
+  ok    0.1 + 4.01 posts exact ₹2.06 COGS (eliminating 1-paisa float drift), clean movement note, single stock deduction and balanced journal
+  ok    0.001 + 0.002 aggregates to 3 QuantityMilli (0.003) with exact ₹4.50 revenue, ₹3.00 COGS and 0.997 remaining stock
+  ok    multiple duplicate SKU lines emit one stock movement per physical SKU, exact half-up paise COGS (₹11.23) and balanced receivables
+  ok    zero-value sales and integer overflows in repeated quantities or COGS are explicitly rejected
+  ok    insufficient stock and failed COGS ledger postings reject explicitly and roll back without mutating prior lines
+  ok    idempotent operation replay preserves single stock deduction and exact ledger entries while rejecting altered payloads
+
+64 passed, 0 failed
+
+> dukaanos@0.1.0 verify:inventory
+> node scripts/verify-inventory.mjs
+
+Compiling the inventory engine…
+  ok    108 packets of kidney beans, three sold, becomes 105
+  ok    a delivery, a sale and a re-count all land as one running balance
+  ok    a change of zero units writes no movement at all
+  ok    weighed goods keep three decimals without float dust
+  ok    stock never goes below zero, whatever arrives out of order
+  ok    a figure edited outside the ledger is named, not swallowed
+  ok    reorder flags, valuation and the ledger cap behave
+  ok    the sale confirmation reads like a shopkeeper talking
+  ok    every reason has owner-facing wording, and units are never invented
+
+9 verification groups passed.
+
+> dukaanos@0.1.0 verify:import
+> node scripts/verify-import.mjs
+
+Compiling the import engine…
+  ok    quoted cells, embedded commas and newlines parse
+  ok    a UTF-8 BOM and semicolon separators parse
+  ok    shopkeeper-typed numbers parse
+  ok    DukaanOS's own export format round-trips
+  ok    other-app headers (Item Name, MRP, EAN, Qty, GST %) map
+  ok    Vyapar-style stock, minimum and purchase-rate headers map
+  ok    a retail barcode with a wrong check digit is an error, not a save
+  ok    a DukaanOS internal code lands in the internal-code slot
+  ok    a code another item already carries is a duplicate, never an overwrite
+  ok    a row without a name is an error
+  ok    duplicate SKUs are skipped against the catalogue and within the file
+  ok    a file without a Name column is a file-level error
+  ok    the 5,000-row limit is enforced before import
+  ok    the 2 MB file-size limit is enforced before parsing
+  ok    negative prices are rejected
+  ok    customers import with opening balances
+  ok    a phone another customer already carries is a duplicate
+  ok    a customer row without a name or with a bad email is an error
+  ok    the products template reuses export columns and parses into one ready row
+  ok    the customers template reuses export columns and parses into one ready row
+
+20 passed, 0 failed.
+The import path carries a catalogue and a khata across intact.
+
+> dukaanos@0.1.0 verify:lock
+> node scripts/verify-lock.mjs
+
+Compiling the counter lock…
+  ok    the PIN is never stored — only a salted PBKDF2 hash
+  ok    the right PIN opens it, the wrong one does not
+  ok    five wrong tries pause the keypad — even for the correct PIN
+  ok    each further failure costs more, up to a cap
+  ok    PINs anyone could guess are refused at setup
+  ok    a bad PIN is refused and the good one is not guessed at
+  ok    nothing read from storage is trusted
+  ok    the lock survives a reload, and says so when it cannot
+  ok    auto-lock choices are sane whatever is passed in
+  ok    turning the lock off is a state change, not a deletion of the PIN by accident
+
+10 verification groups passed.
+
+> dukaanos@0.1.0 verify:theme
+> node scripts/verify-theme.mjs
+
+
+Verifying paints
+
+  ok    daylight     light  body  17.13:1   muted   7.46:1   button   5.54:1
+  ok    paper        light  body  17.44:1   muted   7.61:1   button   5.51:1
+  ok    monsoon      light  body  17.37:1   muted   7.59:1   button   7.39:1
+  ok    saffron      light  body  17.34:1   muted   7.55:1   button   5.97:1
+  ok  ★ clarity      light  body  20.62:1   muted  11.03:1   button   5.36:1
+  ok    midnight     dark   body  15.18:1   muted   8.06:1   button   4.55:1
+  ok    graphite     dark   body  13.76:1   muted   7.33:1   button   6.28:1
+  ok    nightmarket  dark   body  14.97:1   muted   7.97:1   button   4.84:1
+  ok    indigo       dark   body  15.03:1   muted   7.96:1   button   4.89:1
+  ok  ★ nocturne     dark   body  19.53:1   muted  12.69:1   button   5.05:1
+
+10 paints verified. Body and muted text clear WCAG AA on every surface (AAA on clarity and nocturne), and the generated files match lib/theme/palettes.json.
+
+
+> dukaanos@0.1.0 verify:motion
+> node scripts/verify-motion.mjs
+
+
+Verifying motion
+
+  ok    every data-reveal-item also renders data-shown
+  ok    every useRevealOnView call renders the attribute it observes
+  ok    12 animation classes, all declared
+  ok    no arbitrary duration or delay values
+  ok    every duration token is multiplied by --motion-scale
+  ok    every named animation is multiplied by --motion-scale
+  ok    the prefers-reduced-motion block is intact
+
+7 invariants hold across 248 source files.
+
+
+> dukaanos@0.1.0 verify:security
+> node scripts/verify-security.mjs
+
+
+Verifying the security layer
+
+  ok    script-src has no unsafe-inline
+  ok    script-src has no unsafe-eval
+  ok    strict posture emits a nonce and strict-dynamic
+  ok    Trusted Types are required
+  ok    the build toolchain is one that honours Trusted Types
+  ok    the deployment host builds with the same toolchain
+  ok    the deployment host installs what CI installs
+  ok    the deployment host runs the Node version CI proves
+  ok    upgrade-insecure-requests is a strict-posture control
+  ok    inline event handlers are refused
+  ok    next.config.js ships no nonce
+  ok    the static fallback is documented as the weaker policy
+  ok    object-src is 'none'
+  ok    base-uri is 'none'
+  ok    frame-src is 'none'
+  ok    child-src is 'none'
+  ok    form-action is 'self'
+  ok    the penalty box runs before the rate limiter
+  ok    every throttle records a strike
+  ok    a throttled read never earns a strike
+  ok    reads are budgeted more generously than writes
+  ok    speculative prefetches are billed apart from navigation
+  ok    prefetch budgets are at least as generous as the navigation they precede
+  ok    the console never prefetches a module the plan does not open
+  ok    a per-request nonce is minted
+  ok    every mutating API route has a dedicated rate-limit branch
+  ok    bucket "api" is sane
+  ok    bucket "apiRead" is sane
+  ok    bucket "prefetch" is sane
+  ok    bucket "auth" is sane
+  ok    bucket "reports" is sane
+  ok    bucket "portal" is sane
+  ok    bucket "team" is sane
+  ok    bucket "plan" is sane
+  ok    bucket "page" is sane
+  ok    bucket "burstApi" is sane
+  ok    bucket "burstApiRead" is sane
+  ok    bucket "burstPrefetch" is sane
+  ok    bucket "burstPage" is sane
+  ok    bucket "master" is sane
+  ok    bucket "profile" is sane
+  ok    bucket "report" is sane
+  ok    bucket "sync" is sane
+  ok    only /api/report is exempt from CSRF
+  ok    every cookie shape is decided from the request, not written inline
+  ok    the framed shape is Partitioned and Secure
+  ok    the host decides HTTPS before the forwarded header does
+  ok    no probe path shadows a real route
+  ok    the probe list is still doing something
+  ok    security.txt at public/.well-known/security.txt is valid for another 338 days
+  ok    security.txt at public/security.txt is valid for another 338 days
+  ok    the violation endpoint stores nothing
+  ok    the violation endpoint bounds its input
+
+  note  7 of 10 API routes mutate state (master, portal, profile, report, subscription, sync, team); the rest share the general api bucket by design.
+
+53 invariants hold.
+
+
+> dukaanos@0.1.0 verify:auth
+> node scripts/verify-auth.mjs
+
+Compiling the auth layer…
+  ok    a minted session reopens to the same claims
+  ok    a local session is scoped to the device that made it
+  ok    a token signed with another key is worth nothing
+  ok    one edited character in the payload kills it
+  ok    a role outside the RBAC matrix is rejected on read
+  ok    an expired token is refused, however well it is signed
+  ok    a re-issued token cannot outlive the absolute ceiling
+  ok    remembered sessions get the long window, unremembered get the idle one
+  ok    an unremembered cookie carries no expiry, so the browser ends it
+  ok    the session cookie is out of reach of page script
+  ok    a display name is truncated to what a top bar can show
+  ok    public things stay public to an anonymous request
+  ok    every console route is closed to an anonymous request
+  ok    a refused deep link comes back with the path attached
+  ok    a verified session opens everything, including the console
+  ok    a provider cookie counts only when there is a provider
+  ok    only Supabase auth cookies are read as a provider session
+  ok    no open-redirect shape survives safeNext
+  ok    a requested destination outranks both records
+  ok    hosted owner setup outranks bookmarks and stale device destinations
+  ok    hosted sign-in ignores device completion and console bookmarks enforce setup
+  ok    either record saying "finished" sends the door to the console
+  ok    the form stays quiet when only the server can answer
+  ok    a door into the console is earned, a door into setup is not
+  ok    hosted sign-in does not trust an earlier account's device profile
+  ok    hosted and local sign-in route correctly with a previously completed device profile
+  ok    the sign-in screen asks before it opens the console
+  ok    the confirmation sends a password and nothing that identifies anybody
+  ok    no landing walks a finished owner back through setup
+  ok    the callback url is built on the canonical origin, never a placeholder
+  ok    recovery reaches a password form before or after business setup
+  ok    recovery page validates the provider without entering the console layout
+  ok    malformed or credential-bearing origins cannot break or hijack an email callback
+  ok    app/api/auth/session/route.ts exists
+  ok    app/api/auth/session/route.ts never logs
+  ok    app/api/auth/session/route.ts bounds any body it parses
+  ok    app/api/auth/reset/route.ts exists
+  ok    app/api/auth/reset/route.ts never logs
+  ok    app/api/auth/reset/route.ts bounds any body it parses
+  ok    app/api/auth/callback/route.ts exists
+  ok    app/api/auth/callback/route.ts never logs
+  ok    app/api/auth/callback/route.ts bounds any body it parses
+  ok    app/api/auth/password/route.ts exists
+  ok    app/api/auth/password/route.ts never logs
+  ok    app/api/auth/password/route.ts bounds any body it parses
+  ok    the sign-in route mints a session in both modes
+  ok    the recovery endpoint cannot tell anybody whether an account exists
+  ok    the callback redeems the code and never trusts `next` blindly
+  ok    the edge imports only the pure halves of the auth layer
+  ok    the gate runs before the portal and plan policies
+  ok    the unguarded Supabase clients stay deleted
+  ok    sign-in has a rate-limit bucket and it is tight
+  ok    the demo path is still labelled as a demo
+
+53 passed, 0 failed
+
+> dukaanos@0.1.0 verify:onboarding
+> node scripts/verify-onboarding.mjs
+
+66 focused onboarding assertions passed
+(node:2124) ExperimentalWarning: stripTypeScriptTypes is an experimental feature and might change at any time
+(Use `node --trace-warnings ...` to show where the warning was created)
+
+> dukaanos@0.1.0 verify:profile
+> node scripts/verify-profile.mjs
+
+Compiling the profile layer…
+
+1. A profile survives the trip to the database and back
+  ok    every field comes back the same after row → snapshot → row
+  ok    API profile JSON restores owner, business and UPI details on a second device
+  ok    the email is normalised, so a lookup cannot miss on capitalisation
+  ok    the store shape and the wire shape agree in both directions
+  ok    an empty profile is empty in every field, not partly undefined
+  ok    GSTIN survives profile snapshot, database row and restoration
+  ok    GSTIN is optional, but a malformed value is rejected by the server
+
+2. "Setup is finished" is derived from the fields, never trusted
+  ok    four business details required and UPI is optional
+  ok    a phone number too short to dial is not finished setup
+  ok    a stored setup_complete flag cannot override required fields
+  ok    the sign-in destination follows the same derivation
+
+3. The newer copy wins, and only the newer copy
+  ok    a device that has forgotten loses to the account
+  ok    the newer local copy is never overwritten by an older pull
+  ok    an edit made while the pull was in flight survives it
+  ok    equal timestamps go to the device, so a pull cannot churn
+  ok    an invented timestamp is worth nothing
+  ok    a payload with a forged or missing timestamp is stamped on the server
+
+4. A payload coming in from a browser is an allow-list, not a trust
+  ok    unknown keys are dropped on the way to the row
+  ok    control characters and runaway whitespace are stripped
+  ok    an over-long field is capped, not refused
+  ok    an invalid supplied UPI id is rejected before a write
+  ok    supplied bank details validate without truncating account numbers or IFSC
+  ok    cash-only setup and bank-only UPI remain valid; credentials never travel
+  ok    the fields an owner must have are refused, with a sentence they can act on
+  ok    an unknown business type is refused when the server can check it
+
+5. The endpoint, the schema and the store around it
+  ok    the write is owner or manager, and says so
+  ok    the business is resolved from the session, never from the body
+  ok    the profile payload is validated before it reaches Postgres
+  ok    the endpoint has its own rate-limit bucket
+  ok    the row is tenant-scoped and under row-level security
+  ok    provisioning a tenant no longer deadlocks against its own policy
+  ok    the store reads the account copy after hydration and before it paints a form
+  ok    a local edit is stamped, so the merge has something to compare
+  ok    the setup screen does not render a form before the records are read
+  ok    the setup screen says where the details are kept
+
+6. The endpoint against a client that enforces the schema’s own policies
+  ok    an anonymous request is refused before anything is read
+  ok    a first save provisions the tenant and stores the profile
+  ok    the row holds the details an owner would otherwise be asked for again
+  ok    setup_complete is derived on the server, not copied from the client
+  ok    a failed business metadata update cannot report a saved profile
+  ok    a silently filtered metadata update cannot report a saved profile
+  ok    a second save updates the one row instead of adding another
+  ok    a read hands back exactly what was stored
+  ok    a cashier cannot reroute where the money lands
+  ok    a payload with no owner is refused rather than half-stored
+  ok    a business id in the body is not a permission
+  ok    another user cannot read this business’s profile
+  ok    a deployment that has not run the migration degrades instead of breaking
+
+48 passed, 0 failed
+
+> dukaanos@0.1.0 verify:pwa
+> node scripts/verify-pwa.mjs
+
+
+Verifying the installable app
+
+  ok    the manifest parses and carries the required fields
+  ok    the short name fits under a launcher icon
+  ok    the start page sits inside the scope, and the id never moves
+  ok    the installed app opens standalone, not in a tab
+  ok    every icon is the file it claims to be
+  ok    the flattened icons carry no transparency
+  ok    the Apple touch icon exists, fits, and is wired up
+  ok    the splash colours track the default paint
+  ok    the manifest route reads the manifest file
+  ok    the gate leaves the manifest public
+  ok    the worker precaches only the generic offline screen
+  ok    activation cleans only this app offline-cache versions
+  ok    offline navigation never replays cached private records
+  ok    the worker ignores GET https://shop.example/api/profile
+  ok    the worker ignores POST https://shop.example/api/sync
+  ok    the worker ignores GET https://elsewhere.example/home
+  ok    install resources remain public and shortcuts stay inside scope
+
+17 passed, 0 failed.
+
+
+> dukaanos@0.1.0 verify:team
+> node scripts/verify-team-guards.mjs
+
+Team API: 16 fail-closed roster, owner-seat and atomic-redemption guards passed.
+
+> dukaanos@0.1.0 verify:team-database
+> node scripts/verify-team-database.mjs
+
+Team database: isolated RPC, one-time use, roles, rollback and authorization checks passed.
+
+> dukaanos@0.1.0 verify:i18n
+> node scripts/verify-i18n.mjs
+
+Source tree and locales/en.json agree on all 2751 phrases.
+  ok    as: 2751 complete phrases
+  ok    bn: 2751 complete phrases
+  ok    brx: 2751 complete phrases
+  ok    doi: 2751 complete phrases
+  ok    gu: 2751 complete phrases
+  ok    hi: 2751 complete phrases
+  ok    kn: 2751 complete phrases
+  ok    kok: 2751 complete phrases
+  ok    ks: 2751 complete phrases
+  ok    mai: 2751 complete phrases
+  ok    ml: 2751 complete phrases
+  ok    mni: 2751 complete phrases
+  ok    mr: 2751 complete phrases
+  ok    ne: 2751 complete phrases
+  ok    or: 2751 complete phrases
+  ok    pa: 2751 complete phrases
+  ok    sa: 2751 complete phrases
+  ok    sat: 2751 complete phrases
+  ok    sd: 2751 complete phrases
+  ok    ta: 2751 complete phrases
+  ok    te: 2751 complete phrases
+  ok    ur: 2751 complete phrases
+
+22 locale catalogues cover all 2751 UI phrases.
+
+> dukaanos@0.1.0 verify:render
+> node scripts/verify-render.mjs
+
+
+Verifying that rendering rules the browser can see
+
+  ok    the browser facts are read in exactly one function
+  ok    the posture builder takes the facts as an argument
+  ok    a server render answers no browser check
+  ok    the trust centre starts with no browser facts
+  ok    the browser facts are collected in an effect, not during render
+  ok    the report is not built from a browser read
+  ok    the score card hands the facts to the builder
+  ok    vault stays unknown until evidence arrives
+  ok    audit-chain stays unknown until evidence arrives
+  ok    unknown device checks are excluded from the score
+  ok    plaintext persistence is never advertised as encrypted
+  ok    a broken audit chain still fails after verification
+  ok    cloud configuration alone cannot earn a backup pass
+  ok    a completed sync verifies an off-device copy
+  ok    a <pre> and a <textarea> are content, not copy
+  ok    the walker skips preformatted subtrees, not just bare text nodes
+  ok    a phrase with no translation is returned untouched
+  ok    the sign-in fields tolerate a browser’s autofill annotation
+
+18 invariants hold.
+
+
+> dukaanos@0.1.0 verify:recovery
+> node scripts/verify-recovery.mjs
+
+Compiling the money, session and sync modules…
+
+Money
+  ok    a trading loss shows as a negative operating profit, not zero
+  ok    inventory value is on-hand × cost, not the cost of goods already sold
+  ok    bank balance nets money paid out of the bank
+  ok    UPI balance nets money paid out over UPI
+  ok    comparisons carry no invented previous-period figures
+  ok    insight sentences do not claim a trend the ledger cannot show
+
+Session secret
+  ok    production refuses to sign sessions without DUKAANOS_SESSION_SECRET
+  ok    production refuses a secret shorter than 32 characters
+  ok    production accepts a 32+ character secret
+  ok    development keeps a local fallback so `next dev` still works
+  ok    the verification side fails closed without ever throwing at a request
+  ok    sessionSecretState classifies the deployment the way the runtime enforces it
+  ok    the configuration error names the variable and the floor, and carries no key material
+  ok    the configuration error is the exact sentence the 22 locales carry
+  ok    start-up classifies the secret and reports the shared error, without logging it
+  ok    every session-minting door refuses the same way before it mints
+  ok    /api/health reports the secret’s state without ever sending its value
+
+Sync path (static guarantees)
+  ok    the push is one atomic database call, not delete-then-insert
+  ok    clients never write membership rows
+  ok    the restore path is wired into the store
+  ok    the stock ledger is no longer cut at 2,000 rows
+  ok    sale line items are pushed with their transaction
+  ok    the membership self-write policy is dropped after it is created
+  ok    the RPC is revoked from anonymous callers and checks the role itself
+
+24 passed, 0 failed
+
+> dukaanos@0.1.0 verify:database
+> node scripts/verify-database.mjs
+
+Before the repair (the schema as reviewed):
+  ok    owner can provision a business
+  ok    reproduced: a stranger can seat themselves as owner (the old hole)
+  ok    reproduced: that stranger can read the victim business
+
+Applying the repair migration:
+  ok    migration applies on top of the reviewed schema
+
+Authorization:
+  ok    a stranger can no longer insert a membership row
+  ok    the owner still sees their own owner seat (written by the trigger)
+  ok    a stranger can no longer read the business
+  ok    a stranger sees no membership rows of anyone else
+  ok    a staff member cannot promote themselves
+  ok    owner seeds the catalogue
+  ok    the owner rename reaches the business row
+
+Role matrix:
+  ok    staff push succeeds but its catalogue edits are ignored
+  ok    a counter device cannot rename or reprice products
+  ok    an accountant cannot push ledger lines
+  ok    a viewer cannot push anything
+  ok    a non-member cannot push into the business
+  ok    an accountant can read the catalogue
+  ok    an accountant cannot write directly to the ledger
+  ok    staff cannot edit products directly (RLS)
+  ok    staff cannot delete products
+
+Append-only ledger:
+  ok    even the owner cannot edit a ledger line
+  ok    even the owner cannot delete a stock movement
+
+Offline devices:
+  ok    sales from both devices all count (5 - 1 - 1 - 1 = 2)
+  ok    a device that has not seen the other sales cannot undo them
+  ok    an oversold item shows negative stock instead of hiding the sale (2 - 4 = -2)
+
+Tenant isolation on sync:
+  ok    a product id from another tenant cannot be overwritten
+  ok    a ledger id from another tenant cannot be overwritten
+
+Customers and settings:
+  ok    customer opening balance and UPI details reach the cloud
+  ok    a partial settings push is accepted
+  ok    settings are kept as one row, updated in place
+  ok    a counter device cannot change settings
+
+Atomicity and empty snapshots:
+  ok    a push with one invalid row is rejected
+  ok    the rejected push left no partial rows behind
+  ok    an empty snapshot is a harmless no-op (nothing is removed)
+
+Owner reset:
+  ok    staff cannot reset the business
+  ok    the owner can reset
+  ok    reset removes the catalogue and the ledger
+  ok    reset keeps the audit history
+
+38 passed, 0 failed
+
+> dukaanos@0.1.0 verify:owner-plans
+> node scripts/verify-owner-plans.mjs
+
+ok existing accounts receive separate owner seats
+ok existing products remain untouched
+ok owner bootstrap is idempotent
+ok a stranger cannot claim another business
+ok business reads stay isolated
+ok staff cannot grant a trial
+ok owner can start the trial
+ok trial duration matches the seven-day catalogue
+ok downgrading or clearing cookies cannot restart the trial
+ok direct browser writes cannot grant plans
+ok activation keys are bound to their business
+ok staff cannot redeem activation keys
+ok a valid key grants the purchased plan
+ok retrying a redemption cannot extend access twice
+ok another business device reads the durable entitlement
+ok owners cannot read the activation key registry
+16 owner/plan assertions passed
+
+> dukaanos@0.1.0 verify:key-console
+> node scripts/verify-key-console.mjs
+
+ok anonymous callers never reach privileged storage
+ok a shop owner cannot issue keys using a role or user metadata
+ok administrator IDs match exactly and missing configuration denies all
+ok unverified payments and unsupported grants are rejected before storage
+ok inactive businesses cannot receive keys
+ok successful issuance stores only a business-bound digest, never the raw key
+ok duplicate bank references return conflict without a second usable key
+ok database failures never return an unpersisted key
+ok history omits key digests and is not cached
+ok non-operators cannot list another business history
+10 key-console scenarios passed
+
+> dukaanos@0.1.0 verify:reliability
+> node scripts/verify-reliability.cjs
+
+ok offline digital collections do not change stock, dues or invoices
+ok duplicate sale lines validate their combined stock
+ok duplicate lines deduct the entire quantity exactly once
+ok repeated delivery lines keep the catalogue and stock ledger in agreement
+ok rapid successive actions read the latest committed stock
+ok invoice issue posts stock, net revenue, tax and customer dues
+ok an invoice cannot be marked paid on credit or without a bank reference
+ok customer collection changes the same balance every screen uses
+ok customer dues collections allocate to open invoices
+ok money retains paise and dates follow the business timezone
+ok demo exploration can return to the untouched real business
+ok every durable collection is represented in sync
+ok a populated device adopts another devices new ledger records
+ok acknowledged saves preserve edits made while a request was in flight
+ok a revoked device credential stays revoked through pull-before-push
+15 reliability scenarios passed
+
+> dukaanos@0.1.0 verify:operating-database
+> node scripts/verify-operating-database.mjs
+
+Before the repair (the schema as reviewed):
+  ok    owner can provision a business
+  ok    reproduced: a stranger can seat themselves as owner (the old hole)
+  ok    reproduced: that stranger can read the victim business
+
+Applying the repair migration:
+  ok    migration applies on top of the reviewed schema
+
+Authorization:
+  ok    a stranger can no longer insert a membership row
+  ok    the owner still sees their own owner seat (written by the trigger)
+  ok    a stranger can no longer read the business
+  ok    a stranger sees no membership rows of anyone else
+  ok    a staff member cannot promote themselves
+  ok    owner seeds the catalogue
+  ok    the owner rename reaches the business row
+
+Role matrix:
+  ok    staff push succeeds but its catalogue edits are ignored
+  ok    a counter device cannot rename or reprice products
+  ok    an accountant cannot push ledger lines
+  ok    a viewer cannot push anything
+  ok    a non-member cannot push into the business
+  ok    an accountant can read the catalogue
+  ok    an accountant cannot write directly to the ledger
+  ok    staff cannot edit products directly (RLS)
+  ok    staff cannot delete products
+
+Append-only ledger:
+  ok    even the owner cannot edit a ledger line
+  ok    even the owner cannot delete a stock movement
+
+Offline devices:
+  ok    sales from both devices all count (5 - 1 - 1 - 1 = 2)
+  ok    a device that has not seen the other sales cannot undo them
+  ok    an oversold item shows negative stock instead of hiding the sale (2 - 4 = -2)
+
+Tenant isolation on sync:
+  ok    a product id from another tenant cannot be overwritten
+  ok    a ledger id from another tenant cannot be overwritten
+
+Customers and settings:
+  ok    customer opening balance and UPI details reach the cloud
+  ok    a partial settings push is accepted
+  ok    settings are kept as one row, updated in place
+  ok    a counter device cannot change settings
+
+Atomicity and empty snapshots:
+  ok    a push with one invalid row is rejected
+  ok    the rejected push left no partial rows behind
+  ok    an empty snapshot is a harmless no-op (nothing is removed)
+
+Owner reset:
+  ok    staff cannot reset the business
+  ok    the owner can reset
+  ok    reset removes the catalogue and the ledger
+  ok    reset keeps the audit history
+
+Versioned operating records:
+  ok    a complete operating command is stored atomically
+  ok    all operating entities restore together
+  ok    retrying identical command ids is idempotent
+  ok    two devices cannot jointly sell more than the stock ledger contains
+  ok    a refused competing sale leaves no stock or money entries
+  ok    a matching revision permits a catalogue edit
+  ok    a stale revision cannot overwrite another device
+  ok    staff cannot write catalogue records
+  ok    auditors cannot write operating data
+  ok    first device can collect part of a due
+  ok    second stale device cannot collect the same dues twice
+  ok    invalid commands roll back every entity
+  ok    direct writes cannot bypass the sync protocol
+  ok    owner reset advances the generation
+  ok    a stale device cannot resurrect a reset business
+  ok    a live invite creates exactly one member
+  ok    the same invite cannot create a second member
+  ok    the complete schema installs without duplicated or malformed SQL
+  ok    fresh setup preserves the server-only invitation boundary
+  ok    fresh setup refuses anonymous sync
+  ok    fresh setup includes the newer GST profile migration
+
+59 passed, 0 failed
+
+> dukaanos@0.1.0 verify:shopkeeper
+> node scripts/verify-shopkeeper.mjs
+
+ok offline cash and unpaid credit can proceed without claiming digital settlement
+ok today uses the business timezone and counts collections without revenue or transfer duplication
+ok customer credits cannot hide what other customers owe
+ok payment reminder amount agrees with the current customer ledger
+ok paying a due removes the draft instead of leaving a stale demand
+ok invalid contact details never generate a message link
+ok drafts contain no delivery claim or mutation of the business records
+ok daily tasks use unique internal paths
+ok the service worker Trusted Types policy approves only the fixed local worker
+ok recent bills stay chronological after an out-of-order import or sync
+ok the full bill history matches the counter and keeps invalid dates at the end
+11 shopkeeper scenarios passed
+
+> dukaanos@0.1.0 verify:workspace
+> node scripts/verify-workspace.mjs && node scripts/verify-store-navigation.cjs
+
+ok each existing module has exactly one work area
+ok gym: every granted tool remains reachable, without duplicates
+ok cafe: every granted tool remains reachable, without duplicates
+ok kirana: every granted tool remains reachable, without duplicates
+ok salon: every granted tool remains reachable, without duplicates
+ok electronics: every granted tool remains reachable, without duplicates
+ok boutique: every granted tool remains reachable, without duplicates
+ok service: every granted tool remains reachable, without duplicates
+ok general: every granted tool remains reachable, without duplicates
+ok revealing more tools retains one destination per route
+ok nested bill creation retains the existing billing access boundary
+ok route matching does not confuse neighboring or unknown routes
+ok gym: daily actions use verified role permissions
+ok cafe: daily actions use verified role permissions
+ok kirana: daily actions use verified role permissions
+ok salon: daily actions use verified role permissions
+ok electronics: daily actions use verified role permissions
+ok boutique: daily actions use verified role permissions
+ok service: daily actions use verified role permissions
+ok general: daily actions use verified role permissions
+ok unconfigured daily actions fail closed
+ok gym: daily jobs and setup belong to the chosen business
+ok cafe: daily jobs and setup belong to the chosen business
+ok kirana: daily jobs and setup belong to the chosen business
+ok salon: daily jobs and setup belong to the chosen business
+ok electronics: daily jobs and setup belong to the chosen business
+ok boutique: daily jobs and setup belong to the chosen business
+ok service: daily jobs and setup belong to the chosen business
+ok general: daily jobs and setup belong to the chosen business
+ok gym and restaurant daily homes do not inherit kirana jobs
+ok gym metrics use current distinct members and the business day
+ok kirana khata is the live ledger balance, not the opening amount
+ok appointments use the business day and exclude cancelled slots
+33 workspace scenarios passed.
+ok invalid bank settings preserve the local profile
+ok same-owner navigation preserves an unflushed payment
+ok different-owner navigation still loads the new storage scope
+
+> dukaanos@0.1.0 verify:local-schema
+> python3 scripts/verify-local-schema.py
+
+ok   migration order matches lib.rs (9 modules)
+ok   extracted DDL statements from source (147)
+ok   applied 147 schema statements in a real SQLite engine
+ok   schema version 12 matches the migration chain
+ok   foreign keys enforced
+
+-- structural fingerprint --
+ok   no migration removed a table []
+ok   no existing table changed shape []
+ok   no append-only trigger was removed []
+ok   no index supporting money reads was removed []
+
+-- upgrade from the frozen main-branch database --
+ok   frozen main-branch fixture really is schema 4
+ok   a v4 database needs exactly the remaining migrations ['billing', 'checkout', 'identity', 'customers', 'payments', 'inventory_recovery', 'recovery', 'lan_authority']
+ok   legacy v4 database upgrades to schema 12
+ok   legacy stock survives the upgrade ('Legacy rice', 17500, 3)
+ok   legacy draft survives the upgrade
+ok   upgraded database has no dangling references
+ok   an upgraded database accepts a posted sale and stock movement
+ok   an upgraded database still refuses to rewrite the ledger
+ok   upgraded tables match a fresh install set()
+ok   upgraded triggers match a fresh install
+ok   upgraded indexes match a fresh install
+
+-- database guard attacks --
+ok   local_invoices refuses UPDATE and DELETE []
+ok   local_invoice_stock refuses UPDATE and DELETE []
+ok   local_billing_ledger refuses UPDATE and DELETE []
+ok   local_billing_audit refuses UPDATE and DELETE []
+ok   local_billing_outbox refuses UPDATE and DELETE []
+ok   local_retail_ops refuses UPDATE and DELETE []
+ok   local_retail_payments refuses UPDATE and DELETE []
+ok   local_retail_events refuses UPDATE and DELETE []
+ok   local_retail_journal refuses UPDATE and DELETE []
+ok   local_retail_activity refuses UPDATE and DELETE []
+ok   local_retail_returns refuses UPDATE and DELETE []
+ok   local_retail_return_items refuses UPDATE and DELETE []
+ok   local_retail_return_parts refuses UPDATE and DELETE []
+ok   local_retail_refunds refuses UPDATE and DELETE []
+ok   local_retail_floats refuses UPDATE and DELETE []
+ok   local_retail_float_corrections refuses UPDATE and DELETE []
+ok   local_retail_closings refuses UPDATE and DELETE []
+ok   local_retail_outbox refuses UPDATE and DELETE []
+ok   local_credit_entries refuses UPDATE and DELETE []
+ok   local_customer_journal refuses UPDATE and DELETE []
+ok   local_customer_ops refuses UPDATE and DELETE []
+ok   local_inventory_events refuses UPDATE and DELETE []
+ok   local_identity_audit refuses UPDATE and DELETE []
+ok   local_retail_payments rows cannot be updated
+ok   local_retail_payments rows cannot be deleted
+ok   local_retail_journal rows cannot be updated
+ok   local_retail_journal rows cannot be deleted
+ok   local_retail_activity rows cannot be updated
+ok   local_retail_activity rows cannot be deleted
+ok   local_invoice_stock rows cannot be updated
+ok   local_invoice_stock rows cannot be deleted
+ok   local_retail_ops rows cannot be updated
+ok   local_retail_ops rows cannot be deleted
+ok   local_retail_returns rows cannot be updated
+ok   local_retail_returns rows cannot be deleted
+ok   local_invoice_actors rows cannot be updated
+ok   local_invoice_actors rows cannot be deleted
+ok   REPLACE cannot replace a posted invoice row
+ok   credit entries cannot be rewritten
+ok   credit entries cannot be deleted
+ok   stock cannot go negative
+ok   invoice stock movement must equal before-minus-after
+ok   invoice stock movement must be positive
+ok   selling more than the row records is refused by the movement check
+ok   payment amount above the supported maximum is refused
+ok   zero-amount payment is refused
+ok   unknown payment method is refused
+ok   non-integer journal amount is refused
+ok   unknown ledger account is refused
+ok   a second ledger row for the same account is refused
+ok   a payment for an unknown invoice is refused
+ok   credit for an unknown customer is refused
+ok   a customer with history cannot be deleted
+ok   customer identifiers are immutable
+ok   the owner cannot be demoted
+ok   a staff account cannot be deleted (disable instead)
+ok   a second credit row for the same invoice is refused
+ok   return movement with a zero quantity is refused
+ok   a zero refund part is refused
+ok   a return for an unknown invoice is refused
+ok   a cashier can only open one float per day
+ok   a cashier cannot hold two pending operations
+ok   one operation id cannot be pending twice
+ok   an opening float cannot be negative
+ok   a closing state outside the allowed set is refused
+
+-- money invariants on the seeded database --
+ok   every retail operation journal balances to zero []
+ok   every invoice ledger balances to zero []
+ok   invoice op-sale-1 ledger totals 4451/4451 match 4451
+ok   invoice op-sale-1 revenue and tax match its receipt
+ok   invoice op-sale-1 payments 4451 equal its total 4451
+ok   no payment is refunded beyond its amount []
+ok   no product holds negative stock
+ok   every stock movement belongs to an invoice []
+
+all 92 schema checks passed
+
+> dukaanos@0.1.0 verify:desktop-contract
+> node scripts/verify-desktop-contract.mjs
+
+ok   Rust defines 48 native commands
+ok   no command is registered twice
+ok   every Rust command is registered in generate_handler!
+ok   all 48 commands are permitted by a capability permission file
+ok   capability applies to bundled app code only (local: true)
+ok   capability targets an existing window
+ok   only the main window exists (main)
+ok   devtools stay closed in the shipped window
+ok   installer stays a per-user install
+ok   WebView2 ships offline, so a shop needs no internet
+ok   the window loads a bundled URL, not a remote origin
+ok   renderer calls only real commands 
+ok   renderer names 41 distinct commands
+ok   only access/status commands may run without a session scope
+ok   every other command is sent with the native scope
+ok   renderer documents that scope is not authority
+ok   renderer source contains no network, localhost or remote URL access
+ok   renderer never logs business data to the console
+ok   only the customer statement renders raw HTML
+ok   that HTML comes from the native statement command
+ok   native statement text is escaped before it reaches the DOM
+ok   money() formats cumulative balances with BigInt
+ok   formatPaiseInput() formats editable paise amounts with BigInt
+ok   billing display never converts paise with parseFloat/Number
+ok   no desktop renderer file divides paise balances by 100 in floating point
+ok   native authority is re-checked immediately before window.print()
+ok   printing never claims a document was produced
+ok   all 24 SavedInvoice receipt phrases exist in locales/pa.json
+ok   CheckoutPanel binds F2, F3, F4, F8 and Escape counter shortcuts
+ok   CustomerPanel and RetailPanel review prompts support Escape dismissal
+ok   RetailPanel surfaces explicit guidance when a required correction/return reason is empty
+
+31 desktop contract checks passed
+
+> dukaanos@0.1.0 verify:money
+> node scripts/verify-native-money.mjs
+
+ok   native rounding constants found in billing.rs
+ok   renderer matched the native formula on 4820 random invoices (180 overflow refusals)
+
+12 money contract checks passed
+
+> dukaanos@0.1.0 verify:windows-release
+> node scripts/verify-windows-release.mjs
+
+ok   lifecycle analyzer self-test 'legacyCheckExit' accepts as required
+ok   lifecycle analyzer self-test 'modernInvokeNativeCheck' accepts as required
+ok   lifecycle analyzer self-test 'guardWithoutThrow' rejects as required
+ok   lifecycle analyzer self-test 'unconditionalThrow' rejects as required
+ok   lifecycle analyzer self-test 'stageNeverInvoked' rejects as required
+ok   the product installer is built from apps/desktop (tauri build), not from another app
+ok   the product pipeline runs the native encrypted-store test suite before packaging
+ok   the product pipeline runs the installed-application lifecycle acceptance script
+ok   the product pipeline runs the Invoke-NativeCheck argument-forwarding regression test before installer acceptance
+ok   check-installer.ps1 dot-sources lib/invoke-native-check.ps1 (the analyzer reads the same stage runner)
+ok   installed acceptance blocks outbound network for both the app and WebView2, proving offline operation
+ok   installed acceptance fails the build if the offline fixture does not pass (stage invoked through a fail-closed exit-code guard: Invoke-NativeCheck)
+ok   installed acceptance refuses to claim a real version upgrade it does not perform
+ok   installed acceptance records the installer signature status as evidence
+ok   the hosted preview runs only on manual dispatch
+ok   the hosted preview never runs automatically
+ok   the hosted preview names its jobs and artefacts explicitly
+ok   every hosted-preview artefact says so: Sornio-Hosted-Preview-x64, Sornio-Hosted-Preview-Setup-x64
+ok   the hosted preview still builds the C# wrapper, i.e. the two remain distinguishable
+ok   hosted preview assembly is SornioHostedPreview
+ok   the hosted preview cannot install itself as "Sornio"
+ok   the hosted preview installer is named Sornio-Hosted-Preview-Setup-x64
+ok   the hosted preview installer references no product-named executable
+ok   both hosted-preview manifests say in-file that they are not the product
+ok   product identifier is com.sornio.localreview
+ok   package.json version 0.3.0 matches tauri.conf.json 0.3.0
+ok   Cargo.toml version 0.3.0 matches tauri.conf.json 0.3.0
+ok   NSIS update identity 0.3 shares the major.minor of 0.3.0
+ok   product version is semver (0.3.0)
+ok   the product ships an NSIS installer
+ok   WebView2 is bundled offline, so a shop needs no internet to install
+ok   the product installs per-user (no administrator rights on a shop PC)
+ok   the product exposes one window (1)
+ok   the single window is labelled main
+ok   the product window loads bundled assets, not a remote origin (bundled)
+ok   devtools are closed in the shipped window
+ok   the native command capability is local-only and scoped to the single product window
+ok   no offline renderer file references the hosted origin (19 files)
+ok   a missing installer fails the product pipeline
+ok   accepted, reviewed native captures are uploaded as evidence without pretending they are guaranteed
+
+40 Windows release-identity checks passed
+
+> dukaanos@0.1.0 verify:business-domain
+> node scripts/verify-business-domain.mjs && node scripts/verify-native-invoice.mjs && node scripts/verify-checkout.mjs
+
+Shared domain checks passed: invoice rounding, invalid/overflow amounts, immutable inputs and eight business workspaces.
+Native invoice contract passed: 45 request fixtures, 13 money fixtures, line limits and invalid numeric inputs.
+Checkout display checks passed: exact paise including balances beyond JS safe integers, negative/zero balances and fractional units.
