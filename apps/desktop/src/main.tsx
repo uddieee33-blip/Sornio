@@ -39,6 +39,20 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
   const saving = useRef(false);
   const [reopenPrompt, setReopenPrompt] = useState(false);
   const [lockPrompt, setLockPrompt] = useState(false);
+  const continueLockRef = useRef<HTMLButtonElement>(null);
+  const keepEditingRef = useRef<HTMLButtonElement>(null);
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
+  useEffect(() => { if (lockPrompt) continueLockRef.current?.focus(); }, [lockPrompt]);
+  useEffect(() => { if (reopenPrompt) keepEditingRef.current?.focus(); }, [reopenPrompt]);
+  function dismissPrompt(kind: 'lock' | 'reopen') {
+    if (kind === 'lock') setLockPrompt(false); else setReopenPrompt(false);
+    const previous = restoreFocusRef.current;
+    restoreFocusRef.current = null;
+    queueMicrotask(() => {
+      if (previous?.isConnected) previous.focus();
+      else document.getElementById('checkout-search')?.focus();
+    });
+  }
   const [backupBusy, setBackupBusy] = useState(false), [backupDirty, setBackupDirty] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
   const [credentialDirty, setCredentialDirty] = useState(false), [credentialBusy, setCredentialBusy] = useState(false), [staffRefresh, setStaffRefresh] = useState(0);
@@ -124,7 +138,11 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
-    if (dirty && !discard) { setLockPrompt(true); return; }
+    if (dirty && !discard) {
+      restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      setLockPrompt(true);
+      return;
+    }
     saving.current = true; setStatus('saving'); setMessage('Locking this workspace…');
     try { await invoke('lock_workspace'); onLocked(); }
     catch (error: unknown) { setStatus('error'); setMessage(errorMessage(error, 'The workspace could not be locked. Keep this window open and retry.')); }
@@ -143,8 +161,8 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
       <div className="page">
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
-        {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace"><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button className="quiet-button" type="button" disabled={busy} onClick={() => setLockPrompt(false)}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
-        {native && snapshot ? <CheckoutPanel customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
+        {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace" onKeyDown={event => { if (event.key === 'Escape' && !busy) { event.preventDefault(); dismissPrompt('lock'); } }}><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button ref={continueLockRef} className="quiet-button" type="button" disabled={busy} onClick={() => dismissPrompt('lock')}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
+        {native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
         <div className="workspace-grid">
           {owner ? <form className="panel" onSubmit={(event) => void save(event)}>
             <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
@@ -157,11 +175,11 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
               <div className="form-footer"><p>{draftDirty ? 'Changes are not saved yet.' : 'Nothing leaves this PC in this build.'}</p><button type="submit" disabled={!draftDirty || !draft.businessName.trim()}>{status === 'saving' ? 'Saving…' : 'Save local draft'}<span aria-hidden="true">↗</span></button></div>
             </fieldset>
             {native ? <div className="reopen-actions">
-              {reopenPrompt ? <div className="reopen-prompt" role="group" aria-label="Reopen saved draft">
+              {reopenPrompt ? <div className="reopen-prompt" role="group" aria-label="Reopen saved draft" onKeyDown={event => { if (event.key === 'Escape' && !busy) { event.preventDefault(); dismissPrompt('reopen'); } }}>
                 <p>Your unsaved edits will be replaced by the latest saved draft.</p>
-                <button type="button" className="quiet-button" disabled={busy} onClick={() => setReopenPrompt(false)}>Keep editing</button>
+                <button ref={keepEditingRef} type="button" className="quiet-button" disabled={busy} onClick={() => dismissPrompt('reopen')}>Keep editing</button>
                 <button type="button" disabled={busy} onClick={() => void reopen()}>Discard edits and reopen</button>
-              </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) setReopenPrompt(true); else void reopen(); }}>Reopen saved draft</button>}
+              </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) { restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setReopenPrompt(true); } else void reopen(); }}>Reopen saved draft</button>}
             </div> : null}
           </form> : null}
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Owner and staff access is enforced on this PC. LAN pairing and cloud backup are not enabled. This review does not replace your current business records.</p></aside>
