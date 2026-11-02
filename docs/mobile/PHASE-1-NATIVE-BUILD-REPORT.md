@@ -12,9 +12,11 @@ removed that API under Expo SDK 58’s New Architecture.
 The Expo-bundled `react-native-safe-area-context@5.10.1` was installed. It
 updates insets through Fabric state or `setViewLocalData` only.
 
-On commit `5e5e7f1726b5a71372879ae2178aa21fac748246`, GitHub Actions run
-[41509718207](https://github.com/uddieee33-blip/Sornio/actions/runs/41509718207)
+On commit `7b343f6497303197c76e025d716b59b500b379f2`, GitHub Actions run
+[41511352532](https://github.com/uddieee33-blip/Sornio/actions/runs/41511352532)
 passed **shared contracts, Android `assembleDebug`, and iOS simulator compile**.
+The prior native-fix commit `5e5e7f1` passed the same three jobs on run
+[41509718207](https://github.com/uddieee33-blip/Sornio/actions/runs/41509718207).
 
 Production cloud sync remains disabled. No financial writes were added.
 
@@ -23,7 +25,7 @@ Production cloud sync remains disabled. No financial writes were added.
 | Ref | SHA |
 | --- | --- |
 | `origin/main` | `005f27a7702b37916ae517b7f37360c0e9ce436f` |
-| Verified native-build PR head | `5e5e7f1726b5a71372879ae2178aa21fac748246` |
+| Verified PR head | `7b343f6497303197c76e025d716b59b500b379f2` |
 | Branch | `arena/5ed2bd28-sornio` |
 | PR | [#143](https://github.com/uddieee33-blip/Sornio/pull/143) (draft, MERGEABLE) |
 
@@ -31,6 +33,7 @@ New commits on this assignment:
 
 - `393a91b` `fix(mobile): compile SafeAreaView against React Native 0.88`
 - `5e5e7f1` `ci(mobile): prove secret scanning and record the debug APK identity`
+- `7b343f6` `docs(mobile): record Android/iOS native compile evidence for PR #143`
 
 ## C. Android root-cause analysis
 
@@ -71,33 +74,33 @@ disabled, `node_modules` was not patched, and the Android job remains required.
 
 ## E. Android verification
 
-Workflow run: [41509718207](https://github.com/uddieee33-blip/Sornio/actions/runs/41509718207)
-Job: [125498551041](https://github.com/uddieee33-blip/Sornio/actions/runs/41509718207/job/125498551041)
+Workflow run: [41511352532](https://github.com/uddieee33-blip/Sornio/actions/runs/41511352532)
+Job: [125504081282](https://github.com/uddieee33-blip/Sornio/actions/runs/41511352532/job/125504081282)
 Outcome: **success** (prebuild, `assembleDebug`, identity, artifact upload)
 
 | Field | Value |
 | --- | --- |
 | APK path | `apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk` |
 | Artifact name | `Sornio-companion-android-debug` |
-| Artifact ID | `13171439737` |
-| GitHub zip digest | `sha256:cbc5dcdfa3ea9f14f0a16ea89f5a199a6bcaf6c569a8d9e9c4cbbf12b5e7303b` |
+| Artifact ID | `13174430942` |
+| APK SHA-256 | `9dcb7ab316c0141a1d9d073b16e1315537c90a3ae337d817a16fcb364193f81b` |
+| GitHub zip digest | `sha256:04e5f274e7a2aa58b853cf39be92af7a7f0821303777af92a58fe7ef910c8d91` |
 | Zip size | 50,052,067 bytes |
-| Expires | 2026-11-09T19:33:44Z |
-| App version | 0.1.0 (versionCode 1) |
-| Package | `com.sornio.companion` (Gradle `applicationId`) |
+| Expires | 2026-11-09T19:44:33Z |
+| App version | 0.1.0 (`versionCode` 1) |
+| Package | `com.sornio.companion` (`aapt dump badging`) |
 | Signing | debug keystore (`android/app/debug.keystore`) |
-| Build commit | `5e5e7f1726b5a71372879ae2178aa21fac748246` |
+| Build commit | `7b343f6497303197c76e025d716b59b500b379f2` |
 | Emulator smoke | **not run** (no emulator in this environment or the CI job) |
 
-The zip digest is **not** the inner APK file hash. Inner `sha256sum` ran on the
-runner; Actions logs are not downloadable from this sandbox.
+The zip digest is **not** the inner APK file hash. Both are recorded.
 
 Not published to Google Play.
 
 ## F. iOS verification
 
-Same run `41509718207`, job
-[125498551119](https://github.com/uddieee33-blip/Sornio/actions/runs/41509718207/job/125498551119)
+Same run `41511352532`, job
+[125504081293](https://github.com/uddieee33-blip/Sornio/actions/runs/41511352532/job/125504081293)
 **success**: prebuild, CocoaPods, `xcodebuild` iphonesimulator, unsigned Debug.
 
 Bundle `com.sornio.companion`, `supportsTablet: true`. Simulator launch and UI
@@ -106,7 +109,7 @@ navigation were **not** executed. No TestFlight / IPA / App Store claim.
 Remaining CI warnings: Node 20 deprecation on `actions/checkout@v4` /
 `setup-node@v4`; macOS arm64 queue notice.
 
-## G. Shared tests (commit `5e5e7f1`)
+## G. Shared tests (commit `7b343f6`)
 
 | Check | Result |
 | --- | --- |
@@ -148,7 +151,8 @@ bundle. Residual risk accepted for Phase 1.
 
 | Workflow | Run | Result |
 | --- | --- | --- |
-| Mobile companion | `41509718207` | **success** (shared + Android + iOS) |
+| Mobile companion | `41511352532` | **success** (shared + Android + iOS on `7b343f6`) |
+| Mobile companion (native-fix head) | `41509718207` | **success** (shared + Android + iOS on `5e5e7f1`) |
 | CI | `41509718113` | **success** |
 | Android review package (WebView) | `41509718103` | **success** |
 
