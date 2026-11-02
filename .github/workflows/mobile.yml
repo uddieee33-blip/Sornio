@@ -48,9 +48,18 @@ jobs:
         run: npx tsc --noEmit
       - name: Secret scan
         run: |
-          if grep -R -nE 'service_role|SUPABASE_SERVICE_ROLE|BEGIN RSA PRIVATE KEY|AIza[0-9A-Za-z_-]{20,}' \
-            --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=android --exclude-dir=ios \
-            apps/mobile packages/mobile-contracts packages/mobile-design \
+          set -euo pipefail
+          PATTERN='service_role|SUPABASE_SERVICE_ROLE|BEGIN RSA PRIVATE KEY|AIza[0-9A-Za-z_-]{20,}'
+          GREP=(grep -R -nE "$PATTERN" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=android --exclude-dir=ios)
+          CANARY=apps/mobile/.secret-scan-canary.ts
+          trap 'rm -f "$CANARY"' EXIT
+          printf '%s\n' "export const canary = 'SUPABASE_SERVICE_ROLE=synthetic-scan-canary-not-a-real-key';" > "$CANARY"
+          if ! "${GREP[@]}" "$CANARY" >/dev/null; then
+            echo 'Secret scanner failed to detect a synthetic service-role leak.'
+            exit 1
+          fi
+          rm -f "$CANARY"
+          if "${GREP[@]}" apps/mobile packages/mobile-contracts packages/mobile-design \
             | grep -v 'docs/' ; then
             echo 'Refusing secrets in the companion tree.'
             exit 1
@@ -71,11 +80,11 @@ jobs:
           node-version: 24
           cache: npm
           cache-dependency-path: apps/mobile/package-lock.json
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
+      - uses: android-actions/setup-android@v4
         with:
           packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
           log-accepted-android-sdk-licenses: false
@@ -88,7 +97,18 @@ jobs:
       - name: Assemble debug APK
         working-directory: apps/mobile/android
         run: ./gradlew --no-daemon :app:assembleDebug
-      - uses: actions/upload-artifact@v4
+      - name: Record APK identity
+        run: |
+          set -euo pipefail
+          apk=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$apk"
+          echo "commit=${GITHUB_SHA}"
+          sha256sum "$apk"
+          aapt="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          if [ -x "$aapt" ]; then
+            "$aapt" dump badging "$apk" | head -20
+          fi
+      - uses: actions/upload-artifact@v7.0.2
         with:
           name: Sornio-companion-android-debug
           path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
