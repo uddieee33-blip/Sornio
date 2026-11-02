@@ -19,7 +19,7 @@ export type RetailAction =
  | { kind: 'correct_close'; closingId: string; countedPaise: number; reason: string }
  | { kind: 'reopen'; closingId: string; reason: string };
 export type RetailRequest = { operationId: string; action: RetailAction };
-export type RetailReceipt = { operationId: string; kind: string; data: { invoice?: Invoice; [key: string]: unknown } };
+export type RetailReceipt = { operationId: string; kind: string; data: { invoice?: Invoice; payments?: Payment[]; [key: string]: unknown } };
 export type RetailPending = { request: RetailRequest; receipt: RetailReceipt | null };
 export type Payment = { id: string; invoiceId: string; method: string; amountPaise: number; refundablePaise: number; status: string; revision: number; reference: string; externallyVerified: false };
 export type Refund = { id: string; invoiceId: string; method: string; amountPaise: number; status: string; revision: number; reference: string; externallyVerified: false };
