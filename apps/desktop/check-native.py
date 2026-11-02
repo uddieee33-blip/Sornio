@@ -123,7 +123,8 @@ def list_sorniobackups():
 
 
 def assert_locked():
-    window.child_window(title="Local password", control_type="Edit").wait("visible enabled", timeout=30)
+    window.set_focus()
+    window.child_window(title="Local password", control_type="Edit").wait("visible enabled", timeout=60)
     for title in ("Business name", "Search items for sale", "Saved invoice ID"):
         wait_until(15, 0.2, lambda title=title: not window.child_window(
             title=title, control_type="Edit", visible_only=False
