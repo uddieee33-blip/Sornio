@@ -202,6 +202,87 @@ console.log('Invoice arithmetic and settlement:');
   flush();
   check('settling a part-paid bill records only remaining cash and revenue', state.paymentRecords.at(-1).amount === 465 && state.transactions.length === transactionsBefore + 2 && state.transactions.slice(-2).every((tx) => tx.amount === 465));
   check('settled bills remain uncollectible after commit', !actions.markInvoicePaid(invoice.id, 'Cash').ok && I.invoiceBalance(state.invoices[0], state.paymentRecords) === 0);
+
+  for (const [quantity, unitPrice, expected] of [
+    [4.85, 0.50, 2.43],
+    [4.85, 0.70, 3.40],
+    [2.9, 0.75, 2.18],
+    [4.265, 1.00, 4.27],
+    [4.395, 1.00, 4.40],
+  ]) {
+    const txStart = state.transactions.length;
+    const halfBill = actions.createInvoice({
+      customerName: 'Half-paise walk-in',
+      lines: [{ name: 'Bulk grain', category: 'Grains', quantity, unitPrice }],
+      taxRate: 0,
+      method: 'Cash',
+    });
+    flush();
+    const savedHalf = state.invoices.find((item) => item.id === halfBill.invoiceId);
+    const postedHalf = state.transactions.slice(txStart);
+    check(
+      `saved invoice and posted ledger agree on half-paise ${quantity} x ${unitPrice} = ${expected}`,
+      halfBill.ok &&
+        savedHalf?.items[0]?.total === expected &&
+        savedHalf?.subtotal === expected &&
+        savedHalf?.totalAmount === expected &&
+        postedHalf.length === 2 &&
+        postedHalf.every((tx) => tx.amount === expected),
+    );
+  }
+
+  const taxTxStart = state.transactions.length;
+  const halfTaxBill = actions.createInvoice({
+    customerName: 'Half-paise tax',
+    lines: [{ name: 'Flour', category: 'Grains', quantity: 1, unitPrice: 48.50 }],
+    taxRate: 5,
+    method: 'Cash',
+  });
+  flush();
+  const savedHalfTax = state.invoices.find((item) => item.id === halfTaxBill.invoiceId);
+  const postedHalfTax = state.transactions.slice(taxTxStart);
+  check(
+    'half-paise invoice tax posts identical paise across saved bill and ledger',
+    halfTaxBill.ok &&
+      savedHalfTax?.subtotal === 48.50 &&
+      savedHalfTax?.tax === 2.43 &&
+      savedHalfTax?.totalAmount === 50.93 &&
+      postedHalfTax.find((tx) => tx.type === 'sale')?.amount === 48.50 &&
+      postedHalfTax.find((tx) => tx.account === 'tax')?.amount === 2.43 &&
+      postedHalfTax.find((tx) => tx.account === 'receivables')?.amount === 50.93,
+  );
+
+  const grain = { id: 'p-grain', name: 'Loose grain', sku: 'GRN-1', category: 'Grains', itemType: 'product', price: 0.50, cost: 0.50, stock: 10, minStock: 1, unit: 'kg', status: 'Active' };
+  const postedStockSale = deps.postSale(
+    { products: [grain], transactions: [], stockMovements: [] },
+    { lines: [{ productId: 'p-grain', name: 'Loose grain', quantity: 4.85, rate: 0.50 }], method: 'Cash', description: 'Weighed grain', date: '2026-11-02', taxRate: 0 },
+  );
+  check(
+    'counter postSale rounds 4.85 x 0.50 revenue and cost to 2.43 and deducts exact stock',
+    postedStockSale.subtotal === 2.43 &&
+      postedStockSale.total === 2.43 &&
+      postedStockSale.products[0].stock === 5.15 &&
+      postedStockSale.transactions.every((tx) => tx.amount === 2.43),
+  );
+  let overPrecisionRejected = false;
+  try {
+    deps.postSale(
+      { products: [grain], transactions: [], stockMovements: [] },
+      { lines: [{ name: 'Sub-paise', quantity: 1, rate: 1.234 }], method: 'Cash', description: 'Invalid rate', date: '2026-11-02' },
+    );
+  } catch {
+    overPrecisionRejected = true;
+  }
+  let overflowRejected = false;
+  try {
+    deps.postSale(
+      { products: [grain], transactions: [], stockMovements: [] },
+      { lines: [{ name: 'Overflow', quantity: 1000, rate: 90000000.01 }], method: 'Cash', description: 'Overflow sale', date: '2026-11-02' },
+    );
+  } catch {
+    overflowRejected = true;
+  }
+  check('counter postSale refuses sub-paise rates and totals beyond native paise cap', overPrecisionRejected && overflowRejected);
 }
 
 // Integration groundwork for PR #52: repeated lines must be validated as one basket.

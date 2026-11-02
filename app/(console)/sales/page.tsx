@@ -14,7 +14,7 @@ import { formatCurrency } from '@/lib/business-data';
 import { useDukaanStore, type SaleLine } from '@/lib/store';
 import { describeStockChange } from '@/lib/inventory';
 import { usePortal } from '@/lib/portals/portal-provider';
-import { resolveScan } from '@/lib/scanning';
+import { resolveScan, ticketTotal } from '@/lib/scanning';
 import type { PaymentMethod } from '@/lib/models/billing';
 
 const METHODS: PaymentMethod[] = ['Cash', 'UPI', 'Card', 'Bank Transfer', 'Other'];
@@ -35,7 +35,7 @@ export default function SalesPage() {
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [limitHit, setLimitHit] = useState(false);
 
-  const total = useMemo(() => lines.reduce((sum, line) => sum + line.quantity * line.rate, 0), [lines]);
+  const total = useMemo(() => ticketTotal(lines), [lines]);
 
   const addLine = () => {
     const first = sellableProducts[0];

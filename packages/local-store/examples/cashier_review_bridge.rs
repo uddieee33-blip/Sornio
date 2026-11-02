@@ -309,13 +309,20 @@ fn main() {
                     StoreError::CreditAlreadyCollected => "credit_collected",
                     StoreError::Forbidden => "forbidden",
                     StoreError::WorkspaceMismatch => "workspace_mismatch",
+                    StoreError::AccountExists => "account_exists",
                     StoreError::IncorrectPassword => "incorrect_password",
                     StoreError::InvalidPassword => "invalid_password",
                     StoreError::InvalidIdentity => "invalid_identity",
+                    StoreError::AccessConfigured => "already_configured",
+                    StoreError::AccessNotConfigured => "not_configured",
                     StoreError::StockConflict => "stock_conflict",
                     StoreError::CheckoutActive => "checkout_active",
                     StoreError::InvalidInvoice => "invalid_invoice",
-                    StoreError::InvalidStock | StoreError::ProductMissing => "invalid_product",
+                    StoreError::DuplicateSku => "duplicate_sku",
+                    StoreError::InvalidProduct
+                    | StoreError::InvalidStock
+                    | StoreError::ProductMissing
+                    | StoreError::CatalogFull => "invalid_product",
                     StoreError::OperationConflict => "operation_conflict",
                     _ => "workspace_error",
                 };

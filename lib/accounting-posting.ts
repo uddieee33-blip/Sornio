@@ -3,6 +3,8 @@ import type { StockMovement } from './inventory';
 import { buildMovement, pushMovements, unitFor } from './inventory';
 import { money } from './accounting';
 import { validateSaleStock, type SaleStockLine } from './sale-stock';
+import { exactLinePaise, parseFixedDecimal } from '../packages/business-domain/src/fixed-decimal';
+import { calculateNativeInvoice } from '../packages/business-domain/src/native-invoice';
 export type SoldLine = {
   productId?: string;
   name?: string;
@@ -30,9 +32,18 @@ export function postSale(
 ) {
   if (
     !input.lines.length ||
+    input.lines.length > 100 ||
     input.lines.some((l) => !Number.isFinite(l.quantity) || !Number.isFinite(l.rate) || l.quantity <= 0 || l.rate < 0)
   )
     throw new Error('Every line needs a valid quantity and price.');
+  const fixedLines: { quantityMilli: number; unitPricePaise: number }[] = [];
+  for (const l of input.lines) {
+    const quantityMilli = parseFixedDecimal(String(l.quantity), 3);
+    const unitPricePaise = parseFixedDecimal(String(l.rate), 2);
+    if (quantityMilli === null || quantityMilli <= 0 || unitPricePaise === null)
+      throw new Error('Every line needs a valid quantity and price.');
+    fixedLines.push({ quantityMilli, unitPricePaise });
+  }
   const stockLines = input.lines.filter((line): line is SaleStockLine => Boolean(line.productId));
   const validation = stockLines.length ? validateSaleStock(stockLines, current.products) : null;
   if (validation && !validation.ok) throw new Error(validation.error);
@@ -44,10 +55,18 @@ export function postSale(
       throw new Error(`Not enough stock for ${p.name} (${p.stock} left).`);
   }
   const rate = input.taxRate ?? 0;
-  if (!Number.isFinite(rate) || rate < 0 || rate > 100) throw new Error('Tax rate must be between 0 and 100.');
-  const subtotal = money(input.lines.reduce((sum, l) => sum + money(l.quantity * l.rate), 0)),
-    tax = money((subtotal * rate) / 100),
-    total = money(subtotal + tax);
+  const taxBasisPoints = Number.isFinite(rate) ? parseFixedDecimal(String(rate), 2) : null;
+  if (taxBasisPoints === null || taxBasisPoints > 10000) throw new Error('Tax rate must be between 0 and 100.');
+  if (fixedLines.every((l) => l.unitPricePaise === 0)) throw new Error('Sale total must be greater than zero.');
+  let calculated: ReturnType<typeof calculateNativeInvoice>;
+  try {
+    calculated = calculateNativeInvoice(fixedLines, taxBasisPoints);
+  } catch {
+    throw new Error('Every line needs a valid quantity and price.');
+  }
+  const subtotal = calculated.subtotalPaise / 100,
+    tax = calculated.taxPaise / 100,
+    total = calculated.totalPaise / 100;
   if (subtotal <= 0) throw new Error('Sale total must be greater than zero.');
   const reference = input.invoiceId ?? operationId('sale'),
     at = new Date().toISOString();
@@ -100,15 +119,17 @@ export function postSale(
   for (const [id, quantity] of quantities) {
     const p = current.products.find((p) => p.id === id)!;
     if (p.itemType === 'service') continue;
-    if (p.cost > 0)
+    if (p.cost > 0) {
+      const costPaise = exactLinePaise(quantity, p.cost);
       entries.push(
         tx({
           type: 'stock_adjustment',
-          amount: money(quantity * p.cost),
+          amount: costPaise !== null ? costPaise / 100 : money(quantity * p.cost),
           direction: 'out',
           account: 'inventory',
         }),
       );
+    }
     const movement = buildMovement({
       id: operationId('mv'),
       productId: p.id,
