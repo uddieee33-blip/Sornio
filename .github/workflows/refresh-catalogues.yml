@@ -46,7 +46,7 @@ jobs:
         env:
           I18N_BATCH_SIZE: '24'
           I18N_CONCURRENCY: '1'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.11'
       - name: Install low-resource translation dependencies
