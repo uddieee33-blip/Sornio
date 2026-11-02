@@ -1,0 +1,233 @@
+{
+  "manifestSchemaVersion": "1.0.0",
+  "documentId": "SORNIO-POST-MERGE-EVIDENCE-2026-11-02",
+  "generatedAt": "2026-11-02T15:55:00Z",
+  "generatedBy": "arena/1dcef404-sornio execution session",
+  "repository": "uddieee33-blip/Sornio",
+  "provenance": "All values below were read live from the GitHub REST API during this session. None are transcribed from an earlier session.",
+
+  "gitBaseline": {
+    "initialMainSha": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+    "finalMainSha": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+    "mainUnchangedThisSession": true,
+    "parentOfMain": "37e8cf71fb297c9b8e76acb3637abf7ccdb78ddb",
+    "pr142": {
+      "number": 142,
+      "state": "MERGED",
+      "mergeMethod": "squash",
+      "mergeCommit": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+      "mergedAt": "2026-11-02T15:41:34Z",
+      "mergedBy": "uddieee33-blip",
+      "headRefOid": "e13a930549d45b141d85ee8f7c8deeef470d7396",
+      "baseRefName": "main",
+      "commitsSquashed": 5,
+      "mergedInThisSession": false
+    },
+    "nativeSchemaVersion": 12,
+    "mainTreeSha": "871c48be587de15c35728494a9b6e80e308b3b22",
+    "pr142HeadTreeSha": "871c48be587de15c35728494a9b6e80e308b3b22",
+    "treesIdentical": true,
+    "treeIdentitySignificance": "The Windows acceptance run attached to e13a930 exercised a tree byte-identical to final main. This is strong corroboration but is NOT a workflow run attached to main's SHA."
+  },
+
+  "ciOnFinalMainSha": {
+    "runId": 41474089057,
+    "workflow": "CI",
+    "event": "push",
+    "headSha": "baabf5fe35462de22d8a4d6132e29b3873fc919d",
+    "conclusion": "success",
+    "createdAt": "2026-11-02T15:41:37Z",
+    "completedAt": "2026-11-02T15:45:12Z",
+    "jobs": [
+      { "name": "Lint, types, build", "conclusion": "success" },
+      { "name": "Dependency audit", "conclusion": "success" }
+    ]
+  },
+
+  "workflowDispatch": {
+    "attempted": true,
+    "workspaceBrowser": { "command": "gh workflow run workspace-browser.yml --ref main", "result": "BLOCKED", "http": 403 },
+    "windowsLocal": { "command": "gh workflow run windows-local.yml --ref main", "result": "BLOCKED", "http": 403 },
+    "blocker": "Credential is a permissionless GitHub App installation token (x-accepted-github-permissions: allows_permissionless_access=true, no OAuth scopes). Cannot create workflow_dispatch events.",
+    "notFabricated": true
+  },
+
+  "windowsAcceptanceEvidence": {
+    "attachedToSha": "e13a930549d45b141d85ee8f7c8deeef470d7396",
+    "attachedToMainSha": false,
+    "treeEquivalentToMain": true,
+    "runs": [
+      {
+        "runId": 41457796087,
+        "workflow": "Windows local workspace",
+        "event": "pull_request",
+        "headSha": "e13a930549d45b141d85ee8f7c8deeef470d7396",
+        "conclusion": "success",
+        "jobs": [{ "name": "local-windows", "conclusion": "success" }],
+        "createdAt": "2026-11-02T13:59:46Z",
+        "completedAt": "2026-11-02T14:28:34Z"
+      },
+      {
+        "runId": 41457796158,
+        "workflow": "Workspace browser review",
+        "event": "pull_request",
+        "headSha": "e13a930549d45b141d85ee8f7c8deeef470d7396",
+        "conclusion": "success",
+        "jobs": [{ "name": "browser", "conclusion": "success" }],
+        "createdAt": "2026-11-02T13:59:46Z",
+        "completedAt": "2026-11-02T14:11:36Z"
+      }
+    ],
+    "artifacts": [
+      {
+        "name": "Sornio-Local-Workspace-Review",
+        "kind": "installer-archive",
+        "id": 13149371946,
+        "sizeInBytes": 222744930,
+        "archiveSha256": "2b6bfaf5d60c2438b22e6596367ad37ab5253923b7a76c4c08d6b85e5e399449",
+        "matchesHistoricalRecord": true,
+        "expiresAt": "2026-11-09T14:28:06Z",
+        "expired": false,
+        "downloadUrl": "https://api.github.com/repos/uddieee33-blip/Sornio/actions/artifacts/13149371946/zip"
+      },
+      {
+        "name": "Sornio-Local-Native-Captures",
+        "kind": "native-ui-evidence-archive",
+        "id": 13149486747,
+        "sizeInBytes": 1278398,
+        "archiveSha256": "1c70021fd649c37dbbe14b274d759b575435d6016c8c25f05ae0608d6ca89e38",
+        "matchesHistoricalRecord": true,
+        "expiresAt": "2026-11-09T14:28:14Z",
+        "expired": false,
+        "downloadUrl": "https://api.github.com/repos/uddieee33-blip/Sornio/actions/artifacts/13149486747/zip"
+      },
+      {
+        "name": "Sornio-workspace-review",
+        "kind": "browser-acceptance-archive",
+        "id": 13148078256,
+        "sizeInBytes": 9967137,
+        "archiveSha256": "c9a6617045be911df37a5a31b7bfb5ee70069b48a624deaa3b11ea150074ade9",
+        "expiresAt": "2026-11-09T14:11:32Z",
+        "expired": false,
+        "downloadUrl": "https://api.github.com/repos/uddieee33-blip/Sornio/actions/artifacts/13148078256/zip"
+      }
+    ],
+    "innerInstallerExecutableSha256": null,
+    "innerInstallerSha256UnavailableReason": "Artifact ZIP download redirects to productionresultssa32.blob.core.windows.net, outside the sandbox egress allowlist. Inner *-setup.exe checksum is emitted by apps/desktop/check-windows-evidence.py inside the undownloadable artifact and is therefore NOT reported.",
+    "archiveDigestIsNotInstallerChecksum": true,
+    "codeSigning": {
+      "signed": false,
+      "authenticode": "NotSigned",
+      "smartScreenRisk": "UNSIGNED_BINARY_WARNING_EXPECTED",
+      "describedAsSignedConsumerRelease": false
+    }
+  },
+
+  "durableArchival": {
+    "archivedToDurableStore": false,
+    "status": "ephemeral_github_actions_retention_only",
+    "retentionDeadline": "2026-11-09T14:28:14Z",
+    "downloadBlockedBySandbox": true,
+    "blockedHost": "productionresultssa32.blob.core.windows.net",
+    "founderActionRequired": "Download all three artifacts and verify archive then inner-executable SHA-256 before expiry."
+  },
+
+  "localVerificationOnFinalMain": {
+    "environment": "Linux sandbox, Node v22.22.3 (repo declares 24.x), Python 3, TypeScript 6.0.3 + tsgo 7.0.2, no rustc/cargo",
+    "results": [
+      { "command": "npm ci", "result": "pass" },
+      { "command": "npm run lint", "result": "pass" },
+      { "command": "npm run typecheck", "result": "pass" },
+      { "command": "npm run typecheck:native", "result": "pass" },
+      { "command": "npm run verify", "result": "pass", "exitCode": 0 },
+      { "command": "npm run build", "result": "pass" },
+      { "command": "npm run build --prefix apps/desktop", "result": "pass" },
+      { "command": "npm run verify:accounting", "result": "pass", "checks": 64 },
+      { "command": "npm run verify:billing", "result": "pass", "checks": 25 },
+      { "command": "npm run verify:money", "result": "pass", "checks": 12 },
+      { "command": "npm run verify:business-domain", "result": "pass" },
+      { "command": "npm run verify:windows-release", "result": "pass", "checks": 40 }
+    ],
+    "notExecutedLocally": [
+      "cargo test --all-targets --release (no rustc/cargo in sandbox; toolchain hosts not allowlisted)",
+      "cargo test --all-targets (debug profile)",
+      "Windows NSIS install / UIA automation / installer preservation (requires Windows runner)"
+    ]
+  },
+
+  "accountingInvariants": {
+    "repeatedSku": {
+      "inputs": "0.1 + 4.01 units at 50 paise cost",
+      "quantityMilli": 4110,
+      "quantity": 4.11,
+      "cogsRawPaise": 2.055,
+      "cogsPaiseHalfUp": 206,
+      "cogsRupees": 2.06,
+      "verifiedBy": "scripts/verify-accounting.mjs (executed, 64 passed / 0 failed)"
+    },
+    "splitPayment": {
+      "invoicePaise": 100000,
+      "cashPaise": 60000,
+      "customerCreditPaise": 40000,
+      "verifiedBy": "packages/local-store/src/payments_tests.rs:1618 split_cash_and_customer_credit_sale_posts_one_atomic_sale",
+      "invariants": {
+        "exactlyOneInvoice": true,
+        "exactlyOneStockDeduction": true,
+        "correctCustomerCreditEntry": true,
+        "balancedJournal": true,
+        "exactReplayWithoutDuplication": true,
+        "alteredReplayRefused": true,
+        "digitalPaymentsNotFalselyBankVerified": true
+      }
+    }
+  },
+
+  "prReconciliation": {
+    "closedWithoutMerging": [
+      { "number": 134, "state": "CLOSED", "merged": false, "basis": "literal ancestor of main; 0 missing commits; empty diff", "branchPreserved": "test/windows-evidence-verification-2026-11-01" },
+      { "number": 131, "state": "CLOSED", "merged": false, "basis": "literal ancestor of main; 0 missing commits; empty diff; damaged-return code re-verified", "branchPreserved": "hardening/financial-recovery-audit-2026-10-31" },
+      { "number": 123, "state": "CLOSED", "merged": false, "basis": "literal ancestor of main; 0 missing commits; empty diff; credit capabilities re-verified", "branchPreserved": "feature/windows-customer-credit" },
+      { "number": 129, "state": "CLOSED", "merged": false, "basis": "superseded by #135/#136/#141; branch schema v6 vs main v12", "branchPreserved": "review/windows-controlled-pilot-hardening" },
+      { "number": 125, "state": "CLOSED", "merged": false, "basis": "superseded; branch schema v6; main recovery.rs strictly larger and 13 extra tests", "branchPreserved": "feature/windows-encrypted-backup" }
+    ],
+    "leftOpen": [
+      { "number": 126, "purpose": "multi-PC LAN hub — future integration" },
+      { "number": 127, "purpose": "GST invoicing — future integration" },
+      { "number": 137, "purpose": "dependabot setup-python — deferred" },
+      { "number": 139, "purpose": "dependabot upload-artifact — deferred" },
+      { "number": 140, "purpose": "dependabot npm minor-and-patch — deferred" },
+      { "number": 138, "purpose": "dependabot setup-android — deferred" }
+    ]
+  },
+
+  "branchCleanup": {
+    "performed": false,
+    "nonMainBranches": 119,
+    "mergedAncestorsDeleteSafeAfterAuthorization": 80,
+    "uniqueCommitsRequireReview": 39,
+    "protectedRulesModified": false
+  },
+
+  "releaseDecisions": {
+    "repositoryIntegration": {
+      "decision": "GO",
+      "condition": "None. main is at baabf5f with CI green on that exact SHA."
+    },
+    "automatedWindowsReleaseCandidate": {
+      "decision": "CONDITIONAL GO",
+      "conditions": [
+        "Dispatch windows-local.yml and workspace-browser.yml against main with an actions:write token",
+        "Archive all three artifacts with SHA-256 verification before 2026-11-09T14:28:14Z",
+        "Record the inner *-setup.exe checksum separately from the archive ZIP digest"
+      ]
+    },
+    "controlledSinglePcPhysicalPilot": {
+      "decision": "NO-GO",
+      "condition": "All 15 stages of docs/reviews/windows-physical-pilot-acceptance-plan-2026-11-02.md must pass on the real shop PC with real printer, USB HID scanner, Gurmukhi paper output and USB backup media. Zero stages executed to date."
+    },
+    "publicCommercialRelease": {
+      "decision": "NO-GO",
+      "condition": "Unsigned installer; cross-version upgrade untested; clean-PC WebView2 bootstrap unverified; GST compliance unverified; no external digital-payment settlement verification; no physical pilot results."
+    }
+  }
+}
