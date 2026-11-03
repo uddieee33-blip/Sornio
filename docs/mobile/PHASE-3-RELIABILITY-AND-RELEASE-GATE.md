@@ -18,7 +18,7 @@ This document is an independent gate review. Green checks are evidence of the ch
 | --- | --- | --- |
 | Safe to continue development | Yes | Native financial posting and the SQLCipher → TLS → PostgreSQL pipeline are real. |
 | Safe for founder code review | Yes | Draft PR #143 is the review surface. |
-| Safe to merge | **No** | Remaining Windows artifact independence, live-sync disablement, and this commit’s new tests must finish on the actual head. |
+| Safe to merge | **No** | Live sync stays off. Installer zip bytes are not independently hashed here. Founder merge only. |
 | Safe for controlled internal testing | Conditional | Offline desktop review installer on a GitHub-hosted Windows runner only. |
 | Safe for real-shop pilot | **No** | Live sync is off; cloud is not a second ledger; shopkeeper UX for interrupted operations is incomplete. |
 | Safe for production cloud synchronization | **No** | `productionSyncEnabled=false` by design. |
@@ -36,7 +36,7 @@ Recorded at review start, then updated for this commit.
 | Working branch | `arena/5ed2bd28-sornio` |
 | PR | [#143](https://github.com/uddieee33-blip/Sornio/pull/143) open, **draft**, `MERGEABLE` / `CLEAN` |
 | Previous verified head | `4747cdabb528cc6bf5cee4547ccb7d179962aa4d` |
-| This review’s code | see git log on this branch after `test(local-store): Phase 3 financial reliability matrix` |
+| This review’s head | `b2cb24fb2a2c713992fe919ea97f68c1854cce78` |
 | Base | `main` |
 | Schema | `SCHEMA_VERSION = 12` |
 | Mobile live sync | `apps/mobile/app.json` `extra.productionSyncEnabled: false` |
@@ -131,47 +131,47 @@ Statuses:
 * **UNTESTED** — no execution environment here.
 * **BLOCKED** — cannot be executed with available hosts.
 
-New automated tests live in `packages/local-store/src/phase3_reliability_tests.rs` (`payments::phase3::*`). They are **PENDING** until the workflows on this commit complete.
+New automated tests live in `packages/local-store/src/phase3_reliability_tests.rs` (`payments::phase3::*`). They **PASS** on SHA `b2cb24f` (Ubuntu debug+release `cargo test --all-targets` in browser `41619012774`; Windows release+debug `cargo test --all-targets` in `41619012964`).
 
 ### D1. Financial posting (new)
 
 | ID | Risk | Scenario | Expected | Test | Env | Status |
 | --- | --- | --- | --- | --- | --- | --- |
-| F-001 | P0 | ₹1,000 cash | cash 100000, 1 invoice, stock −10 kg | `financial_matrix_posts_supported_allocations_in_integer_paise` | native SQLCipher | PENDING |
-| F-002 | P0 | ₹1,000 UPI | digital pending 100000, not credit | same | native | PENDING |
-| F-003 | P0 | ₹1,000 card | digital pending 100000, not credit | same | native | PENDING |
-| F-004 | P0 | ₹1,000 credit | customer debt 100000 | same | native | PENDING |
-| F-005 | P0 | ₹600 cash + ₹400 UPI | split preserved | same | native | PENDING |
-| F-006 | P0 | ₹600 cash + ₹400 credit | cash 60000, debt 40000, one invoice | same | native | PENDING |
-| F-007 | P0 | ₹250 cash + ₹750 card | split preserved | same | native | PENDING |
-| F-008 | P0 | ₹300 cash + ₹300 UPI + ₹400 credit | three-way | same | native | PENDING |
-| F-009 | P0 | reopen after each of F-001–F-008 | same balances | same | native | PENDING |
-| F-010 | P0 | outbox + stock movement exist | one stock row, one billing outbox | same | native | PENDING |
-| F-011 | P0 | journals sum to zero | billing ledger 0, retail journal 0 | same | native | PENDING |
-| F-012 | P0 | no `externallyVerified` | all payment rows false | same | native | PENDING |
-| F-013 | P0 | empty payment | InvalidPayment, no rows | `financial_matrix_rejects_invalid_allocations_without_partial_effects` | native | PENDING |
-| F-014 | P0 | negative amount | InvalidPayment | same | native | PENDING |
-| F-015 | P0 | zero amount | InvalidPayment | same | native | PENDING |
-| F-016 | P0 | unknown method `wallet` | InvalidPayment | same | native | PENDING |
-| F-017 | P0 | credit without customer | InvalidPayment | same | native | PENDING |
-| F-018 | P0 | customer without credit part | InvalidPayment | same | native | PENDING |
-| F-019 | P0 | two credit parts | InvalidPayment | same | native | PENDING |
-| F-020 | P0 | overpayment | post fails, snapshot unchanged | same | native | PENDING |
-| F-021 | P0 | underpayment | post fails, snapshot unchanged | same | native | PENDING |
-| F-022 | P0 | duplicate payment ids | InvalidPayment, snapshot unchanged | same | native | PENDING |
-| F-023 | P0 | missing customer | CustomerMissing, snapshot unchanged | same | native | PENDING |
-| F-024 | P0 | credit limit ₹300 vs ₹400 credit | CreditLimit, no stock move | same | native | PENDING |
-| F-025 | P0 | rejection count cannot shrink to 0 | `assert_eq!(rejected, 12)` | same | native | PENDING |
+| F-001 | P0 | ₹1,000 cash | cash 100000, 1 invoice, stock −10 kg | `financial_matrix_posts_supported_allocations_in_integer_paise` | native SQLCipher | PASS `b2cb24f` |
+| F-002 | P0 | ₹1,000 UPI | digital pending 100000, not credit | same | native | PASS `b2cb24f` |
+| F-003 | P0 | ₹1,000 card | digital pending 100000, not credit | same | native | PASS `b2cb24f` |
+| F-004 | P0 | ₹1,000 credit | customer debt 100000 | same | native | PASS `b2cb24f` |
+| F-005 | P0 | ₹600 cash + ₹400 UPI | split preserved | same | native | PASS `b2cb24f` |
+| F-006 | P0 | ₹600 cash + ₹400 credit | cash 60000, debt 40000, one invoice | same | native | PASS `b2cb24f` |
+| F-007 | P0 | ₹250 cash + ₹750 card | split preserved | same | native | PASS `b2cb24f` |
+| F-008 | P0 | ₹300 cash + ₹300 UPI + ₹400 credit | three-way | same | native | PASS `b2cb24f` |
+| F-009 | P0 | reopen after each of F-001–F-008 | same balances | same | native | PASS `b2cb24f` |
+| F-010 | P0 | outbox + stock movement exist | one stock row, one billing outbox | same | native | PASS `b2cb24f` |
+| F-011 | P0 | journals sum to zero | billing ledger 0, retail journal 0 | same | native | PASS `b2cb24f` |
+| F-012 | P0 | no `externallyVerified` | all payment rows false | same | native | PASS `b2cb24f` |
+| F-013 | P0 | empty payment | InvalidPayment, no rows | `financial_matrix_rejects_invalid_allocations_without_partial_effects` | native | PASS `b2cb24f` |
+| F-014 | P0 | negative amount | InvalidPayment | same | native | PASS `b2cb24f` |
+| F-015 | P0 | zero amount | InvalidPayment | same | native | PASS `b2cb24f` |
+| F-016 | P0 | unknown method `wallet` | InvalidPayment | same | native | PASS `b2cb24f` |
+| F-017 | P0 | credit without customer | InvalidPayment | same | native | PASS `b2cb24f` |
+| F-018 | P0 | customer without credit part | InvalidPayment | same | native | PASS `b2cb24f` |
+| F-019 | P0 | two credit parts | InvalidPayment | same | native | PASS `b2cb24f` |
+| F-020 | P0 | overpayment | post fails, snapshot unchanged | same | native | PASS `b2cb24f` |
+| F-021 | P0 | underpayment | post fails, snapshot unchanged | same | native | PASS `b2cb24f` |
+| F-022 | P0 | duplicate payment ids | InvalidPayment, snapshot unchanged | same | native | PASS `b2cb24f` |
+| F-023 | P0 | missing customer | CustomerMissing, snapshot unchanged | same | native | PASS `b2cb24f` |
+| F-024 | P0 | credit limit ₹300 vs ₹400 credit | CreditLimit, no stock move | same | native | PASS `b2cb24f` |
+| F-025 | P0 | rejection count cannot shrink to 0 | `assert_eq!(rejected, 12)` | same | native | PASS `b2cb24f` |
 
 ### D2. Split-credit identity (new)
 
 | ID | Risk | Scenario | Expected | Test | Status |
 | --- | --- | --- | --- | --- | --- |
-| S-001 | P0 | exact retry of ₹600+₹400 | one invoice, one debt row | `split_credit_reused_canceled_and_customer_ids_conflict` | PENDING |
-| S-002 | P0 | same id, different split | OperationConflict | same | PENDING |
-| S-003 | P0 | canceled retail id reused | OperationConflict | same | PENDING |
-| S-004 | P0 | customer save operation id reused as sale | OperationConflict | same | PENDING |
-| S-005 | P0 | other staff posts prepared split | CheckoutActive, no invoice | `second_staff_cannot_steal_a_prepared_split_sale` | PENDING |
+| S-001 | P0 | exact retry of ₹600+₹400 | one invoice, one debt row | `split_credit_reused_canceled_and_customer_ids_conflict` | PASS `b2cb24f` |
+| S-002 | P0 | same id, different split | OperationConflict | same | PASS `b2cb24f` |
+| S-003 | P0 | canceled retail id reused | OperationConflict | same | PASS `b2cb24f` |
+| S-004 | P0 | customer save operation id reused as sale | OperationConflict | same | PASS `b2cb24f` |
+| S-005 | P0 | other staff posts prepared split | CheckoutActive, no invoice | `second_staff_cannot_steal_a_prepared_split_sale` | PASS `b2cb24f` |
 
 ### D3. Existing native financial tests (PASS on `4747cda`)
 
@@ -209,11 +209,11 @@ Windows `41612920113` and browser `41612920118` ran `cargo test --all-targets` s
 
 | ID | Scenario | Test | Status |
 | --- | --- | --- | --- |
-| C-001 | Two cashiers, last unit | `phase3::last_unit_inventory_race_never_oversells` | PENDING |
-| C-002 | Three cashiers, two units | `phase3::three_cashiers_two_units_never_oversell` | PENDING |
-| C-003 | Same invoice id, different payload | `phase3::same_invoice_id_concurrent_posts_once` | PENDING |
-| C-004 | Concurrent credit toward a ₹500 cap | `phase3::concurrent_credit_limit_never_exceeds_customer_cap` | PENDING |
-| C-005 | Two retail prepares | `phase3::two_retail_sale_prepares_serialize_at_pending` | PENDING |
+| C-001 | Two cashiers, last unit | `phase3::last_unit_inventory_race_never_oversells` | PASS `b2cb24f` |
+| C-002 | Three cashiers, two units | `phase3::three_cashiers_two_units_never_oversell` | PASS `b2cb24f` |
+| C-003 | Same invoice id, different payload | `phase3::same_invoice_id_concurrent_posts_once` | PASS `b2cb24f` |
+| C-004 | Concurrent credit toward a ₹500 cap | `phase3::concurrent_credit_limit_never_exceeds_customer_cap` | PASS `b2cb24f` |
+| C-005 | Two retail prepares | `phase3::two_retail_sale_prepares_serialize_at_pending` | PASS `b2cb24f` |
 | C-006 | Distinct parallel invoices | `payments::tests::concurrent_successful_invoices_receive_distinct_durable_numbers` | PASS `4747cda` |
 | C-007 | Stock correction vs sale | `payments::tests::stock_correction_and_sale_race_never_commits_both_stale_intents` | PASS `4747cda` |
 | C-008 | Refund vs repayment | `payments::tests::refund_and_repayment_race_conserves_cash_debt_and_damaged_stock` | PASS `4747cda` |
@@ -230,16 +230,16 @@ Windows `41612920113` and browser `41612920118` ran `cargo test --all-targets` s
 
 | ID | Checkpoint | Mechanism | Test | Status |
 | --- | --- | --- | --- | --- |
-| K-001 | Before commit (split ₹600+₹400) | process exit 88 | `split_sale_process_death_before_and_after_commit` | PENDING |
-| K-002 | After commit, before caller | process exit 89 | same | PENDING |
-| K-003 | After invoice insert | abort trigger | `split_sale_mid_write_failures_leave_no_partial_financial_rows` | PENDING |
-| K-004 | After inventory deduction | abort trigger | same | PENDING |
-| K-005 | After billing ledger | abort trigger | same | PENDING |
-| K-006 | After credit entry | abort trigger | same | PENDING |
-| K-007 | After payment rows | abort trigger | same | PENDING |
-| K-008 | After retail journal | abort trigger | same | PENDING |
-| K-009 | After billing outbox | abort trigger | same | PENDING |
-| K-010 | After retail outbox | abort trigger | same | PENDING |
+| K-001 | Before commit (split ₹600+₹400) | process exit 88 | `split_sale_process_death_before_and_after_commit` | PASS `b2cb24f` |
+| K-002 | After commit, before caller | process exit 89 | same | PASS `b2cb24f` |
+| K-003 | After invoice insert | abort trigger | `split_sale_mid_write_failures_leave_no_partial_financial_rows` | PASS `b2cb24f` |
+| K-004 | After inventory deduction | abort trigger | same | PASS `b2cb24f` |
+| K-005 | After billing ledger | abort trigger | same | PASS `b2cb24f` |
+| K-006 | After credit entry | abort trigger | same | PASS `b2cb24f` |
+| K-007 | After payment rows | abort trigger | same | PASS `b2cb24f` |
+| K-008 | After retail journal | abort trigger | same | PASS `b2cb24f` |
+| K-009 | After billing outbox | abort trigger | same | PASS `b2cb24f` |
+| K-010 | After retail outbox | abort trigger | same | PASS `b2cb24f` |
 | K-011 | Uncommitted billing process death | env crash | `billing::reliability_tests::uncommitted_billing_process_exit_rolls_back_every_effect_before_exact_retry` | PASS `4747cda` |
 | K-012 | Committed billing process death | env crash | `committed_billing_survives_process_exit_relock_unlock_and_exact_retry` | PASS `4747cda` |
 | K-013 | Refund process death | env crash | `payments::tests::refund_process_death_preserves_atomicity_and_exact_retry` | PASS `4747cda` |
@@ -255,9 +255,9 @@ Not implemented as process-kill points (covered by abort triggers or marked UNTE
 
 | ID | Scenario | Test | Status |
 | --- | --- | --- | --- |
-| Q-001 | Wrong encryption key | `phase3::sqlcipher_wrong_key_and_reopen_preserve_split_sale` | PENDING |
-| Q-002 | Reopen with correct key | same | PENDING |
-| Q-003 | Copy db+WAL+SHM after split sale | `phase3::wal_copy_of_live_database_preserves_committed_split_sale` | PENDING |
+| Q-001 | Wrong encryption key | `phase3::sqlcipher_wrong_key_and_reopen_preserve_split_sale` | PASS `b2cb24f` |
+| Q-002 | Reopen with correct key | same | PASS `b2cb24f` |
+| Q-003 | Copy db+WAL+SHM after split sale | `phase3::wal_copy_of_live_database_preserves_committed_split_sale` | PASS `b2cb24f` |
 | Q-004 | Corrupt page rejected | `payments::tests::corrupt_encrypted_database_is_rejected_without_replacement` | PASS `4747cda` |
 | Q-005 | Encrypted draft survives reopen | `lib::tests::encrypted_draft_survives_close_and_reopen` | PASS `4747cda` |
 | Q-006 | Wrong backup password / truncation | `recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed` | PASS `4747cda` |
@@ -290,7 +290,7 @@ Executed on `4747cda` run `41612920372`:
 | R-016 | Real PG ≥2 connections | `verify-replication-postgres.mjs` | PASS `4747cda` |
 | R-017 | Fail closed without DATABASE_URL | script `failClosed()` | PASS (code review) |
 | R-018 | Native FailTransport then EchoTransport | `native_financial_matrix_posts_seven_supported_sales` | PASS `4747cda` |
-| R-019 | Independent SHA-256 of outbox TEXT | `phase3::outbox_sha256_matches_independent_hasher_of_sqlcipher_text` + NIST vectors in `payload_digest_is_native_text` | PENDING (new) / tautology **removed** |
+| R-019 | Independent SHA-256 of outbox TEXT | `phase3::outbox_sha256_matches_independent_hasher_of_sqlcipher_text` + NIST vectors in `payload_digest_is_native_text` | PASS `b2cb24f` (tautology **removed**) |
 | R-020 | Production WAN timeout / reset / prolonged outage | shop network | **UNTESTED** |
 | R-021 | PostgreSQL restart during ingest | CI postgres service restart | **UNTESTED** |
 | R-022 | Invalid TLS of a public CA vs staging | staging uses ephemeral self-signed in CI | CI PASS; public CA **UNTESTED** |
@@ -331,7 +331,7 @@ Executed on `4747cda` run `41612920372`:
 | W-009 | Encrypted DB create / reopen | native check + `--verify-preserved` | PASS `4747cda` |
 | W-010 | Cashier financial workflow through UI | human shopkeeper session | **UNTESTED** |
 | W-011 | Independent SHA-256 of installer zip bytes | Azure blob host not reachable from this sandbox | **BLOCKED** here; GitHub-reported digest recorded below |
-| W-012 | Windows runtime of **this** commit | not `4747cda` | PENDING |
+| W-012 | Windows cargo + installer lifecycle of **this** commit | run `41619012964` | PASS `b2cb24f` (UI cashier still UNTESTED) |
 
 ### D10. Mobile / browser
 
@@ -357,7 +357,7 @@ Scenario count in this table set is well above 100 when F, S, E, C, K, Q, R, X, 
 * Customer credit limit uses `revision` bump. Concurrent credit sales produce one commit and one `CreditLimit` or `CreditConflict`, never a debt above the cap (asserted).
 * Same invoice id with different payloads must result in exactly one invoice row.
 
-No oversell or double invoice was accepted as a legal outcome in these tests. Results for the new races are PENDING until CI.
+No oversell or double invoice was accepted as a legal outcome. The new races **PASS** on SHA `b2cb24f` (Ubuntu and Windows `cargo test --all-targets`).
 
 ---
 
@@ -365,13 +365,13 @@ No oversell or double invoice was accepted as a legal outcome in these tests. Re
 
 Abort triggers at invoice, stock, ledger, credit, payments, journals and outbox inserts must leave the pre-post snapshot unchanged, then the cashier can retry. Process death before commit must leave zero invoices and zero customer debt for the split sale; death after commit must keep ₹600 cash + ₹400 credit and make retry idempotent.
 
-Those new assertions are PENDING. Existing billing/refund/inventory/recovery crash tests PASS on `4747cda`.
+Those new assertions **PASS** on SHA `b2cb24f`. Existing billing/refund/inventory/recovery crash tests also ran in the same `cargo test --all-targets` jobs.
 
 ---
 
 ## G. Replication verification
 
-On `4747cda` / run `41612920372`:
+On `b2cb24f` / run `41619012806` (and previously `4747cda` / `41612920372`):
 
 Native SQLCipher (tempfile live db, WAL checkpoint, copy db+WAL+SHM) → TEXT payloads → HTTPS with certificate verification → real PostgreSQL 16 → sidecar acks → reopen seven invoices, credit `140000` paise.
 
@@ -406,15 +406,22 @@ The sandbox cannot follow the Azure blob redirect, so these are **not** SHA-256 
 
 `check-installer.ps1` on the GitHub-hosted Windows runner: silent NSIS install, WebView2-located, outbound firewall block, native fixture, uninstall/reinstall data preservation, `--verify-preserved` reopen. That is installer + offline launch evidence, not a shopkeeper clicking through a ₹600+₹400 sale in the UI.
 
-### This commit
+### This commit (`b2cb24f` / run `41619012964`)
 
-Windows gates must be re-run because `packages/local-store/**` changed. Until that job finishes, W-002–W-009 are PENDING for the new SHA.
+Windows cargo tests (release + debug), NSIS installer, silent install, offline native check, uninstall/reinstall data preservation: **PASS**.
+
+GitHub-reported artifact digests (not independently hashed in this sandbox):
+
+| Artifact | Size | Artifact id | GitHub digest | Expires |
+| --- | --- | --- | --- | --- |
+| `Sornio-Local-Workspace-Review` | 222751077 | 13225255330 | `sha256:e9282733b65b6979d45f447e8b31378b3bcb00fd0374fc4757107d15336cccc5` | 2026-11-10T10:51:30Z |
+| `Sornio-Local-Native-Captures` | 1283696 | 13225310185 | `sha256:af68132053550aae9dbac4dd355e08296c58c2028ac4631f19e48027dc2cc865` | 2026-11-10T10:51:39Z |
 
 ---
 
 ## J. Mobile evidence
 
-On `4747cda`: Android review package SUCCESS, Android debug compile SUCCESS, iOS simulator compile SUCCESS, mobile contracts/types/security SUCCESS. Companion extra `productionSyncEnabled: false`. No store submission. No physical-device run in this review.
+On `b2cb24f`: Android review package SUCCESS (`41619012766`), Android debug compile SUCCESS, iOS simulator compile SUCCESS, mobile contracts/types/security SUCCESS (`41619012808`). Companion extra `productionSyncEnabled: false`. No store submission. No physical-device run in this review.
 
 ---
 
@@ -423,9 +430,9 @@ On `4747cda`: Android review package SUCCESS, Android debug compile SUCCESS, iOS
 ### P0
 
 1. Do not merge PR #143. Do not enable `productionSyncEnabled`.
-2. New Phase 3 tests in this commit are not PASS until CI on this SHA is green.
-3. Independent SHA-256 of Windows installer *bytes* still cannot be computed in this sandbox.
-4. Live shop network failure (timeout, reset, multi-hour outage) is UNTESTED.
+2. Independent SHA-256 of Windows installer *bytes* still cannot be computed in this sandbox (GitHub-reported zip digest only).
+3. Live shop network failure (timeout, reset, multi-hour outage) is UNTESTED.
+4. A green CI badge is not production GO.
 
 ### P1
 
@@ -461,15 +468,15 @@ On `4747cda`: Android review package SUCCESS, Android debug compile SUCCESS, iOS
 
 ---
 
-## M. This-commit CI (fill after workflows finish)
+## M. This-commit CI (`b2cb24fb2a2c713992fe919ea97f68c1854cce78`)
 
 | Workflow | Run ID | SHA | Result | Notes |
 | --- | --- | --- | --- | --- |
-| Replication PostgreSQL | _pending_ | _pending_ | _pending_ | Must include native export + TLS ingest |
-| Workspace browser review | _pending_ | _pending_ | _pending_ | rustfmt + debug/release cargo test |
-| Windows local workspace | _pending_ | _pending_ | _pending_ | cargo test + installer lifecycle |
-| CI | _pending_ | _pending_ | _pending_ | |
-| Mobile companion | _pending_ | _pending_ | _pending_ | |
-| Android review package | _pending_ | _pending_ | _pending_ | |
+| Replication PostgreSQL | [41619012806](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012806) | `b2cb24f` | SUCCESS | Native export + TLS ingest + sidecar acks |
+| Workspace browser review | [41619012774](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012774) | `b2cb24f` | SUCCESS | rustfmt + debug/release cargo test |
+| Windows local workspace | [41619012964](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012964) | `b2cb24f` | SUCCESS | cargo test + installer lifecycle |
+| CI | [41619012804](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012804) | `b2cb24f` | SUCCESS | Lint, types, build + dependency audit |
+| Mobile companion | [41619012808](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012808) | `b2cb24f` | SUCCESS | Contracts + Android debug + iOS simulator |
+| Android review package | [41619012766](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012766) | `b2cb24f` | SUCCESS | |
 
-Until section M is filled with real run IDs on this SHA, new tests stay PENDING and the release verdict stays **NO-GO**.
+CI on this SHA is green. The release verdict remains **NO-GO**.
