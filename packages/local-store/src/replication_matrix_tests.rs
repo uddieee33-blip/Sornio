@@ -354,9 +354,8 @@ fn native_outbox_text_is_the_digest_input() {
 
 fn outbox_dir() -> PathBuf {
     PathBuf::from(
-        std::env::var("SORNIO_NATIVE_OUTBOX_DIR").expect(
-            "SORNIO_NATIVE_OUTBOX_DIR is required for the native-to-HTTPS pipeline",
-        ),
+        std::env::var("SORNIO_NATIVE_OUTBOX_DIR")
+            .expect("SORNIO_NATIVE_OUTBOX_DIR is required for the native-to-HTTPS pipeline"),
     )
 }
 
@@ -382,7 +381,9 @@ fn native_sqlcipher_export_pipeline() {
         .unpublished_replication(&sidecar.load(&generation).unwrap())
         .unwrap();
     assert!(rows.iter().any(|row| row.operation_id == "bill-cash-1000"));
-    assert!(rows.iter().any(|row| row.operation_id == "bill-cash-credit"));
+    assert!(rows
+        .iter()
+        .any(|row| row.operation_id == "bill-cash-credit"));
     let mut manifest = Vec::new();
     for row in &rows {
         let envelope = envelope_from_row(&publisher, row).unwrap();
@@ -391,7 +392,11 @@ fn native_sqlcipher_export_pipeline() {
         assert_eq!(digest, envelope.payload_sha256);
         assert_eq!(row.payload, envelope.payload_text);
         let stem = format!("{}-{}-{}", row.stream, row.sequence, row.operation_id);
-        fs::write(dir.join("payloads").join(format!("{stem}.txt")), &row.payload).unwrap();
+        fs::write(
+            dir.join("payloads").join(format!("{stem}.txt")),
+            &row.payload,
+        )
+        .unwrap();
         fs::write(
             dir.join("envelopes").join(format!("{stem}.json")),
             &envelope_json,
@@ -461,10 +466,7 @@ fn native_sqlcipher_apply_https_acks() {
         let value: serde_json::Value = serde_json::from_str(line).unwrap();
         let stream = value.get("stream").and_then(|v| v.as_str()).unwrap();
         let sequence = value.get("sequence").and_then(|v| v.as_i64()).unwrap();
-        let operation_id = value
-            .get("operationId")
-            .and_then(|v| v.as_str())
-            .unwrap();
+        let operation_id = value.get("operationId").and_then(|v| v.as_str()).unwrap();
         let body = value.get("ack").unwrap().to_string();
         let remote = parse_publish_ack(operation_id, &publisher, &body).unwrap();
         commit_local_ack(
