@@ -18,13 +18,34 @@ const require = createRequire(import.meta.url);
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const url = process.env.DATABASE_URL || process.env.SORNIO_PG_URL;
 const outboxDir = process.env.SORNIO_NATIVE_OUTBOX_DIR;
-if (!url) {
-  console.error('DATABASE_URL is required for native-to-PostgreSQL HTTPS proof.');
+
+function failClosed(message) {
+  const line = message.replace(/\r?\n/g, ' | ');
+  console.error(`::error file=scripts/verify-replication-native-https.mjs,line=1::native-https ${line}`);
+  if (outboxDir) {
+    try {
+      writeFileSync(join(outboxDir, 'https-error.txt'), `${message}\n`);
+    } catch {
+      // best-effort
+    }
+  }
+  if (process.env.GITHUB_STEP_SUMMARY) {
+    try {
+      writeFileSync(process.env.GITHUB_STEP_SUMMARY, `${message}\n`, { flag: 'a' });
+    } catch {
+      // best-effort
+    }
+  }
   process.exit(process.env.CI ? 1 : 2);
 }
+
+if (!url) {
+  failClosed('DATABASE_URL is required for native-to-PostgreSQL HTTPS proof.');
+}
 if (!outboxDir || !existsSync(join(outboxDir, 'manifest.json'))) {
-  console.error('SORNIO_NATIVE_OUTBOX_DIR must contain native SQLCipher export files.');
-  process.exit(process.env.CI ? 1 : 2);
+  failClosed(
+    `SORNIO_NATIVE_OUTBOX_DIR must contain native SQLCipher export files (dir=${outboxDir || '<unset>'}).`,
+  );
 }
 
 function compiler() {
@@ -270,7 +291,8 @@ try {
   }
   check(badTls, 'wrong TLS certificate fails closed');
 
-  const tampered = firstText.replace(first.digest, `${first.digest.slice(0, 63)}0`);
+  const flipped = first.digest.slice(-1) === 'a' ? 'b' : 'a';
+  const tampered = firstText.replace(first.digest, `${first.digest.slice(0, 63)}${flipped}`);
   let badDigest = false;
   try {
     await postRaw(token, tampered);

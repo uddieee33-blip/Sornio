@@ -58,17 +58,31 @@ jobs:
       - name: Export native SQLCipher outbox envelopes
         run: |
           mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
-          cargo test --locked --manifest-path packages/local-store/Cargo.toml native_sqlcipher_export_pipeline -- --ignored --exact --nocapture
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml \
+            replication::replication_matrix_tests::native_sqlcipher_export_pipeline \
+            -- --ignored --exact --nocapture
+          test -f "$SORNIO_NATIVE_OUTBOX_DIR/manifest.json"
+          test -f "$SORNIO_NATIVE_OUTBOX_DIR/identity.json"
+          test -d "$SORNIO_NATIVE_OUTBOX_DIR/envelopes"
       - name: Native SQLCipher envelopes over TLS into PostgreSQL
         run: |
           ls -la "$SORNIO_NATIVE_OUTBOX_DIR"
+          set +e
           node scripts/verify-replication-native-https.mjs
-      - name: Annotate native HTTPS failure
-        if: failure()
-        run: |
-          if [ -f "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt" ]; then
-            echo "::error::$(head -n 1 "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt" | tr '\n' ' ')"
-            cat "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt"
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            if [ -f "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt" ]; then
+              detail=$(tr '\n' ' ' < "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt")
+            else
+              detail="no https-error.txt (exit $status)"
+            fi
+            echo "::error file=scripts/verify-replication-native-https.mjs,line=1::native-https $detail"
+            echo "$detail" >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
           fi
       - name: Apply HTTPS acks to the native sidecar
-        run: cargo test --locked --manifest-path packages/local-store/Cargo.toml native_sqlcipher_apply_https_acks -- --ignored --exact --nocapture
+        run: |
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml \
+            replication::replication_matrix_tests::native_sqlcipher_apply_https_acks \
+            -- --ignored --exact --nocapture
