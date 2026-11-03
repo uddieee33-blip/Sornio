@@ -7,7 +7,8 @@ use crate::{
     payments::{Action, PaymentPart, Request},
     Draft,
 };
-use std::path::Path;
+use std::fs;
+use std::path::{Path, PathBuf};
 
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const LOGIN: &str = "Local test password!";
@@ -116,6 +117,50 @@ fn perform_retail(store: &mut Store, request: Request) {
     store.clear_retail(&request.operation_id, true).unwrap();
 }
 
+fn post_seven_supported_sales(store: &mut Store) {
+    store
+        .post_invoice(cash_invoice(store, "bill-cash-1000"))
+        .unwrap();
+    perform_retail(
+        store,
+        retail_sale(store, "bill-upi-1000", None, &[("upi", 100000)]),
+    );
+    perform_retail(
+        store,
+        retail_sale(store, "bill-card-1000", None, &[("card", 100000)]),
+    );
+    store
+        .post_invoice(credit_invoice(store, "bill-credit-1000"))
+        .unwrap();
+    perform_retail(
+        store,
+        retail_sale(
+            store,
+            "bill-cash-upi",
+            None,
+            &[("cash", 60000), ("upi", 40000)],
+        ),
+    );
+    perform_retail(
+        store,
+        retail_sale(
+            store,
+            "bill-cash-card",
+            None,
+            &[("cash", 25000), ("card", 75000)],
+        ),
+    );
+    perform_retail(
+        store,
+        retail_sale(
+            store,
+            "bill-cash-credit",
+            Some("cust-ravi"),
+            &[("cash", 60000), ("credit", 40000)],
+        ),
+    );
+}
+
 fn business_id(store: &Store) -> String {
     store
         .0
@@ -171,48 +216,7 @@ fn native_financial_matrix_posts_seven_supported_sales() {
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("live.db");
     let mut store = seeded(&path);
-
-    store
-        .post_invoice(cash_invoice(&store, "bill-cash-1000"))
-        .unwrap();
-    perform_retail(
-        &mut store,
-        retail_sale(&store, "bill-upi-1000", None, &[("upi", 100000)]),
-    );
-    perform_retail(
-        &mut store,
-        retail_sale(&store, "bill-card-1000", None, &[("card", 100000)]),
-    );
-    store
-        .post_invoice(credit_invoice(&store, "bill-credit-1000"))
-        .unwrap();
-    perform_retail(
-        &mut store,
-        retail_sale(
-            &store,
-            "bill-cash-upi",
-            None,
-            &[("cash", 60000), ("upi", 40000)],
-        ),
-    );
-    perform_retail(
-        &mut store,
-        retail_sale(
-            &store,
-            "bill-cash-card",
-            None,
-            &[("cash", 25000), ("card", 75000)],
-        ),
-    );
-    perform_retail(
-        &mut store,
-        retail_sale(
-            &store,
-            "bill-cash-credit",
-            Some("cust-ravi"),
-            &[("cash", 60000), ("credit", 40000)],
-        ),
-    );
+    post_seven_supported_sales(&mut store);
 
     let balances = store.cashier_state().unwrap().balances;
     assert_eq!(balances.cash_paise, "245000");
@@ -346,4 +350,164 @@ fn native_outbox_text_is_the_digest_input() {
     if payload != compact {
         assert_ne!(payload_sha256(&payload), payload_sha256(&compact));
     }
+}
+
+fn outbox_dir() -> PathBuf {
+    PathBuf::from(
+        std::env::var("SORNIO_NATIVE_OUTBOX_DIR").expect(
+            "SORNIO_NATIVE_OUTBOX_DIR is required for the native-to-HTTPS pipeline",
+        ),
+    )
+}
+
+#[test]
+#[ignore]
+fn native_sqlcipher_export_pipeline() {
+    let dir = outbox_dir();
+    fs::create_dir_all(dir.join("payloads")).unwrap();
+    fs::create_dir_all(dir.join("envelopes")).unwrap();
+    fs::create_dir_all(dir.join("digests")).unwrap();
+    let live = dir.join("live.db");
+    let mut store = seeded(&live);
+    post_seven_supported_sales(&mut store);
+    let balances = store.cashier_state().unwrap().balances;
+    assert_eq!(balances.cash_paise, "245000");
+    assert_eq!(balances.credit_paise, "140000");
+    let generation = store.restore_generation().unwrap();
+    let biz = business_id(&store);
+    let publisher = identity(&generation, &biz);
+    let mut sidecar = ReplicationSidecar::open(&dir.join("sidecar.sqlite"), KEY).unwrap();
+    sidecar.save(&SidecarAck::empty(&generation)).unwrap();
+    let rows = store
+        .unpublished_replication(&sidecar.load(&generation).unwrap())
+        .unwrap();
+    assert!(rows.iter().any(|row| row.operation_id == "bill-cash-1000"));
+    assert!(rows.iter().any(|row| row.operation_id == "bill-cash-credit"));
+    let mut manifest = Vec::new();
+    for row in &rows {
+        let envelope = envelope_from_row(&publisher, row).unwrap();
+        let envelope_json = serde_json::to_string(&envelope).unwrap();
+        let digest = payload_sha256(&row.payload);
+        assert_eq!(digest, envelope.payload_sha256);
+        assert_eq!(row.payload, envelope.payload_text);
+        let stem = format!("{}-{}-{}", row.stream, row.sequence, row.operation_id);
+        fs::write(dir.join("payloads").join(format!("{stem}.txt")), &row.payload).unwrap();
+        fs::write(
+            dir.join("envelopes").join(format!("{stem}.json")),
+            &envelope_json,
+        )
+        .unwrap();
+        fs::write(dir.join("digests").join(format!("{stem}.sha256")), &digest).unwrap();
+        manifest.push(serde_json::json!({
+            "stream": row.stream,
+            "sequence": row.sequence,
+            "operationId": row.operation_id,
+            "digest": digest,
+            "envelopeFile": format!("envelopes/{stem}.json"),
+            "payloadFile": format!("payloads/{stem}.txt"),
+        }));
+    }
+    fs::write(
+        dir.join("identity.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "businessId": biz,
+            "deviceId": publisher.device_id,
+            "restoreGeneration": generation,
+            "businessName": "Replication shop",
+            "portalId": "kirana",
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        dir.join("native_ledger.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "cashPaise": balances.cash_paise,
+            "creditPaise": balances.credit_paise,
+            "invoiceCount": store.list_invoices(0).unwrap().len(),
+            "invoices": [
+                {"id": "bill-cash-1000", "cash": "100000", "digital": "0", "credit": "0"},
+                {"id": "bill-upi-1000", "cash": "0", "digital": "100000", "credit": "0"},
+                {"id": "bill-card-1000", "cash": "0", "digital": "100000", "credit": "0"},
+                {"id": "bill-credit-1000", "cash": "0", "digital": "0", "credit": "100000"},
+                {"id": "bill-cash-upi", "cash": "60000", "digital": "40000", "credit": "0"},
+                {"id": "bill-cash-card", "cash": "25000", "digital": "75000", "credit": "0"},
+                {"id": "bill-cash-credit", "cash": "60000", "digital": "0", "credit": "40000"},
+            ],
+        }))
+        .unwrap(),
+    )
+    .unwrap();
+    fs::write(
+        dir.join("manifest.json"),
+        serde_json::to_string_pretty(&serde_json::json!({ "rows": manifest })).unwrap(),
+    )
+    .unwrap();
+}
+
+#[test]
+#[ignore]
+fn native_sqlcipher_apply_https_acks() {
+    let dir = outbox_dir();
+    let live = dir.join("live.db");
+    let store = Store::open(&live, KEY).unwrap();
+    let generation = store.restore_generation().unwrap();
+    let publisher = identity(&generation, &business_id(&store));
+    let mut sidecar = ReplicationSidecar::open(&dir.join("sidecar.sqlite"), KEY).unwrap();
+    let mut ack = sidecar.load(&generation).unwrap();
+    let raw = fs::read_to_string(dir.join("acks.jsonl")).expect("acks.jsonl from HTTPS ingest");
+    let mut applied = 0usize;
+    for line in raw.lines().filter(|line| !line.trim().is_empty()) {
+        let value: serde_json::Value = serde_json::from_str(line).unwrap();
+        let stream = value.get("stream").and_then(|v| v.as_str()).unwrap();
+        let sequence = value.get("sequence").and_then(|v| v.as_i64()).unwrap();
+        let operation_id = value
+            .get("operationId")
+            .and_then(|v| v.as_str())
+            .unwrap();
+        let body = value.get("ack").unwrap().to_string();
+        let remote = parse_publish_ack(operation_id, &publisher, &body).unwrap();
+        commit_local_ack(
+            &mut sidecar,
+            &mut ack,
+            stream,
+            sequence,
+            operation_id,
+            &publisher,
+            &remote,
+        )
+        .unwrap();
+        applied += 1;
+    }
+    assert!(applied > 0, "no HTTPS acks were applied");
+    drop(store);
+    let mut workspace = Workspace::new(Store::open(&live, KEY).unwrap());
+    workspace.unlock(LOGIN).unwrap();
+    let reopened = workspace.into_recovery_store();
+    assert_eq!(reopened.list_invoices(0).unwrap().len(), 7);
+    assert_eq!(
+        reopened.cashier_state().unwrap().balances.credit_paise,
+        "140000"
+    );
+    let leftover = reopened
+        .unpublished_replication(&sidecar.load(&generation).unwrap())
+        .unwrap();
+    assert!(
+        leftover
+            .iter()
+            .all(|row| row.operation_id != "bill-cash-1000"
+                && row.operation_id != "bill-cash-credit"),
+        "acked sales must leave the unpublished set"
+    );
+    fs::write(
+        dir.join("native_after.json"),
+        serde_json::to_string_pretty(&serde_json::json!({
+            "applied": applied,
+            "invoiceCount": 7,
+            "creditPaise": "140000",
+            "unpublishedAfterAck": leftover.len(),
+        }))
+        .unwrap(),
+    )
+    .unwrap();
 }

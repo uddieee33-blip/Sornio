@@ -254,9 +254,12 @@ fn occurred_at_iso(payload: &serde_json::Value) -> Result<String, StoreError> {
             _ => None,
         }
     }
-    walk(payload)
+    // Billing and retail payloads carry createdAt. Customer.saved and
+    // product_added currently do not. Envelope time is metadata, not the
+    // digest input; keep ingest possible without inventing a payload field.
+    Ok(walk(payload)
         .map(str::to_string)
-        .ok_or(StoreError::InvalidInvoice)
+        .unwrap_or_else(|| "1970-01-01T00:00:00.000Z".into()))
 }
 
 fn cursor_ok(cursor: &str) -> bool {
@@ -390,11 +393,13 @@ impl Store {
             return Err(StoreError::InvalidInvoice);
         }
         let mut rows = Vec::new();
+        // Causal projection order: catalogue and customers before invoices
+        // and retail receipts. Sidecar STREAMS indices stay unchanged.
         rows.extend(self.read_outbox(
-            "billing",
-            "SELECT sequence, invoice_id, payload FROM local_billing_outbox \
+            "inventory",
+            "SELECT sequence, operation_id, payload FROM local_inventory_outbox \
              WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
-            ack.last_for("billing").unwrap_or(0),
+            ack.last_for("inventory").unwrap_or(0),
         )?);
         rows.extend(self.read_outbox(
             "customer",
@@ -403,16 +408,16 @@ impl Store {
             ack.last_for("customer").unwrap_or(0),
         )?);
         rows.extend(self.read_outbox(
+            "billing",
+            "SELECT sequence, invoice_id, payload FROM local_billing_outbox \
+             WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
+            ack.last_for("billing").unwrap_or(0),
+        )?);
+        rows.extend(self.read_outbox(
             "retail",
             "SELECT sequence, operation_id, payload FROM local_retail_outbox \
              WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
             ack.last_for("retail").unwrap_or(0),
-        )?);
-        rows.extend(self.read_outbox(
-            "inventory",
-            "SELECT sequence, operation_id, payload FROM local_inventory_outbox \
-             WHERE sequence > ?1 ORDER BY sequence LIMIT 100",
-            ack.last_for("inventory").unwrap_or(0),
         )?);
         Ok(rows)
     }

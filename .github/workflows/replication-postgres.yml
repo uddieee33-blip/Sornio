@@ -4,9 +4,9 @@ on:
     branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31']
     paths:
       - 'packages/replication-cloud/**'
-      - 'packages/local-store/src/replication.rs'
-      - 'packages/local-store/src/replication_matrix_tests.rs'
+      - 'packages/local-store/**'
       - 'scripts/verify-replication-postgres.mjs'
+      - 'scripts/verify-replication-native-https.mjs'
       - 'scripts/verify-replication.mjs'
       - '.github/workflows/replication-postgres.yml'
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
   postgres:
     name: Real PostgreSQL concurrency
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 40
     services:
       postgres:
         image: postgres:16
@@ -34,6 +34,8 @@ jobs:
     env:
       DATABASE_URL: postgres://sornio:sornio-replication-ci@localhost:5432/sornio_replication
       CI: true
+      CARGO_TERM_COLOR: always
+      SORNIO_NATIVE_OUTBOX_DIR: ${{ runner.temp }}/sornio-native-outbox
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -42,7 +44,22 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          cache-on-failure: true
+          workspaces: packages/local-store
       - name: Install dependencies
         run: npm ci
       - name: Real PostgreSQL ingest races
         run: node scripts/verify-replication-postgres.mjs
+      - name: Export native SQLCipher outbox envelopes
+        run: |
+          mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml native_sqlcipher_export_pipeline -- --ignored --exact --nocapture
+      - name: Native SQLCipher envelopes over TLS into PostgreSQL
+        run: node scripts/verify-replication-native-https.mjs
+      - name: Apply HTTPS acks to the native sidecar
+        run: cargo test --locked --manifest-path packages/local-store/Cargo.toml native_sqlcipher_apply_https_acks -- --ignored --exact --nocapture

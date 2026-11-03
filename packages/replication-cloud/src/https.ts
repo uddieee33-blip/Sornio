@@ -130,8 +130,15 @@ export function postStagingIngest(options: {
   port: number;
   ca: string | Buffer;
   token: string;
-  body: unknown;
+  body?: unknown;
+  /** Exact native envelope bytes. Never re-serialize SQLCipher outbox TEXT. */
+  bodyText?: string;
 }): Promise<IngestAck> {
+  const serialized =
+    typeof options.bodyText === 'string' ? options.bodyText : JSON.stringify(options.body);
+  if (typeof serialized !== 'string' || serialized.length < 1) {
+    return Promise.reject(new ReplicationError('INVALID_ENVELOPE', 'Envelope body is missing.'));
+  }
   return new Promise((resolve, reject) => {
     const request = https.request(
       {
@@ -169,7 +176,7 @@ export function postStagingIngest(options: {
       request.destroy(new ReplicationError('UNAUTHENTICATED', 'Replication request timed out.'));
     });
     request.on('error', reject);
-    request.write(JSON.stringify(options.body));
+    request.write(serialized);
     request.end();
   });
 }
