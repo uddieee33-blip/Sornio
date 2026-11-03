@@ -170,7 +170,12 @@ try {
   await admin.connect();
   const db = asDb(admin);
   for (const stmt of statements(sql)) {
-    await admin.query(stmt);
+    try {
+      await admin.query(stmt);
+    } catch (error) {
+      const code = error && typeof error === 'object' && 'code' in error ? error.code : '';
+      if (code !== '42P07' && code !== '42710') throw error;
+    }
   }
 
   const pub = {
@@ -381,6 +386,10 @@ try {
   await admin.end();
   rmSync(tlsDir, { recursive: true, force: true });
   console.log(`verify-replication-native-https: ${checks} checks passed on SQLCipher TEXT -> TLS -> PostgreSQL`);
+} catch (error) {
+  const message = error instanceof Error ? error.stack || error.message : String(error);
+  console.error(`::error::native-https ${message}`);
+  process.exitCode = 1;
 } finally {
   rmSync(compiled, { recursive: true, force: true });
 }
