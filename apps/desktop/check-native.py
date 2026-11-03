@@ -679,10 +679,14 @@ try:
     # Phase 5 release-blocking regression: the original ₹1,000.00 acceptance
     # scenario — invoice 100000 paise = 60000 cash + 40000 customer credit —
     # driven only through the installed UI of the packaged application.
-    # The ₹400.00 credit part needs headroom, so clear the ₹50.00 limit on
-    # native-customer-1 through the owner UI first (blank means no limit).
-    if not window.child_window(title="Cancel customer edit", control_type="Button", visible_only=False).exists(timeout=0.1):
-        activate("Open customer native-customer-1")
+    # The ₹400.00 credit part needs headroom: native-customer-1 has a ₹50.00
+    # limit, so create a fresh customer through the owner UI with NO credit
+    # limit (blank means no limit) and use it for this sale.
+    if window.child_window(title="Cancel customer edit", control_type="Button", visible_only=False).exists(timeout=0.1):
+        activate("Cancel customer edit")
+    fill("Customer ID", "native-customer-2")
+    fill("Customer name", "Phase 5 credit customer")
+    fill("Customer phone (optional)", "+91 98765 43211")
     # Blank (not "0") means no credit limit; clear the field without send_keys("").
     focus_control("Credit limit (₹, blank for no limit)", "Edit")
     send_keys("^a{BACKSPACE}", pause=0.1)
@@ -709,7 +713,7 @@ try:
     fill("Tax (%)", "0")
     focus_control("Transaction type", "ComboBox")
     send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
-    fill("Customer reference for a credit split (optional)", "native-customer-1")
+    fill("Customer reference for a credit split (optional)", "native-customer-2")
     fill("Split cash amount (₹)", "600.00")
     fill("Split customer credit amount (₹)", "400.00")
     activate("Review sale")
@@ -729,7 +733,7 @@ try:
     # money() groups rupees en-IN style, so ₹100000 renders as ₹1,000.00.
     assert_saved_total("1,000.00")
     # The receipt must display the exact split: ₹600.00 cash + ₹400.00 credit
-    # for customer native-customer-1.
+    # for customer native-customer-2.
     receipt_texts = "".join(
         control.window_text() for control in window.child_window(
             title="Sale saved on this PC", control_type="Group", visible_only=False
@@ -737,7 +741,7 @@ try:
     )
     assert "₹600.00" in receipt_texts, f"Receipt does not show the ₹600.00 cash part: {receipt_texts[:2000]}"
     assert "₹400.00" in receipt_texts, f"Receipt does not show the ₹400.00 credit part: {receipt_texts[:2000]}"
-    assert "native-customer-1" in receipt_texts, "Receipt does not name the credit customer"
+    assert "native-customer-2" in receipt_texts, "Receipt does not name the credit customer"
     # One invoice, one stock deduction: cash ₹101.64+₹600.00, credit
     # ₹4.63+₹400.00, rice stock untouched at 1.5 pcs (ghee went 2 → 1).
     assert_balances("701.64", "404.63", "1.5")
@@ -751,7 +755,7 @@ try:
     assert_saved_total("1,000.00")
     assert_balances("701.64", "404.63", "1.5")
     window.capture_as_image().save(OUTPUT / "windows-thousand-split-reopened.png")
-    print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-1, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
+    print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-2, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
     print("Native retail release: real cash/UPI split, pending/unverified separation, explicit manual statement match, forced match receipt recovery, authorized return, cash refund, pending digital refund, atomic stock restoration, saved CA CSV and exact cashier variance passed.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
