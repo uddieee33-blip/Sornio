@@ -36,6 +36,30 @@ function Uninstall-Review {
   if ($process.ExitCode -ne 0) { throw 'Silent uninstaller returned failure.' }
   if (Test-Path (Join-Path $installDir 'sornio-desktop.exe')) { throw 'Uninstaller retained the application executable.' }
 }
+# Machine-readable provenance for the three distinct byte streams: the NSIS
+# installer executable, the installed application executable, and (reported by
+# GitHub, not recomputed here) the Actions artifact archive. Uploading this
+# manifest with the installer artifact closes the "hash the actual bytes"
+# gap on the runner that built and installed them.
+function Write-InstallerManifest {
+  param([string]$InstalledExe)
+  $installerItem = Get-Item -LiteralPath $installer
+  $exeItem = Get-Item -LiteralPath $InstalledExe
+  @{
+    generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+    commitSha = $env:GITHUB_SHA
+    workflowName = $env:GITHUB_WORKFLOW
+    workflowRunId = $env:GITHUB_RUN_ID
+    runnerOs = $env:RUNNER_OS
+    installerFile = $installerItem.Name
+    installerBytes = $installerItem.Length
+    installerSha256 = (Get-FileHash -LiteralPath $installer -Algorithm SHA256).Hash.ToLowerInvariant()
+    installedExePath = $InstalledExe
+    installedExeBytes = $exeItem.Length
+    installedExeSha256 = (Get-FileHash -LiteralPath $InstalledExe -Algorithm SHA256).Hash.ToLowerInvariant()
+    note = 'installerSha256 and installedExeSha256 hash different files; the GitHub artifact archive digest is reported by the Actions API and is not interchangeable with either.'
+  } | ConvertTo-Json | Set-Content (Join-Path $evidence 'installer-manifest.json')
+}
 function Check-Exit([string] $stage) {
   if ($LASTEXITCODE -ne 0) { throw "Native acceptance failed: $stage" }
 }
@@ -65,7 +89,8 @@ try {
   python apps/desktop/check-install-data.py verify $dataDir $manifest
   Check-Exit 'uninstallation data preservation'
   Write-Stage 'same-version reinstall'
-  $null = Install-Review
+  $reinstalled = Install-Review
+  Write-InstallerManifest $reinstalled
   python apps/desktop/check-install-data.py verify $dataDir $manifest
   Check-Exit 'same-version reinstall data preservation'
   Invoke-NativeCheck 'reinstalled offline reopen with original credentials' @('--verify-preserved')

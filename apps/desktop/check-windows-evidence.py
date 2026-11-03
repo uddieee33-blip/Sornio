@@ -55,9 +55,21 @@ def verify(installer_directory, evidence_directory):
     installer = installers[0]
     artifact = read_record(evidence_directory / 'installer-artifact.json')
     lifecycle = read_record(evidence_directory / 'installer-lifecycle-result.json')
+    manifest = read_record(evidence_directory / 'installer-manifest.json')
     actual_hash = sha256(installer)
     if artifact.get('artifactSha256', '').lower() != actual_hash:
         raise ValueError('Installed artifact SHA-256 does not match the captured installer')
+    # The manifest is written on the runner that built and installed the bytes,
+    # so its installer hash must equal the hash of the installer file we just
+    # hashed here, and it must separately identify the installed executable.
+    if manifest.get('installerSha256', '').lower() != actual_hash:
+        raise ValueError('installer-manifest.json installerSha256 does not match the installer file hashed here')
+    if manifest.get('installerBytes') != installer.stat().st_size:
+        raise ValueError('installer-manifest.json installerBytes does not match the installer file size')
+    if not re.fullmatch(r'[0-9a-f]{64}', str(manifest.get('installedExeSha256', ''))):
+        raise ValueError('installer-manifest.json is missing a hex SHA-256 of the installed application executable')
+    if not re.fullmatch(r'[0-9a-f]{64}', str(manifest.get('commitSha', ''))):
+        raise ValueError('installer-manifest.json is missing the source commit SHA')
     if artifact.get('execution') != 'passed':
         raise ValueError('Installer acceptance did not record completed execution')
     if artifact.get('lifecycle') != 'same-version-reinstall-not-upgrade':
@@ -87,6 +99,13 @@ def verify(installer_directory, evidence_directory):
         'consumerPilotDecision': 'blocked',
         'reason': 'A same-version engineering review cannot prove upgrades, offline installation without the runtime, or real shop hardware and usability.',
         'installerSha256': actual_hash,
+        'installerManifest': {
+            'installerFile': manifest['installerFile'],
+            'installerBytes': manifest['installerBytes'],
+            'installedExeSha256': manifest['installedExeSha256'],
+            'commitSha': manifest['commitSha'],
+            'workflowRunId': manifest.get('workflowRunId'),
+        },
         'signatureObservation': artifact['signatureStatus'],
         'signedConsumerReleaseVerified': False,
         'passedWindowsLifecycleChecks': list(REQUIRED_PASSES),
