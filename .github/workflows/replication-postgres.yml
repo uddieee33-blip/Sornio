@@ -58,6 +58,7 @@ jobs:
       - name: Export native SQLCipher outbox envelopes
         run: |
           mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
+          rm -f "$SORNIO_NATIVE_OUTBOX_DIR"/live.db* "$SORNIO_NATIVE_OUTBOX_DIR"/sidecar.sqlite*
           set +e
           cargo test --locked --manifest-path packages/local-store/Cargo.toml \
             native_sqlcipher_export_pipeline \

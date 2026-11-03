@@ -113,7 +113,9 @@ fn retail_sale(store: &Store, id: &str, customer: Option<&str>, parts: &[(&str, 
 
 fn perform_retail(store: &mut Store, request: Request) {
     store.prepare_retail(request.clone()).unwrap();
-    store.post_retail(request.clone()).unwrap();
+    if let Err(error) = store.post_retail(request.clone()) {
+        panic!("post_retail {}: {error}", request.operation_id);
+    }
     store.clear_retail(&request.operation_id, true).unwrap();
 }
 
@@ -359,6 +361,20 @@ fn outbox_dir() -> PathBuf {
     )
 }
 
+fn copy_sqlcipher(src: &Path, dest: &Path) {
+    fs::copy(src, dest).expect("copy sqlcipher db");
+    for suffix in ["-wal", "-shm"] {
+        let from = PathBuf::from(format!("{}{suffix}", src.display()));
+        if from.exists() {
+            fs::copy(
+                &from,
+                PathBuf::from(format!("{}{suffix}", dest.display())),
+            )
+            .expect("copy sqlcipher wal");
+        }
+    }
+}
+
 #[test]
 #[ignore]
 fn native_sqlcipher_export_pipeline() {
@@ -366,7 +382,9 @@ fn native_sqlcipher_export_pipeline() {
     fs::create_dir_all(dir.join("payloads")).expect("payloads dir");
     fs::create_dir_all(dir.join("envelopes")).expect("envelopes dir");
     fs::create_dir_all(dir.join("digests")).expect("digests dir");
-    let live = dir.join("live.db");
+    let scratch = tempfile::tempdir().unwrap();
+    let live = scratch.path().join("live.db");
+    let sidecar_path = scratch.path().join("sidecar.sqlite");
     let mut store = seeded(&live);
     post_seven_supported_sales(&mut store);
     let balances = store.cashier_state().expect("cashier").balances;
@@ -375,7 +393,7 @@ fn native_sqlcipher_export_pipeline() {
     let generation = store.restore_generation().expect("generation");
     let biz = business_id(&store);
     let publisher = identity(&generation, &biz);
-    let mut sidecar = ReplicationSidecar::open(&dir.join("sidecar.sqlite"), KEY).expect("sidecar");
+    let mut sidecar = ReplicationSidecar::open(&sidecar_path, KEY).expect("sidecar");
     sidecar
         .save(&SidecarAck::empty(&generation))
         .expect("save empty sidecar");
@@ -454,6 +472,14 @@ fn native_sqlcipher_export_pipeline() {
         serde_json::to_string_pretty(&serde_json::json!({ "rows": manifest })).unwrap(),
     )
     .unwrap();
+    store
+        .0
+        .execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+        .expect("checkpoint live db");
+    drop(store);
+    drop(sidecar);
+    copy_sqlcipher(&live, &dir.join("live.db"));
+    copy_sqlcipher(&sidecar_path, &dir.join("sidecar.sqlite"));
 }
 
 #[test]
