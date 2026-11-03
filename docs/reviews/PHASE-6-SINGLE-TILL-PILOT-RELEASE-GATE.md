@@ -66,8 +66,8 @@ Android debug compile PASS, iOS simulator compile PASS (runs 41709217736), mobil
 | S04 | Real PostgreSQL concurrency | C | PASS |
 | S05 | Android debug compile | C | PASS |
 | S06 | iOS simulator compile | C | PASS |
-| S07 | Browser workspace review | C | RUNNING (41709217778) |
-| S08 | Windows local workspace full run | C | RUNNING (41709217989) |
+| S07 | Browser workspace review | C | PASS (41709217778) |
+| S08 | Windows local workspace full run | C | PASS (41709217989) |
 | S09 | Money renderer == native formula sweep | L | PASS |
 | S10 | Invoice contract fixtures (45) | L | PASS |
 | S11 | Checkout paise display beyond 2^53 | L | PASS |
@@ -123,13 +123,13 @@ Android debug compile PASS, iOS simulator compile PASS (runs 41709217736), mobil
 | S61 | Physical Android runtime | P | UNTESTED |
 | S62 | Physical iPhone/iPad runtime | P | UNTESTED |
 
-Totals: 62 planned; 49 PASS (incl. 2 RUNNING CI jobs tracked separately), 1 BLOCKED (signing), 7 UNTESTED (physical), 0 FAIL.
+Totals: 62 planned; 54 PASS, 1 BLOCKED (signing), 7 UNTESTED (physical), 0 FAIL.
 
 ## M. Remaining blockers
 
 * **P0:** none open in code. Physical Windows PC + printer acceptance unexecuted (hardware unavailable here) — gates real-shop pilot.
 * **P1:** code signing BLOCKED (needs legitimate certificate infrastructure; workflow ready, no credentials in CI).
-* **P2:** final-head `browser` + `local-windows` CI runs still in progress at report time — must conclude SUCCESS before freeze.
+* **P2:** none — final-head browser and local-windows runs concluded SUCCESS (41709217778 / 41709217989).
 * **P3:** deploy replication ingest role as dedicated non-superuser owner (from Phase 5 audit); iPadOS physical layout check pending.
 
 ## N. Final verdict
@@ -137,7 +137,7 @@ Totals: 62 planned; 49 PASS (incl. 2 RUNNING CI jobs tracked separately), 1 BLOC
 | Gate | Verdict |
 |---|---|
 | PR #145 integration correctness | PASS |
-| Final CI matrix | PASS on all completed; 2 jobs RUNNING (not assumed) |
+| Final CI matrix | PASS (all 10 checks green on 97b6899) |
 | Installed Windows checkout | PASS |
 | ₹1,000 mixed-payment checkout | PASS |
 | Inventory integrity | PASS |
@@ -157,4 +157,4 @@ Totals: 62 planned; 49 PASS (incl. 2 RUNNING CI jobs tracked separately), 1 BLOC
 | Production cloud synchronization | **NO-GO** (`productionSyncEnabled=false`) |
 | Public mobile distribution | **NO-GO** |
 
-**Next priority:** execute the physical Windows PC + printer package (`windows-physical-pilot-test-package-2026-11-03.md`) on real hardware and confirm the two in-progress CI jobs on `97b6899` conclude green; then founder merge review of PR #145.
+**Next priority:** execute the physical Windows PC + printer package (`windows-physical-pilot-test-package-2026-11-03.md`) on real hardware; then founder merge review of PR #145.
