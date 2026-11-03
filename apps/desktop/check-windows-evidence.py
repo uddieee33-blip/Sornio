@@ -6,6 +6,7 @@ Windows runner, checking physical peripherals, or conducting a usability study.
 import argparse
 import hashlib
 import json
+import re
 from pathlib import Path
 
 from PIL import Image
@@ -68,7 +69,7 @@ def verify(installer_directory, evidence_directory):
         raise ValueError('installer-manifest.json installerBytes does not match the installer file size')
     if not re.fullmatch(r'[0-9a-f]{64}', str(manifest.get('installedExeSha256', ''))):
         raise ValueError('installer-manifest.json is missing a hex SHA-256 of the installed application executable')
-    if not re.fullmatch(r'[0-9a-f]{64}', str(manifest.get('commitSha', ''))):
+    if not re.fullmatch(r'[0-9a-f]{40}(?:[0-9a-f]{24})?', str(manifest.get('commitSha', ''))):
         raise ValueError('installer-manifest.json is missing the source commit SHA')
     if artifact.get('execution') != 'passed':
         raise ValueError('Installer acceptance did not record completed execution')
@@ -102,6 +103,7 @@ def verify(installer_directory, evidence_directory):
         'installerManifest': {
             'installerFile': manifest['installerFile'],
             'installerBytes': manifest['installerBytes'],
+            'installerSha256': manifest['installerSha256'],
             'installedExeSha256': manifest['installedExeSha256'],
             'commitSha': manifest['commitSha'],
             'workflowRunId': manifest.get('workflowRunId'),
