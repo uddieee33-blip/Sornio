@@ -58,9 +58,22 @@ jobs:
       - name: Export native SQLCipher outbox envelopes
         run: |
           mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
+          set +e
           cargo test --locked --manifest-path packages/local-store/Cargo.toml \
-            replication::replication_matrix_tests::native_sqlcipher_export_pipeline \
-            -- --ignored --exact --nocapture
+            native_sqlcipher_export_pipeline \
+            -- --ignored --nocapture | tee "$SORNIO_NATIVE_OUTBOX_DIR/export.log"
+          status=${PIPESTATUS[0]}
+          set -e
+          if [ "$status" -ne 0 ]; then
+            echo "::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::native export failed"
+            tail -n 80 "$SORNIO_NATIVE_OUTBOX_DIR/export.log" >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
+          fi
+          if ! grep -q 'native_sqlcipher_export_pipeline' "$SORNIO_NATIVE_OUTBOX_DIR/export.log"; then
+            echo "::error::cargo ran zero native export tests"
+            cat "$SORNIO_NATIVE_OUTBOX_DIR/export.log" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
           test -f "$SORNIO_NATIVE_OUTBOX_DIR/manifest.json"
           test -f "$SORNIO_NATIVE_OUTBOX_DIR/identity.json"
           test -d "$SORNIO_NATIVE_OUTBOX_DIR/envelopes"
