@@ -644,13 +644,13 @@ try:
     confirm_button.wait("exists enabled", timeout=30)
     # Repeated submission of the same review must not create a second sale: the
     # busy guard locks the UI and the native layer replays one operation id.
-    focus_control("Confirm sale", "Button")
-    send_keys("{SPACE}{ENTER}{ENTER}{SPACE}", pause=0.02)
+    activate("Confirm sale")
+    send_keys("{ENTER}{ENTER}{SPACE}", pause=0.05)
     try:
         wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
     except Exception:
         texts = " | ".join(ui_texts())
-        raise AssertionError(f"Mixed split sale did not save. Visible UI texts: {texts[:800]}")
+        raise AssertionError(f"Mixed split sale did not save. Visible UI texts: {texts[:4000]}")
     split_id = saved_invoice_id()
     assert split_id not in (cash_id, credit_id, retail_invoice), "Mixed split sale reused an existing invoice ID"
     assert_saved_total("10.63")
