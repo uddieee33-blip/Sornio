@@ -60,6 +60,15 @@ jobs:
           mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
           cargo test --locked --manifest-path packages/local-store/Cargo.toml native_sqlcipher_export_pipeline -- --ignored --exact --nocapture
       - name: Native SQLCipher envelopes over TLS into PostgreSQL
-        run: node scripts/verify-replication-native-https.mjs
+        run: |
+          ls -la "$SORNIO_NATIVE_OUTBOX_DIR"
+          node scripts/verify-replication-native-https.mjs
+      - name: Annotate native HTTPS failure
+        if: failure()
+        run: |
+          if [ -f "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt" ]; then
+            echo "::error::$(head -n 1 "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt" | tr '\n' ' ')"
+            cat "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt"
+          fi
       - name: Apply HTTPS acks to the native sidecar
         run: cargo test --locked --manifest-path packages/local-store/Cargo.toml native_sqlcipher_apply_https_acks -- --ignored --exact --nocapture

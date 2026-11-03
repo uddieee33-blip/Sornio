@@ -91,7 +91,9 @@ function asDb(client) {
 
 const compiled = mkdtempSync(join(tmpdir(), 'sornio-native-https-'));
 let checks = 0;
+let lastCheck = 'startup';
 const check = (condition, label) => {
+  lastCheck = label;
   assert.ok(condition, label);
   checks += 1;
 };
@@ -387,8 +389,12 @@ try {
   rmSync(tlsDir, { recursive: true, force: true });
   console.log(`verify-replication-native-https: ${checks} checks passed on SQLCipher TEXT -> TLS -> PostgreSQL`);
 } catch (error) {
-  const message = error instanceof Error ? error.stack || error.message : String(error);
-  console.error(`::error::native-https ${message}`);
+  const message = `after ${lastCheck} :: ${error instanceof Error ? `${error.name}: ${error.message}` : String(error)}`;
+  const stack = error instanceof Error ? error.stack || '' : '';
+  console.error(`::error::native-https ${message.replace(/\r?\n/g, ' | ')}`);
+  if (outboxDir) {
+    writeFileSync(join(outboxDir, 'https-error.txt'), `${message}\n${stack}\n`);
+  }
   process.exitCode = 1;
 } finally {
   rmSync(compiled, { recursive: true, force: true });
