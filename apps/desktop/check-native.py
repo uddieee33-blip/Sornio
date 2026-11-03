@@ -628,6 +628,12 @@ try:
     # Phase 4 acceptance: a mixed cash + customer-credit split driven only through
     # the installed UI, with repeated submit keys to prove a single operation id.
     activate("Start next retail operation")
+    # The closing above shut the cashier day; reopen it through the owner UI first.
+    fill("Return or correction reason", "Phase 4 acceptance: reopen day for the mixed split sale")
+    activate("Review cashier day reopening")
+    activate("Confirm retail operation")
+    window.child_window(title="Start next retail operation", control_type="Button", visible_only=False).wait("exists", timeout=30)
+    activate("Start next retail operation")
     activate("Refresh checkout")
     assert_balances("95.64", "0.00", "1.75")
     fill("Search items for sale", "NATIVE-RICE")
