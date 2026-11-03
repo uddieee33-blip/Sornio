@@ -494,7 +494,9 @@ pub(crate) fn post_split_credit(
     )? {
         return Err(StoreError::OperationConflict);
     }
-    crate::payments::unclaimed(tx, &invoice.id)?;
+    // Retail post already holds local_retail_pending for this invoice id.
+    // unclaimed() treats that in-flight row as a conflict, which would abort
+    // the credit part of a split cash+credit sale after cash/UPI/card posted.
     if session.is_none() {
         tx.execute(
             "INSERT OR IGNORE INTO local_customers VALUES(?1,?1,NULL,NULL,30,1)",
