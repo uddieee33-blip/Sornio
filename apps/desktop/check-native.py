@@ -226,7 +226,7 @@ try:
         # must be the preserved receipt after reinstall; it is a checkout
         # receipt, not a retail-panel operation.
         assert saved_invoice_id(), 'Preserved sale receipt missing after reinstall'
-        assert_saved_total('1000.00')
+        assert_saved_total('1,000.00')
         window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
         print('Installed-app reopen preserved original credentials, draft/history, stock, balances and the ₹1,000.00 saved closing receipt.')
         sys.exit(0)
@@ -683,7 +683,9 @@ try:
     # native-customer-1 through the owner UI first (blank means no limit).
     if not window.child_window(title="Cancel customer edit", control_type="Button", visible_only=False).exists(timeout=0.1):
         activate("Open customer native-customer-1")
-    fill("Credit limit (₹, blank for no limit)", "")
+    # Blank (not "0") means no credit limit; clear the field without send_keys("").
+    focus_control("Credit limit (₹, blank for no limit)", "Edit")
+    send_keys("^a{BACKSPACE}", pause=0.1)
     activate("Save customer")
     wait_until(30, 0.5, lambda: message_visible("Customer saved."))
     # A ₹1,000.00-priced item so the invoice total is exact at 0% tax.
@@ -746,7 +748,7 @@ try:
     stop()
     launch()
     assert saved_invoice_id() == thousand_id, "₹1,000.00 split sale changed after restart"
-    assert_saved_total("1000.00")
+    assert_saved_total("1,000.00")
     assert_balances("701.64", "404.63", "1.5")
     window.capture_as_image().save(OUTPUT / "windows-thousand-split-reopened.png")
     print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-1, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
