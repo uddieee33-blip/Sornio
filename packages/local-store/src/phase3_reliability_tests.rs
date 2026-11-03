@@ -770,9 +770,7 @@ fn concurrent_credit_limit_never_exceeds_customer_cap() {
         | (Err(StoreError::CreditLimit | StoreError::CreditConflict), Ok(_)) => {}
         other => panic!("credit cap must serialize: {other:?}"),
     }
-    let debt: i64 = b
-        .find_customers("c1", false)
-        .unwrap()[0]
+    let debt: i64 = b.find_customers("c1", false).unwrap()[0]
         .balance_paise
         .parse()
         .unwrap();
@@ -815,12 +813,7 @@ fn split_sale_mid_write_failures_leave_no_partial_financial_rows() {
     assert_eq!(tables.len(), 8);
     for (index, table) in tables.into_iter().enumerate() {
         let id = format!("fault-{index}");
-        let request = retail_1000(
-            &s,
-            &id,
-            Some("c1"),
-            &[("cash", 60000), ("credit", 40000)],
-        );
+        let request = retail_1000(&s, &id, Some("c1"), &[("cash", 60000), ("credit", 40000)]);
         s.prepare_retail(request.clone()).unwrap();
         let prepared = snapshots(&s);
         s.0.execute_batch(&format!(
@@ -887,10 +880,7 @@ fn split_sale_process_death_before_and_after_commit() {
         if phase == "before_commit" {
             assert_eq!(s.list_invoices(0).unwrap().len(), 0);
             assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
-            assert_eq!(
-                s.find_customers("c1", false).unwrap()[0].balance_paise,
-                "0"
-            );
+            assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
         }
         let receipt = s.post_retail(request.clone()).unwrap();
         assert_eq!(s.list_invoices(0).unwrap().len(), 1);
@@ -1046,8 +1036,5 @@ fn second_staff_cannot_steal_a_prepared_split_sale() {
         Err(StoreError::CheckoutActive)
     ));
     assert_eq!(b.list_invoices(0).unwrap().len(), 0);
-    assert_eq!(
-        b.find_customers("c1", false).unwrap()[0].balance_paise,
-        "0"
-    );
+    assert_eq!(b.find_customers("c1", false).unwrap()[0].balance_paise, "0");
 }
