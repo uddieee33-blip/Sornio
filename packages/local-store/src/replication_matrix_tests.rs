@@ -276,7 +276,15 @@ fn native_financial_matrix_posts_seven_supported_sales() {
         "invoice_id",
         "bill-cash-1000",
     );
-    assert_eq!(payload_sha256(&billing), payload_sha256(&billing));
+    let digest = payload_sha256(&billing);
+    let independent = {
+        use sha2::{Digest, Sha256};
+        format!("{:x}", Sha256::digest(billing.as_bytes()))
+    };
+    assert_eq!(digest, independent);
+    assert_eq!(digest.len(), 64);
+    assert_ne!(digest, payload_sha256(""));
+    assert_ne!(digest, payload_sha256("abc"));
     assert!(billing.contains("\"kind\":\"invoice.posted\""));
 
     let digital: i64 = store
@@ -348,9 +356,16 @@ fn native_outbox_text_is_the_digest_input() {
     let compact =
         serde_json::to_string(&serde_json::from_str::<serde_json::Value>(&payload).unwrap())
             .unwrap();
-    assert_eq!(payload_sha256(&payload).len(), 64);
+    let digest = payload_sha256(&payload);
+    let independent = {
+        use sha2::{Digest, Sha256};
+        format!("{:x}", Sha256::digest(payload.as_bytes()))
+    };
+    assert_eq!(digest, independent);
+    assert_eq!(digest.len(), 64);
+    assert_ne!(digest, payload_sha256(""));
     if payload != compact {
-        assert_ne!(payload_sha256(&payload), payload_sha256(&compact));
+        assert_ne!(digest, payload_sha256(&compact));
     }
 }
 

@@ -450,6 +450,7 @@ mod tests {
         catalog::AddProduct,
         Draft,
     };
+    use sha2::{Digest, Sha256};
     use std::sync::Mutex;
 
     const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -576,13 +577,29 @@ mod tests {
         assert!(should_publish(ack.last_for("billing").unwrap(), 1));
     }
 
+    fn independent_sha256(payload: &str) -> String {
+        format!("{:x}", Sha256::digest(payload.as_bytes()))
+    }
+
     #[test]
     fn payload_digest_is_native_text() {
+        // NIST CAVP SHA-256 empty and "abc" vectors. A broken hasher that
+        // always returned the same digest would fail these constants.
+        assert_eq!(
+            payload_sha256(""),
+            "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            payload_sha256("abc"),
+            "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
         let spaced = r#"{ "kind": "invoice.posted" }"#;
         let compact = r#"{"kind":"invoice.posted"}"#;
         assert_ne!(payload_sha256(spaced), payload_sha256(compact));
-        assert_eq!(payload_sha256(spaced), payload_sha256(spaced));
+        assert_eq!(payload_sha256(spaced), independent_sha256(spaced));
+        assert_eq!(payload_sha256(compact), independent_sha256(compact));
         assert_eq!(payload_sha256(spaced).len(), 64);
+        assert_ne!(payload_sha256(spaced), payload_sha256(""));
     }
 
     #[test]

@@ -497,6 +497,14 @@ pub(crate) fn post_split_credit(
     // Retail post already holds local_retail_pending for this invoice id.
     // unclaimed() treats that in-flight row as a conflict, which would abort
     // the credit part of a split cash+credit sale after cash/UPI/card posted.
+    // Completed or canceled retail rows sharing this id are still rejected.
+    if tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM local_retail_ops WHERE id=?1) OR EXISTS(SELECT 1 FROM local_retail_canceled WHERE id=?1)",
+        [&invoice.id],
+        |r| r.get::<_, bool>(0),
+    )? {
+        return Err(StoreError::OperationConflict);
+    }
     if session.is_none() {
         tx.execute(
             "INSERT OR IGNORE INTO local_customers VALUES(?1,?1,NULL,NULL,30,1)",
