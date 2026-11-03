@@ -363,30 +363,36 @@ fn outbox_dir() -> PathBuf {
 #[ignore]
 fn native_sqlcipher_export_pipeline() {
     let dir = outbox_dir();
-    fs::create_dir_all(dir.join("payloads")).unwrap();
-    fs::create_dir_all(dir.join("envelopes")).unwrap();
-    fs::create_dir_all(dir.join("digests")).unwrap();
+    fs::create_dir_all(dir.join("payloads")).expect("payloads dir");
+    fs::create_dir_all(dir.join("envelopes")).expect("envelopes dir");
+    fs::create_dir_all(dir.join("digests")).expect("digests dir");
     let live = dir.join("live.db");
     let mut store = seeded(&live);
     post_seven_supported_sales(&mut store);
-    let balances = store.cashier_state().unwrap().balances;
+    let balances = store.cashier_state().expect("cashier").balances;
     assert_eq!(balances.cash_paise, "245000");
     assert_eq!(balances.credit_paise, "140000");
-    let generation = store.restore_generation().unwrap();
+    let generation = store.restore_generation().expect("generation");
     let biz = business_id(&store);
     let publisher = identity(&generation, &biz);
-    let mut sidecar = ReplicationSidecar::open(&dir.join("sidecar.sqlite"), KEY).unwrap();
-    sidecar.save(&SidecarAck::empty(&generation)).unwrap();
+    let mut sidecar = ReplicationSidecar::open(&dir.join("sidecar.sqlite"), KEY).expect("sidecar");
+    sidecar
+        .save(&SidecarAck::empty(&generation))
+        .expect("save empty sidecar");
     let rows = store
-        .unpublished_replication(&sidecar.load(&generation).unwrap())
-        .unwrap();
-    assert!(rows.iter().any(|row| row.operation_id == "bill-cash-1000"));
+        .unpublished_replication(&sidecar.load(&generation).expect("load sidecar"))
+        .expect("unpublished rows");
+    assert!(
+        rows.iter().any(|row| row.operation_id == "bill-cash-1000"),
+        "billing cash sale missing from unpublished set ({})",
+        rows.len()
+    );
     assert!(rows
         .iter()
         .any(|row| row.operation_id == "bill-cash-credit"));
     let mut manifest = Vec::new();
     for row in &rows {
-        let envelope = envelope_from_row(&publisher, row).unwrap();
+        let envelope = envelope_from_row(&publisher, row).expect("envelope from SQLCipher row");
         let envelope_json = serde_json::to_string(&envelope).unwrap();
         let digest = payload_sha256(&row.payload);
         assert_eq!(digest, envelope.payload_sha256);
