@@ -366,11 +366,8 @@ fn copy_sqlcipher(src: &Path, dest: &Path) {
     for suffix in ["-wal", "-shm"] {
         let from = PathBuf::from(format!("{}{suffix}", src.display()));
         if from.exists() {
-            fs::copy(
-                &from,
-                PathBuf::from(format!("{}{suffix}", dest.display())),
-            )
-            .expect("copy sqlcipher wal");
+            fs::copy(&from, PathBuf::from(format!("{}{suffix}", dest.display())))
+                .expect("copy sqlcipher wal");
         }
     }
 }
