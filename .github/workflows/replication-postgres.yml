@@ -65,7 +65,10 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
-            echo "::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::native export failed"
+            echo "::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::native export failed (cargo $status)"
+            tail -n 40 "$SORNIO_NATIVE_OUTBOX_DIR/export.log" | while IFS= read -r line; do
+              echo "::error::$line"
+            done
             tail -n 80 "$SORNIO_NATIVE_OUTBOX_DIR/export.log" >> "$GITHUB_STEP_SUMMARY"
             exit "$status"
           fi
