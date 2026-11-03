@@ -2061,5 +2061,8 @@ impl Store {
     }
 }
 #[cfg(test)]
+#[path = "phase3_reliability_tests.rs"]
+mod phase3;
+#[cfg(test)]
 #[path = "payments_tests.rs"]
 mod tests;

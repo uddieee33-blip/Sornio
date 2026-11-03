@@ -849,6 +849,20 @@ impl Workspace {
         self.read(Permission::Outbox, |s| s.billing_outbox(after))
     }
 
+    /// Owner-only unpublished outbox plan. Query only; never opens a socket.
+    pub fn unpublished_replication(
+        &self,
+        ack: &crate::replication::SidecarAck,
+    ) -> Result<Vec<crate::replication::ReplicationRow>, StoreError> {
+        self.require(Permission::Outbox)?;
+        self.read(Permission::Outbox, |s| s.unpublished_replication(ack))
+    }
+
+    pub fn restore_generation(&self) -> Result<String, StoreError> {
+        self.require(Permission::Outbox)?;
+        self.store.restore_generation()
+    }
+
     fn read<T>(
         &self,
         permission: Permission,

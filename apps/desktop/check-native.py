@@ -218,11 +218,17 @@ try:
                                  'not found (argument forwarding or data preservation is broken)')
         assert field.get_value() == 'Sample local store'
         assert focus_control('Workspace note', 'Edit').get_value() == ORIGINAL_NOTE
-        assert_balances('95.64', '0.00', '1.75')
+        # The Phase 5 ₹1,000.00 split (₹600 cash + ₹400 credit on top of the
+        # Phase 4 ₹10.63 split) must be the preserved ledger after reinstall.
+        assert_balances('701.64', '404.63', '1.5')
         window.child_window(title='Restore saved copy 3', control_type='Button', visible_only=False).wait('exists', timeout=30)
-        focus_control('Saved retail operation ID', 'Edit')
+        # The last posted sale (the Phase 5 ₹1,000.00 mixed cash+credit split)
+        # must be the preserved receipt after reinstall; it is a checkout
+        # receipt, not a retail-panel operation.
+        assert saved_invoice_id(), 'Preserved sale receipt missing after reinstall'
+        assert_saved_total('1,000.00')
         window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
-        print('Installed-app reopen preserved original credentials, draft/history, stock, balances and saved closing receipt.')
+        print('Installed-app reopen preserved original credentials, draft/history, stock, balances and the ₹1,000.00 saved closing receipt.')
         sys.exit(0)
     launch(setup=True)
     fill("Business name", "Sample local store")
@@ -625,6 +631,131 @@ try:
     focus_control("Saved retail operation ID", "Edit")
     wait_until(30, 0.5, lambda: retail_text("Closing expected cash ₹85.01 · Counted ₹85.00 · Variance -₹0.01"))
     window.capture_as_image().save(OUTPUT / "windows-retail-closing.png")
+    # Phase 4 acceptance: a mixed cash + customer-credit split driven only through
+    # the installed UI, with repeated submit keys to prove a single operation id.
+    activate("Start next retail operation")
+    # The closing above shut the cashier day; reopen it through the owner UI first.
+    fill("Return or correction reason", "Phase 4 acceptance: reopen day for the mixed split sale")
+    activate("Review cashier day reopening")
+    activate("Confirm retail operation")
+    window.child_window(title="Start next retail operation", control_type="Button", visible_only=False).wait("exists", timeout=30)
+    activate("Start next retail operation")
+    activate("Refresh checkout")
+    assert_balances("95.64", "0.00", "1.75")
+    fill("Search items for sale", "NATIVE-RICE")
+    activate("Add Sample native rice to sale")
+    fill("Quantity for Sample native rice (pcs)", "0.250")
+    fill("Tax (%)", "0")
+    focus_control("Transaction type", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Customer reference for a credit split (optional)", "native-customer-1")
+    fill("Split cash amount (₹)", "6.00")
+    fill("Split customer credit amount (₹)", "4.63")
+    activate("Review sale")
+    confirm_button = window.child_window(title="Confirm sale", control_type="Button", visible_only=False)
+    confirm_button.wait("exists enabled", timeout=30)
+    # Repeated submission of the same review must not create a second sale: the
+    # busy guard locks the UI and the native layer replays one operation id.
+    activate("Confirm sale")
+    send_keys("{ENTER}{ENTER}{SPACE}", pause=0.05)
+    try:
+        wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
+    except Exception:
+        texts = " | ".join(ui_texts())
+        raise AssertionError(f"Mixed split sale did not save. Visible UI texts: {texts[:4000]}")
+    split_id = saved_invoice_id()
+    assert split_id not in (cash_id, credit_id, retail_invoice), "Mixed split sale reused an existing invoice ID"
+    assert_saved_total("10.63")
+    assert_balances("101.64", "4.63", "1.5")
+    window.capture_as_image().save(OUTPUT / "windows-mixed-cash-credit-sale.png")
+    # Forced termination and relaunch of the installed app: the committed split
+    # sale, its cash and its receivable must survive exactly once.
+    stop()
+    launch()
+    assert saved_invoice_id() == split_id, "Mixed split sale changed after restart"
+    assert_balances("101.64", "4.63", "1.5")
+    window.capture_as_image().save(OUTPUT / "windows-mixed-split-reopened.png")
+    print("Phase 4 installed-UI acceptance: mixed ₹6.00 cash + ₹4.63 customer-credit sale through the packaged app under repeated submit keys produced exactly one invoice (₹10.63), correct cash/credit balances and one stock deduction, and survived a forced restart.")
+    # Phase 5 release-blocking regression: the original ₹1,000.00 acceptance
+    # scenario — invoice 100000 paise = 60000 cash + 40000 customer credit —
+    # driven only through the installed UI of the packaged application.
+    # The ₹400.00 credit part needs headroom: native-customer-1 has a ₹50.00
+    # limit, so create a fresh customer through the owner UI with NO credit
+    # limit (blank means no limit) and use it for this sale.
+    if window.child_window(title="Cancel customer edit", control_type="Button", visible_only=False).exists(timeout=0.1):
+        activate("Cancel customer edit")
+    fill("Customer ID", "native-customer-2")
+    fill("Customer name", "Phase 5 credit customer")
+    fill("Customer phone (optional)", "+91 98765 43211")
+    # Blank (not "0") means no credit limit; clear the field without send_keys("").
+    focus_control("Credit limit (₹, blank for no limit)", "Edit")
+    send_keys("^a{BACKSPACE}", pause=0.1)
+    activate("Save customer")
+    wait_until(30, 0.5, lambda: message_visible("Customer saved."))
+    # A ₹1,000.00-priced item so the invoice total is exact at 0% tax.
+    fill("Item name", "Phase 5 acceptance ghee")
+    fill("Item code (optional)", "P5-GHEE-1000")
+    fill("Unit price (₹)", "1000.00")
+    fill("Opening stock", "2.000")
+    activate("Save item on this PC")
+    wait_until(30, 0.5, lambda: message_visible("Saved item changes to this PC."))
+    wait_until(30, 0.5, lambda: message_visible("2 pcs"))
+    activate("Acknowledge item save")
+    # After the restart the checkout panel shows the last saved receipt, so the
+    # fresh-sale button is "Start next sale" (the retail panel's own button only
+    # exists while a retail-operation receipt is pending).
+    activate("Start next sale")
+    activate("Refresh checkout")
+    assert_balances("101.64", "4.63", "1.5")
+    fill("Search items for sale", "P5-GHEE-1000")
+    activate("Add Phase 5 acceptance ghee to sale")
+    fill("Quantity for Phase 5 acceptance ghee (pcs)", "1.000")
+    fill("Tax (%)", "0")
+    focus_control("Transaction type", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Customer reference for a credit split (optional)", "native-customer-2")
+    fill("Split cash amount (₹)", "600.00")
+    fill("Split customer credit amount (₹)", "400.00")
+    activate("Review sale")
+    confirm_button = window.child_window(title="Confirm sale", control_type="Button", visible_only=False)
+    confirm_button.wait("exists enabled", timeout=30)
+    # Burst of repeated submit keys: the busy guard locks the UI and the native
+    # layer replays one operation id, so this must stay exactly one invoice.
+    activate("Confirm sale")
+    send_keys("{ENTER}{ENTER}{SPACE}", pause=0.05)
+    try:
+        wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
+    except Exception:
+        texts = " | ".join(ui_texts())
+        raise AssertionError(f"₹1,000.00 split sale did not save. Visible UI texts: {texts[:4000]}")
+    thousand_id = saved_invoice_id()
+    assert thousand_id not in (cash_id, credit_id, retail_invoice, split_id), "₹1,000.00 sale reused an existing invoice ID"
+    # money() groups rupees en-IN style, so ₹100000 renders as ₹1,000.00.
+    assert_saved_total("1,000.00")
+    # The receipt must display the exact split: ₹600.00 cash + ₹400.00 credit
+    # for customer native-customer-2.
+    receipt_texts = "".join(
+        control.window_text() for control in window.child_window(
+            title="Sale saved on this PC", control_type="Group", visible_only=False
+        ).descendants(control_type="Text")
+    )
+    assert "₹600.00" in receipt_texts, f"Receipt does not show the ₹600.00 cash part: {receipt_texts[:2000]}"
+    assert "₹400.00" in receipt_texts, f"Receipt does not show the ₹400.00 credit part: {receipt_texts[:2000]}"
+    assert "native-customer-2" in receipt_texts, "Receipt does not name the credit customer"
+    # One invoice, one stock deduction: cash ₹101.64+₹600.00, credit
+    # ₹4.63+₹400.00, rice stock untouched at 1.5 pcs (ghee went 2 → 1).
+    assert_balances("701.64", "404.63", "1.5")
+    window.capture_as_image().save(OUTPUT / "windows-thousand-split-sale.png")
+    # Forced termination and relaunch of the installed app: the committed
+    # ₹1,000.00 split sale survives exactly once (reinstall preservation is
+    # asserted separately by the --verify-preserved run after reinstallation).
+    stop()
+    launch()
+    assert saved_invoice_id() == thousand_id, "₹1,000.00 split sale changed after restart"
+    assert_saved_total("1,000.00")
+    assert_balances("701.64", "404.63", "1.5")
+    window.capture_as_image().save(OUTPUT / "windows-thousand-split-reopened.png")
+    print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-2, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
     print("Native retail release: real cash/UPI split, pending/unverified separation, explicit manual statement match, forced match receipt recovery, authorized return, cash refund, pending digital refund, atomic stock restoration, saved CA CSV and exact cashier variance passed.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:

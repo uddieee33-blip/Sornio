@@ -15,6 +15,7 @@ pub mod inventory_recovery;
 pub mod lan_authority;
 pub mod payments;
 pub mod recovery;
+pub mod replication;
 
 #[cfg(windows)]
 pub mod device;

@@ -721,11 +721,16 @@ async fn restore_local_backup(
         .map_err(|_| CommandError::unavailable("Safety backup folder is unavailable."))?
         .join("recovery-safety");
     let selected = Arc::clone(selection.inner());
+    let sidecar = app
+        .path()
+        .app_local_data_dir()
+        .map_err(|_| CommandError::unavailable("Replication sidecar folder is unavailable."))?
+        .join("replication-sidecar.sqlite");
     with_recovery_workspace(state, scope, move |w| {
         let mut selected = selected.lock().map_err(|_| StoreError::AccessUnavailable)?;
         let path = selected.path.clone().ok_or(StoreError::InvalidBackup)?;
         let preview = selected.preview.take().ok_or(StoreError::RecoveryChanged)?;
-        w.restore_backup(
+        let receipt = w.restore_backup(
             &path,
             &safety,
             &current,
@@ -733,7 +738,9 @@ async fn restore_local_backup(
             &original,
             &preview,
             &confirmation,
-        )
+        )?;
+        sornio_local_store::replication::reset_sidecar_file(&sidecar)?;
+        Ok(receipt)
     })
     .await
 }

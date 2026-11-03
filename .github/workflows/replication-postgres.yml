@@ -1,0 +1,101 @@
+name: Replication PostgreSQL
+on:
+  pull_request:
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31']
+    paths:
+      - 'packages/replication-cloud/**'
+      - 'packages/local-store/**'
+      - 'scripts/verify-replication-postgres.mjs'
+      - 'scripts/verify-replication-native-https.mjs'
+      - 'scripts/verify-replication.mjs'
+      - '.github/workflows/replication-postgres.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  postgres:
+    name: Real PostgreSQL concurrency
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: sornio
+          POSTGRES_PASSWORD: sornio-replication-ci
+          POSTGRES_DB: sornio_replication
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sornio -d sornio_replication"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://sornio:sornio-replication-ci@localhost:5432/sornio_replication
+      CI: true
+      CARGO_TERM_COLOR: always
+      SORNIO_NATIVE_OUTBOX_DIR: /tmp/sornio-native-outbox
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          cache-on-failure: true
+          workspaces: packages/local-store
+      - name: Install dependencies
+        run: npm ci
+      - name: Real PostgreSQL ingest races
+        run: node scripts/verify-replication-postgres.mjs
+      - name: Export native SQLCipher outbox envelopes
+        run: |
+          mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
+          rm -f "$SORNIO_NATIVE_OUTBOX_DIR"/live.db* "$SORNIO_NATIVE_OUTBOX_DIR"/sidecar.sqlite*
+          set +e
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml \
+            native_sqlcipher_export_pipeline \
+            -- --ignored --nocapture >"$SORNIO_NATIVE_OUTBOX_DIR/export.log" 2>&1
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            python3 -c 'import os,re,pathlib; p=pathlib.Path(os.environ["SORNIO_NATIVE_OUTBOX_DIR"])/"export.log"; t=p.read_text(errors="replace") if p.exists() else "missing export.log"; m=re.search(r"panicked at[\s\S]{0,1200}", t); s=" ".join((m.group(0) if m else t[-1500:]).split()); print("::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::"+s); open(os.environ["GITHUB_STEP_SUMMARY"],"a").write(t[-4000:]+"\n")'
+            exit "$status"
+          fi
+          if ! grep -q 'native_sqlcipher_export_pipeline' "$SORNIO_NATIVE_OUTBOX_DIR/export.log"; then
+            echo "::error::cargo ran zero native export tests"
+            cat "$SORNIO_NATIVE_OUTBOX_DIR/export.log" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          test -f "$SORNIO_NATIVE_OUTBOX_DIR/manifest.json"
+          test -f "$SORNIO_NATIVE_OUTBOX_DIR/identity.json"
+          test -d "$SORNIO_NATIVE_OUTBOX_DIR/envelopes"
+      - name: Native SQLCipher envelopes over TLS into PostgreSQL
+        run: |
+          ls -la "$SORNIO_NATIVE_OUTBOX_DIR"
+          set +e
+          node scripts/verify-replication-native-https.mjs
+          status=$?
+          set -e
+          if [ "$status" -ne 0 ]; then
+            if [ -f "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt" ]; then
+              detail=$(tr '\n' ' ' < "$SORNIO_NATIVE_OUTBOX_DIR/https-error.txt")
+            else
+              detail="no https-error.txt (exit $status)"
+            fi
+            echo "::error file=scripts/verify-replication-native-https.mjs,line=1::native-https $detail"
+            echo "$detail" >> "$GITHUB_STEP_SUMMARY"
+            exit "$status"
+          fi
+      - name: Apply HTTPS acks to the native sidecar
+        run: |
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml \
+            replication::replication_matrix_tests::native_sqlcipher_apply_https_acks \
+            -- --ignored --exact --nocapture

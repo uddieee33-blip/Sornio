@@ -1,0 +1,159 @@
+name: Mobile companion
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/mobile/**'
+      - 'packages/mobile-contracts/**'
+      - 'packages/mobile-design/**'
+      - 'scripts/verify-mobile-contracts.mjs'
+      - '.github/workflows/mobile.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  shared:
+    name: Contracts, types, security
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Contract tests
+        run: node scripts/verify-mobile-contracts.mjs
+      - name: Typecheck contracts
+        working-directory: apps/mobile
+        run: npx tsc --noEmit -p ../../packages/mobile-contracts/tsconfig.json
+      - name: Typecheck companion
+        working-directory: apps/mobile
+        run: npx tsc --noEmit
+      - name: Secret scan
+        run: |
+          set -euo pipefail
+          PATTERN='service_role|SUPABASE_SERVICE_ROLE|BEGIN RSA PRIVATE KEY|AIza[0-9A-Za-z_-]{20,}'
+          GREP=(grep -R -nE "$PATTERN" --exclude-dir=node_modules --exclude-dir=.git --exclude-dir=android --exclude-dir=ios)
+          CANARY=apps/mobile/.secret-scan-canary.ts
+          trap 'rm -f "$CANARY"' EXIT
+          printf '%s\n' "export const canary = 'SUPABASE_SERVICE_ROLE=synthetic-scan-canary-not-a-real-key';" > "$CANARY"
+          if ! "${GREP[@]}" "$CANARY" >/dev/null; then
+            echo 'Secret scanner failed to detect a synthetic service-role leak.'
+            exit 1
+          fi
+          rm -f "$CANARY"
+          if "${GREP[@]}" apps/mobile packages/mobile-contracts packages/mobile-design \
+            | grep -v 'docs/' ; then
+            echo 'Refusing secrets in the companion tree.'
+            exit 1
+          fi
+          echo 'No service-role keys or private keys found in companion sources.'
+
+  android:
+    name: Android debug compile
+    needs: shared
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: 'platform-tools platforms;android-35 build-tools;35.0.0'
+          log-accepted-android-sdk-licenses: false
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Prebuild Android
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --non-interactive
+      - name: Assemble debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Record APK identity
+        run: |
+          set -euo pipefail
+          apk=apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          test -f "$apk"
+          echo "commit=${GITHUB_SHA}"
+          hash=$(sha256sum "$apk")
+          echo "$hash"
+          echo "::notice::Companion debug APK $hash"
+          aapt="$ANDROID_HOME/build-tools/35.0.0/aapt"
+          if [ -x "$aapt" ]; then
+            badge=$("$aapt" dump badging "$apk" | head -5)
+            echo "$badge"
+            echo "::notice::$badge"
+          fi
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Sornio-companion-android-debug
+          path: apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
+
+  ios:
+    name: iOS simulator compile
+    needs: shared
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Xcode version
+        run: xcodebuild -version
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Prebuild iOS
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --non-interactive --no-install
+      - name: CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install
+      - name: Simulator compile
+        working-directory: apps/mobile/ios
+        run: |
+          xcodebuild \
+            -workspace Sornio.xcworkspace \
+            -scheme Sornio \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY= \
+            build

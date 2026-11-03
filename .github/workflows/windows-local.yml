@@ -35,6 +35,28 @@ jobs:
           workspaces: |
             packages/local-store
             apps/desktop/src-tauri
+      - name: Put Perl on PATH for vendored OpenSSL
+        # openssl-src Configure (sqlcipher-vendored-openssl) shells out to perl.
+        # windows-latest sometimes leaves Strawberry Perl off PATH for later
+        # steps even though cargo test reused a cached build.
+        shell: pwsh
+        run: |
+          $perl = Get-Command perl -ErrorAction SilentlyContinue
+          if ($perl) {
+            Write-Host "perl: $($perl.Source)"
+            & perl -v
+            exit 0
+          }
+          foreach ($dir in @('C:\Strawberry\perl\bin', 'C:\Program Files\Git\usr\bin')) {
+            $exe = Join-Path $dir 'perl.exe'
+            if (Test-Path $exe) {
+              echo $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+              Write-Host "added $dir to PATH"
+              & $exe -v
+              exit 0
+            }
+          }
+          Write-Host '::warning::perl.exe was not found; openssl-src Configure may fail on this runner.'
       # Shared source files under lib/ and packages/ resolve packages from the
       # repo root. Installing only apps/desktop leaves those imports unable to
       # resolve react (TS2307 / TS2875), so the root install must run first.
@@ -97,7 +119,22 @@ jobs:
           fi
           exit "$code"
       - name: Build independent Windows installer
-        run: npm run desktop:build --prefix apps/desktop
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          set -o pipefail
+          log="$(mktemp)"
+          npm run desktop:build --prefix apps/desktop 2>&1 | tee "$log" || true
+          code=${PIPESTATUS[0]}
+          if [ "$code" -ne 0 ]; then
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+            { grep -E '^error(\[|:)|OpenSSL|perl |NSIS|failed to' "$log.clean" | head -40 | esc; } \
+              | sed 's/^/::error::installer: /'
+            { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /'
+          fi
+          exit "$code"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
@@ -126,7 +163,9 @@ jobs:
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Sornio-Local-Workspace-Review
-          path: apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+          path: |
+            apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
+            dist/native-review/installer-manifest.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload actual native screenshots

@@ -34,6 +34,19 @@ class WindowsEvidenceContractTests(unittest.TestCase):
         }
         self.lifecycle = {key: 'passed' for key in module.REQUIRED_PASSES}
         self.lifecycle.update({key: 'untested' for key in module.REQUIRED_UNTESTED})
+        self.manifest = {
+            'generatedAtUtc': '2026-11-03T00:00:00.0000000Z',
+            'commitSha': 'a' * 40,
+            'workflowName': 'Windows local workspace',
+            'workflowRunId': '12345',
+            'runnerOs': 'Windows',
+            'installerFile': self.installer.name,
+            'installerBytes': self.installer.stat().st_size,
+            'installerSha256': hashlib.sha256(self.installer.read_bytes()).hexdigest(),
+            'installedExePath': 'C:\\SornioPilotAcceptance\\sornio-desktop.exe',
+            'installedExeBytes': 23456789,
+            'installedExeSha256': 'b' * 64,
+        }
         for name in module.REQUIRED_SCREENSHOTS:
             Image.new('RGB', (800, 500), (242, 242, 242)).save(self.evidence / name)
         self.write_records()
@@ -41,6 +54,7 @@ class WindowsEvidenceContractTests(unittest.TestCase):
     def write_records(self):
         (self.evidence / 'installer-artifact.json').write_text(json.dumps(self.artifact), encoding='utf-8')
         (self.evidence / 'installer-lifecycle-result.json').write_text(json.dumps(self.lifecycle), encoding='utf-8')
+        (self.evidence / 'installer-manifest.json').write_text(json.dumps(self.manifest), encoding='utf-8')
 
     def run_check(self):
         return module.verify(self.installer_dir, self.evidence)
@@ -51,6 +65,38 @@ class WindowsEvidenceContractTests(unittest.TestCase):
         self.assertEqual(result['consumerPilotDecision'], 'blocked')
         self.assertFalse(result['signedConsumerReleaseVerified'])
         self.assertEqual(len(result['screenshots']), len(module.REQUIRED_SCREENSHOTS))
+        self.assertEqual(result['installerManifest']['installerSha256'], self.manifest['installerSha256'])
+        self.assertEqual(result['installerManifest']['installedExeSha256'], 'b' * 64)
+        self.assertEqual(result['installerManifest']['commitSha'], 'a' * 40)
+
+    def test_manifest_installer_hash_mismatch_is_detected(self):
+        self.manifest['installerSha256'] = 'c' * 64
+        self.write_records()
+        with self.assertRaisesRegex(ValueError, 'installerSha256'):
+            self.run_check()
+
+    def test_manifest_size_mismatch_is_detected(self):
+        self.manifest['installerBytes'] = self.manifest['installerBytes'] + 1
+        self.write_records()
+        with self.assertRaisesRegex(ValueError, 'installerBytes'):
+            self.run_check()
+
+    def test_manifest_without_installed_exe_hash_is_rejected(self):
+        self.manifest['installedExeSha256'] = 'not-a-hash'
+        self.write_records()
+        with self.assertRaisesRegex(ValueError, 'installed application executable'):
+            self.run_check()
+
+    def test_manifest_without_commit_is_rejected(self):
+        self.manifest['commitSha'] = ''
+        self.write_records()
+        with self.assertRaisesRegex(ValueError, 'commit SHA'):
+            self.run_check()
+
+    def test_missing_manifest_is_rejected(self):
+        (self.evidence / 'installer-manifest.json').unlink()
+        with self.assertRaisesRegex(ValueError, 'evidence record'):
+            self.run_check()
 
     def test_installer_tampering_is_detected(self):
         self.installer.write_bytes(b'Different installer, same filename')

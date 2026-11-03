@@ -138,4 +138,16 @@ const retailSource = readFileSync(join(RENDERER, 'RetailPanel.tsx'), 'utf8');
 check(customerSource.includes("event.key === 'Escape'") && retailSource.includes("event.key === 'Escape'"), 'CustomerPanel and RetailPanel review prompts support Escape dismissal');
 check(retailSource.includes('function requireReason()'), 'RetailPanel surfaces explicit guidance when a required correction/return reason is empty');
 
+// 11. A repeated submit of one logical sale keeps one native operation id; the
+// Rust transaction layer stays authoritative behind the busy guard.
+check(/if \(submitting\.current \|\| disabled\) return;/.test(checkoutSource), 'confirm() refuses to run while a submission is already in flight');
+check(/if \(blocked \|\| !preview \|\| problem/.test(checkoutSource), 'postNew() refuses to start without a valid preview');
+check(/const blocked = disabled \|\| busy/.test(checkoutSource), 'checkout inputs and buttons lock while busy, so a second Enter cannot begin a new sale');
+check(/if \(!retailRef\.current\) \{/.test(checkoutSource)
+  && /prepare_local_retail', \{ r: retailRef\.current \}/.test(checkoutSource)
+  && /post_local_retail', \{ r: retailRef\.current \}/.test(checkoutSource),
+  'a retail sale is prepared and posted with one persisted operation id that every retry reuses');
+check(/void confirm\(pending\)/.test(checkoutSource), 'F8 recovery and the retry button resubmit the same pending operation id, never a new one');
+check(/Never create a new ID/.test(checkoutSource), 'the renderer documents that timeout/reply loss must never mint a new operation id');
+
 console.log(`\n${checks} desktop contract checks passed`);
