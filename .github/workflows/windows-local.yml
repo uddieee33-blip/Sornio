@@ -91,7 +91,15 @@ jobs:
             { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
               | sed 's/^/::error::failure details: /'
             { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /'
+            exit "$code"
           fi
+          # A successful cargo exit with zero selected tests is not native
+          # financial verification. Retain the exact passed/ignored counts.
+          if ! grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed; [0-9]+ ignored;' "$log" > "$log.passed"; then
+            echo '::error::release cargo executed no passing native tests'
+            exit 1
+          fi
+          { echo '### Windows native release test counts'; cat "$log.passed"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
       - name: Test encrypted storage in the debug profile (overflow checks and debug assertions active)
         # Debug builds keep integer overflow checks and debug_assert! enabled;
@@ -116,7 +124,13 @@ jobs:
             { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
               | sed 's/^/::error::debug failure details: /'
             { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /'
+            exit "$code"
           fi
+          if ! grep -E '^test result: ok\. [1-9][0-9]* passed; 0 failed; [0-9]+ ignored;' "$log" > "$log.passed"; then
+            echo '::error::debug cargo executed no passing native tests'
+            exit 1
+          fi
+          { echo '### Windows native debug test counts'; cat "$log.passed"; } >> "$GITHUB_STEP_SUMMARY"
           exit "$code"
       - name: Build independent Windows installer
         shell: bash

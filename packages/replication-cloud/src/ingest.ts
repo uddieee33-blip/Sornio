@@ -1,7 +1,7 @@
 import { requirePublisher } from './auth';
 import { parseEnvelope } from './envelope';
 import { projectEvent } from './project';
-import { CloudStore } from './store';
+import { CloudStore, operationKey } from './store';
 import {
   ReplicationError,
   type DigestFn,
@@ -25,10 +25,19 @@ export function ingestEnvelope(
   if (envelope.restoreGeneration !== publisher.restoreGeneration) {
     throw new ReplicationError('STALE_GENERATION', 'Restore generation does not match the enrolled publisher.');
   }
-  const duplicate = store.byOperation.get(`${publisher.businessId}|${envelope.operationId}`);
+  // A restore is not a replay of the old cloud projection: its backup may
+  // contain fewer sales than were already ingested. Do not silently mix two
+  // generations until a reconciliation/rebuild protocol is implemented.
+  if (store.events.some((event) =>
+    event.businessId === publisher.businessId && event.restoreGeneration !== publisher.restoreGeneration)) {
+    throw new ReplicationError('STALE_GENERATION', 'Restored ledger requires reconciliation before cloud ingest.');
+  }
+  const key = operationKey(publisher.businessId, publisher.restoreGeneration, envelope.stream, envelope.operationId);
+  const duplicate = store.byOperation.get(key);
   if (duplicate) {
-    if (duplicate.payloadSha256 !== envelope.payloadSha256) {
-      throw new ReplicationError('CONFLICT', 'Operation identity was reused with a different payload.');
+    if (duplicate.payloadSha256 !== envelope.payloadSha256 ||
+        duplicate.streamSequence !== envelope.streamSequence) {
+      throw new ReplicationError('CONFLICT', 'Operation identity was reused with a different payload or sequence.');
     }
     return { operationId: envelope.operationId, cursor: duplicate.cursor, duplicate: true };
   }
@@ -45,7 +54,7 @@ export function ingestEnvelope(
     const stored: Envelope & { cursor: string } = { ...envelope, cursor };
     projectEvent(draft, envelope);
     draft.events.push(stored);
-    draft.byOperation.set(`${publisher.businessId}|${envelope.operationId}`, stored);
+    draft.byOperation.set(key, stored);
     draft.streamHead.set(headKey, sequence);
     store.adopt(draft);
     return { operationId: envelope.operationId, cursor, duplicate: false };

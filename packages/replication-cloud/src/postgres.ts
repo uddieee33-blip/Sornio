@@ -1,7 +1,7 @@
 import { requirePublisher, requireReader } from './auth';
 import { parseEnvelope } from './envelope';
 import { projectEvent } from './project';
-import { CloudStore, tenantKey } from './store';
+import { CloudStore, operationKey, tenantKey } from './store';
 import { ReplicationError, STREAMS, type DigestFn, type IngestAck, type Principal, type StreamName } from './types';
 
 export type SqlQueryResult<T> = { rows: T[] };
@@ -180,7 +180,7 @@ export async function hydrateFromPostgres(db: SqlDatabase, businessId: string): 
       cursor: row.cursor ?? '0',
     };
     store.events.push(stored);
-    store.byOperation.set(`${businessId}|${row.operation_id}`, stored);
+    store.byOperation.set(operationKey(businessId, row.restore_generation, row.stream, row.operation_id), stored);
   }
   const invoices = await db.query<Record<string, unknown>>(
     `SELECT invoice_id, billing_operation_id, retail_operation_id, occurred_at::text, counterparty, customer_id,
@@ -426,8 +426,21 @@ async function ingestDurableAttempt(
     if (envelope.restoreGeneration !== publisher.restoreGeneration) {
       throw new ReplicationError('STALE_GENERATION', 'Restore generation does not match the enrolled publisher.');
     }
-    const existing = await db.query<{ payload_sha256: string; cursor: string | null }>(
-      `SELECT e.payload_sha256, a.cursor
+    // Replicating a restored backup into a projection built from a newer
+    // generation can fabricate/misattribute stock and sales. The local ledger
+    // remains authoritative and its outbox unacknowledged until a deliberate
+    // generation reconciliation/rebuild exists. This check is in the same
+    // transaction as the eventual ack and under the business FOR UPDATE lock.
+    const projection = await db.query<{ restore_generation: string }>(
+      `SELECT restore_generation FROM native_replication.projection_cursor
+       WHERE business_id = $1`,
+      [publisher.businessId],
+    );
+    if (projection.rows[0] && projection.rows[0].restore_generation !== publisher.restoreGeneration) {
+      throw new ReplicationError('STALE_GENERATION', 'Restored ledger requires reconciliation before cloud ingest.');
+    }
+    const existing = await db.query<{ payload_sha256: string; stream_sequence: string; cursor: string | null }>(
+      `SELECT e.payload_sha256, e.stream_sequence::text, a.cursor
        FROM native_replication.events e
        LEFT JOIN native_replication.acks a
          ON a.business_id = e.business_id AND a.restore_generation = e.restore_generation
@@ -436,8 +449,9 @@ async function ingestDurableAttempt(
       [publisher.businessId, publisher.restoreGeneration, envelope.stream, envelope.operationId],
     );
     if (existing.rows[0]) {
-      if (existing.rows[0].payload_sha256 !== envelope.payloadSha256) {
-        throw new ReplicationError('CONFLICT', 'Operation identity was reused with a different payload.');
+      if (existing.rows[0].payload_sha256 !== envelope.payloadSha256 ||
+          existing.rows[0].stream_sequence !== envelope.streamSequence) {
+        throw new ReplicationError('CONFLICT', 'Operation identity was reused with a different payload or sequence.');
       }
       if (!existing.rows[0].cursor) {
         throw new ReplicationError('CONFLICT', 'Event exists without a durable ack; ingest is incomplete.');

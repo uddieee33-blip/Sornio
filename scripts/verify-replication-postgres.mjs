@@ -349,6 +349,21 @@ try {
   check(retry.duplicate === true && retry.cursor === committed.cursor, 'lost ack retry is idempotent');
   const lostCount = await admin.query(`SELECT COUNT(*)::int AS n FROM native_replication.events WHERE operation_id = 'bill-lost-ack'`);
   check(lostCount.rows[0].n === 1, 'retry after lost ack does not duplicate the event');
+  let wrongSequence = false;
+  try {
+    await ingestDurable(
+      dbB, pub,
+      buildEnvelope(pub, invoiceRow(9, { id: 'bill-lost-ack', tender: 'cash', lines: [] }), digest),
+      digest, NOW,
+    );
+  } catch (error) {
+    wrongSequence = error instanceof ReplicationError && error.code === 'CONFLICT';
+  }
+  check(wrongSequence, 'same digest at a new stream sequence cannot reuse an old durable ack');
+  const afterWrongSequence = await admin.query(
+    `SELECT COUNT(*)::int AS n FROM native_replication.events WHERE operation_id = 'bill-lost-ack'`,
+  );
+  check(afterWrongSequence.rows[0].n === 1, 'wrong-sequence retry made no second financial event');
 
   const dropped = new pg.Client({ connectionString: url });
   await dropped.connect();
@@ -442,6 +457,34 @@ try {
     await admin.query('ROLLBACK');
   }
   check(cashierBlocked, 'cashier role cannot read customer ledger on server PostgreSQL');
+
+  // Without reconciliation, republishing an older backup alongside projected
+  // invoices from the old generation misstates stock. Keep the native outbox
+  // pending rather than acknowledging a mixed-generation projection.
+  await admin.query(`UPDATE native_replication.devices SET restore_generation = 'gen-2' WHERE device_id = $1`, [pub.deviceId]);
+  const restoredPub = { ...pub, restoreGeneration: 'gen-2' };
+  let blockedRestore = false;
+  try {
+    await ingestDurable(
+      dbA, restoredPub,
+      buildEnvelope(restoredPub, invoiceRow(1, { id: 'bill-race-same', tender: 'cash', lines: [] }), digest),
+      digest, NOW,
+    );
+  } catch (error) {
+    blockedRestore = error instanceof ReplicationError && error.code === 'STALE_GENERATION';
+  }
+  check(blockedRestore, 'older-generation re-export is blocked before a new event or ack');
+  const genTwo = await admin.query(
+    `SELECT COUNT(*)::int AS n FROM native_replication.events WHERE business_id = $1 AND restore_generation = 'gen-2'`,
+    [pub.businessId],
+  );
+  check(genTwo.rows[0].n === 0, 'restore rejection leaves the PostgreSQL event log unchanged');
+  const genTwoAcks = await admin.query(
+    `SELECT COUNT(*)::int AS n FROM native_replication.acks WHERE business_id = $1 AND restore_generation = 'gen-2'`,
+    [pub.businessId],
+  );
+  check(genTwoAcks.rows[0].n === 0, 'restore rejection did not acknowledge an unseen sale');
+  await admin.query(`UPDATE native_replication.devices SET restore_generation = 'gen-1' WHERE device_id = $1`, [pub.deviceId]);
 
   await workerA.end();
   await workerB.end();

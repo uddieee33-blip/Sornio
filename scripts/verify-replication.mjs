@@ -409,9 +409,29 @@ try {
   check(parsed.overview.todaySales.cashPaise === '60000', '₹600 cash');
   check(parsed.overview.todaySales.creditPaise === '40000', '₹400 customer credit');
   check(parsed.overview.todaySales.digitalPaise === '0', 'split cash/credit has no digital');
-  check(parsed.customers[0].outstandingPaise === '40000', 'outstanding from credit.linked');
+  // This synthetic credit.linked event is *not* emitted by a native split
+  // sale. It tests explicit linking only; native-sale debt is audited in the
+  // separate release-risk gate, not inferred from this fixture.
+  check(parsed.customers[0].outstandingPaise === '40000', 'outstanding from explicit credit.linked');
   const applied = decideSnapshotApply(null, toSyncEnvelope(parsed, splitCashCredit.own.deviceId));
   check(applied.ok === true && applied.kind === 'applied', 'v2 snapshot applies');
+
+  // Native retail and billing outboxes use the *same* operation ID. The
+  // idempotency key must include the stream; a retry must additionally use
+  // the original stream sequence, not just the original payload digest.
+  const nativeId = setup('native-id');
+  const nativeBill = invoiceRow(1, { id: 'bill-native-id', tender: 'retail', customerId: null, customerName: 'Walk-in', lines: [] });
+  const nativeSale = retailSale(1, 'bill-native-id', [{ id: 'pay-native-cash', method: 'cash', amountPaise: TOTAL }]);
+  nativeSale.operationId = 'bill-native-id';
+  nativeSale.payload.receipt.operationId = 'bill-native-id';
+  publish(nativeId.store, nativeId.pub, nativeBill);
+  const nativeAck = publish(nativeId.store, nativeId.pub, nativeSale);
+  check(nativeAck.duplicate === false, 'same native ID on billing and retail commits two distinct stream events');
+  check(snapshotOf(nativeId.store, nativeId.own).activity.length === 1, 'both native streams produce one posted invoice');
+  const replayAck = publish(nativeId.store, nativeId.pub, nativeSale);
+  check(replayAck.duplicate === true && replayAck.cursor === nativeAck.cursor, 'exact retail retry returns its own cursor');
+  expectCode('CONFLICT', () => publish(nativeId.store, nativeId.pub, { ...nativeSale, sequence: 9 }));
+  check(nativeId.store.events.length === 4, 'wrong-sequence retry leaves both outbox streams unchanged');
 
   const splitUpiCredit = setup('split-uc');
   publish(splitUpiCredit.store, splitUpiCredit.pub, invoiceRow(1, { id: 'bill-upi-credit', tender: 'retail' }));
@@ -716,6 +736,37 @@ try {
   check(restartedSnap.overview.todaySales.cashPaise === '100000', 'projections survive a process restart from PostgreSQL');
   check(restartedSnap.inventory.some((item) => item.id === 'atta-001'), 'inventory survives restart');
   check(restartedSnap.projectionComplete === true, 'restarted projection is complete');
+
+  // A same-digest response with a different sequence would make the native
+  // sidecar skip uncommitted entries. Do not acknowledge it as a duplicate.
+  const durableInvoice = invoiceRow(1, { id: 'bill-durable', tender: 'cash', customerId: null, customerName: 'Walk-in' });
+  const durableWrongSeq = buildEnvelope(durablePub, { ...durableInvoice, sequence: 9 }, digest);
+  let rejectedWrongSeq = false;
+  try {
+    await ingestDurable(pg, durablePub, durableWrongSeq, digest, NOW);
+  } catch (error) {
+    rejectedWrongSeq = error instanceof ReplicationError && error.code === 'CONFLICT';
+  }
+  check(rejectedWrongSeq, 'durable ingest rejects same operation and digest at a different sequence');
+  const durableRows = await pg.query(`SELECT COUNT(*)::int AS n FROM native_replication.events WHERE business_id = $1 AND operation_id = 'bill-durable'`, [durablePub.businessId]);
+  check(durableRows.rows[0].n === 1, 'wrong-sequence retry did not insert a second event');
+
+  // An older backup can omit sales already accepted by this cloud projection.
+  // Generation rotation must block publication until explicitly reconciled.
+  await pg.query(`UPDATE native_replication.devices SET restore_generation = 'gen-2' WHERE device_id = $1`, [durablePub.deviceId]);
+  const restoredPublisher = { ...durablePub, restoreGeneration: 'gen-2' };
+  let blockedRestore = false;
+  try {
+    await ingestDurable(pg, restoredPublisher, buildEnvelope(restoredPublisher, durableInvoice, digest), digest, NOW);
+  } catch (error) {
+    blockedRestore = error instanceof ReplicationError && error.code === 'STALE_GENERATION';
+  }
+  check(blockedRestore, 're-export after restore cannot mix database generations');
+  const restoredRows = await pg.query(`SELECT COUNT(*)::int AS n FROM native_replication.events WHERE business_id = $1 AND restore_generation = 'gen-2'`, [durablePub.businessId]);
+  check(restoredRows.rows[0].n === 0, 'blocked restore wrote neither a new event nor a cloud ack');
+  const restoreCursor = await pg.query(`SELECT restore_generation FROM native_replication.projection_cursor WHERE business_id = $1`, [durablePub.businessId]);
+  check(restoreCursor.rows[0].restore_generation === 'gen-1', 'blocked restore preserved the authoritative projection generation');
+  await pg.query(`UPDATE native_replication.devices SET restore_generation = 'gen-1' WHERE device_id = $1`, [durablePub.deviceId]);
 
   const tlsDir = mkdtempSync(join(tmpdir(), 'sornio-tls-'));
   const keyPath = join(tlsDir, 'key.pem');

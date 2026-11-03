@@ -43,6 +43,13 @@ export type CustomerRow = {
 
 export type StoredEvent = Envelope & { cursor: string };
 
+// Native billing and retail outboxes intentionally share the sale operation ID.
+// Idempotency is scoped to the same stream and restore generation as SQL's
+// UNIQUE (business_id, restore_generation, stream, operation_id) constraint.
+export function operationKey(businessId: string, generation: string, stream: StreamName, id: string): string {
+  return `${businessId}|${generation}|${stream}|${id}`;
+}
+
 export class CloudStore {
   businesses = new Map<string, { name: string; portalId: Principal['portalId'] }>();
   devices = new Map<string, Principal>();
@@ -99,7 +106,9 @@ export class CloudStore {
     copy.businesses = new Map(this.businesses);
     copy.devices = new Map([...this.devices].map(([key, value]) => [key, { ...value }]));
     copy.events = this.events.map((event) => ({ ...event }));
-    copy.byOperation = new Map(copy.events.map((event) => [`${event.businessId}|${event.operationId}`, event]));
+    copy.byOperation = new Map(copy.events.map((event) => [
+      operationKey(event.businessId, event.restoreGeneration, event.stream, event.operationId), event,
+    ]));
     copy.streamHead = new Map(this.streamHead);
     copy.invoices = new Map([...this.invoices].map(([key, value]) => [key, { ...value }]));
     copy.pendingRetail = new Map([...this.pendingRetail].map(([key, value]) => [key, { ...value }]));

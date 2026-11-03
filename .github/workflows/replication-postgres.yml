@@ -56,6 +56,8 @@ jobs:
       - name: Real PostgreSQL ingest races
         run: node scripts/verify-replication-postgres.mjs
       - name: Export native SQLCipher outbox envelopes
+        env:
+          CARGO_TERM_COLOR: never
         run: |
           mkdir -p "$SORNIO_NATIVE_OUTBOX_DIR"
           rm -f "$SORNIO_NATIVE_OUTBOX_DIR"/live.db* "$SORNIO_NATIVE_OUTBOX_DIR"/sidecar.sqlite*
@@ -69,11 +71,12 @@ jobs:
             python3 -c 'import os,re,pathlib; p=pathlib.Path(os.environ["SORNIO_NATIVE_OUTBOX_DIR"])/"export.log"; t=p.read_text(errors="replace") if p.exists() else "missing export.log"; m=re.search(r"panicked at[\s\S]{0,1200}", t); s=" ".join((m.group(0) if m else t[-1500:]).split()); print("::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::"+s); open(os.environ["GITHUB_STEP_SUMMARY"],"a").write(t[-4000:]+"\n")'
             exit "$status"
           fi
-          if ! grep -q 'native_sqlcipher_export_pipeline' "$SORNIO_NATIVE_OUTBOX_DIR/export.log"; then
-            echo "::error::cargo ran zero native export tests"
+          if ! grep -qE '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$SORNIO_NATIVE_OUTBOX_DIR/export.log"; then
+            echo "::error::cargo must execute exactly one ignored native SQLCipher export test"
             cat "$SORNIO_NATIVE_OUTBOX_DIR/export.log" >> "$GITHUB_STEP_SUMMARY"
             exit 1
           fi
+          grep -E '^test result:' "$SORNIO_NATIVE_OUTBOX_DIR/export.log" >> "$GITHUB_STEP_SUMMARY"
           test -f "$SORNIO_NATIVE_OUTBOX_DIR/manifest.json"
           test -f "$SORNIO_NATIVE_OUTBOX_DIR/identity.json"
           test -d "$SORNIO_NATIVE_OUTBOX_DIR/envelopes"
@@ -95,7 +98,15 @@ jobs:
             exit "$status"
           fi
       - name: Apply HTTPS acks to the native sidecar
+        env:
+          CARGO_TERM_COLOR: never
         run: |
           cargo test --locked --manifest-path packages/local-store/Cargo.toml \
             replication::replication_matrix_tests::native_sqlcipher_apply_https_acks \
-            -- --ignored --exact --nocapture
+            -- --ignored --exact --nocapture >"$SORNIO_NATIVE_OUTBOX_DIR/apply.log" 2>&1
+          cat "$SORNIO_NATIVE_OUTBOX_DIR/apply.log"
+          if ! grep -qE '^test result: ok\. 1 passed; 0 failed; 0 ignored;' "$SORNIO_NATIVE_OUTBOX_DIR/apply.log"; then
+            echo "::error::cargo must execute exactly one ignored native SQLCipher ack test"
+            exit 1
+          fi
+          grep -E '^test result:' "$SORNIO_NATIVE_OUTBOX_DIR/apply.log" >> "$GITHUB_STEP_SUMMARY"

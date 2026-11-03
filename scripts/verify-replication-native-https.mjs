@@ -352,22 +352,40 @@ try {
   }
   writeFileSync(join(outboxDir, 'acks.jsonl'), acks.map((row) => JSON.stringify(row)).join('\n'));
 
+  // Keep the mutated TEXT valid JSON: appending `x` tests only JSON parsing,
+  // not idempotency. A real digest-valid conflicting operation must reach the
+  // committed-event identity check and return CONFLICT specifically.
+  const changedPayload = { ...JSON.parse(parsedFirst.payloadText), auditMarker: 'changed-value' };
+  const changedText = JSON.stringify(changedPayload);
   let conflicted = false;
   try {
-    await postRaw(
-      token,
-      JSON.stringify({
-        ...parsedFirst,
-        payloadText: `${parsedFirst.payloadText}x`,
-        payloadSha256: digest(`${parsedFirst.payloadText}x`),
-      }),
-    );
+    await postRaw(token, JSON.stringify({
+      ...parsedFirst,
+      payload: changedPayload,
+      payloadText: changedText,
+      payloadSha256: digest(changedText),
+    }));
   } catch (error) {
-    conflicted =
-      error instanceof ReplicationError &&
-      (error.code === 'CONFLICT' || error.code === 'INVALID_ENVELOPE' || error.code === 'DUPLICATE_SEQUENCE');
+    conflicted = error instanceof ReplicationError && error.code === 'CONFLICT';
   }
-  check(conflicted, 'reused operation id with a different payload is not a second commit');
+  check(conflicted, 'digest-valid reused operation id with different payload is CONFLICT');
+
+  let wrongSequence = false;
+  try {
+    await postRaw(token, JSON.stringify({
+      ...parsedFirst,
+      streamSequence: (BigInt(parsedFirst.streamSequence) + 1n).toString(),
+    }));
+  } catch (error) {
+    wrongSequence = error instanceof ReplicationError && error.code === 'CONFLICT';
+  }
+  check(wrongSequence, 'same native payload and operation id at another sequence is CONFLICT');
+  const stillOne = await admin.query(
+    `SELECT COUNT(*)::int AS n FROM native_replication.events
+     WHERE business_id = $1 AND restore_generation = $2 AND stream = $3 AND operation_id = $4`,
+    [pub.businessId, pub.restoreGeneration, parsedFirst.stream, parsedFirst.operationId],
+  );
+  check(stillOne.rows[0].n === 1, 'conflicts leave exactly the original durable event');
 
   const otherPub = {
     ...pub,
