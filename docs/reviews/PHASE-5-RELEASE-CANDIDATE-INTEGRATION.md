@@ -2,7 +2,7 @@
 
 **Date:** 2026-11-03 (UTC)
 **Author:** Arena Agent Mode (Phase 5 master engineering execution)
-**Branch:** `arena/2a724501-sornio` — integration commit `df399ce07de82d033dc1ef6226ad6f6ac2a1d597`
+**Branch:** `arena/2a724501-sornio` — final commit `21a3f7c9…` (integration `df399ce`, fixes `1e238c0`/`97eba6f`/`21a3f7c`, evidence doc `6fd20e3`)
 **Scope:** Reconcile PR #143 (Phase 1–3) with PR #144 (Phase 4), add the release-blocking ₹1,000 installed-UI regression, verify the combined candidate, and produce an evidence-based release verdict. Neither PR #143 nor PR #144 was merged; no history was rewritten; no production service was touched.
 
 ---
@@ -43,9 +43,9 @@ Result: integration HEAD `df399ce` differs from PR #143 head in exactly the 8 Ph
 
 **Native layer (executed evidence exists in tree, CI-green on #143 head):** `split_cash_and_customer_credit_sale_posts_one_atomic_sale` in `packages/local-store/src/payments_tests.rs` is exactly the required scenario — invoice `100000` paise = `60000` cash + `40000` customer credit — asserting one invoice, one stock deduction (`local_invoice_stock` count = 1), one outbox event, two payment rows (cash 60000 `recorded`, credit 40000 `credit_due`), balances `60000`/`40000`, exactly one `local_credit_entries` row, idempotent exact retry (same result, no new rows), changed-request conflict, `journals_balance`, and restart persistence. Ran green in `windows-local` run 41624151210 on `4340d728`.
 
-**Installed-UI layer (new in this branch, `df399ce`):** `apps/desktop/check-native.py` now drives the ₹1,000.00 acceptance scenario through the *packaged installed application* on a clean disposable shop: clears the customer's ₹50 limit via the owner UI, creates a ₹1,000.00 item, posts 1 × ₹1,000.00 as ₹600.00 cash + ₹400.00 credit split with a burst of repeated submit keys (`{ENTER}{ENTER}{SPACE}`), then asserts: unique new invoice UUID, receipt total **₹1,000.00**, receipt payment breakdown **₹600.00 / ₹400.00** naming `native-customer-1`, balances **₹701.64 cash / ₹404.63 credit / 1.5 pcs** (exactly one deduction; a duplicate sale would move cash to ₹1,301.64), forced-termination restart preserving the same invoice id and total. `--verify-preserved` (run after same-version reinstall) now asserts the ₹1,000.00 receipt and ₹701.64/₹404.63 balances survive reinstall — covering restart + reinstall + recovery-without-duplicate. Deep DB assertions (no duplicate payment/credit/outbox rows, journal balance) are covered by the native test above; the UI test deliberately never touches the database directly.
+**Installed-UI layer (new in this branch, final head `21a3f7c`): EXECUTED AND PASS on a real github-hosted Windows runner.** `apps/desktop/check-native.py` drives the ₹1,000.00 acceptance scenario through the *packaged installed application* on a clean disposable test shop: creates a no-limit customer (`native-customer-2`) and a ₹1,000.00 item through the owner UI, posts 1 × ₹1,000.00 as ₹600.00 cash + ₹400.00 credit split with a burst of repeated submit keys (`{ENTER}{ENTER}{SPACE}`), then asserts: unique new invoice UUID, receipt total **₹1,000.00** (en-IN grouped rendering), receipt payment breakdown **₹600.00 / ₹400.00** naming `native-customer-2`, balances **₹701.64 cash / ₹404.63 credit / 1.5 pcs** (exactly one stock deduction; a duplicate sale would move cash to ₹1,301.64), forced-termination restart preserving the same invoice id and total, and — via `--verify-preserved` after silent uninstall + same-version reinstall — that the ₹1,000.00 receipt and ₹701.64/₹404.63 balances survive reinstall (recovery creates no second invoice). Deep DB assertions (one invoice row, one stock row, one outbox event, no duplicate payment/credit entries, journal balance) are covered by the native test above; the UI test never touches the database directly.
 
-**Local execution on this branch:** the UI test cannot run in this Linux sandbox (no Windows/WebView2) — it is wired into `windows-local.yml` and will execute on the CI run for `df399ce` (see J). The ₹10.63 Phase 4 installed-UI sale remains green from run 41664825287 / 41670180337 on the #144 head; its code is unchanged here except the surrounding new test.
+**Execution trail:** first integration push `6fd20e3` failed in `windows-local` run 41688865253 inside the new test (three root causes found by code inspection — receipt renders the grouped `₹1,000.00` (en-IN) while the test asserted ungrouped `₹1000.00`, "Open customer" not opening the edit form so the limit clear failed required validation, and "Start next retail operation" not existing after restart — the correct button is "Start next sale"). Fixed in `1e238c0`, `97eba6f`, `21a3f7c`; **run 41702800767 on `21a3f7c` = SUCCESS**, i.e. every assertion above actually executed and passed on the installed app, including the Phase 4 ₹10.63 sale retained unchanged.
 
 ## D. Windows verification
 
@@ -124,13 +124,17 @@ No Google Play / App Store submission made or planned; no production sync endpoi
 | Replication PostgreSQL — 41624151597 | `4340d728` | SUCCESS |
 | CI — 41624151225 / Browser review — 41624151580 | `4340d728` | SUCCESS |
 | Mobile companion — 41624151239 / Android review package — 41624151287 | `4340d728` | SUCCESS |
-| Windows local workspace on **this branch `df399ce`** | `df399ce` | **triggered by push; see PR checks** (the ₹1,000 installed-UI regression executes there) |
+| Windows local workspace — 41702800767 | `21a3f7c` (this branch, PR #145) | **SUCCESS — ₹1,000.00 installed-UI regression, installer manifest, reinstall `--verify-preserved` all executed** |
+| CI — 41702800897 / Browser review — 41702800791 | `21a3f7c` | SUCCESS |
+| Replication PostgreSQL — 41702800935 | `21a3f7c` | SUCCESS |
+| Mobile companion — 41702800980 / Android review package — 41702800644 | `21a3f7c` | SUCCESS (iOS simulator compile, Android debug compile + APK identity) |
+| Windows local workspace — 41688865253 (first attempt, `6fd20e3`) | `6fd20e3` | FAILURE inside the new ₹1,000 test → root-caused and fixed (see C); honest failure evidence, not hidden |
 | Local execution on `df399ce` (this sandbox) | `df399ce` | `npm run verify` exit 0 (incl. 106 replication + 37 desktop-contract + 63 mobile-contract + 40 windows-release checks); `typecheck` exit 0; `lint` 0 errors; `test_windows_evidence.py` 16/16; `test_install_data.py` 4/4; `verify-replication-postgres.mjs` on isolated server PostgreSQL **71/71**; isolated RLS audit **13/13** |
 
 ## K. Remaining defects / risks
 
 - **P0:** none known on the integration branch. (The pre-fix split-credit `OperationConflict` was the last P0 and is fixed identically on both PR heads, blob `dbe252a`.)
-- **P1:** ₹1,000 installed-UI regression is new in `df399ce` and has **not yet executed** — it runs on the branch's Windows CI; until that run is green the gate in §14 stays UNTESTED, not PASS. Two-till LAN: authority layer is **in-process only** (`lan_authority.rs`: "No socket, listener, pairing UI or wire token") — the 16-scenario concurrency matrix (incl. last-unit races with 2–3 cashiers) passes in CI, but that is a *simulation* against one SQLite DB, not two PCs over a real LAN.
+- **P1:** Two-till LAN: authority layer is **in-process only** (`lan_authority.rs`: "No socket, listener, pairing UI or wire token") — the 16-scenario concurrency matrix (incl. last-unit races with 2–3 cashiers) passes in CI, but that is a *simulation* against one SQLite DB, not two PCs over a real LAN. The ₹1,000 installed-UI regression is now **executed and green** (run 41702800767).
 - **P2:** `acks` RLS posture (documented, fail-closed, §G); ingest connection should be a dedicated non-superuser owner at deploy time; revoked-device ingest matrix partial; physical hardware (printers, iPad, shop LAN) untested; Windows code signing BLOCKED (no infrastructure); native SQLCipher export not runnable in this Linux sandbox (CI-only).
 
 ## L. Release gate verdicts
@@ -138,7 +142,7 @@ No Google Play / App Store submission made or planned; no production sync endpoi
 | Gate | Verdict |
 |---|---|
 | Phase 1–4 integration | **PASS** (file-level reconciliation executed; `df399ce` contains all five phase capabilities; local suites green) |
-| ₹1,000 installed-UI split sale | **UNTESTED** until the `df399ce` Windows CI run completes (native-layer equivalent PASS in CI) |
+| ₹1,000 installed-UI split sale | **PASS** — executed on installed Windows app, run 41702800767 on `21a3f7c` (single invoice, ₹600.00/₹400.00 receipt split, burst-submit idempotent, restart + reinstall preserved) |
 | Financial ledger integrity | **PASS** (native matrix + journal balance, CI-green on both heads; installed-UI ₹10.63 green) |
 | Windows installer build | **PASS** (CI) |
 | Windows runtime | **PASS** (CI, installed app) |
@@ -152,7 +156,7 @@ No Google Play / App Store submission made or planned; no production sync endpoi
 | iOS development build | **PASS** (CI simulator compile) |
 | iPadOS tablet usability | **UNTESTED at runtime** (tablet layout exists in code; simulator compile PASS) |
 | Founder merge review | **NO-GO pending founder review of PRs #143/#144 and this integration PR** |
-| Internal test release | **GO (conditional)** — after the `df399ce` Windows CI run goes green |
+| Internal test release | **GO** — all six workflows green on `21a3f7c` (PR #145 checks: 10 SUCCESS, 1 SKIPPED preview) |
 | Real-shop pilot | **NO-GO** — physical hardware, two-till LAN, and signing untested; single-PC disposable pilot possible only after hardware protocol (Appendix 1) passes on real equipment |
 | Production synchronization | **NO-GO** (`productionSyncEnabled=false` retained; acks hardening P2 open) |
 | Public mobile release | **NO-GO** (no store submission; device runtime untested) |
