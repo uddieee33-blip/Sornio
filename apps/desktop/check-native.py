@@ -220,7 +220,10 @@ try:
         assert focus_control('Workspace note', 'Edit').get_value() == ORIGINAL_NOTE
         assert_balances('101.64', '4.63', '1.5')
         window.child_window(title='Restore saved copy 3', control_type='Button', visible_only=False).wait('exists', timeout=30)
-        focus_control('Saved retail operation ID', 'Edit')
+        # The last posted sale (the Phase 4 mixed cash+credit split) must be the
+        # preserved receipt after reinstall; it is a checkout receipt, not a
+        # retail-panel operation.
+        assert saved_invoice_id(), 'Preserved sale receipt missing after reinstall'
         window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
         print('Installed-app reopen preserved original credentials, draft/history, stock, balances and saved closing receipt.')
         sys.exit(0)
