@@ -132,9 +132,8 @@ fn journals_balance(s: &Store) {
     for n in q.query_map([], |r| r.get::<_, i64>(1)).unwrap() {
         assert_eq!(n.unwrap(), 0);
     }
-    let billing: i64 = s
-        .0
-        .query_row(
+    let billing: i64 =
+        s.0.query_row(
             "SELECT COALESCE(SUM(amount_paise),0) FROM local_billing_ledger",
             [],
             |r| r.get(0),
@@ -174,10 +173,9 @@ fn snapshots(s: &Store) -> Vec<Vec<Vec<SqlValue>>> {
     ]
     .iter()
     .map(|t| {
-        let mut q = s
-            .0
-            .prepare(&format!("SELECT * FROM {t} ORDER BY rowid"))
-            .unwrap();
+        let mut q =
+            s.0.prepare(&format!("SELECT * FROM {t} ORDER BY rowid"))
+                .unwrap();
         let n = q.column_count();
         q.query_map([], |r| {
             (0..n)
@@ -317,15 +315,8 @@ fn financial_matrix_posts_supported_allocations_in_integer_paise() {
             ))
             .unwrap();
         } else {
-            perform(
-                &mut s,
-                retail_1000(
-                    &s,
-                    case.id,
-                    case.customer.then_some("c1"),
-                    case.parts,
-                ),
-            );
+            let request = retail_1000(&s, case.id, case.customer.then_some("c1"), case.parts);
+            perform(&mut s, request);
         }
         assert_eq!(
             money(&s),
@@ -349,7 +340,10 @@ fn financial_matrix_posts_supported_allocations_in_integer_paise() {
         assert_eq!(
             count(
                 &s,
-                &format!("SELECT COUNT(*) FROM local_invoice_stock WHERE invoice_id='{}'", case.id)
+                &format!(
+                    "SELECT COUNT(*) FROM local_invoice_stock WHERE invoice_id='{}'",
+                    case.id
+                )
             ),
             1,
             "{}",
@@ -358,7 +352,10 @@ fn financial_matrix_posts_supported_allocations_in_integer_paise() {
         assert_eq!(
             count(
                 &s,
-                &format!("SELECT COUNT(*) FROM local_billing_outbox WHERE invoice_id='{}'", case.id)
+                &format!(
+                    "SELECT COUNT(*) FROM local_billing_outbox WHERE invoice_id='{}'",
+                    case.id
+                )
             ),
             1,
             "{}",
@@ -482,12 +479,7 @@ fn financial_matrix_rejects_invalid_allocations_without_partial_effects() {
     s.clear_retail("rej-over", false).unwrap();
     rejected += 1;
 
-    let under = retail_1000(
-        &s,
-        "rej-under",
-        None,
-        &[("cash", 60000), ("upi", 30000)],
-    );
+    let under = retail_1000(&s, "rej-under", None, &[("cash", 60000), ("upi", 30000)]);
     s.prepare_retail(under.clone()).unwrap();
     let prepared = snapshots(&s);
     assert!(matches!(
@@ -547,10 +539,7 @@ fn financial_matrix_rejects_invalid_allocations_without_partial_effects() {
     assert_eq!(rejected, 12, "rejection matrix must not shrink silently");
     assert_eq!(s.list_invoices(0).unwrap().len(), 0);
     assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
-    assert_eq!(
-        s.find_customers("c1", false).unwrap()[0].balance_paise,
-        "0"
-    );
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
     assert_eq!(count(&s, "SELECT COUNT(*) FROM local_credit_entries"), 0);
     journals_balance(&s);
 }
@@ -569,10 +558,7 @@ fn split_credit_reused_canceled_and_customer_ids_conflict() {
     );
     perform(&mut s, first.clone());
     let committed = snapshots(&s);
-    assert!(matches!(
-        s.post_retail(first.clone()),
-        Ok(_)
-    ));
+    assert!(matches!(s.post_retail(first.clone()), Ok(_)));
     assert_eq!(snapshots(&s), committed);
     let mut changed = first;
     if let Action::Sale { payments, .. } = &mut changed.action {
@@ -754,10 +740,7 @@ fn same_invoice_id_concurrent_posts_once() {
     let posted = a_result.is_ok() as u8 + b_result.is_ok() as u8;
     assert_eq!(posted, 1, "same invoice id: {a_result:?} vs {b_result:?}");
     assert_eq!(b.list_invoices(0).unwrap().len(), 1);
-    assert_eq!(
-        count(&b, "SELECT COUNT(*) FROM local_billing_outbox"),
-        1
-    );
+    assert_eq!(count(&b, "SELECT COUNT(*) FROM local_billing_outbox"), 1);
 }
 
 #[test]
@@ -854,10 +837,7 @@ fn split_sale_mid_write_failures_leave_no_partial_financial_rows() {
     }
     assert_eq!(s.list_invoices(0).unwrap().len(), 0);
     assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
-    assert_eq!(
-        s.find_customers("c1", false).unwrap()[0].balance_paise,
-        "0"
-    );
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
     journals_balance(&s);
 }
 
@@ -866,10 +846,9 @@ fn split_sale_mid_write_failures_leave_no_partial_financial_rows() {
 fn split_sale_crash_worker() {
     let path = std::env::var_os("SORNIO_RETAIL_CRASH_DB").unwrap();
     let mut s = authenticated(std::path::Path::new(&path));
-    let raw: String = s
-        .0
-        .query_row("SELECT request FROM local_retail_pending", [], |r| r.get(0))
-        .unwrap();
+    let raw: String =
+        s.0.query_row("SELECT request FROM local_retail_pending", [], |r| r.get(0))
+            .unwrap();
     s.post_retail(serde_json::from_str(&raw).unwrap()).unwrap();
     panic!("Crash point was not reached");
 }
@@ -941,15 +920,13 @@ fn sqlcipher_wrong_key_and_reopen_preserve_split_sale() {
     let path = d.path().join("s.db");
     let mut s = seed(&path);
     s.save_customer(customer("c1", None)).unwrap();
-    perform(
-        &mut s,
-        retail_1000(
-            &s,
-            "enc-split",
-            Some("c1"),
-            &[("cash", 60000), ("credit", 40000)],
-        ),
+    let posted = retail_1000(
+        &s,
+        "enc-split",
+        Some("c1"),
+        &[("cash", 60000), ("credit", 40000)],
     );
+    perform(&mut s, posted);
     drop(s);
     let mut wrong = KEY.to_string();
     wrong.replace_range(63..64, "0");
@@ -967,24 +944,19 @@ fn wal_copy_of_live_database_preserves_committed_split_sale() {
     let live = d.path().join("live.db");
     let mut s = seed(&live);
     s.save_customer(customer("c1", None)).unwrap();
-    perform(
-        &mut s,
-        retail_1000(
-            &s,
-            "wal-split",
-            Some("c1"),
-            &[("cash", 60000), ("credit", 40000)],
-        ),
+    let posted = retail_1000(
+        &s,
+        "wal-split",
+        Some("c1"),
+        &[("cash", 60000), ("credit", 40000)],
     );
+    perform(&mut s, posted);
     drop(s);
     let copy = d.path().join("copy.db");
     copy_sqlcipher(&live, &copy);
     let copied = authenticated(&copy);
     assert_eq!(copied.list_invoices(0).unwrap().len(), 1);
-    assert_eq!(
-        copied.cashier_state().unwrap().balances.cash_paise,
-        "60000"
-    );
+    assert_eq!(copied.cashier_state().unwrap().balances.cash_paise, "60000");
     assert_eq!(
         copied.cashier_state().unwrap().balances.credit_paise,
         "40000"
@@ -1000,26 +972,22 @@ fn outbox_sha256_matches_independent_hasher_of_sqlcipher_text() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("s.db"));
     s.save_customer(customer("c1", None)).unwrap();
-    perform(
-        &mut s,
-        retail_1000(
-            &s,
-            "digest-split",
-            Some("c1"),
-            &[("cash", 60000), ("credit", 40000)],
-        ),
+    let posted = retail_1000(
+        &s,
+        "digest-split",
+        Some("c1"),
+        &[("cash", 60000), ("credit", 40000)],
     );
-    let billing: String = s
-        .0
-        .query_row(
+    perform(&mut s, posted);
+    let billing: String =
+        s.0.query_row(
             "SELECT payload FROM local_billing_outbox WHERE invoice_id='digest-split'",
             [],
             |r| r.get(0),
         )
         .unwrap();
-    let retail: String = s
-        .0
-        .query_row(
+    let retail: String =
+        s.0.query_row(
             "SELECT payload FROM local_retail_outbox WHERE operation_id='digest-split'",
             [],
             |r| r.get(0),
@@ -1035,10 +1003,7 @@ fn outbox_sha256_matches_independent_hasher_of_sqlcipher_text() {
     assert!(billing.contains("\"kind\":\"invoice.posted\""));
     assert!(retail.contains("\"method\":\"cash\""));
     assert!(retail.contains("\"method\":\"credit\""));
-    assert_ne!(
-        billing_digest,
-        crate::replication::payload_sha256("")
-    );
+    assert_ne!(billing_digest, crate::replication::payload_sha256(""));
 }
 
 #[test]
