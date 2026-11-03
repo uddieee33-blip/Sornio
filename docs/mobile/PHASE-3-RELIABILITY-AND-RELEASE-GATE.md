@@ -36,7 +36,7 @@ Recorded at review start, then updated for this commit.
 | Working branch | `arena/5ed2bd28-sornio` |
 | PR | [#143](https://github.com/uddieee33-blip/Sornio/pull/143) open, **draft**, `MERGEABLE` / `CLEAN` |
 | Previous verified head | `4747cdabb528cc6bf5cee4547ccb7d179962aa4d` |
-| This review’s head | `b2cb24fb2a2c713992fe919ea97f68c1854cce78` |
+| This review’s head | `486ab7aba9b2e91bd4e3a8c56eb4a207dd579cdb` |
 | Base | `main` |
 | Schema | `SCHEMA_VERSION = 12` |
 | Mobile live sync | `apps/mobile/app.json` `extra.productionSyncEnabled: false` |
@@ -294,6 +294,11 @@ Executed on `4747cda` run `41612920372`:
 | R-020 | Production WAN timeout / reset / prolonged outage | shop network | **UNTESTED** |
 | R-021 | PostgreSQL restart during ingest | CI postgres service restart | **UNTESTED** |
 | R-022 | Invalid TLS of a public CA vs staging | staging uses ephemeral self-signed in CI | CI PASS; public CA **UNTESTED** |
+| R-023 | Missing Bearer token | native-https on `486ab7a` | PASS `41623767795` |
+| R-024 | Oversized HTTPS body | native-https 256KiB+ pad | PASS `41623767795` |
+| R-025 | Connection refused | post to port 1 | PASS `41623767795` |
+| R-026 | Plaintext HTTP to TLS port | `http.request` to ingest | PASS `41623767795` |
+| R-027 | Ingest after server close | post after `server.close()` | PASS `41623767795` |
 
 ### D8. Security / tenant isolation
 
@@ -308,13 +313,17 @@ Executed on `4747cda` run `41612920372`:
 | X-007 | Cross-business sessions | `scope_and_sessions_cannot_cross_business_databases` | PASS `4747cda` |
 | X-008 | Disabled employee | `disabling_and_role_changes_revoke_sessions_across_connections` | PASS `4747cda` |
 | X-009 | PG RLS policies present | `packages/replication-cloud/sql/20261103000000_native_financial_replication.sql` ENABLE/FORCE RLS | PASS (schema) |
-| X-010 | Restricted PG role cannot read other business | `scripts/verify-replication.mjs` `SET ROLE sornio_cashier_login` | PASS on earlier Phase 3 postgres jobs; reconfirm on this SHA’s postgres script |
+| X-010 | Restricted PG role cannot read other business | native-https `SET LOCAL ROLE sornio_owner` other business → 0 invoices including `bill-cash-credit` | PASS `486ab7a` / `41623767795` |
 | X-011 | SQL injection via operation id | `valid_id` alphanumeric/`-`/`_` only | PASS (code + invalid id tests) |
-| X-012 | Replayed envelopes | duplicate ack | PASS `4747cda` |
+| X-012 | Replayed envelopes | duplicate ack | PASS `4747cda` and `486ab7a` |
 | X-013 | Mobile production sync | `productionSyncEnabled=false` | PASS (config) |
 | X-014 | Revoked device ingest | replication-cloud auth | partial — see remaining blockers |
-| X-015 | Oversized HTTPS body | staging ingest limits | **UNTESTED** independently in this review |
-| X-016 | Downgrade to HTTP | `listenStagingIngest` TLS only in CI | PASS CI; production HTTPS termination **UNTESTED** |
+| X-015 | Oversized HTTPS body | 256KiB staging limit | PASS `486ab7a` / `41623767795` |
+| X-016 | Downgrade to HTTP | plaintext HTTP to TLS ingest port | PASS `486ab7a` / `41623767795` |
+| X-017 | Cashier of this business sees seven posted invoices | `SET LOCAL ROLE sornio_cashier` + jwt business_id | PASS `486ab7a` / `41623767795` |
+| X-018 | Cashier cannot read customers | same role, `SELECT` customers errors | PASS `486ab7a` / `41623767795` |
+| X-019 | Owner of this business reads ₹600+₹400 mixed sale | RLS owner SELECT | PASS `486ab7a` / `41623767795` |
+| X-020 | Missing authentication token | empty Bearer | PASS `486ab7a` / `41623767795` |
 
 ### D9. Windows
 
@@ -387,7 +396,9 @@ Self-comparison `assert_eq!(payload_sha256(x), payload_sha256(x))` has been remo
 * Staging ingest rejects expired tokens, owner-as-publisher, wrong TLS CA, tampered digests, mutated payload TEXT, malformed JSON, and cross-business envelopes.
 * PostgreSQL schema enables and forces RLS on events, invoices, inventory, customers, cursors, acks, statements, pending retail. Policies key off `jwt_claim('business_id')`.
 * Companion production sync remains disabled.
-* Gaps: independent verification of every RLS policy with a non-admin role on **this** SHA; revoked-device matrix beyond existing auth tests; production TLS termination; oversized-body limits.
+* Restricted `sornio_cashier` / `sornio_owner` roles were exercised against the **native seven-sale PostgreSQL rows** on `486ab7a` (`41623767795`): cashier sees 7 posted invoices and cannot read customers; a foreign owner sees zero invoices including `bill-cash-credit`; this-business owner reads cash 60000 + credit 40000.
+* `acks` has ENABLE ROW LEVEL SECURITY but **no FORCE and no policy**. Table owners and superusers still bypass. Documented, not changed — ingest currently uses a privileged connection; adding FORCE without an INSERT policy would break a non-superuser table owner.
+* Gaps: revoked-device matrix beyond existing auth tests; production TLS termination; shop WAN.
 
 ---
 
@@ -438,13 +449,13 @@ On `b2cb24f`: Android review package SUCCESS (`41619012766`), Android debug comp
 
 1. Windows UI cashier workflow (human) UNTESTED.
 2. PostgreSQL restart during ingest UNTESTED.
-3. RLS with restricted roles on this exact SHA should be re-confirmed in the postgres job logs.
-4. Copying a live SQLCipher file without a checkpoint, under an active writer, is not separately proven (export path checkpoints first).
+3. Copying a live SQLCipher file without a checkpoint, under an active writer, is not separately proven (export path checkpoints first).
+4. `acks` RLS is ENABLE without FORCE/policy — table owner bypass remains.
 
 ### P2
 
 1. Physical iOS / Android devices UNTESTED.
-2. Oversized HTTPS body / production TLS termination UNTESTED.
+2. Production TLS termination UNTESTED (staging oversized-body limit PASS).
 3. Public-store distribution is out of scope and must stay out.
 
 ### P3
@@ -468,10 +479,13 @@ On `b2cb24f`: Android review package SUCCESS (`41619012766`), Android debug comp
 
 ---
 
-## M. This-commit CI (`b2cb24fb2a2c713992fe919ea97f68c1854cce78`)
+## M. CI evidence
+
+Native financial tests last compiled and executed on `b2cb24f` (local-store unchanged since). Replication failure/RLS additions ran on `486ab7a`.
 
 | Workflow | Run ID | SHA | Result | Notes |
 | --- | --- | --- | --- | --- |
+| Replication PostgreSQL | [41623767795](https://github.com/uddieee33-blip/Sornio/actions/runs/41623767795) | `486ab7a` | SUCCESS | Native export + TLS ingest + RLS + ingest failures |
 | Replication PostgreSQL | [41619012806](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012806) | `b2cb24f` | SUCCESS | Native export + TLS ingest + sidecar acks |
 | Workspace browser review | [41619012774](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012774) | `b2cb24f` | SUCCESS | rustfmt + debug/release cargo test |
 | Windows local workspace | [41619012964](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012964) | `b2cb24f` | SUCCESS | cargo test + installer lifecycle |
@@ -479,4 +493,4 @@ On `b2cb24f`: Android review package SUCCESS (`41619012766`), Android debug comp
 | Mobile companion | [41619012808](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012808) | `b2cb24f` | SUCCESS | Contracts + Android debug + iOS simulator |
 | Android review package | [41619012766](https://github.com/uddieee33-blip/Sornio/actions/runs/41619012766) | `b2cb24f` | SUCCESS | |
 
-CI on this SHA is green. The release verdict remains **NO-GO**.
+The release verdict remains **NO-GO**.
