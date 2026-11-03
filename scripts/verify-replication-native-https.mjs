@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 import { createHash, randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createRequire } from 'node:module';
@@ -383,7 +384,132 @@ try {
   }
   check(crossTenant, 'cross-tenant native envelope is rejected');
 
+  let missingAuth = false;
+  try {
+    await postStagingIngest({
+      hostname: '127.0.0.1',
+      port: server.port,
+      ca: readFileSync(certPath),
+      token: '',
+      bodyText: firstText,
+    });
+  } catch (error) {
+    missingAuth = error instanceof ReplicationError && error.code === 'UNAUTHENTICATED';
+  }
+  check(missingAuth, 'missing authentication token fails closed');
+
+  let oversized = false;
+  try {
+    await postRaw(token, JSON.stringify({ pad: 'a'.repeat(256 * 1024) }));
+  } catch (error) {
+    oversized = error instanceof ReplicationError && error.code === 'INVALID_ENVELOPE';
+  }
+  check(oversized, 'oversized request body is rejected before ingest');
+
+  let refused = false;
+  try {
+    await postStagingIngest({
+      hostname: '127.0.0.1',
+      port: 1,
+      ca: readFileSync(certPath),
+      token,
+      bodyText: firstText,
+    });
+  } catch {
+    refused = true;
+  }
+  check(refused, 'connection refused fails closed');
+
+  let plaintext = false;
+  try {
+    await new Promise((resolve, reject) => {
+      const req = http.request(
+        {
+          hostname: '127.0.0.1',
+          port: server.port,
+          method: 'POST',
+          path: '/v1/replication/ingest',
+          timeout: 1500,
+        },
+        () => resolve(undefined),
+      );
+      req.on('error', reject);
+      req.on('timeout', () => {
+        req.destroy();
+        reject(new Error('timeout'));
+      });
+      req.end(firstText);
+    });
+  } catch {
+    plaintext = true;
+  }
+  check(plaintext, 'plaintext HTTP to the TLS ingest port fails closed');
+
+  await admin.query('BEGIN');
+  try {
+    await admin.query(`SELECT set_config('request.jwt.claims', $1, true)`, [
+      JSON.stringify({ business_id: pub.businessId, role: 'cashier' }),
+    ]);
+    await admin.query('SET LOCAL ROLE sornio_cashier');
+    const seen = await admin.query(
+      `SELECT COUNT(*)::int AS n FROM native_replication.invoices WHERE allocation_status = 'posted'`,
+    );
+    check(seen.rows[0].n === 7, 'cashier of this business sees the seven posted native invoices');
+    let cashierCustomers = false;
+    try {
+      await admin.query('SELECT customer_id FROM native_replication.customers');
+    } catch {
+      cashierCustomers = true;
+    }
+    check(cashierCustomers, 'cashier role cannot read the native customer ledger');
+  } finally {
+    await admin.query('ROLLBACK');
+  }
+
+  await admin.query('BEGIN');
+  try {
+    await admin.query(`SELECT set_config('request.jwt.claims', $1, true)`, [
+      JSON.stringify({ business_id: otherPub.businessId, role: 'owner' }),
+    ]);
+    await admin.query('SET LOCAL ROLE sornio_owner');
+    const isolated = await admin.query(
+      `SELECT COUNT(*)::int AS n FROM native_replication.invoices WHERE allocation_status = 'posted'`,
+    );
+    check(isolated.rows[0].n === 0, 'owner of another business sees zero native invoices under RLS');
+    const stolenMixed = await admin.query(
+      `SELECT COUNT(*)::int AS n FROM native_replication.invoices WHERE invoice_id = 'bill-cash-credit'`,
+    );
+    check(stolenMixed.rows[0].n === 0, 'cross-business owner cannot read the mixed cash+credit invoice');
+  } finally {
+    await admin.query('ROLLBACK');
+  }
+
+  await admin.query('BEGIN');
+  try {
+    await admin.query(`SELECT set_config('request.jwt.claims', $1, true)`, [
+      JSON.stringify({ business_id: pub.businessId, role: 'owner' }),
+    ]);
+    await admin.query('SET LOCAL ROLE sornio_owner');
+    const own = await admin.query(
+      `SELECT cash_paise::text AS cash, customer_credit_paise::text AS credit
+         FROM native_replication.invoices WHERE invoice_id = 'bill-cash-credit'`,
+    );
+    check(
+      own.rows.length === 1 && own.rows[0].cash === '60000' && own.rows[0].credit === '40000',
+      'owner of this business reads mixed sale as cash 60000 + credit 40000',
+    );
+  } finally {
+    await admin.query('ROLLBACK');
+  }
+
   await server.close();
+  let unavailable = false;
+  try {
+    await postRaw(token, firstText);
+  } catch {
+    unavailable = true;
+  }
+  check(unavailable, 'ingest after the TLS server closes fails closed');
   await httpsDb.end();
 
   const restarted = new pg.Client({ connectionString: url });
