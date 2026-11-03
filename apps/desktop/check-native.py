@@ -695,8 +695,10 @@ try:
     wait_until(30, 0.5, lambda: message_visible("Saved item changes to this PC."))
     wait_until(30, 0.5, lambda: message_visible("2 pcs"))
     activate("Acknowledge item save")
-    window.child_window(title="Start next retail operation", control_type="Button", visible_only=False).wait("exists", timeout=30)
-    activate("Start next retail operation")
+    # After the restart the checkout panel shows the last saved receipt, so the
+    # fresh-sale button is "Start next sale" (the retail panel's own button only
+    # exists while a retail-operation receipt is pending).
+    activate("Start next sale")
     activate("Refresh checkout")
     assert_balances("101.64", "4.63", "1.5")
     fill("Search items for sale", "P5-GHEE-1000")
@@ -722,7 +724,8 @@ try:
         raise AssertionError(f"₹1,000.00 split sale did not save. Visible UI texts: {texts[:4000]}")
     thousand_id = saved_invoice_id()
     assert thousand_id not in (cash_id, credit_id, retail_invoice, split_id), "₹1,000.00 sale reused an existing invoice ID"
-    assert_saved_total("1000.00")
+    # money() groups rupees en-IN style, so ₹100000 renders as ₹1,000.00.
+    assert_saved_total("1,000.00")
     # The receipt must display the exact split: ₹600.00 cash + ₹400.00 credit
     # for customer native-customer-1.
     receipt_texts = "".join(
