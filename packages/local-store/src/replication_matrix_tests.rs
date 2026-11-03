@@ -172,7 +172,9 @@ fn native_financial_matrix_posts_seven_supported_sales() {
     let path = dir.path().join("live.db");
     let mut store = seeded(&path);
 
-    store.post_invoice(cash_invoice(&store, "bill-cash-1000")).unwrap();
+    store
+        .post_invoice(cash_invoice(&store, "bill-cash-1000"))
+        .unwrap();
     perform_retail(
         &mut store,
         retail_sale(&store, "bill-upi-1000", None, &[("upi", 100000)]),
@@ -238,10 +240,20 @@ fn native_financial_matrix_posts_seven_supported_sales() {
         );
     }
 
-    let upi = outbox_payload(&store, "local_retail_outbox", "operation_id", "bill-upi-1000");
+    let upi = outbox_payload(
+        &store,
+        "local_retail_outbox",
+        "operation_id",
+        "bill-upi-1000",
+    );
     assert!(upi.contains("\"method\":\"upi\""));
     assert!(!upi.contains("\"method\":\"credit\""));
-    let card = outbox_payload(&store, "local_retail_outbox", "operation_id", "bill-card-1000");
+    let card = outbox_payload(
+        &store,
+        "local_retail_outbox",
+        "operation_id",
+        "bill-card-1000",
+    );
     assert!(card.contains("\"method\":\"card\""));
     assert!(!card.contains("\"method\":\"credit\""));
     let split = outbox_payload(
@@ -252,7 +264,12 @@ fn native_financial_matrix_posts_seven_supported_sales() {
     );
     assert!(split.contains("\"method\":\"cash\""));
     assert!(split.contains("\"method\":\"credit\""));
-    let billing = outbox_payload(&store, "local_billing_outbox", "invoice_id", "bill-cash-1000");
+    let billing = outbox_payload(
+        &store,
+        "local_billing_outbox",
+        "invoice_id",
+        "bill-cash-1000",
+    );
     assert_eq!(payload_sha256(&billing), payload_sha256(&billing));
     assert!(billing.contains("\"kind\":\"invoice.posted\""));
 
@@ -281,9 +298,7 @@ fn native_financial_matrix_posts_seven_supported_sales() {
     let mut sidecar = ReplicationSidecar::open_memory().unwrap();
     sidecar.save(&SidecarAck::empty(&generation)).unwrap();
     let flush = FlushLock::default();
-    assert!(
-        publish_unpublished(&store, &mut sidecar, &publisher, &FailTransport, &flush).is_err()
-    );
+    assert!(publish_unpublished(&store, &mut sidecar, &publisher, &FailTransport, &flush).is_err());
     assert_eq!(
         sidecar.load(&generation).unwrap().last_for("billing"),
         Some(0)
@@ -309,25 +324,24 @@ fn native_financial_matrix_posts_seven_supported_sales() {
         "140000"
     );
     let empty = SidecarAck::empty("gen-other");
-    assert!(
-        reopened
-            .unpublished_replication(&empty)
-            .unwrap()
-            .iter()
-            .any(|row| row.operation_id == "bill-cash-credit")
-    );
+    assert!(reopened
+        .unpublished_replication(&empty)
+        .unwrap()
+        .iter()
+        .any(|row| row.operation_id == "bill-cash-credit"));
 }
 
 #[test]
 fn native_outbox_text_is_the_digest_input() {
     let dir = tempfile::tempdir().unwrap();
     let mut store = seeded(&dir.path().join("live.db"));
-    store.post_invoice(cash_invoice(&store, "bill-digest")).unwrap();
+    store
+        .post_invoice(cash_invoice(&store, "bill-digest"))
+        .unwrap();
     let payload = outbox_payload(&store, "local_billing_outbox", "invoice_id", "bill-digest");
-    let compact = serde_json::to_string(
-        &serde_json::from_str::<serde_json::Value>(&payload).unwrap(),
-    )
-    .unwrap();
+    let compact =
+        serde_json::to_string(&serde_json::from_str::<serde_json::Value>(&payload).unwrap())
+            .unwrap();
     assert_eq!(payload_sha256(&payload).len(), 64);
     if payload != compact {
         assert_ne!(payload_sha256(&payload), payload_sha256(&compact));
