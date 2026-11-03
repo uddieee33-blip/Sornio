@@ -65,17 +65,7 @@ jobs:
           status=${PIPESTATUS[0]}
           set -e
           if [ "$status" -ne 0 ]; then
-            python3 - <<'PY'
-from pathlib import Path
-import os, re
-log = Path(os.environ["SORNIO_NATIVE_OUTBOX_DIR"]) / "export.log"
-text = log.read_text(errors="replace") if log.exists() else "missing export.log"
-match = re.search(r"panicked at[\s\S]{0,1200}", text)
-snippet = match.group(0) if match else text[-1500:]
-snippet = " ".join(snippet.split())
-print(f"::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::{snippet}")
-Path(os.environ["GITHUB_STEP_SUMMARY"]).open("a").write(text[-4000:] + "\n")
-PY
+            python3 -c 'import os,re,pathlib; p=pathlib.Path(os.environ["SORNIO_NATIVE_OUTBOX_DIR"])/"export.log"; t=p.read_text(errors="replace") if p.exists() else "missing export.log"; m=re.search(r"panicked at[\s\S]{0,1200}", t); s=" ".join((m.group(0) if m else t[-1500:]).split()); print("::error file=packages/local-store/src/replication_matrix_tests.rs,line=1::"+s); open(os.environ["GITHUB_STEP_SUMMARY"],"a").write(t[-4000:]+"\n")'
             exit "$status"
           fi
           if ! grep -q 'native_sqlcipher_export_pipeline' "$SORNIO_NATIVE_OUTBOX_DIR/export.log"; then
