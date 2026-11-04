@@ -1,0 +1,274 @@
+{
+  "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE / SYNTHETIC DATA",
+  "sourceMain": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+  "windows": {
+    "A-W1": {
+      "file": "assets/windows/direction-a/W1-application-shell.png",
+      "label": "Application shell",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-W2": {
+      "file": "assets/windows/direction-a/W2-cashier-workspace.png",
+      "label": "Cashier workspace",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-W3": {
+      "file": "assets/windows/direction-a/W3-split-payment-reconciliation.png",
+      "label": "Split-payment reconciliation",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-W4": {
+      "file": "assets/windows/direction-a/W4-inventory.png",
+      "label": "Inventory",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-W5": {
+      "file": "assets/windows/direction-a/W5-customer-credit.png",
+      "label": "Customer credit",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-W6": {
+      "file": "assets/windows/direction-a/W6-transaction-recovery.png",
+      "label": "Transaction recovery",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-W7": {
+      "file": "assets/windows/direction-a/W7-business-onboarding.png",
+      "label": "Business onboarding",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W1": {
+      "file": "assets/windows/direction-b/W1-application-shell.png",
+      "label": "Application shell",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W2": {
+      "file": "assets/windows/direction-b/W2-cashier-workspace.png",
+      "label": "Cashier workspace",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W3": {
+      "file": "assets/windows/direction-b/W3-split-payment-reconciliation.png",
+      "label": "Split-payment reconciliation",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W4": {
+      "file": "assets/windows/direction-b/W4-inventory.png",
+      "label": "Inventory",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W5": {
+      "file": "assets/windows/direction-b/W5-customer-credit.png",
+      "label": "Customer credit",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W6": {
+      "file": "assets/windows/direction-b/W6-transaction-recovery.png",
+      "label": "Transaction recovery",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-W7": {
+      "file": "assets/windows/direction-b/W7-business-onboarding.png",
+      "label": "Business onboarding",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-responsive-1280x720": {
+      "file": "assets/windows/direction-a/responsive/W2-cashier-1280x720.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "A",
+      "viewport": "1280x720",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-responsive-1366x768": {
+      "file": "assets/windows/direction-a/responsive/W2-cashier-1366x768.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "A",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-responsive-1600x900": {
+      "file": "assets/windows/direction-a/responsive/W2-cashier-1600x900.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "A",
+      "viewport": "1600x900",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-responsive-1920x1080": {
+      "file": "assets/windows/direction-a/responsive/W2-cashier-1920x1080.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "A",
+      "viewport": "1920x1080",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "A-responsive-125-percent-1024x576": {
+      "file": "assets/windows/direction-a/responsive/W2-cashier-125-percent-1024x576.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "A",
+      "viewport": "125-percent-1024x576",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-responsive-1280x720": {
+      "file": "assets/windows/direction-b/responsive/W2-cashier-1280x720.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "B",
+      "viewport": "1280x720",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-responsive-1366x768": {
+      "file": "assets/windows/direction-b/responsive/W2-cashier-1366x768.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "B",
+      "viewport": "1366x768",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-responsive-1600x900": {
+      "file": "assets/windows/direction-b/responsive/W2-cashier-1600x900.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "B",
+      "viewport": "1600x900",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-responsive-1920x1080": {
+      "file": "assets/windows/direction-b/responsive/W2-cashier-1920x1080.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "B",
+      "viewport": "1920x1080",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "B-responsive-125-percent-1024x576": {
+      "file": "assets/windows/direction-b/responsive/W2-cashier-125-percent-1024x576.png",
+      "label": "Cashier workspace responsive capture",
+      "direction": "B",
+      "viewport": "125-percent-1024x576",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    }
+  },
+  "android": {
+    "A1": {
+      "file": "assets/android/previews/A1-shop-overview.png",
+      "label": "Shop overview",
+      "viewport": "412x915",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE / DEMO DATA — NOT LIVE",
+      "synthetic": true
+    },
+    "A2": {
+      "file": "assets/android/previews/A2-inventory-overview.png",
+      "label": "Inventory overview",
+      "viewport": "412x915",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE / DEMO DATA — NOT LIVE",
+      "synthetic": true
+    },
+    "A3": {
+      "file": "assets/android/previews/A3-customer-balances.png",
+      "label": "Customer balances",
+      "viewport": "412x915",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE / DEMO DATA — NOT LIVE",
+      "synthetic": true
+    },
+    "A4": {
+      "file": "assets/android/previews/A4-activity.png",
+      "label": "Activity",
+      "viewport": "412x915",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE / DEMO DATA — NOT LIVE",
+      "synthetic": true
+    },
+    "A5": {
+      "file": "assets/android/previews/A5-connectivity-and-sync-status.png",
+      "label": "Connectivity and sync status",
+      "viewport": "412x915",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE / DEMO DATA — NOT LIVE",
+      "synthetic": true
+    },
+    "comparison": {
+      "file": "assets/android/android-comparison-sheet.png",
+      "label": "A1–A5 gallery",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    }
+  },
+  "comparison": {
+    "direction-comparison": {
+      "file": "assets/windows/comparison/direction-comparison.png",
+      "label": "Two design directions",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "responsive-side-by-side": {
+      "file": "assets/windows/comparison/responsive-side-by-side-1280-vs-1920.png",
+      "label": "1280x720 / 1920x1080 side-by-side",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "responsive-matrix": {
+      "file": "assets/windows/comparison/responsive-matrix.png",
+      "label": "Four viewport matrix",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    },
+    "responsive-125": {
+      "file": "assets/windows/comparison/responsive-125-percent.png",
+      "label": "125% scaling comparison",
+      "classification": "DESIGN PROTOTYPE — NOT PRODUCTION SOFTWARE",
+      "synthetic": true
+    }
+  },
+  "browserRender": {
+    "file": "assets/browser-render/current-source-reconstruction.png",
+    "label": "BROWSER RENDER — NOT INSTALLED WINDOWS APP",
+    "classification": "SOURCE-GROUNDED RECONSTRUCTION",
+    "synthetic": true,
+    "html": "assets/browser-render/current-source-reconstruction.html"
+  }
+}
