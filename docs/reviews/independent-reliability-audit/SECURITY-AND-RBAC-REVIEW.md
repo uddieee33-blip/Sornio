@@ -1,0 +1,3 @@
+# Security and RBAC
+
+`packages/local-store/src/identity.rs` defines native permissions for owner, manager, assistant manager and cashier and verifies scope/session against database authority. Native tests and the browser-to-native authorization fixture covered role denials, session revocation, staff ownership, scope mismatch and audited mutations; backup fixture tested authentication and restore boundary. These are sampled tests, not an exhaustive penetration test or verification against a compromised host. Secret scanning, credential exposure, every command/role pair and all backup threat models were not exhaustively reviewed. No secret values are included here.

@@ -1,0 +1,7 @@
+# Repository baseline
+
+- On 2026-11-04, a new clone of `uddieee33-blip/Sornio` had clean `main` at `1cc5c798d1eada9a16463213b0776c01e99d36f9`. There was no prior repository in the provided workspace, so no prior local uncommitted changes or local objects could be inspected.
+- Audit branch: `audit/independent-reliability-20261104`. Historical `arena/bbc68aef-sornio` points to `51604e5ec3312c45dc2e33f0123743a067d6c9ae`, two documentation commits ahead of this main, zero behind. Its 16 changed paths are design documentation; it was not merged into this branch.
+- GitHub and the clone could not resolve `9e0b4722068e2c1113924f0c7060b50f2460a7ca`. This does not establish that the original machine never had it. No U1 token work was recreated.
+- PR #127 remains open, non-draft and unmerged; #126 remains open, draft and unmerged. GitHub's open-PR search returned those two. PR #145 was merged, with head `97b6899475cc3dfa3ff1370f59373401646eecfb`; current main is its merge commit.
+- Combined commit-status API on main reported Vercel success, not a comprehensive Actions result. The PR #145 **head** had successful Windows, browser, CI, mobile, Android, and replication workflow conclusions; Windows job steps included installer and installed offline acceptance. This is historical evidence on the PR head, not a run on this audit branch. Job-log retrieval timed out; artifacts and screenshots were not independently inspected here. No workflows were launched.

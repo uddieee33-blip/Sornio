@@ -1,0 +1,9 @@
+# Defect and patch register
+
+| ID | Severity | Finding and reproduction | Root cause / impact | Status and evidence |
+|---|---|---|---|---|
+| D1 | P1 | Existing native `cash_credit_and_zero_tax_ledgers_are_correct_per_invoice` failed with `InvalidPayment` for cash plus customer. | `invoice_posted` imposed retail credit/customer equivalence on ordinary cash invoices, contradicting accepted request contract; legitimate native request could not post. | Fixed `e2240f3e39e000d4c9e74501fd3ae1d2c6d568c9`; old test and new authenticated replay/reopen/no-debt regression pass. UI currently sends no customer for cash; no corruption shown. |
+| D2 | P2 | Pending sale + dirty draft; open reopen prompt, dismiss it; focus was not returned to the invoking button (browser regression timed out before fix). | Trigger is removed during prompt render and old fallback may be disabled. Keyboard user loses location. | Fixed `309b3fa64ce1c55869243d6084da6d4fa0ae0a69`; browser/native regression passes, including F8 and focus. Windows UIA remains untested. |
+| D3 | P2 test gap | Credit-limit concurrency test initially got `StockConflict` instead of a credit error. | Both requests competed for same stock revision, masking the limit race. | Fixture changed in `e2240f3e39e000d4c9e74501fd3ae1d2c6d568c9`; distinct products now exercise limit under concurrent writers. |
+| D4 | P2 test defect | Inventory multi-row test failed with `StatementChangedRows(0)`. | Fixture seeded `item` while test updated `rice`. | Corrected by `d7e0df66848abe73efdab92c287036467d5d650b`; targeted and full suite pass. |
+| R1 | Risk, unproven | Shortcut suppression relies on CSS class names. | A future rename could disconnect the guard; no current F8 posting under either prompt was observed. | Regression added; explicit-state hardening is a future scoped change, not represented as confirmed duplicate sale. |

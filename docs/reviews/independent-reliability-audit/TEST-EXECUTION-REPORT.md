@@ -1,0 +1,11 @@
+# Test execution
+
+Executed on Linux with Node 24.22.1, Rust 1.99.1, existing lockfiles, synthetic data and Chromium 153. `npm ci --ignore-scripts --no-audit --no-fund` succeeded at root and desktop without lockfile changes.
+
+- Before fixes, `cargo test --locked --manifest-path packages/local-store/Cargo.toml` failed: 204 passed, three failed, six ignored. Failures are D1, D3 and D4 in the register. The new focus regression failed separately before D2 was fixed.
+- After fixes, the same command passed: **208 passed, 0 failed, 6 ignored**. Four ignored tests are subprocess workers exercised by their parents; two replication matrix tests remain ignored and were not independently executed. SQLCipher produced wrong-key diagnostics in negative tests and `mlock` warnings in this Linux environment; neither is proof of Windows memory-lock behavior.
+- Seven `apps/desktop/check-{checkout,focus,retail,customers,authorization,receipts,backup}.cjs` suites passed using Vite, Linux Chromium and the real Rust synthetic bridge, not Tauri/Windows IPC. Browser setup required a separate Chromium package; official Playwright browser download was truncated. Receipt/backup tests overwrote three tracked sample images, which were restored to the initially clean baseline after execution.
+- `npm run verify` passed at baseline; includes 92 ordinary SQLite schema checks, 12 money contract checks including 4,820 generated arithmetic comparisons (180 overflow refusals), Windows configuration checks and other repository verification. It is not a native Windows test.
+- `npm run lint` passed with two pre-existing unused-variable warnings; `npm run typecheck`, `npm run typecheck:native`, desktop `npm run build`, `cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check`, and `git diff --check` passed after changes. Full `npm run verify` was baseline-only; `npm run verify:desktop-contract`, `npm run verify:money`, and `npm run verify:business-domain` also passed after the patches, as did the native/browser regressions.
+
+No paid CI or external production system was used. Full native log contains voluminous expected SQLCipher error/warning output and is not committed; summary is in `test-results.json`.
