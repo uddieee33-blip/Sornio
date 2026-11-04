@@ -41,17 +41,24 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
   const [lockPrompt, setLockPrompt] = useState(false);
   const continueLockRef = useRef<HTMLButtonElement>(null);
   const keepEditingRef = useRef<HTMLButtonElement>(null);
+  const reopenButtonRef = useRef<HTMLButtonElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const dismissedPromptRef = useRef<'lock' | 'reopen' | null>(null);
   useEffect(() => { if (lockPrompt) continueLockRef.current?.focus(); }, [lockPrompt]);
   useEffect(() => { if (reopenPrompt) keepEditingRef.current?.focus(); }, [reopenPrompt]);
-  function dismissPrompt(kind: 'lock' | 'reopen') {
-    if (kind === 'lock') setLockPrompt(false); else setReopenPrompt(false);
+  useEffect(() => {
+    const kind = dismissedPromptRef.current;
+    if (!kind) return;
+    dismissedPromptRef.current = null;
     const previous = restoreFocusRef.current;
     restoreFocusRef.current = null;
-    queueMicrotask(() => {
-      if (previous?.isConnected) previous.focus();
-      else document.getElementById('checkout-search')?.focus();
-    });
+    if (previous?.isConnected) previous.focus();
+    else if (kind === 'reopen' && reopenButtonRef.current) reopenButtonRef.current.focus();
+    else document.getElementById('checkout-search')?.focus();
+  }, [lockPrompt, reopenPrompt]);
+  function dismissPrompt(kind: 'lock' | 'reopen') {
+    dismissedPromptRef.current = kind;
+    if (kind === 'lock') setLockPrompt(false); else setReopenPrompt(false);
   }
   const [backupBusy, setBackupBusy] = useState(false), [backupDirty, setBackupDirty] = useState(false);
   const [catalogDirty, setCatalogDirty] = useState(false);
@@ -179,7 +186,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
                 <p>Your unsaved edits will be replaced by the latest saved draft.</p>
                 <button ref={keepEditingRef} type="button" className="quiet-button" disabled={busy} onClick={() => dismissPrompt('reopen')}>Keep editing</button>
                 <button type="button" disabled={busy} onClick={() => void reopen()}>Discard edits and reopen</button>
-              </div> : <button className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) { restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setReopenPrompt(true); } else void reopen(); }}>Reopen saved draft</button>}
+              </div> : <button ref={reopenButtonRef} className="quiet-button" type="button" disabled={busy} onClick={() => { if (draftDirty) { restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null; setReopenPrompt(true); } else void reopen(); }}>Reopen saved draft</button>}
             </div> : null}
           </form> : null}
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Owner and staff access is enforced on this PC. LAN pairing and cloud backup are not enabled. This review does not replace your current business records.</p></aside>

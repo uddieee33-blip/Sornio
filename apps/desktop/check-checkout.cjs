@@ -127,6 +127,9 @@ async function stopBridge() {
     assert.equal(await saved().count(),0);
     assert.equal((await native('list_local_invoices',{after:0})).length,0);
     assert.equal(await button('Lock workspace').isDisabled(),true);
+    const busyPosts = calls.filter(call => call.command === 'post_local_invoice').length;
+    await page.keyboard.press('F8');
+    assert.equal(calls.filter(call => call.command === 'post_local_invoice').length, busyPosts, 'F8 must not submit while posting is busy');
     releasePost(); holdPost = null;
     await alert('Posting reply was lost').waitFor();
     assert.equal(await saved().count(),0);
@@ -172,6 +175,28 @@ async function stopBridge() {
     await alert('Prepare reply was lost').waitFor();
     const prepared = (await native('read_cashier_state')).checkout.request;
     assert.equal((await native('list_local_invoices',{after:0})).length,2);
+    // An unresolved durable checkout and unsaved workspace edits can coexist.
+    // Neither prompt may let the window-level F8 retry post the sale underneath it.
+    await label('Workspace note').fill('Unsaved prompt safety check');
+    const postsBeforePrompts = calls.filter(call => call.command === 'post_local_invoice').length;
+    await button('Lock workspace').click();
+    await button('Continue editing').waitFor();
+    assert.equal(await button('Continue editing').evaluate(el => el === document.activeElement), true);
+    await page.keyboard.press('F8');
+    assert.equal(calls.filter(call => call.command === 'post_local_invoice').length, postsBeforePrompts, 'F8 posted beneath lock prompt');
+    assert.equal(await button('Continue editing').evaluate(el => el === document.activeElement), true);
+    assert.equal((await native('list_local_invoices',{after:0})).length,2);
+    await button('Continue editing').click();
+    await page.waitForFunction(() => document.activeElement?.textContent === 'Lock workspace');
+    await button('Reopen saved draft').click();
+    await button('Keep editing').waitFor();
+    assert.equal(await button('Keep editing').evaluate(el => el === document.activeElement), true);
+    await page.keyboard.press('F8');
+    assert.equal(calls.filter(call => call.command === 'post_local_invoice').length, postsBeforePrompts, 'F8 posted beneath reopen prompt');
+    assert.equal(await button('Keep editing').evaluate(el => el === document.activeElement), true);
+    assert.equal((await native('list_local_invoices',{after:0})).length,2);
+    await button('Keep editing').click();
+    await page.waitForFunction(() => document.activeElement?.textContent === 'Reopen saved draft');
     await stopBridge(); startBridge(); await page.reload();
     await page.getByRole('heading',{name:'Welcome back.',exact:true}).waitFor();
     assert.equal(await label('Saved invoice ID').count(),0);
