@@ -151,7 +151,19 @@ recommendation. Unresolved decisions are listed in §2.5, never silently assumed
 | Primary text | `color.text.primary` | #182333 | on white/app bg | 15.82 / 15.03:1 | AA |
 | Secondary text | `color.text.secondary` | #667085 | on white / app bg | 4.97 / 4.68:1 | AA normal text |
 | Secondary text on soft accent | `color.text.onSoftAccent` | #52606D | on #E7EEE9 | 5.47:1 | AA (replaces #667085 at 4.22:1, rejected on soft accent) |
-| Disabled text | `color.text.disabled` | #7A8699 | on disabled fill #D6DEDD | 3.64:1 | Non-text boundary; disabled controls also non-interactive and `aria-disabled` |
+| Disabled text | `color.text.disabled` | #7A8699 | on disabled fill #D6DEDD | **2.69:1 (corrected — see errata)** | Non-text boundary; disabled controls also non-interactive and `aria-disabled` |
+
+> **ERRATA (added 2026-11-04, Assignment 4).** The original figure for `color.text.disabled`
+> on the disabled fill was stated as **3.64:1**. Independent WCAG 2.2 relative-luminance
+> recomputation gives **2.69:1** (`#7A8699` on `#D6DEDD`). The row has been corrected rather than
+> deleted.
+>
+> Consequence for implementation: 2.69:1 is **below** the 3:1 non-text threshold. WCAG 2.2
+> *1.3.1/1.4.3/1.4.11 exempt inactive UI components from contrast requirements*, so a genuinely
+> disabled control is not a conformance failure — but the token may **not** be used to convey any
+> state that a user must perceive. During U1 the disabled treatment must ship with
+> `aria-disabled="true"` plus a non-colour cue, and `color.text.disabled` must not be reused for
+> enabled text, placeholders that carry meaning, or any financial figure. Re-verify at implementation.
 | Border (control) | `color.border.control` | #7A8699 | on white / app bg | 3.69 / 3.47:1 | AA non-text ≥3:1 |
 | Focus ring | `color.focus.ring` | #246B65 | on white / app bg | 6.24 / 5.87:1 | AA non-text ≥3:1; **replaces current #829fce (2.69:1, FAILS)** |
 | Focus ring on nav | `color.focus.ring.onNav` | #7BC2B7 | on nav #182333 | 7.72:1 | AA non-text |

@@ -12,8 +12,9 @@
 | Field | Value |
 |---|---|
 | Branch | `arena/bbc68aef-sornio` (authorized Arena branch) |
-| Base / origin/main | `1cc5c798d1eada9a16463213b0776c01e99d36f9` |
-| HEAD | `1cc5c798d1eada9a16463213b0776c01e99d36f9` (identical to origin/main; 0/0 divergence) |
+| Base commit (origin/main at assignment start) | `1cc5c798d1eada9a16463213b0776c01e99d36f9` |
+| HEAD at assignment start | `1cc5c798d1eada9a16463213b0776c01e99d36f9` (identical to origin/main; 0/0 divergence) |
+| Final documentation commit (Assignment 3 output) | `a2256d6a6216249a326c86a3a1db872babf36ec4` — 1 commit ahead of base, 8 files added, all under `docs/design/phase7-assignment3/` |
 | Working tree | clean before this assignment's documentation files; only `docs/design/phase7-assignment3/` added |
 | Clone | shallow (single commit locally); design-branch artifacts verified via GitHub API |
 | PRs | #145 MERGED (current main); #144/#134/#131/#129/#128/#125/#123 CLOSED; #127 (GST) and #126 (LAN) OPEN+CONFLICTING, untouched |
@@ -98,7 +99,7 @@ boundaries, existing tests affected, new tests required, dependencies, prohibite
   (`billing_reliability_tests.rs`, `payments_tests.rs`, `customers_tests.rs`,
   `inventory_recovery_tests.rs`, `authorization_tests.rs`, `credential_tests.rs`,
   `phase3_reliability_tests.rs`, `replication_matrix_tests.rs`).
-- Missing automated coverage identified per scenario; 8 scenarios are BLOCKS-severity
+- Missing automated coverage identified per scenario; **9** scenarios are BLOCKS-severity
   (1, 2, 5, 6, 7, 8, 11, 17, 18).
 
 ---
@@ -149,7 +150,7 @@ boundaries, existing tests affected, new tests required, dependencies, prohibite
 | G9 | Implementation readiness: first slice defined with file scope, tests, rollback, risk | **PASS** | D5 §2 U1/U3; D7 §G summary; proposal not executed |
 | G10 | Evidence integrity: claims trace to reproducible sources; prototype/installed never conflated | **PASS** | D1 evidence categories; every artifact/branch/commit referenced live-verified; classification labels in D1/D3/D7; no browser/prototype promoted to installed evidence |
 
-**Gate summary:** PASS × 7 (G0, G2, G4, G5, G7, G8, G9, G10), PARTIAL × 2 (G3, G6),
+**Gate summary:** PASS × 8 (G0, G2, G4, G5, G7, G8, G9, G10), PARTIAL × 2 (G3, G6),
 BLOCKED × 1 (G1), FAIL × 0.
 
 No gate is marked PASS purely because a document exists: each PASS cites live-verified state or
@@ -182,6 +183,25 @@ See D6. Highlights:
 | Production implementation authorization | **NOT GRANTED** | Assignment rules; D6 §4 |
 | Real-shop pilot readiness | **NO-GO** | Unsigned installer; printer/scanner/power/Gurmukhi hardware evidence absent; capture evidence blocked |
 | Public-release readiness | **NO-GO** | Release manifest 2026-11-02; upgrade path untested; GST out of scope |
+
+---
+
+## Errata — corrections applied in Assignment 4 (2026-11-04)
+
+Three objectively verifiable reporting inconsistencies were identified in this report and
+recomputed from the underlying tables. Original statements are preserved in the history of this file;
+the corrections are recorded here for traceability.
+
+| # | Location | As originally reported | Recomputed / corrected | Basis of recomputation |
+|---|---|---|---|---|
+| E-1 | §H gate summary | "PASS × 7" | **PASS × 8** | Counting §H table rows: G0, G2, G4, G5, G7, G8, G9, G10 = 8 PASS; G3, G6 = PARTIAL; G1 = BLOCKED. 8+2+1 = 11 = G0–G10, so the tally is internally consistent at 8. The "× 7" was a transcription error; the parenthesised gate list was already correct. |
+| E-2 | §E financial reliability | "8 scenarios are BLOCKS-severity (1, 2, 5, 6, 7, 8, 11, 17, 18)" | **9 scenarios** | Recount of D4 §3 severity column: BLOCKS = 1, 2, 5, 6, 7, 8, 11, 17, 18 (9); GATED = 3, 4, 9, 10, 12, 15, 16, 20 (8); TRACK = 13, 14, 19 (3). 9+8+3 = 20 = the required scenario count. The listed numbers were correct; the count word was wrong. |
+| E-3 | §A repository state | HEAD shown as the base commit only | Base commit and final documentation commit now distinguished | Assignment 3 output commit is `a2256d6a6216249a326c86a3a1db872babf36ec4`; base was `1cc5c798…`. The original row captured pre-commit state. |
+
+**No test results, measurements or evidence were altered by these corrections.** Only arithmetic
+and provenance labelling were fixed. Two further findings that this assignment's independent
+measurement exposed (a D2 token contrast figure and two production contrast defects) are recorded in
+`../phase7-assignment4/WINDOWS-VIEWPORT-ACCESSIBILITY-MATRIX.md` §4 and are not retro-applied here.
 
 ---
 
