@@ -2,7 +2,7 @@ name: Workspace browser review
 on:
   pull_request:
     branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
-    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
+    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', 'scripts/test-ci-logged-wrappers.py', '.github/workflows/windows-local.yml', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +21,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Test CI wrapper failure propagation
+        run: python3 scripts/test-ci-logged-wrappers.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -61,16 +63,25 @@ jobs:
           run_tests() {
             local profile="$1"; shift
             local log; log="$(mktemp)"
-            cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml "$@" 2>&1 | tee "$log" || true
-            local code=${PIPESTATUS[0]}
+            local -a statuses
+            set +e
+            cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml "$@" 2>&1 | tee "$log"
+            statuses=("${PIPESTATUS[@]}")
+            set -e
+            local code=${statuses[0]}
+            if [ "${statuses[1]}" -ne 0 ]; then
+              echo "::error::[$profile] native test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+            fi
             if [ "$code" -ne 0 ]; then
-              sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+              echo "::error::[$profile] native test or logging failure (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
               { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
-                | sed "s/^/::error::[$profile] failing tests: /"
+                | sed "s/^/::error::[$profile] failing tests: /" || true
               { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
-                | sed "s/^/::error::[$profile] compiler errors: /"
+                | sed "s/^/::error::[$profile] compiler errors: /" || true
               { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-                | sed "s/^/::error::[$profile] failure details: /"
+                | sed "s/^/::error::[$profile] failure details: /" || true
             fi
             return "$code"
           }
@@ -101,12 +112,20 @@ jobs:
             sleep 1
           done
           log=/tmp/sornio-browser-acceptance.log
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          set +e
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Browser acceptance log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
+            echo "::error::Browser acceptance or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
             { tail -40 "$log"; echo '--- server log tail ---'; tail -20 /tmp/sornio-server.log; } \
               | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
-              | sed 's/^/::error::browser acceptance failure: /'
+              | sed 's/^/::error::browser acceptance failure: /' || true
           fi
           exit "$code"
       - name: Build and review local desktop access UI
@@ -128,11 +147,20 @@ jobs:
           : > "$log"
           run_check() {
             local name="$1"; shift
-            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log" || true
-            local code=${PIPESTATUS[0]}
+            local -a statuses
+            set +e
+            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log"
+            statuses=("${PIPESTATUS[@]}")
+            set -e
+            local code=${statuses[0]}
+            if [ "${statuses[1]}" -ne 0 ]; then
+              echo "::error::Desktop UI check $name log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+            fi
             if [ "$code" -ne 0 ]; then
+              echo "::error::Desktop UI check $name or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
               tail -40 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
-                | sed "s/^/::error::desktop UI check $name failed: /"
+                | sed "s/^/::error::desktop UI check $name failed: /" || true
               exit "$code"
             fi
           }

@@ -76,21 +76,27 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          # `|| true` keeps the runner's default `bash -eo pipefail` from
-          # aborting before the diagnostics below; the real exit code is
-          # still captured from PIPESTATUS.
-          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          # Capture both pipeline statuses before another command can reset them.
+          set +e
+          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Release test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
-            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            echo "::error::Release native tests or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
             esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
             { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
-              | sed 's/^/::error::failing tests: /'
+              | sed 's/^/::error::failing tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
-              | sed 's/^/::error::compiler errors: /'
+              | sed 's/^/::error::compiler errors: /' || true
             { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-              | sed 's/^/::error::failure details: /'
-            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /'
+              | sed 's/^/::error::failure details: /' || true
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /' || true
           fi
           exit "$code"
       - name: Test encrypted storage in the debug profile (overflow checks and debug assertions active)
@@ -104,18 +110,26 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          set +e
+          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Debug test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
-            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            echo "::error::Debug native tests or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
             esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
             { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
-              | sed 's/^/::error::failing debug-profile tests: /'
+              | sed 's/^/::error::failing debug-profile tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
-              | sed 's/^/::error::compiler errors (debug): /'
+              | sed 's/^/::error::compiler errors (debug): /' || true
             { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-              | sed 's/^/::error::debug failure details: /'
-            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /'
+              | sed 's/^/::error::debug failure details: /' || true
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /' || true
           fi
           exit "$code"
       - name: Build independent Windows installer
@@ -125,14 +139,22 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          npm run desktop:build --prefix apps/desktop 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          set +e
+          npm run desktop:build --prefix apps/desktop 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Installer build log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
-            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            echo "::error::Installer build or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
             esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
             { grep -E '^error(\[|:)|OpenSSL|perl |NSIS|failed to' "$log.clean" | head -40 | esc; } \
-              | sed 's/^/::error::installer: /'
-            { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /'
+              | sed 's/^/::error::installer: /' || true
+            { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /' || true
           fi
           exit "$code"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
