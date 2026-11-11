@@ -35,6 +35,10 @@ check(defined.length > 40, `Rust defines ${defined.length} native commands`);
 check(new Set(registered).size === registered.length, 'no command is registered twice');
 assert.deepEqual([...defined].sort(), [...registered].sort(), 'Rust commands and generate_handler! differ');
 check(true, 'every Rust command is registered in generate_handler!');
+const build = readFileSync(join(TAURI, 'build.rs'), 'utf8');
+const manifest = [...(build.match(/commands\(&\[([\s\S]*?)\]/)?.[1] ?? '').matchAll(/"([a-z_0-9]+)"/g)].map(m => m[1]);
+assert.deepEqual([...manifest].sort(), [...registered].sort(), 'build-time app manifest and commands differ');
+check(true, 'every native command is declared in the build-time app manifest');
 
 // 2. The ACL allows exactly those commands and nothing more.
 const allowed = new Set();

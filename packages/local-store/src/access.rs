@@ -690,6 +690,10 @@ impl Workspace {
         self.require(Permission::ManageCustomers)?;
         self.store.save_customer(r)
     }
+    pub fn read_customer(&self, id: &str) -> Result<crate::customers::Customer, StoreError> {
+        self.require(Permission::CustomerRead)?;
+        self.store.read_customer(id)
+    }
     pub fn find_customers(
         &self,
         search: &str,

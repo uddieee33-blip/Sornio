@@ -512,6 +512,15 @@ async fn save_local_customer(
 }
 
 #[tauri::command]
+async fn read_local_customer(
+    scope: Scope,
+    customer_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<crate_types::Customer, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.read_customer(&customer_id)).await
+}
+
+#[tauri::command]
 async fn find_local_customers(
     scope: Scope,
     search: String,
@@ -774,6 +783,7 @@ fn main() {
             export_local_settlements,
             save_local_customer,
             find_local_customers,
+            read_local_customer,
             prepare_local_credit,
             post_local_credit,
             pending_local_credit,
