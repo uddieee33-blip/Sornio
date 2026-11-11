@@ -22,9 +22,9 @@ const LABELS: Record<ScreenId, string> = {
 };
 
 export function AppNavigation() {
-  const { width, height } = useWindowDimensions();
-  const landscape = width > height && width >= layout.tabletMin;
-  const wide = width >= layout.tabletMin;
+  const { width, fontScale } = useWindowDimensions();
+  const largeText = fontScale > 1.5;
+  const wide = width >= layout.tabletMin && !largeText;
   const { screen, screens, setScreen, snapshot, error } = useCompanion();
   const terms = vocabularyFor(snapshot?.portalId ?? 'general');
   const labels: Record<ScreenId, string> = {
@@ -35,7 +35,7 @@ export function AppNavigation() {
   const body = error && !snapshot ? <ErrorState title="Cannot open Sornio" detail={error} /> : renderScreen(screen, screens);
   if (wide) {
     return (
-      <View style={landscape ? styles.row : styles.row}>
+      <View style={styles.row}>
         <Rail screens={screens} current={screen} onChange={setScreen} labels={labels} />
         <View style={styles.stage}>{body}</View>
       </View>

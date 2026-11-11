@@ -3,6 +3,7 @@ import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { filterInventory, formatQuantity, vocabularyFor } from '@sornio/mobile-contracts';
 import { space, touch } from '@sornio/mobile-design';
 import { Body, DemoBanner, EmptyState, Hairline, Muted, Row, SearchField } from '../components/primitives';
+import { StockCount } from '../components/StockCount';
 import { copy } from '../i18n/en';
 import { useCompanion } from '../app/CompanionContext';
 import { useTheme } from '../theme/ThemeProvider';
@@ -51,6 +52,7 @@ export function InventoryScreen() {
               meta={formatQuantity(row.quantityMilli)}
             />
             {row.lowStock ? <Body>Low stock</Body> : <Muted>{copy.available}</Muted>}
+            <StockCount productId={row.sourceProductId} observedMilli={row.quantityMilli} snapshotAt={row.updatedAtIso}/>
             <Hairline />
           </View>
         ))
