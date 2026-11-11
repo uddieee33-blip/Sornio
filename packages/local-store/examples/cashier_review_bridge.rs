@@ -139,6 +139,9 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             &argument::<String>(a, "ownerPassword")?,
             &argument::<String>(a, "newPassword")?,
         )?)?,
+        "list_local_held_bills" => serde_json::to_value(w.list_held_bills()?)?,
+        "mutate_local_held_bill" => serde_json::to_value(w.mutate_held_bill(argument(a, "r")?)?)?,
+        "prepare_local_held_checkout" => { w.prepare_held_checkout(argument(a, "r")?)?; Value::Null }
         "prepare_local_retail" => {
             w.prepare_retail(argument(a, "r")?)?;
             Value::Null
@@ -290,6 +293,9 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+            StoreError::HeldBillConflict => "held_bill_conflict",
+            StoreError::InvalidHeldBill => "invalid_held_bill",
+            StoreError::HeldBillLimit => "held_bill_limit",
                     StoreError::InvoiceMissing => "invoice_missing",
                     StoreError::InvalidBackup => "invalid_backup",
                     StoreError::BackupStorage => "backup_storage",

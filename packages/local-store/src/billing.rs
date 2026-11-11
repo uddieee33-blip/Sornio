@@ -181,6 +181,7 @@ pub(crate) fn post_into(
         }
         return Ok(serde_json::from_str(&payload)?);
     }
+    crate::held_bills::guard_checkout(tx, session, &request.operation_id)?;
     let canceled: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
         [&request.operation_id],
@@ -361,6 +362,7 @@ pub(crate) fn post_into(
         "INSERT INTO local_billing_outbox(invoice_id,payload) VALUES(?1,?2)",
         params![invoice.id, event],
     )?;
+    crate::held_bills::complete(tx, &invoice.id)?;
     Ok(invoice)
 }
 impl Store {

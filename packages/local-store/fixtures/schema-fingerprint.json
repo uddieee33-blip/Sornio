@@ -13,6 +13,12 @@
    "customer_credit_history"
   ],
   [
+   "local_held_bills_one_active"
+  ],
+  [
+   "local_held_bills_owner"
+  ],
+  [
    "local_products_sku"
   ],
   [
@@ -106,6 +112,17 @@
    "credit_limit_paise:INTEGER:null:0",
    "credit_days:INTEGER:NOTNULL:0",
    "revision:INTEGER:NOTNULL:0"
+  ],
+  "local_held_bills": [
+   "id:TEXT:NOTNULL:1",
+   "actor_id:TEXT:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0",
+   "state:TEXT:NOTNULL:0",
+   "payload:TEXT:NOTNULL:0",
+   "updated_at:TEXT:NOTNULL:0",
+   "last_request:TEXT:NOTNULL:0",
+   "checkout_id:TEXT:null:0",
+   "checkout_request:TEXT:null:0"
   ],
   "local_identity": [
    "singleton:INTEGER:null:1",
@@ -422,6 +439,12 @@
   ],
   [
    "local_customer_outbox_no_UPDATE"
+  ],
+  [
+   "local_held_bills_no_delete"
+  ],
+  [
+   "local_held_bills_revision"
   ],
   [
    "local_inventory_actors_no_DELETE"

@@ -13,6 +13,8 @@ import { allocationPreview, paymentMethods, remainingForMethod } from './payment
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
 import { findCode, scanNeedsQuantity } from './scan';
+import { heldDraftInput } from './held-bills';
+import type { HeldBill, HeldMutation, HeldPrepare, ResumedBill } from './held-bills';
 
 type CartLine = { productId: string; typedQuantity: string };
 type FocusTarget =
@@ -39,6 +41,15 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   const retryButton = useRef<HTMLButtonElement>(null);
   const receiptLookupInput = useRef<HTMLInputElement>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
+  const [heldOpen, setHeldOpen] = useState(false);
+  const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
+  const [heldActive, setHeldActive] = useState<HeldBill | null>(null);
+  const heldActiveRef = useRef<HeldBill | null>(null);
+  const heldPrepareRef = useRef<HeldPrepare | null>(null);
+  const [heldPending, setHeldPending] = useState<HeldMutation | null>(null);
+  const [heldNote, setHeldNote] = useState('');
+  const [heldWarnings, setHeldWarnings] = useState<string[]>([]);
+  const [heldCreditRefresh, setHeldCreditRefresh] = useState(0);
   const [history, setHistory] = useState<{ sequence: number; invoice: Invoice }[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historicInvoice, setHistoricInvoice] = useState<Invoice | null>(null);
@@ -53,7 +64,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   const [tender, setTender] = useState<'cash' | 'credit' | 'retail'>('cash');
   const [customer, setCustomer] = useState('');
   const [creditCustomerSnapshot, setCreditCustomer] = useState<ResolvedCreditCustomer | null>(null);
-  const creditRefreshKey = `${customerRefreshToken}:${refreshToken}`;
+  const creditRefreshKey = `${customerRefreshToken}:${refreshToken}:${heldCreditRefresh}`;
   const creditCustomer = creditCustomerSnapshot?.refreshToken === creditRefreshKey && creditCustomerSnapshot.customer.id === customer
     ? creditCustomerSnapshot.customer : null;
   const [paymentAmounts, setPaymentAmounts] = useState({ cash: '', upi: '', card: '', credit: '' });
@@ -118,9 +129,31 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { onDirtyChange(cart.length > 0 && pending === null); }, [cart.length, pending, onDirtyChange]);
 
+  const clearHeldContext = useCallback(() => {
+    heldActiveRef.current = null; heldPrepareRef.current = null;
+    setHeldActive(null); setHeldNote(''); setHeldWarnings([]);
+  }, []);
+  const emptyBill = useCallback(() => {
+    setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch('');
+    setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' });
+    setCreditCustomer(null); clearHeldContext();
+  }, [clearHeldContext]);
+  const restoreHeld = useCallback((resumed: ResumedBill) => {
+    const input = resumed.bill.draft.input;
+    heldActiveRef.current = resumed.bill; heldPrepareRef.current = null; setHeldActive(resumed.bill);
+    setHeldNote(input.note); setHeldWarnings(resumed.warnings); setHeldCreditRefresh(value => value + 1);
+    setCart(input.lines.map(l => ({ productId: l.productId, typedQuantity: quantity(l.quantityMilli) })));
+    setTax(formatBasisPointsInput(input.taxBasisPoints)); setTender(input.tender); setCustomer(input.customerId ?? '');
+    setPaymentAmounts(Object.fromEntries(paymentMethods.map(method => [method, formatPaiseInput(input.payments.filter(p => p.method === method).reduce((sum,p) => sum + p.amountPaise, 0))])) as typeof paymentAmounts);
+    setPaymentReferences({ upi: input.payments.find(p => p.method === 'upi')?.reference ?? '', card: input.payments.find(p => p.method === 'card')?.reference ?? '' });
+    setSearch(''); setReview(false); setHistoryOpen(false); setHeldOpen(false);
+    pendingFocus.current = { kind: 'search', select: false };
+  }, []);
+
   const apply = useCallback((state: CashierState) => {
     setReportsAllowed(state.reportsAllowed); setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
     if (state.checkout) {
+      clearHeldContext();
       const { request, invoice: saved, retailRequest } = state.checkout;
       retailRef.current = retailRequest ?? null;
       if (retailRequest?.action.kind === 'sale') {
@@ -140,14 +173,21 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       setCart(request.lines.map(line => ({ productId: line.productId, typedQuantity: quantity(line.quantityMilli) })));
       setTax(formatBasisPointsInput(request.taxBasisPoints)); setTender(request.tender); setCustomer(request.customerId ?? '');
       setMessage(saved ? 'Recovered the saved invoice from this PC.' : 'This checkout is waiting for confirmation. Retry the same sale to resolve it.');
+    } else if (state.activeHeldBill) {
+      remember(null); setInvoice(null); setInvoicePayments([]); setRefused(false);
+      const active = heldActiveRef.current;
+      if (!active || active.id !== state.activeHeldBill.bill.id || active.revision !== state.activeHeldBill.bill.revision) restoreHeld(state.activeHeldBill);
+      else setHeldWarnings(state.activeHeldBill.warnings);
+      setMessage('Held bill resumed. Review current prices, stock and payment amounts before confirming.');
     } else {
+      if (heldActiveRef.current) emptyBill();
       // Another window may have completed/canceled this checkpoint. Never turn
       // its old uncertain cart into a fresh sale with a new operation ID.
       if (pendingRef.current) { setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); }
       remember(null); setInvoice(null); setInvoicePayments([]);
       setMessage(readyMessage);
     }
-  }, [remember]);
+  }, [remember, restoreHeld, emptyBill, clearHeldContext]);
 
   useEffect(() => {
     let current = true;
@@ -159,6 +199,62 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     });
     return () => { current = false; };
   }, [refreshToken, onLocked, apply]);
+
+  async function listHeld() {
+    if (submitting.current || disabled || pending || heldPending) return;
+    submitting.current = true; setBusy(true); onBusyChange(true);
+    try {
+      const rows = await invoke<HeldBill[]>('list_local_held_bills');
+      if (!mounted.current) return;
+      setHeldBills(rows); setHeldOpen(true); setFailed(false);
+    } catch (error) {
+      if (!mounted.current) return;
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setFailed(true); setMessage(errorMessage(error, 'Held bills could not be loaded. Try again.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
+  }
+  async function changeHeld(request: HeldMutation) {
+    if (submitting.current || disabled || pending) return;
+    readGeneration.current += 1;
+    submitting.current = true; setBusy(true); onBusyChange(true); setHeldPending(request);
+    setFailed(false); setMessage('Saving held bill on this PC…');
+    try {
+      const result = await invoke<ResumedBill>('mutate_local_held_bill', { r: request });
+      if (!mounted.current) return;
+      setHeldPending(null);
+      if (request.action.kind === 'save' || heldActiveRef.current?.id === result.bill.id && request.action.kind === 'discard') emptyBill();
+      setHeldBills(rows => request.action.kind === 'discard' ? rows.filter(b => b.id !== result.bill.id)
+        : [result.bill, ...rows.filter(b => b.id !== result.bill.id)]);
+      if (request.action.kind === 'resume') {
+        // Preserve the saved draft if refreshing current stock fails, but block checkout.
+        restoreHeld(result); setReady(false);
+        const state = await invoke<CashierState>('read_cashier_state');
+        if (mounted.current) apply(state);
+      } else {
+        setReview(false);
+        setMessage(request.action.kind === 'save' ? 'Bill held on this PC. You can serve the next customer.' : 'Held bill discarded. No sale or payment was recorded.');
+        pendingFocus.current = { kind: 'search', select: false };
+      }
+    } catch (error) {
+      if (!mounted.current) return;
+      const code = errorCode(error);
+      if (code === 'locked') { onLocked(); return; }
+      // A typed rejection is definite. Unknown/transport errors keep the exact
+      // mutation for retry; never create a second draft ID after a lost reply.
+      if (['held_bill_conflict','invalid_held_bill','held_bill_limit','forbidden','checkout_active','customer_missing','invalid_product','invalid_invoice'].includes(code ?? '')) {
+        setHeldPending(null); setReady(false);
+      }
+      setFailed(true); setMessage(errorMessage(error, 'The held-bill result is uncertain. Retry this same action, or refresh checkout if the save was confirmed.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
+  }
+  function holdBill() {
+    if (blocked || review || !cart.length) return;
+    try {
+      const draft = heldDraftInput(cart, tax, tender, customer, paymentAmounts, paymentReferences, heldNote);
+      const active = heldActiveRef.current;
+      void changeHeld({ id: active?.id ?? crypto.randomUUID(), expectedRevision: active?.revision ?? 0, action: { kind: 'save', draft } });
+    } catch (error) { setFailed(true); setMessage(error instanceof Error ? error.message : 'Check this bill before holding it.'); }
+  }
 
   async function receipts(after = 0) {
     if (submitting.current || disabled || !reportsAllowed) return;
@@ -213,6 +309,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true); remember(request); setReview(false); setRefused(false); setFailed(false);
     setMessage('Confirming sale on this PC…');
+    let heldPreparing = false;
     try {
       // Persist the exact request before invoking posting. Never create a new ID
       // for a timeout/reply loss, including after a window/app restart.
@@ -234,13 +331,22 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
             },
           };
         }
-        await invoke('prepare_local_retail', { r: retailRef.current });
+        if (heldActiveRef.current && !heldPrepareRef.current) {
+          heldPrepareRef.current = { id: heldActiveRef.current.id, expectedRevision: heldActiveRef.current.revision, invoice: request,
+            payments: retailRef.current.action.kind === 'sale' ? retailRef.current.action.payments : null };
+        }
+        if (heldPrepareRef.current) { heldPreparing = true; await invoke('prepare_local_held_checkout', { r: heldPrepareRef.current }); heldPreparing = false; }
+        else await invoke('prepare_local_retail', { r: retailRef.current });
         const receipt = await invoke<RetailReceipt>('post_local_retail', { r: retailRef.current });
         if (!receipt.data.invoice) throw new Error('The saved invoice could not be read. Retry the same sale.');
         saved = receipt.data.invoice;
         savedPayments = receipt.data.payments ?? (retailRef.current.action.kind === 'sale' ? retailRef.current.action.payments : []);
       } else {
-        await invoke('prepare_local_checkout', { request });
+        if (heldActiveRef.current && !heldPrepareRef.current) {
+          heldPrepareRef.current = { id: heldActiveRef.current.id, expectedRevision: heldActiveRef.current.revision, invoice: request, payments: null };
+        }
+        if (heldPrepareRef.current) { heldPreparing = true; await invoke('prepare_local_held_checkout', { r: heldPrepareRef.current }); heldPreparing = false; }
+        else await invoke('prepare_local_checkout', { request });
         saved = await invoke<Invoice>('post_local_invoice', { request });
       }
       if (!mounted.current) return;
@@ -260,7 +366,13 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       if (!mounted.current) return;
       const code = errorCode(error);
       if (code === 'locked') { onLocked(); return; }
-      setRefused(refusedCodes.has(code ?? '')); setFailed(true);
+      if (heldPreparing && (refusedCodes.has(code ?? '') || ['held_bill_conflict','invalid_held_bill','forbidden','checkout_active'].includes(code ?? ''))) {
+        // Preparation was refused before any post. Read native state instead of
+        // attempting to cancel a checkpoint that may never have been created.
+        try { const state = await invoke<CashierState>('read_cashier_state'); if (mounted.current) apply(state); }
+        catch { setReady(false); }
+      }
+      setRefused(!heldPreparing && refusedCodes.has(code ?? '')); setFailed(true);
       setMessage(errorMessage(error, 'The sale result is uncertain. Retry the same sale; do not enter it again.'));
     } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
   }
@@ -276,7 +388,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       if (!mounted.current) return;
       remember(null); setInvoice(null); setInvoicePayments([]); setReview(false); setRefused(false);
       pendingFocus.current = { kind: 'search', select: false };
-      if (saved) { setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch(''); }
+      if (saved) { clearHeldContext(); setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch(''); }
       const state = await invoke<CashierState>('read_cashier_state');
       if (mounted.current) { apply(state); setFailed(false); if (pending.tender === 'retail') onPosted(); }
     } catch (error: unknown) {
@@ -340,7 +452,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   }, [cart, productMap, taxBasisPoints, tender, paymentAmounts, customer, creditCustomer]);
   const allocation = allocationPreview(preview?.totalPaise ?? 0, paymentAmounts);
   const needsCreditCustomer = tender === 'credit' || (tender === 'retail' && allocation.creditPaise > 0);
-  const blocked = disabled || busy || !ready || pending !== null || historyOpen;
+  const blocked = disabled || busy || !ready || pending !== null || historyOpen || heldPending !== null;
   const normalizedSearch = search.trim().toLowerCase();
   const matching = useMemo(
     () => products.filter(product => !normalizedSearch || [product.name, product.sku, product.id].some(field => field.toLowerCase().includes(normalizedSearch))),
@@ -405,7 +517,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || disabled || busy) return;
+      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || disabled || busy || heldPending) return;
       if (document.querySelector('.lock-prompt, .reopen-prompt')) return;
       if (event.key === 'F8') {
         if (pending && !invoice) { event.preventDefault(); void confirm(pending); }
@@ -493,6 +605,27 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     <p className="muted">F2: find item · F3: edit quantity · Enter: add exact code · F4: review · Alt+Enter: confirm when focused · F8: recover pending sale</p>
     {reportsAllowed ? <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div> : null}
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
+    {!invoice && !pending ? <div className="held-bill-toolbar">
+      <button type="button" className="quiet-button" disabled={busy || disabled || heldPending !== null} onClick={() => { if (heldOpen) setHeldOpen(false); else void listHeld(); }}>{heldOpen ? 'Close held bills' : 'Held bills'}</button>
+      {cart.length > 0 ? <><label htmlFor="held-bill-note">Bill note (optional)</label><input id="held-bill-note" maxLength={80} value={heldNote} disabled={blocked || review} placeholder="Customer name or short note" onChange={e => setHeldNote(e.target.value)}/>
+        <button type="button" disabled={blocked || review} onClick={holdBill}>Hold bill</button></> : null}
+    </div> : null}
+    {heldPending ? <div className="pending-stock"><p>The held-bill result is uncertain. Retry the same action to check whether it was saved.</p><button type="button" disabled={busy || disabled} onClick={() => void changeHeld(heldPending)}>Retry held bill action</button></div> : null}
+    {heldActive && !pending && !invoice ? <p className="held-bill-context">Resumed bill {heldActive.id.slice(0,8)}{heldNote ? ` · ${heldNote}` : ''}. Hold again to save any further edits.</p> : null}
+    {heldWarnings.length && heldActive && !pending && !invoice ? <div className="held-bill-warnings" role="status"><strong>Review this resumed bill</strong><ul>{heldWarnings.map((warning,i) => <li key={i}>{warning}</li>)}</ul></div> : null}
+    {heldOpen && !pending && !invoice ? <section className="held-bills" aria-label="Held bills">
+      <p className="muted">Your bills saved on this PC. Draft amounts are estimates; no stock or payment is reserved.</p>
+      <button type="button" className="quiet-button" disabled={busy || disabled || heldPending !== null} onClick={() => void listHeld()}>Refresh held bills</button>
+      {!heldBills.length ? <p>No held bills.</p> : <ul>{heldBills.map(bill => <li key={bill.id}>
+        <div><strong>Bill {bill.id.slice(0,8)}{bill.state === 'active' ? ' · Open at counter' : ''}</strong>
+          <span><time dateTime={bill.updatedAt}>{new Date(bill.updatedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</time></span>
+          <span>{bill.draft.customer?.name ?? bill.draft.input.customerId ?? 'Walk-in customer'} · {bill.draft.input.lines.length} products · {money(bill.draft.totalPaise)}</span>
+          {bill.draft.input.note ? <span>{bill.draft.input.note}</span> : null}</div>
+        <div><button type="button" disabled={busy || disabled || heldPending !== null || cart.length > 0 || !ready} aria-label={`Resume bill ${bill.id}`} onClick={() => void changeHeld({ id:bill.id,expectedRevision:bill.revision,action:{ kind:'resume' } })}>Resume</button>
+          <button type="button" className="quiet-button" disabled={busy || disabled || heldPending !== null || Boolean(heldActive && heldActive.id !== bill.id)} aria-label={`Discard bill ${bill.id}`} onClick={() => void changeHeld({ id:bill.id,expectedRevision:bill.revision,action:{ kind:'discard' } })}>Discard</button></div>
+      </li>)}</ul>}
+      {cart.length > 0 ? <p>Hold or finish the current bill before resuming another.</p> : null}
+    </section> : null}
     {!invoice && !pending ? <button type="button" disabled={busy || disabled} onClick={() => { setHistoryOpen(true); setHistoricInvoice(null); setHistoricPayments([]); setHistory([]); pendingFocus.current = { kind: 'receipt-lookup' }; }}>Find saved receipt</button> : null}
     {historyOpen && !invoice && !pending ? <section aria-label="Saved receipts">
       <button type="button" disabled={busy || disabled} onClick={closeHistory}>Back to checkout</button>

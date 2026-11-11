@@ -368,6 +368,12 @@ fn validate(db: &Connection) -> Result<Manifest, StoreError> {
     let expected_schema = if version == SCHEMA_VERSION {
         let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
         schema(&reference.0)?
+    } else if version == 12 {
+        // v13 only adds held-bill objects; retain exact v12 backup validation.
+        let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
+        let mut expected = schema(&reference.0)?;
+        expected.retain(|(_, name, _)| !name.starts_with("local_held_bills"));
+        expected
     } else if version == 11 {
         serde_json::from_str(include_str!("../fixtures/recovery-v11-schema.json"))?
     } else if matches!(version, 5 | 6) {
