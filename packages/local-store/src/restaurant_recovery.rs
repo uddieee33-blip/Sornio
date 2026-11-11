@@ -25,7 +25,8 @@ pub(crate) fn bind(tx:&Transaction<'_>,order:&str,id:&str,actor:&str,raw:&str)->
 }
 pub(crate) fn complete(tx:&Transaction<'_>,invoice:&str)->Result<(),StoreError>{
  tx.execute("UPDATE local_restaurant_orders SET settled_invoice=?1,revision=revision+1 WHERE id=(SELECT order_id FROM local_restaurant_control WHERE attempt_id=?1) AND settled_invoice IS NULL",[invoice])?;
- tx.execute("UPDATE local_restaurant_control SET phase='settled',revision=revision+1,reason='' WHERE attempt_id=?1 AND phase<>'settled'",[invoice])?;Ok(())
+ let changed=tx.execute("UPDATE local_restaurant_control SET phase='settled',revision=revision+1,reason='' WHERE attempt_id=?1 AND phase<>'settled'",[invoice])?;
+ if changed==1{tx.execute("INSERT INTO local_restaurant_recovery_events(order_id,actor_id,payload) SELECT order_id,actor_id,'checkout.settled' FROM local_restaurant_control WHERE attempt_id=?1",[invoice])?;}Ok(())
 }
 pub(crate) fn current_request(db:&Connection,order:&str,actor:&str)->Result<payments::Request,StoreError>{let c=read(db,order)?;if c.actor_id!=actor{return Err(StoreError::Forbidden);}Ok(c.request)}
 impl Store {
@@ -65,7 +66,9 @@ impl Store {
    let definite=matches!(error,StoreError::StockConflict|StoreError::InvalidStock|StoreError::CreditLimit|StoreError::CustomerMissing|StoreError::InvalidCustomer|StoreError::InvalidPayment|StoreError::InvalidInvoice|StoreError::ProductMissing|StoreError::CreditConflict|StoreError::DayClosed|StoreError::InvalidProduct|StoreError::InvalidCredit|StoreError::Overpayment);
    let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
    let canceled=tx.query_row("SELECT EXISTS(SELECT 1 FROM local_retail_canceled WHERE id=(SELECT attempt_id FROM local_restaurant_control WHERE order_id=?1))",[order],|q|q.get::<_,bool>(0))?;
-   if unpaid(&tx,order).is_ok(){tx.execute("UPDATE local_restaurant_control SET phase=?1,reason=?2,revision=revision+1 WHERE order_id=?3 AND phase<>'settled'",params![if definite||canceled{"refused"}else{"unknown"},error.to_string(),order])?;}
+   if unpaid(&tx,order).is_ok(){tx.execute("UPDATE local_restaurant_control SET phase=?1,reason=?2,revision=revision+1 WHERE order_id=?3 AND phase<>'settled'",params![if definite||canceled{"refused"}else{"unknown"},error.to_string(),order])?;
+    let c=read(&tx,order)?;audit(&tx,order,&c.actor_id,&format!("checkout.{}:{}",c.phase,error))?;
+   }
    tx.commit()?;
   }result
  }
