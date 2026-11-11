@@ -5,6 +5,8 @@ import { isTauri } from '@tauri-apps/api/core';
 import { invoke } from './native';
 import type { PortalId } from '../../../packages/business-domain/src/business-types';
 import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
+import { businessProfile, hasCapability } from '../../../packages/business-domain/src/business-profiles.ts';
+import { GroceryStockPanel } from './GroceryStockPanel';
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
 import { RetailPanel } from './RetailPanel';
@@ -156,7 +158,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
       <nav aria-label="Workspace">{([
-        ['counter', 'Counter'], ['stock', 'Items & stock'], ['customers', 'Customers & udhaar'],
+        ['counter', 'Counter'], ['stock', businessProfile(draft.businessType).stockLabel], ['customers', businessProfile(draft.businessType).customerLabel],
         ['operations', 'Payments & closing'], ['settings', owner ? 'Business & settings' : 'My access'],
       ] as const).map(([id, label]) => <a key={id} href={`#area-${id}`} className={workArea === id ? 'selected' : ''}
         aria-current={workArea === id ? 'location' : undefined} onClick={event => {
@@ -173,7 +175,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace" onKeyDown={event => { if (event.key === 'Escape' && !busy) { event.preventDefault(); dismissPrompt('lock'); } }}><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button ref={continueLockRef} className="quiet-button" type="button" disabled={busy} onClick={() => dismissPrompt('lock')}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
         <section id="area-counter" tabIndex={-1} aria-label="Counter">{native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}</section>
-        <section id="area-stock" tabIndex={-1} aria-label="Items and stock">{native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}</section>
+        <section id="area-stock" tabIndex={-1} aria-label="Items and stock">{native && snapshot && hasCapability(draft.businessType, 'stockReview') ? <GroceryStockPanel refreshToken={inventoryRefresh} onLocked={onLocked}/> : null}{native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}</section>
         <section id="area-customers" tabIndex={-1} aria-label="Customers and udhaar">{native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}</section>
         <section id="area-operations" tabIndex={-1} aria-label="Payments and closing">{native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}</section>
         <section id="area-settings" tabIndex={-1} aria-label="Business and access">
@@ -184,7 +186,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
             <fieldset disabled={!snapshot || busy}>
               <label htmlFor="business-name">Business name</label><input id="business-name" autoComplete="organization" value={draft.businessName} maxLength={120} required placeholder="Your sample business" onChange={(e) => setDraft({ ...draft, businessName: e.target.value })}/>
               <label htmlFor="business-type">Business type</label><select aria-describedby="business-description" id="business-type" value={draft.businessType} onChange={(e) => setDraft({ ...draft, businessType: e.target.value as PortalId })}>{types.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
-              <p id="business-description">{dailyWorkspace(draft.businessType).description}</p>
+              <p id="business-description">{dailyWorkspace(draft.businessType).description} {businessProfile(draft.businessType).onboarding}</p>
               <label htmlFor="workspace-note">Workspace note</label><textarea id="workspace-note" rows={5} maxLength={2000} placeholder="A note to find when you reopen Sornio…" value={draft.note} onChange={(e) => setDraft({ ...draft, note: e.target.value })}/>
               <div className="form-footer"><p>{draftDirty ? 'Changes are not saved yet.' : 'Nothing leaves this PC in this build.'}</p><button type="submit" disabled={!draftDirty || !draft.businessName.trim()}>{status === 'saving' ? 'Saving…' : 'Save local draft'}<span aria-hidden="true">↗</span></button></div>
             </fieldset>
