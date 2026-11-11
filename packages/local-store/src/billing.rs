@@ -363,6 +363,7 @@ pub(crate) fn post_into(
         params![invoice.id, event],
     )?;
     crate::held_bills::complete(tx, &invoice.id)?;
+    crate::restaurant_checkout::complete(tx, &invoice.id)?;
     Ok(invoice)
 }
 impl Store {

@@ -368,11 +368,12 @@ fn validate(db: &Connection) -> Result<Manifest, StoreError> {
     let expected_schema = if version == SCHEMA_VERSION {
         let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
         schema(&reference.0)?
-    } else if version == 13 || version == 12 {
-        let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
-        let mut expected = schema(&reference.0)?;
-        expected.retain(|(_, name, _)| !name.starts_with("local_restaurant_") && (version != 12 || !name.starts_with("local_held_bills")));
-        expected
+    } else if version == 14 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v14-schema.json"))?
+    } else if version == 13 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v13-schema.json"))?
+    } else if version == 12 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v12-schema.json"))?
     } else if version == 11 {
         serde_json::from_str(include_str!("../fixtures/recovery-v11-schema.json"))?
     } else if matches!(version, 5 | 6) {

@@ -22,6 +22,9 @@
    "local_products_sku"
   ],
   [
+   "local_restaurant_menu_product"
+  ],
+  [
    "local_restaurant_one_open_table"
   ],
   [
@@ -236,18 +239,33 @@
    "business_id:TEXT:NOTNULL:0",
    "generation:TEXT:NOTNULL:0"
   ],
+  "local_restaurant_bindings": [
+   "order_id:TEXT:NOTNULL:1",
+   "invoice_id:TEXT:NOTNULL:0",
+   "actor_id:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0"
+  ],
   "local_restaurant_events": [
    "operation_id:TEXT:NOTNULL:1",
    "actor_id:TEXT:NOTNULL:0",
    "request:TEXT:NOTNULL:0",
    "created_at:TEXT:NOTNULL:0"
   ],
+  "local_restaurant_menu": [
+   "id:TEXT:NOTNULL:1",
+   "product_id:TEXT:NOTNULL:0",
+   "category:TEXT:NOTNULL:0",
+   "label:TEXT:NOTNULL:0",
+   "variant:TEXT:NOTNULL:0",
+   "available:INTEGER:NOTNULL:0"
+  ],
   "local_restaurant_orders": [
    "id:TEXT:NOTNULL:1",
    "table_id:TEXT:null:0",
    "kind:TEXT:NOTNULL:0",
    "state:TEXT:NOTNULL:0",
-   "revision:INTEGER:NOTNULL:0"
+   "revision:INTEGER:NOTNULL:0",
+   "settled_invoice:TEXT:null:0"
   ],
   "local_restaurant_tables": [
    "id:TEXT:NOTNULL:1",
@@ -511,10 +529,19 @@
    "local_recovery_audit_no_update"
   ],
   [
+   "local_restaurant_bindings_no_delete"
+  ],
+  [
+   "local_restaurant_bindings_no_update"
+  ],
+  [
    "local_restaurant_events_no_delete"
   ],
   [
    "local_restaurant_events_no_update"
+  ],
+  [
+   "local_restaurant_settle_guard"
   ],
   [
    "local_retail_activity_no_DELETE"
