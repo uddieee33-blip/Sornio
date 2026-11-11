@@ -22,6 +22,9 @@
    "local_products_sku"
   ],
   [
+   "local_restaurant_one_open_table"
+  ],
+  [
    "retail_daily_activity"
   ],
   [
@@ -232,6 +235,31 @@
    "singleton:INTEGER:null:1",
    "business_id:TEXT:NOTNULL:0",
    "generation:TEXT:NOTNULL:0"
+  ],
+  "local_restaurant_events": [
+   "operation_id:TEXT:NOTNULL:1",
+   "actor_id:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_restaurant_orders": [
+   "id:TEXT:NOTNULL:1",
+   "table_id:TEXT:null:0",
+   "kind:TEXT:NOTNULL:0",
+   "state:TEXT:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0"
+  ],
+  "local_restaurant_tables": [
+   "id:TEXT:NOTNULL:1",
+   "name:TEXT:NOTNULL:0",
+   "active:INTEGER:NOTNULL:0"
+  ],
+  "local_restaurant_tickets": [
+   "id:TEXT:NOTNULL:1",
+   "order_id:TEXT:NOTNULL:0",
+   "items:TEXT:NOTNULL:0",
+   "state:TEXT:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0"
   ],
   "local_retail_activity": [
    "sequence:INTEGER:null:1",
@@ -481,6 +509,12 @@
   ],
   [
    "local_recovery_audit_no_update"
+  ],
+  [
+   "local_restaurant_events_no_delete"
+  ],
+  [
+   "local_restaurant_events_no_update"
   ],
   [
    "local_retail_activity_no_DELETE"
