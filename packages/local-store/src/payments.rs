@@ -629,7 +629,9 @@ pub(crate) fn invoice_posted(
                 .ok_or(StoreError::InvalidPayment)?;
         }
     }
-    if credit_parts > 1 || (credit_parts == 1) != i.customer_id.is_some() {
+    if credit_parts > 1
+        || (i.tender == Tender::Retail && (credit_parts == 1) != i.customer_id.is_some())
+    {
         return Err(StoreError::InvalidPayment);
     }
     if i.tender == Tender::Retail {

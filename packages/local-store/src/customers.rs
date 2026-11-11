@@ -430,6 +430,11 @@ pub(crate) fn post_sale(
     }
     crate::payments::unclaimed(tx, &invoice.id)?;
     if invoice.tender != Tender::Credit {
+        // A cash invoice may identify an existing customer without creating a
+        // credit entry. Refuse stale or forged customer IDs in this transaction.
+        if let Some(customer_id) = invoice.customer_id.as_deref() {
+            customer(tx, customer_id)?;
+        }
         return Ok(());
     }
     let id = invoice

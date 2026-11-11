@@ -35,28 +35,30 @@ jobs:
           workspaces: |
             packages/local-store
             apps/desktop/src-tauri
-      - name: Put Perl on PATH for vendored OpenSSL
-        # openssl-src Configure (sqlcipher-vendored-openssl) shells out to perl.
-        # windows-latest sometimes leaves Strawberry Perl off PATH for later
-        # steps even though cargo test reused a cached build.
+      - name: Select Strawberry Perl for vendored OpenSSL
+        # Both locked Rust dependency trees use openssl-src 300.6.1, which
+        # selects OPENSSL_SRC_PERL before PERL and PATH. A PowerShell PATH
+        # lookup alone does not prove which Perl a later Bash step will run.
         shell: pwsh
         run: |
-          $perl = Get-Command perl -ErrorAction SilentlyContinue
-          if ($perl) {
-            Write-Host "perl: $($perl.Source)"
-            & perl -v
-            exit 0
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (-not (Test-Path -LiteralPath $perl -PathType Leaf)) {
+            throw "Required Strawberry Perl was not found: $perl"
           }
-          foreach ($dir in @('C:\Strawberry\perl\bin', 'C:\Program Files\Git\usr\bin')) {
-            $exe = Join-Path $dir 'perl.exe'
-            if (Test-Path $exe) {
-              echo $dir | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-              Write-Host "added $dir to PATH"
-              & $exe -v
-              exit 0
-            }
-          }
-          Write-Host '::warning::perl.exe was not found; openssl-src Configure may fail on this runner.'
+          & $perl -MIPC::Cmd -MLocale::Maketext::Simple -e 'print qq(Perl modules available\n)'
+          if ($LASTEXITCODE -ne 0) { throw "Strawberry Perl module probe failed: $LASTEXITCODE" }
+          & $perl -v
+          if ($LASTEXITCODE -ne 0) { throw "Strawberry Perl version probe failed: $LASTEXITCODE" }
+          "OPENSSL_SRC_PERL=$perl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Split-Path -Parent $perl) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Verify OpenSSL Perl in the Bash build environment
+        shell: bash
+        run: |
+          set -euo pipefail
+          printf 'PATH resolves perl to: '; command -v perl || true
+          printf 'openssl-src Perl: %s\n' "$OPENSSL_SRC_PERL"
+          perl_unix="$(cygpath -u "$OPENSSL_SRC_PERL")"
+          "$perl_unix" -MIPC::Cmd -MLocale::Maketext::Simple -e 'print "Perl modules available in build shell\n"'
       # Shared source files under lib/ and packages/ resolve packages from the
       # repo root. Installing only apps/desktop leaves those imports unable to
       # resolve react (TS2307 / TS2875), so the root install must run first.
@@ -76,21 +78,27 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          # `|| true` keeps the runner's default `bash -eo pipefail` from
-          # aborting before the diagnostics below; the real exit code is
-          # still captured from PIPESTATUS.
-          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          # Capture both pipeline statuses before another command can reset them.
+          set +e
+          cargo test --all-targets --release --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Release test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
-            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            echo "::error::Release native tests or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
             esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
             { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
-              | sed 's/^/::error::failing tests: /'
+              | sed 's/^/::error::failing tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
-              | sed 's/^/::error::compiler errors: /'
+              | sed 's/^/::error::compiler errors: /' || true
             { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-              | sed 's/^/::error::failure details: /'
-            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /'
+              | sed 's/^/::error::failure details: /' || true
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /' || true
           fi
           exit "$code"
       - name: Test encrypted storage in the debug profile (overflow checks and debug assertions active)
@@ -104,18 +112,26 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          set +e
+          cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Debug test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
-            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            echo "::error::Debug native tests or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
             esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
             { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
-              | sed 's/^/::error::failing debug-profile tests: /'
+              | sed 's/^/::error::failing debug-profile tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
-              | sed 's/^/::error::compiler errors (debug): /'
+              | sed 's/^/::error::compiler errors (debug): /' || true
             { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-              | sed 's/^/::error::debug failure details: /'
-            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /'
+              | sed 's/^/::error::debug failure details: /' || true
+            { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /' || true
           fi
           exit "$code"
       - name: Build independent Windows installer
@@ -125,14 +141,22 @@ jobs:
         run: |
           set -o pipefail
           log="$(mktemp)"
-          npm run desktop:build --prefix apps/desktop 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          set +e
+          npm run desktop:build --prefix apps/desktop 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Installer build log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
-            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+            echo "::error::Installer build or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
             esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
             { grep -E '^error(\[|:)|OpenSSL|perl |NSIS|failed to' "$log.clean" | head -40 | esc; } \
-              | sed 's/^/::error::installer: /'
-            { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /'
+              | sed 's/^/::error::installer: /' || true
+            { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /' || true
           fi
           exit "$code"
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
