@@ -1,7 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use sornio_local_store::customers as crate_types;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use sornio_local_store::device::initialize;
 use sornio_local_store::payments as retail;
 use sornio_local_store::recovery::BackupPreview;
@@ -94,9 +94,9 @@ impl From<StoreError> for CommandError {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn initialize(_directory: &std::path::Path) -> Result<Store, String> {
-    Err("This local review build requires Windows Credential Manager.".into())
+    Err("This local review build requires Windows Credential Manager or macOS Keychain.".into())
 }
 
 // Password hashing and SQLite waits run off the native UI thread. Authorization
@@ -661,12 +661,12 @@ async fn choose_local_backup(
 ) -> Result<Option<String>, CommandError> {
     let selected = Arc::clone(selection.inner());
     with_recovery_workspace(state, scope, move |_w| {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let path = rfd::FileDialog::new()
             .add_filter("Sornio encrypted backup", &["sorniobackup"])
             .set_title("Choose encrypted Sornio backup")
             .pick_file();
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let path: Option<PathBuf> = None;
         let name = path
             .as_ref()
@@ -690,13 +690,13 @@ async fn export_local_backup(
     let secret = Zeroizing::new(recovery_password);
     with_scoped_workspace(state, scope, move |w| {
         w.require(sornio_local_store::identity::Permission::Settings)?;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let path = rfd::FileDialog::new()
             .add_filter("Sornio encrypted backup", &["sorniobackup"])
             .set_file_name("sornio-business.sorniobackup")
             .set_title("Export encrypted Sornio backup")
             .save_file();
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let path: Option<PathBuf> = None;
         path.map(|p| w.export_backup(&p, &current, &secret))
             .transpose()

@@ -22,3 +22,8 @@ keyring = { version = "3", features = ["windows-native"] }
 [dev-dependencies]
 proptest = "1.12.0"
 
+
+[target.'cfg(target_os = "macos")'.dependencies]
+fs2 = "0.4"
+zeroize = "1"
+keyring = { version = "3", features = ["apple-native"] }
