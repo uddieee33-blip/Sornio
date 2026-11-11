@@ -27,7 +27,7 @@ commands.allow = ["save_local_customer", "find_local_customers", "read_local_cus
 [[permission]]
 identifier = "local-retail"
 description = "Scoped native payment intents, manual matching, authorized returns and cashier closing. No gateway or external verification."
-commands.allow = ["read_restaurant", "change_restaurant", "list_local_held_bills", "mutate_local_held_bill", "prepare_local_held_checkout", "prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
+commands.allow = ["restaurant_menu", "save_restaurant_menu", "prepare_restaurant", "post_restaurant", "read_restaurant", "change_restaurant", "list_local_held_bills", "mutate_local_held_bill", "prepare_local_held_checkout", "prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
 
 
 [[permission]]
