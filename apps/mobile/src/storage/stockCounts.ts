@@ -6,6 +6,7 @@ export function stockCounts(port: Port, scope: CountScope) {
     async read(productId: string): Promise<CountDraft | null> {
       const raw = await port.get(countStorageKey(scope, productId));
       if (raw === null) return null;
+      if (raw.length * 3 > 1800) throw new Error('This saved count is too large to open securely.');
       const value: unknown = JSON.parse(raw); validateCount(value, scope, productId); return value;
     },
     async save(draft: CountDraft): Promise<void> {

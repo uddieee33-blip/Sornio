@@ -24,3 +24,7 @@ test('persistent port reopens drafts, rejects corrupt or foreign data, and propa
   await assert.rejects(stockCounts({ ...port, set: async () => { throw new Error('Device full'); } },scope).save(d));
   await stockCounts(port,scope).remove('rice'); assert.equal(await stockCounts(port,scope).read('rice'), null);
 });
+test('oversized secure records are rejected before JSON parsing', async () => {
+  const port = { get: async () => ' '.repeat(601), set: async () => {}, delete: async () => {} };
+  await assert.rejects(stockCounts(port,scope).read('rice'), /too large/);
+});

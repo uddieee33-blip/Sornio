@@ -13,6 +13,7 @@ export function StockCount({ productId, observedMilli, snapshotAt }: { productId
   const businessId = session?.business.businessId, actorId = session?.userId, mode = session?.mode;
   useEffect(() => {
     let current = true;
+    setReady(false); setSaved(null); setTyped('');
     if (open && businessId && actorId && mode) {
       Promise.resolve().then(() => stockCounts(createSecureStore(true), { businessId, actorId, mode }).read(productId)).then(value => {
         if (current) { setReady(true); setSaved(value); setTyped(value ? displayCount(value.countedMilli) : ''); setMessage(value ? 'Saved on this device. Review against current stock before recording a correction.' : 'Count stock in the item’s selling unit.'); }
@@ -36,6 +37,7 @@ export function StockCount({ productId, observedMilli, snapshotAt }: { productId
     {open ? <View style={{ gap: 8 }}><Text style={{ color: palette.muted }}>Offline count draft{mode === 'demo' ? ' · Demo data' : ''}. Review and apply corrections in the authoritative POS.</Text>
       <TextInput accessibilityLabel="Counted quantity in selling units" keyboardType="decimal-pad" editable={!busy} maxLength={16} value={typed} onChangeText={setTyped} placeholder="Counted quantity" placeholderTextColor={palette.muted} style={{ minHeight:48, color:palette.ink, borderColor:palette.line, borderWidth:1, padding:12 }}/>
       <Text accessibilityLiveRegion="polite" style={{ color:palette.ink }}>{message}</Text>
+      {saved && (saved.observedMilli !== observedMilli || saved.snapshotAt !== snapshotAt) ? <Text style={{ color:palette.muted }}>Shop stock or snapshot changed since this draft was saved. Recount before applying any correction.</Text> : null}
       {saved ? <Text style={{ color:palette.muted }}>Saved count: {displayCount(saved.countedMilli)} · {saved.savedAt}</Text> : null}
       <Pressable accessibilityRole="button" accessibilityState={{ disabled:busy || !typed || !ready }} disabled={busy || !typed || !ready} onPress={() => void save()} style={actionStyle}><Text style={{ color:palette.ink }}>{busy ? 'Saving…' : 'Save count on this device'}</Text></Pressable>
       {saved ? <Pressable accessibilityRole="button" disabled={busy} onPress={() => void save(true)} style={actionStyle}><Text style={{ color:palette.ink }}>Remove saved count</Text></Pressable> : null}</View> : null}
