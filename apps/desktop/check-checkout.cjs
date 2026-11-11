@@ -97,7 +97,7 @@ async function stopBridge() {
     await button('Acknowledge item save').click();
     await readReady;
     for (const [id, name, unit, price, stock] of [['oil','Review oil','litre',10000,5000],['cloth','Review cloth','metre',1999,3000],['widget','Review widget','pcs',199,2000]]) {
-      await native('add_local_product', { request: { operationId: id, name, sku: id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });
+      await native('add_local_product', { request: { operationId: id, name, sku: id === 'widget' ? '001234' : id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });
     }
     await button('Refresh checkout').click();
     await page.getByText('Cash recorded: ₹0.00', { exact: true }).waitFor();
@@ -107,6 +107,27 @@ async function stopBridge() {
     await page.waitForFunction(before => globalThis.reviewCashierReads > before, readsBeforeRelease);
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(await button('Add Review oil to sale').count(), 1, 'An old background read replaced the newer explicit checkout snapshot');
+    // Physical scanners act as keyboards; exercise exact code input and review safety.
+    const search = label('Search items for sale');
+    await search.fill('001234'); await search.press('Enter');
+    assert.equal(await label('Quantity for Review widget (pcs)').inputValue(), '1');
+    await search.fill('001234'); await search.press('Enter');
+    assert.equal(await label('Quantity for Review widget (pcs)').inputValue(), '2');
+    await search.fill('1234'); await search.press('Enter');
+    await alert('No exact item code found').waitFor();
+    assert.equal(await label('Quantity for Review widget (pcs)').inputValue(), '2');
+    await button('Remove Review widget from sale').click();
+    await search.fill('RICE'); await search.press('Enter');
+    assert.equal(await label('Quantity for Review rice (kg)').inputValue(), '');
+    assert.equal(await label('Quantity for Review rice (kg)').evaluate(el => document.activeElement === el), true);
+    await label('Quantity for Review rice (kg)').fill('1');
+    await button('Review sale').click();
+    assert.equal(await button('Confirm sale').evaluate(el => document.activeElement === el), true);
+    const postsBeforeScanner = calls.filter(c => c.command === 'post_local_invoice').length;
+    await page.keyboard.type('001234'); await page.keyboard.press('Enter');
+    assert.equal(calls.filter(c => c.command === 'post_local_invoice').length, postsBeforeScanner);
+    await page.keyboard.press('Escape');
+    await button('Remove Review rice from sale').click();
     async function add(name, unit, quantity) {
       await label('Search items for sale').fill(name);
       await button(`Add ${name} to sale`).click();
@@ -122,7 +143,9 @@ async function stopBridge() {
     assert.equal(await button('Review sale').isDisabled(),true);
     await label('Quantity for Review rice (kg)').fill('1.250');
     holdPost = new Promise(resolve => { releasePost = resolve; }); losePost = true;
-    await button('Review sale').click(); await button('Confirm sale').click();
+    await button('Review sale').click();
+    await button('Confirm sale').focus(); await page.keyboard.press('Alt+Enter');
+    await page.keyboard.press('Alt+Enter');
     await page.getByText('Confirming sale on this PC…',{exact:true}).waitFor();
     assert.equal(await saved().count(),0);
     assert.equal((await native('list_local_invoices',{after:0})).length,0);
@@ -130,6 +153,9 @@ async function stopBridge() {
     releasePost(); holdPost = null;
     await alert('Posting reply was lost').waitFor();
     assert.equal(await saved().count(),0);
+    const attemptsBeforeScanner = calls.filter(call => call.command === 'post_local_invoice').length;
+    await button('Retry same sale').focus(); await page.keyboard.type('001234'); await page.keyboard.press('Enter');
+    assert.equal(calls.filter(call => call.command === 'post_local_invoice').length, attemptsBeforeScanner);
     await button('Retry same sale').click(); await saved().waitFor();
     const firstId = await label('Saved invoice ID').inputValue();
     assert.match(firstId,/^[a-f0-9-]{36}$/);
