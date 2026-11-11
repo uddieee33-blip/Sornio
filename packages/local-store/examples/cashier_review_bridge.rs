@@ -171,6 +171,9 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
         "save_local_customer" => {
             serde_json::to_value(w.save_customer(argument::<SaveCustomer>(a, "r")?)?)?
         }
+        "read_local_customer" => {
+            serde_json::to_value(w.read_customer(&argument::<String>(a, "customerId")?)?)?
+        }
         "find_local_customers" => serde_json::to_value(w.find_customers(
             &argument::<String>(a, "search")?,
             argument(a, "overdueOnly")?,

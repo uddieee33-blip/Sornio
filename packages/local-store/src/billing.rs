@@ -238,6 +238,9 @@ pub(crate) fn post_into(
     }
     let tax = tax_total(subtotal, request.tax_basis_points)?;
     let total = amount(subtotal as i128 + tax as i128)?;
+    if let Some(parts) = retail {
+        crate::payments::validate_allocation(parts, total, request.customer_id.as_deref(), true)?;
+    }
     let now: String = tx.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')", [], |r| {
         r.get(0)
     })?;

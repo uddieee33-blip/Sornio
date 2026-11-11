@@ -8,6 +8,8 @@ import { errorCode, errorMessage } from './access';
 import { formatPaiseInput, money, quantity } from './billing-types';
 import type { CashierState, Invoice, Product } from './billing-types';
 import { CustomerLookup } from './CustomerLookup';
+import type { ResolvedCreditCustomer } from './CustomerLookup';
+import { allocationPreview, paymentMethods, remainingForMethod } from './payment-allocation';
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
 import { findCode, scanNeedsQuantity } from './scan';
@@ -50,6 +52,10 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   const [tax, setTax] = useState('0');
   const [tender, setTender] = useState<'cash' | 'credit' | 'retail'>('cash');
   const [customer, setCustomer] = useState('');
+  const [creditCustomerSnapshot, setCreditCustomer] = useState<ResolvedCreditCustomer | null>(null);
+  const creditRefreshKey = `${customerRefreshToken}:${refreshToken}`;
+  const creditCustomer = creditCustomerSnapshot?.refreshToken === creditRefreshKey && creditCustomerSnapshot.customer.id === customer
+    ? creditCustomerSnapshot.customer : null;
   const [paymentAmounts, setPaymentAmounts] = useState({ cash: '', upi: '', card: '', credit: '' });
   const [paymentReferences, setPaymentReferences] = useState({ upi: '', card: '' });
   const retailRef = useRef<RetailRequest | null>(null);
@@ -125,6 +131,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           card: formatPaiseInput(parts.filter(p => p.method === 'card').reduce((a, p) => a + p.amountPaise, 0)),
           credit: formatPaiseInput(parts.filter(p => p.method === 'credit').reduce((a, p) => a + p.amountPaise, 0)),
         });
+        setPaymentReferences({ upi: parts.find(p => p.method === 'upi')?.reference ?? '', card: parts.find(p => p.method === 'card')?.reference ?? '' });
         setInvoicePayments(saved ? parts : []);
       } else {
         setInvoicePayments([]);
@@ -136,7 +143,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     } else {
       // Another window may have completed/canceled this checkpoint. Never turn
       // its old uncertain cart into a fresh sale with a new operation ID.
-      if (pendingRef.current) { setCart([]); setTax('0'); setTender('cash'); setCustomer(''); }
+      if (pendingRef.current) { setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); }
       remember(null); setInvoice(null); setInvoicePayments([]);
       setMessage(readyMessage);
     }
@@ -301,23 +308,23 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       }
       const computed = calculateNativeInvoice(lines, taxBasisPoints);
       let nextProblem = '';
-      if (tender === 'retail') {
-        const methods = ['cash', 'upi', 'card', 'credit'] as const;
-        const values = methods.map(method => parseFixedDecimal(paymentAmounts[method] || '0', 2));
-        const invalidIndex = values.findIndex(v => v === null || v < 0);
-        if (invalidIndex >= 0 || values.reduce<number>((n, v) => n + (v ?? 0), 0) !== computed.totalPaise) {
-          nextProblem = 'Split payment amounts must equal the invoice total exactly.';
-          fieldId = `split-${methods[invalidIndex >= 0 ? invalidIndex : 0]}`;
-        }
-        const credit = parseFixedDecimal(paymentAmounts.credit || '0', 2);
-        if (!nextProblem && credit && credit > 0 && (customer.length < 1 || customer.length > 80 || /[^A-Za-z0-9_-]/.test(customer))) {
-          nextProblem = 'Enter a customer reference when part of the split is customer credit.';
-          fieldId = 'sale-customer';
-        }
+      const allocation = allocationPreview(computed.totalPaise, paymentAmounts);
+      if (tender === 'retail' && (allocation.invalidMethod || allocation.remainingPaise !== 0)) {
+        nextProblem = allocation.invalidMethod ? 'Enter payment amounts with up to 2 decimals.'
+          : allocation.remainingPaise > 0 ? `Still to allocate: ${money(allocation.remainingPaise)}`
+          : `Allocated too much: ${money(-allocation.remainingPaise)}. Reduce a payment amount.`;
+        fieldId = `split-${allocation.invalidMethod ?? 'cash'}`;
       }
-      if (tender === 'credit' && (customer.length < 1 || customer.length > 80 || /[^A-Za-z0-9_-]/.test(customer))) {
-        nextProblem = 'Enter a customer reference for credit (letters, numbers, dash or underscore).';
-        fieldId = 'sale-customer';
+      const credit = tender === 'credit' ? computed.totalPaise : tender === 'retail' ? allocation.creditPaise : 0;
+      if (!nextProblem && credit > 0) {
+        if (!customer || creditCustomer?.id !== customer) {
+          nextProblem = 'Select an existing credit customer and wait for their credit details.';
+          fieldId = 'sale-customer';
+        } else if (creditCustomer.creditLimitPaise !== null
+          && (creditCustomer.availableCreditPaise === null || BigInt(credit) > BigInt(creditCustomer.availableCreditPaise))) {
+          nextProblem = 'This amount exceeds the customer’s available credit. Reduce credit or choose another payment method.';
+          fieldId = tender === 'retail' ? 'split-credit' : 'sale-customer';
+        }
       }
       return { preview: computed, problem: nextProblem, problemFieldId: fieldId };
     } catch (error: unknown) {
@@ -330,7 +337,9 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       }
       return { preview: null, problem: detail || 'Check the sale quantities and tax.', problemFieldId: fieldId };
     }
-  }, [cart, productMap, taxBasisPoints, tender, paymentAmounts, customer]);
+  }, [cart, productMap, taxBasisPoints, tender, paymentAmounts, customer, creditCustomer]);
+  const allocation = allocationPreview(preview?.totalPaise ?? 0, paymentAmounts);
+  const needsCreditCustomer = tender === 'credit' || (tender === 'retail' && allocation.creditPaise > 0);
   const blocked = disabled || busy || !ready || pending !== null || historyOpen;
   const normalizedSearch = search.trim().toLowerCase();
   const matching = useMemo(
@@ -525,9 +534,26 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
         })}</ul>
         <div className="checkout-options"><div><label htmlFor="sale-tax">Tax (%)</label><input id="sale-tax" inputMode="decimal" maxLength={8} value={tax} onChange={event => setTax(event.target.value)}/></div>
           <div><label htmlFor="sale-tender">Transaction type</label><select id="sale-tender" value={tender} onChange={event => setTender(event.target.value as 'cash' | 'credit' | 'retail')}><option value="cash">Cash</option><option value="retail">UPI / card / split</option><option value="credit">Credit</option></select></div>
-          {tender === 'credit' || tender === 'retail' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken + refreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">{tender === 'credit' ? 'Credit customer reference' : 'Customer reference for a credit split (optional)'}</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference. Required only when part of a split is customer credit.</small></div> : null}
+          {needsCreditCustomer ? <div><CustomerLookup disabled={blocked || review} refreshToken={creditRefreshKey} selectedId={customer} onSelect={setCustomer} onResolved={setCreditCustomer}/><label htmlFor="sale-customer">{tender === 'credit' ? 'Credit customer reference' : 'Customer reference for a credit split (optional)'}</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Choose an existing customer above. Their reference is filled automatically.</small></div> : null}
         </div>
-        {tender === 'retail' ? <fieldset><legend>Record retail payment amounts</legend><p>Cash is recorded as received. UPI and card stay pending and unverified. A reference or screenshot does not verify a transfer. Customer credit stays outstanding on the customer’s account until repaid.</p>{(['cash', 'upi', 'card', 'credit'] as const).map(method => <div key={method}><label htmlFor={`split-${method}`}>Split {method === 'upi' ? 'UPI' : method === 'credit' ? 'customer credit' : method} amount (₹)</label><input id={`split-${method}`} inputMode="decimal" maxLength={24} value={paymentAmounts[method]} onChange={e => setPaymentAmounts({ ...paymentAmounts, [method]: e.target.value })}/>{method === 'upi' || method === 'card' ? <><label htmlFor={`split-ref-${method}`}>{method === 'upi' ? 'UPI' : 'Card terminal'} reference (optional, unverified)</label><input id={`split-ref-${method}`} maxLength={80} value={paymentReferences[method]} onChange={e => setPaymentReferences({ ...paymentReferences, [method]: e.target.value })}/></> : null}</div>)}</fieldset> : null}
+        {tender === 'retail' ? <fieldset className="payment-allocation"><legend>Allocate payment</legend>
+          <div className="allocation-totals" aria-live="polite">
+            <p>Payable<strong>{preview ? money(preview.totalPaise) : '—'}</strong></p>
+            <p>Allocated<strong>{allocation.invalidMethod ? '—' : money(allocation.allocatedPaise)}</strong></p>
+            <p>{allocation.remainingPaise < 0 ? 'Overallocated' : 'Remaining'}<strong>{!preview || allocation.invalidMethod ? '—' : money(Math.abs(allocation.remainingPaise))}</strong></p>
+          </div>
+          <p className="muted">Enter what the customer pays with each method. UPI and card are recorded as unverified until manually reconciled.</p>
+          <div className="allocation-methods">{paymentMethods.map(method => {
+            const remaining = preview ? remainingForMethod(preview.totalPaise, paymentAmounts, method) : null;
+            const label = method === 'upi' ? 'UPI' : method === 'credit' ? 'customer credit' : method;
+            return <div key={method} className="allocation-method">
+              <label htmlFor={`split-${method}`}>Split {label} amount (₹)</label>
+              <div className="allocation-entry"><input id={`split-${method}`} inputMode="decimal" maxLength={24} placeholder="0.00" aria-invalid={allocation.invalidMethod === method} value={paymentAmounts[method]} onChange={e => setPaymentAmounts(previous => ({ ...previous, [method]: e.target.value }))}/>
+                <button type="button" className="quiet-button" aria-label={`Use remaining for ${label}`} disabled={remaining === null || remaining === 0} onClick={() => { if (remaining !== null) setPaymentAmounts(previous => ({ ...previous, [method]: formatPaiseInput(remaining) })); }}>Use remaining</button></div>
+              {method === 'upi' || method === 'card' ? <><label htmlFor={`split-ref-${method}`}>{method === 'upi' ? 'UPI' : 'Card terminal'} reference (optional, unverified)</label><input id={`split-ref-${method}`} maxLength={80} value={paymentReferences[method]} onChange={e => setPaymentReferences(previous => ({ ...previous, [method]: e.target.value }))}/></> : null}
+            </div>;
+          })}</div>
+        </fieldset> : null}
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>
         {preview ? <p className="checkout-total">Subtotal: {money(preview.subtotalPaise)} · Tax: {money(preview.taxPaise)}<br/><output aria-live="polite">Total: {money(preview.totalPaise)}</output></p> : null}
@@ -542,14 +568,14 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
               </li>;
             })}</ul>
             {tender === 'cash' ? <p>Payment allocation: Cash · {money(preview.totalPaise)}</p>
-              : tender === 'credit' ? <p>Payment allocation: Customer credit · Customer: {customer} · Credit amount: {money(preview.totalPaise)}</p>
+              : tender === 'credit' ? <p>Payment allocation: Customer credit · Customer: {creditCustomer?.name} ({customer}) · Credit amount: {money(preview.totalPaise)}</p>
               : <>
                 <ul aria-label="Review payment allocation">{splitBreakdown.map(part => <li key={part.method}><span>{part.label}</span><strong>{money(part.amountPaise)}</strong></li>)}</ul>
-                {customer ? <p>Customer reference: {customer}</p> : null}
+                {needsCreditCustomer ? <p>Customer: {creditCustomer?.name} · {customer} · Amount due: {money(allocation.creditPaise)}</p> : null}
               </>}
           </div>
           <p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified; any customer-credit amount stays outstanding on the customer’s account.'} Save this sale on this PC?</p>
-          <button type="button" disabled={disabled || busy} ref={confirmButton} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat && !event.nativeEvent.isComposing) postNew(); } }} onClick={postNew}>Confirm sale</button>
+          <button type="button" disabled={disabled || busy || Boolean(problem)} ref={confirmButton} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat && !event.nativeEvent.isComposing) postNew(); } }} onClick={postNew}>Confirm sale</button>
           <button type="button" className="quiet-button" disabled={disabled || busy} onClick={cancelReview}>Edit sale</button>
         </div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={() => startConfirmation(false)}>Review sale</button>}

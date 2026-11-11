@@ -22,7 +22,7 @@ commands.allow = ["read_local_session", "list_local_staff", "create_local_staff"
 [[permission]]
 identifier = "local-customers"
 description = "Native scoped customer profiles, ledger, statements and authorized cash collection/corrections. No SQL, paths, keys or digital settlement."
-commands.allow = ["save_local_customer", "find_local_customers", "prepare_local_credit", "post_local_credit", "pending_local_credit", "clear_local_credit", "link_local_credit", "read_customer_statement", "render_customer_statement"]
+commands.allow = ["save_local_customer", "find_local_customers", "read_local_customer", "prepare_local_credit", "post_local_credit", "pending_local_credit", "clear_local_credit", "link_local_credit", "read_customer_statement", "render_customer_statement"]
 
 [[permission]]
 identifier = "local-retail"

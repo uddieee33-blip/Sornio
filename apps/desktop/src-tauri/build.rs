@@ -15,6 +15,7 @@ fn main() {
             "export_local_settlements",
             "save_local_customer",
             "find_local_customers",
+            "read_local_customer",
             "prepare_local_credit",
             "post_local_credit",
             "pending_local_credit",

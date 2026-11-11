@@ -568,6 +568,46 @@ fn target(db: &Connection, s: &Option<Session>, username: &str) -> Result<String
     Ok(id)
 }
 
+/// Validate the complete allocation against the native total before mutating
+/// inventory or either ledger. The same guard also protects legacy posting.
+pub(crate) fn validate_allocation(
+    parts: &[PaymentPart],
+    total: i64,
+    customer: Option<&str>,
+    retail: bool,
+) -> Result<(), StoreError> {
+    if parts.is_empty()
+        || parts.len() > 8
+        || parts
+            .iter()
+            .try_fold(0i128, |v, p| sum(v, p.amount_paise as i128))?
+            != total as i128
+    {
+        return Err(StoreError::InvalidPayment);
+    }
+    let mut ids = BTreeSet::new();
+    let mut credit_parts = 0usize;
+    for p in parts {
+        if !billing::valid_id(&p.id)
+            || !ids.insert(&p.id)
+            || !(1..=MAX_VALUE).contains(&p.amount_paise)
+            || !matches!(p.method.as_str(), "cash" | "upi" | "card" | "credit")
+            || p.reference.len() > 80
+            || (!p.reference.is_empty() && reference(&p.reference).is_err())
+            || (p.method == "credit" && customer.is_none())
+        {
+            return Err(StoreError::InvalidPayment);
+        }
+        if p.method == "credit" {
+            credit_parts += 1;
+        }
+    }
+    if credit_parts > 1 || (retail && (credit_parts == 1) != customer.is_some()) {
+        return Err(StoreError::InvalidPayment);
+    }
+    Ok(())
+}
+
 pub(crate) fn invoice_posted(
     db: &Connection,
     s: &Option<Session>,
@@ -586,31 +626,14 @@ pub(crate) fn invoice_posted(
         reference: String::new(),
     }];
     let parts = parts.unwrap_or(&fallback);
-    if parts.is_empty()
-        || parts.len() > 8
-        || parts
-            .iter()
-            .try_fold(0i128, |v, p| sum(v, p.amount_paise as i128))?
-            != i.total_paise as i128
-    {
-        return Err(StoreError::InvalidPayment);
-    }
-    let mut ids = BTreeSet::new();
+    validate_allocation(
+        parts,
+        i.total_paise,
+        i.customer_id.as_deref(),
+        i.tender == Tender::Retail,
+    )?;
     let mut cash = 0i64;
-    let mut credit_parts = 0usize;
     for p in parts {
-        if !billing::valid_id(&p.id)
-            || !ids.insert(&p.id)
-            || !(1..=MAX_VALUE).contains(&p.amount_paise)
-            || !matches!(p.method.as_str(), "cash" | "upi" | "card" | "credit")
-            || (!p.reference.is_empty() && reference(&p.reference).is_err())
-            || (p.method == "credit" && i.customer_id.is_none())
-        {
-            return Err(StoreError::InvalidPayment);
-        }
-        if p.method == "credit" {
-            credit_parts += 1;
-        }
         one(
             db,
             "INSERT INTO local_retail_payments VALUES(?1,?2,?3,?4,?5,?6)",
@@ -628,11 +651,6 @@ pub(crate) fn invoice_posted(
                 .checked_add(p.amount_paise)
                 .ok_or(StoreError::InvalidPayment)?;
         }
-    }
-    if credit_parts > 1
-        || (i.tender == Tender::Retail && (credit_parts == 1) != i.customer_id.is_some())
-    {
-        return Err(StoreError::InvalidPayment);
     }
     if i.tender == Tender::Retail {
         // Cash is banked immediately; upi/card parts stay in receivables until
