@@ -18,7 +18,7 @@ pub mod payments;
 pub mod recovery;
 pub mod replication;
 
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 pub mod device;
 
 #[derive(Debug, Error)]
