@@ -66,7 +66,7 @@ export function SettingsScreen() {
         <Muted>{`${session?.device.platform ?? 'unknown'} · ${session?.device.enrollmentStatus ?? 'unregistered'}`}</Muted>
       </Section>
       <Section title="Local cache">
-        <Muted>Business records stay in memory for this session. They are not written to encrypted disk in Phase 1.</Muted>
+        <Muted>Business snapshots stay in memory. Stock-count drafts are saved separately in device secure storage; remove each saved count from its stock item. This cache action clears the session snapshot.</Muted>
         <ActionButton
           label={copy.wipeCache}
           onPress={() =>
