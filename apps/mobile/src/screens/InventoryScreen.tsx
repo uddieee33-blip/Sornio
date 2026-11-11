@@ -9,7 +9,7 @@ import { useCompanion } from '../app/CompanionContext';
 import { useTheme } from '../theme/ThemeProvider';
 
 export function InventoryScreen() {
-  const { snapshot } = useCompanion();
+  const { snapshot, session } = useCompanion();
   const { palette } = useTheme();
   const [query, setQuery] = useState('');
   const [lowOnly, setLowOnly] = useState(false);
@@ -52,7 +52,7 @@ export function InventoryScreen() {
               meta={formatQuantity(row.quantityMilli)}
             />
             {row.lowStock ? <Body>Low stock</Body> : <Muted>{copy.available}</Muted>}
-            <StockCount productId={row.sourceProductId} observedMilli={row.quantityMilli} snapshotAt={row.updatedAtIso}/>
+            <StockCount key={`${session?.mode}:${session?.business.businessId}:${session?.userId}:${row.sourceProductId}`} productId={row.sourceProductId} observedMilli={row.quantityMilli} snapshotAt={row.updatedAtIso}/>
             <Hairline />
           </View>
         ))
