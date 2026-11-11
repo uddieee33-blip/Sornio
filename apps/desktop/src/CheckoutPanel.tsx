@@ -107,7 +107,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     }
   });
   useEffect(() => {
-    if (!ready || busy || invoice || pending || historyOpen) return;
+    if (disabled || !ready || busy || invoice || pending || historyOpen) return;
     const searchEl = searchInput.current, active = document.activeElement;
     if (!searchEl) return;
     // A delayed read must not redirect typing from another form or an active
@@ -117,7 +117,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       if (active !== searchEl && (active.matches('input, textarea, select') || active instanceof HTMLElement && active.isContentEditable)) return;
     }
     searchEl.focus();
-  }, [ready, busy, invoice, pending, historyOpen]);
+  }, [disabled, ready, busy, invoice, pending, historyOpen]);
 
   const submitting = useRef(false);
   const readGeneration = useRef(0);

@@ -52,3 +52,10 @@
 .held-bill-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}.held-bill-toolbar label{margin:0;font-weight:500}.held-bill-toolbar input{width:240px;max-width:100%}
 .held-bills{border:1px solid var(--line);border-radius:16px;padding:18px;margin:16px 0}.held-bills ul{list-style:none;padding:0;margin:12px 0;max-height:360px;overflow:auto}.held-bills li{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}.held-bills li>div{min-width:0}.held-bills strong,.held-bills span{display:block;font-size:12px;line-height:1.8;overflow-wrap:anywhere}.held-bills li button{margin:4px}.held-bill-context{font-size:12px;color:var(--muted)}.held-bill-warnings{border-left:3px solid #a47d2c;background:#faf7ee;padding:14px 18px;margin:14px 0;font-size:12px;line-height:1.7}
 @media(max-width:680px){.held-bills li{align-items:start;flex-direction:column}.held-bill-toolbar input{flex:1;min-width:160px}}
+
+[hidden] { display: none !important; }
+.rail nav button { text-align: left; border: 0; background: transparent; color: inherit; border-radius: 12px; padding: 12px 14px; width: 100%; }
+.rail nav button.selected { background: #e8efe9; color: #173b2b; font-weight: 700; }
+.restock-workflow { margin: 20px 0; padding: 20px; border: 1px solid #dce1da; border-radius: 12px; }
+.restock-workflow ul { max-height: 280px; overflow: auto; }
+#workspace-page-title:focus { outline: none; }

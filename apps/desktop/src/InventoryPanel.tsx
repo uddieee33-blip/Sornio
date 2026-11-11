@@ -3,6 +3,7 @@ import type { FormEvent } from 'react';
 import { invoke } from './native';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import { errorCode, errorMessage } from './access';
+import { stockAlerts } from '../../../packages/business-domain/src/stock-alerts';
 import { money, quantity } from './billing-types';
 import type { Product } from './billing-types';
 
@@ -19,6 +20,9 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   const [selection, setSelection] = useState('');
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');
+  const [restockUnit, setRestockUnit] = useState('pcs');
+  const [restockTarget, setRestockTarget] = useState('5');
+  const [restockOnly, setRestockOnly] = useState(false);
   const [search, setSearch] = useState('');
   const [ready, setReady] = useState(false);
   const [openedToken, setOpenedToken] = useState(-1);
@@ -140,13 +144,23 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   }
 
   const blocked = disabled || busy || !ready || openedToken !== refreshToken;
-  const matching = products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
+  const targetMilli = parseFixedDecimal(restockTarget, 3);
+  const alerts = targetMilli !== null && targetMilli > 0 ? stockAlerts(products, restockUnit, targetMilli) : [];
+  const restockIds = new Set(alerts.map(a => a.product.id));
+  const matching = products.filter(p => !restockOnly || restockIds.has(p.id)).filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
   const shown = matching.slice(0, 100);
   return <section className="panel inventory-panel" aria-labelledby="inventory-heading" aria-busy={busy}>
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
     <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {pending ? <div className="pending-stock"><p>Item save ID: <span className="operation-id">{pending.request.operationId}</span></p>{savedInventory ? <><p>Item change saved. The receipt remains on this PC until acknowledged.</p><button type="button" disabled={busy || disabled} onClick={() => void acknowledge()}>Acknowledge item save</button></> : <><p>This save is waiting for confirmation. Retry uses the same save ID and values.</p><button type="button" disabled={busy || disabled} onClick={() => void submit(pending)}>Retry item save</button></>}</div> : null}
+    <section className="restock-workflow" aria-label="Restock planning">
+      <h3>What needs restocking?</h3><p>Choose one unit and a target. This list uses saved stock counts; it does not place a supplier order or change inventory.</p>
+      <label htmlFor="restock-unit">Stock unit</label><select id="restock-unit" value={restockUnit} onChange={e => setRestockUnit(e.target.value)}>{['pcs', 'kg', 'litre', 'metre'].map(unit => <option key={unit}>{unit}</option>)}</select>
+      <label htmlFor="restock-target">Target quantity in {restockUnit}</label><input id="restock-target" inputMode="decimal" value={restockTarget} onChange={e => setRestockTarget(e.target.value)}/>
+      {targetMilli === null || targetMilli <= 0 ? <p role="alert">Enter a positive target with up to three decimals.</p> : <><p role="status">{alerts.length} items below target{!ready ? ' · refresh counts before ordering' : ''}</p><ul>{alerts.slice(0,100).map(({product,missingMilli,status}) => <li key={product.id}>{product.name} · {product.sku || 'No code'} · {quantity(product.stockMilli)} {product.unit} left · add {quantity(missingMilli)} {product.unit}{status === 'empty' ? ' · Out of stock' : ''}</li>)}</ul></>}
+      <label><input type="checkbox" checked={restockOnly} onChange={e => setRestockOnly(e.target.checked)}/> Show these items in stock table</label>
+    </section>
     <div className="inventory-forms">
       {canAdd ? <form onSubmit={add} aria-label="Add local item"><fieldset disabled={blocked || pending !== null}>
         <legend>Add an item</legend>
