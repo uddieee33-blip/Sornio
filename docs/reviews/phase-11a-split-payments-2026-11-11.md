@@ -106,3 +106,9 @@ No known new source defect remains from the executable checks. Rust compilation 
 Before integrating this branch, run the focused native tests and native/browser checkout on a capable host; Windows acceptance remains a separate release gate. Continue independent implementation meanwhile.
 
 Recommended next implementation assignment: **offline held bills / resume sale**, using durable drafts with explicit cashier ownership, never deducting stock or creating receivables until the existing checkout commits. Keep this work on a separate branch.
+
+## Publication result
+
+Implementation commit: `ffe0561e6fd77cdd91d88ecf463832d86a806e22` (parent is the exact preserved barcode candidate). Git push failed with `could not read Username for 'https://github.com': No such device or address`. The connected GitHub tools can create replacement commit objects but do not expose raw Git-object upload or original author/committer timestamps; they cannot publish this exact unpublished ancestry. No substitute branch/history was manufactured.
+
+The final local branch includes a documentation-only follow-up recording this limitation. A portable bundle containing the feature branch and its recoverable ancestry is supplied with the handoff. It can be cloned into a new folder and pushed from an authenticated terminal; do not extract it over an existing working checkout. No Windows executable is included.
