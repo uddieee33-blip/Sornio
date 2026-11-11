@@ -33,6 +33,7 @@ impl Store {
  fn prepare_restaurant_inner(&mut self,r:Prepare)->Result<payments::Request,StoreError>{
   let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
   let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
+  crate::kitchen::authorize_order(&tx,&self.1,&r.order_id)?;
   let old:Option<(String,String)>=tx.query_row("SELECT actor_id,request FROM local_restaurant_bindings WHERE order_id=?1",[&r.order_id],|q|Ok((q.get(0)?,q.get(1)?))).optional()?;
   if old.is_some() {let c=crate::restaurant_recovery::current_request(&tx,&r.order_id,&s.actor_id)?;return Ok(c);}
   let revision:i64=tx.query_row("SELECT revision FROM local_restaurant_orders WHERE id=?1 AND state IN ('open','pending_bill') AND settled_invoice IS NULL",[&r.order_id],|q|q.get(0))?;

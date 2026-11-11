@@ -368,6 +368,8 @@ fn validate(db: &Connection) -> Result<Manifest, StoreError> {
     let expected_schema = if version == SCHEMA_VERSION {
         let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
         schema(&reference.0)?
+    } else if version == 16 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v16-schema.json"))?
     } else if version == 15 {
         serde_json::from_str(include_str!("../fixtures/recovery-v15-schema.json"))?
     } else if version == 14 {

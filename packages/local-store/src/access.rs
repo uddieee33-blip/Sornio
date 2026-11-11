@@ -797,6 +797,9 @@ impl Workspace {
         self.require(Permission::Settings)?;
         self.store.takeover_payment(id, why)
     }
+    pub fn kitchen_view(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.kitchen_view()}
+    pub fn kitchen_action(&mut self,a:crate::kitchen::Action)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.kitchen_action(a)}
+    pub fn restaurant_workspace(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_workspace()}
     pub fn restaurant_status(&self,order:String)->Result<Option<crate::restaurant_recovery::Status>,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_status(&order)}
     pub fn edit_restaurant(&mut self,order:String,expected:i64)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.edit_restaurant(&order,expected)}
     pub fn amend_restaurant(&mut self,r:crate::restaurant_recovery::Amendment)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.amend_restaurant(r)}

@@ -1,0 +1,9 @@
+CREATE TABLE local_kitchen_corrections (id TEXT PRIMARY KEY NOT NULL, order_id TEXT NOT NULL REFERENCES local_restaurant_orders(id), actor_id TEXT NOT NULL REFERENCES local_principals(id), request TEXT NOT NULL, changes TEXT NOT NULL, created_at TEXT NOT NULL DEFAULT(strftime('%Y-%m-%dT%H:%M:%fZ','now')));
+CREATE TRIGGER local_kitchen_corrections_no_update BEFORE UPDATE ON local_kitchen_corrections BEGIN SELECT RAISE(ABORT,'Kitchen history is immutable'); END;
+CREATE TRIGGER local_kitchen_corrections_no_delete BEFORE DELETE ON local_kitchen_corrections BEGIN SELECT RAISE(ABORT,'Kitchen history is immutable'); END;
+CREATE TABLE local_kitchen_destinations (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, layout TEXT NOT NULL CHECK(layout IN ('58mm','80mm','a4')));
+CREATE TABLE local_kitchen_print_jobs (id TEXT PRIMARY KEY NOT NULL, ticket_id TEXT NOT NULL, ticket_kind TEXT NOT NULL CHECK(ticket_kind IN ('kot','correction')), destination_id TEXT NOT NULL REFERENCES local_kitchen_destinations(id), actor_id TEXT NOT NULL REFERENCES local_principals(id), payload TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN ('requested','operator_confirmed','operator_cancelled')));
+CREATE TRIGGER local_kitchen_print_job_identity BEFORE UPDATE ON local_kitchen_print_jobs WHEN NEW.id<>OLD.id OR NEW.ticket_id<>OLD.ticket_id OR NEW.ticket_kind<>OLD.ticket_kind OR NEW.destination_id<>OLD.destination_id OR NEW.actor_id<>OLD.actor_id OR NEW.payload<>OLD.payload OR OLD.state<>'requested' BEGIN SELECT RAISE(ABORT,'Print identity is immutable'); END;
+CREATE TRIGGER local_kitchen_print_jobs_no_delete BEFORE DELETE ON local_kitchen_print_jobs BEGIN SELECT RAISE(ABORT,'Preserve print history'); END;
+PRAGMA user_version=17;
+CREATE TABLE local_restaurant_assignments (order_id TEXT PRIMARY KEY NOT NULL REFERENCES local_restaurant_orders(id), actor_id TEXT NOT NULL REFERENCES local_principals(id));

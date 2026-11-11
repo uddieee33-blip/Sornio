@@ -33,6 +33,7 @@ impl Store {
  pub(crate) fn restaurant_preparation_refused(&mut self,r:&crate::restaurant_checkout::Prepare,reason:&str)->Result<(),StoreError>{
   if !billing::valid_id(&r.operation_id){return Ok(());}
   let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
+  crate::kitchen::authorize_order(&tx,&self.1,&r.order_id)?;
   if tx.query_row("SELECT EXISTS(SELECT 1 FROM local_restaurant_control WHERE order_id=?1)",[&r.order_id],|q|q.get::<_,bool>(0))?{return Ok(());}
   let revision:i64=tx.query_row("SELECT revision FROM local_restaurant_orders WHERE id=?1 AND settled_invoice IS NULL AND state IN ('open','pending_bill')",[&r.order_id],|q|q.get(0))?;
   if revision!=r.expected_revision{return Err(StoreError::Conflict);}
