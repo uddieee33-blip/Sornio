@@ -58,3 +58,5 @@
 
 .grocery-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin: 20px 0; }
 .grocery-filters label { flex: 1 1 160px; }
+
+.restaurant-grid {display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.restaurant-table,.restaurant-ticket {border:1px solid #d7dfd6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}.restaurant-panel input,.restaurant-panel select {max-width:360px}.restaurant-panel h3 {margin-top:24px}.restaurant-panel button {min-height:44px}

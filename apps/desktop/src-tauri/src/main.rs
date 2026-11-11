@@ -388,6 +388,10 @@ async fn read_identity_audit(
 }
 
 #[tauri::command]
+async fn read_restaurant(scope: Scope, state: tauri::State<'_, LocalState>) -> Result<sornio_local_store::restaurant::View, CommandError> { with_scoped_workspace(state, scope, |w| w.restaurant_view()).await }
+#[tauri::command]
+async fn change_restaurant(scope: Scope, r: sornio_local_store::restaurant::Request, state: tauri::State<'_, LocalState>) -> Result<(), CommandError> { with_scoped_workspace(state, scope, move |w| w.restaurant_action(r)).await }
+#[tauri::command]
 async fn list_local_held_bills(scope: Scope, state: tauri::State<'_, LocalState>) -> Result<Vec<sornio_local_store::held_bills::Bill>, CommandError> {
     with_scoped_workspace(state, scope, |w| w.list_held_bills()).await
 }
@@ -790,6 +794,8 @@ fn main() {
             restore_local_backup,
             change_local_password,
             reset_local_staff_password,
+            read_restaurant,
+            change_restaurant,
             list_local_held_bills,
             mutate_local_held_bill,
             prepare_local_held_checkout,

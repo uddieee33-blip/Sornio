@@ -12,6 +12,7 @@ pub mod checkout;
 pub mod customers;
 pub mod identity;
 pub mod held_bills;
+pub mod restaurant;
 pub mod inventory_recovery;
 pub mod lan_authority;
 pub mod payments;
@@ -154,7 +155,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 13;
+const SCHEMA_VERSION: i64 = 14;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -264,6 +265,7 @@ impl Store {
             if locked_version < 13 {
                 held_bills::migrate(&tx)?;
             }
+            if locked_version < 14 { restaurant::migrate(&tx)?; }
             tx.commit()?;
         }
         Ok(Self(db, None))

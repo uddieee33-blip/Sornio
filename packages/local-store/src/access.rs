@@ -797,6 +797,8 @@ impl Workspace {
         self.require(Permission::Settings)?;
         self.store.takeover_payment(id, why)
     }
+    pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> { self.require(Permission::Sell)?; self.store.restaurant_view() }
+    pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> { self.require(Permission::Sell)?; self.store.restaurant_action(r) }
     pub fn list_held_bills(&self) -> Result<Vec<crate::held_bills::Bill>, StoreError> {
         self.require(Permission::Sell)?;
         self.store.list_held_bills()

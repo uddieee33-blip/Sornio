@@ -6,6 +6,8 @@ fn main() {
             "export_local_backup",
             "preview_local_backup",
             "restore_local_backup",
+            "read_restaurant",
+            "change_restaurant",
             "list_local_held_bills",
             "mutate_local_held_bill",
             "prepare_local_held_checkout",

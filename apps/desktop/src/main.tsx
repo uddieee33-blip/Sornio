@@ -6,6 +6,7 @@ import { invoke } from './native';
 import type { PortalId } from '../../../packages/business-domain/src/business-types';
 import { dailyWorkspace } from '../../../packages/business-domain/src/daily-workspace';
 import { businessProfile, hasCapability } from '../../../packages/business-domain/src/business-profiles.ts';
+import { RestaurantPanel } from './RestaurantPanel';
 import { GroceryStockPanel } from './GroceryStockPanel';
 import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
@@ -22,7 +23,7 @@ import type { Draft, Snapshot } from './workspace-types';
 import brandIcon from '../../../public/brand/icon-192.png';
 import './style.css';
 
-type WorkArea = 'counter' | 'stock' | 'customers' | 'operations' | 'settings';
+type WorkArea = 'restaurant' | 'counter' | 'stock' | 'customers' | 'operations' | 'settings';
 const empty: Draft = { businessName: '', businessType: 'kirana', note: '' };
 const types = [
   ['kirana', 'Grocery & kiryana'], ['general', 'General store'], ['cafe', 'Café & restaurant'],
@@ -158,7 +159,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
       <nav aria-label="Workspace">{([
-        ['counter', 'Counter'], ['stock', businessProfile(draft.businessType).stockLabel], ['customers', businessProfile(draft.businessType).customerLabel],
+        ...(snapshot?.draft?.businessType === 'cafe' ? [['restaurant', 'Tables & kitchen'] as const] : []), ['counter', 'Counter'], ['stock', businessProfile(draft.businessType).stockLabel], ['customers', businessProfile(draft.businessType).customerLabel],
         ['operations', 'Payments & closing'], ['settings', owner ? 'Business & settings' : 'My access'],
       ] as const).map(([id, label]) => <a key={id} href={`#area-${id}`} className={workArea === id ? 'selected' : ''}
         aria-current={workArea === id ? 'location' : undefined} onClick={event => {
@@ -174,6 +175,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
         <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your counter.<br/><span>Ready for the day.</span></h1><p className="intro">Scan an item, prepare a bill, and keep serving.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace" onKeyDown={event => { if (event.key === 'Escape' && !busy) { event.preventDefault(); dismissPrompt('lock'); } }}><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button ref={continueLockRef} className="quiet-button" type="button" disabled={busy} onClick={() => dismissPrompt('lock')}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
+        {native && snapshot?.draft?.businessType === 'cafe' ? <section id="area-restaurant" tabIndex={-1} aria-label="Restaurant"><RestaurantPanel owner={owner} disabled={busy}/></section> : null}
         <section id="area-counter" tabIndex={-1} aria-label="Counter">{native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}</section>
         <section id="area-stock" tabIndex={-1} aria-label="Items and stock">{native && snapshot && hasCapability(draft.businessType, 'stockReview') ? <GroceryStockPanel refreshToken={inventoryRefresh} onLocked={onLocked}/> : null}{native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}</section>
         <section id="area-customers" tabIndex={-1} aria-label="Customers and udhaar">{native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}</section>
