@@ -8,6 +8,7 @@ const config = getDefaultConfig(projectRoot);
 config.watchFolders = [
   path.resolve(workspaceRoot, 'packages/mobile-contracts'),
   path.resolve(workspaceRoot, 'packages/mobile-design'),
+  path.resolve(workspaceRoot, 'packages/business-domain'),
 ];
 config.resolver.disableHierarchicalLookup = true;
 config.resolver.nodeModulesPaths = [path.resolve(projectRoot, 'node_modules')];
