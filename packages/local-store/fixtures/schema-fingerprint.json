@@ -187,6 +187,28 @@
    "request:TEXT:NOTNULL:0",
    "payload:TEXT:NOTNULL:0"
   ],
+  "local_kitchen_corrections": [
+   "id:TEXT:NOTNULL:1",
+   "order_id:TEXT:NOTNULL:0",
+   "actor_id:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0",
+   "changes:TEXT:NOTNULL:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_kitchen_destinations": [
+   "id:TEXT:NOTNULL:1",
+   "name:TEXT:NOTNULL:0",
+   "layout:TEXT:NOTNULL:0"
+  ],
+  "local_kitchen_print_jobs": [
+   "id:TEXT:NOTNULL:1",
+   "ticket_id:TEXT:NOTNULL:0",
+   "ticket_kind:TEXT:NOTNULL:0",
+   "destination_id:TEXT:NOTNULL:0",
+   "actor_id:TEXT:NOTNULL:0",
+   "payload:TEXT:NOTNULL:0",
+   "state:TEXT:NOTNULL:0"
+  ],
   "local_lan_devices": [
    "id:TEXT:NOTNULL:1",
    "business_id:TEXT:NOTNULL:0",
@@ -238,6 +260,10 @@
    "singleton:INTEGER:null:1",
    "business_id:TEXT:NOTNULL:0",
    "generation:TEXT:NOTNULL:0"
+  ],
+  "local_restaurant_assignments": [
+   "order_id:TEXT:NOTNULL:1",
+   "actor_id:TEXT:NOTNULL:0"
   ],
   "local_restaurant_attempts": [
    "id:TEXT:NOTNULL:1",
@@ -543,6 +569,18 @@
   ],
   [
    "local_invoices_no_UPDATE"
+  ],
+  [
+   "local_kitchen_corrections_no_delete"
+  ],
+  [
+   "local_kitchen_corrections_no_update"
+  ],
+  [
+   "local_kitchen_print_job_identity"
+  ],
+  [
+   "local_kitchen_print_jobs_no_delete"
   ],
   [
    "local_recovery_audit_no_delete"

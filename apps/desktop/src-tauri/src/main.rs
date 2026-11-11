@@ -388,6 +388,12 @@ async fn read_identity_audit(
 }
 
 #[tauri::command]
+async fn kitchen_view(scope:Scope,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::kitchen::Document,CommandError>{with_scoped_workspace(state,scope,|w|w.kitchen_view()).await}
+#[tauri::command]
+async fn kitchen_action(scope:Scope,a:sornio_local_store::kitchen::Action,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::kitchen::Document,CommandError>{with_scoped_workspace(state,scope,move |w|w.kitchen_action(a)).await}
+#[tauri::command]
+async fn restaurant_workspace(scope:Scope,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::kitchen::Document,CommandError>{with_scoped_workspace(state,scope,|w|w.restaurant_workspace()).await}
+#[tauri::command]
 async fn restaurant_status(scope:Scope,order:String,state:tauri::State<'_,LocalState>)->Result<Option<sornio_local_store::restaurant_recovery::Status>,CommandError>{with_scoped_workspace(state,scope,move |w|w.restaurant_status(order)).await}
 #[tauri::command]
 async fn edit_restaurant(scope:Scope,order:String,expected:i64,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::restaurant_recovery::Status,CommandError>{with_scoped_workspace(state,scope,move |w|w.edit_restaurant(order,expected)).await}
@@ -810,6 +816,9 @@ fn main() {
             restore_local_backup,
             change_local_password,
             reset_local_staff_password,
+            kitchen_view,
+            kitchen_action,
+            restaurant_workspace,
             restaurant_status,
             edit_restaurant,
             amend_restaurant,
