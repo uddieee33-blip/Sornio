@@ -45,6 +45,9 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::HeldBillConflict => "held_bill_conflict",
+            StoreError::InvalidHeldBill => "invalid_held_bill",
+            StoreError::HeldBillLimit => "held_bill_limit",
             StoreError::InvoiceMissing => "invoice_missing",
             StoreError::BackupStorage => "backup_storage",
             StoreError::InvalidBackup => "invalid_backup",
@@ -382,6 +385,19 @@ async fn read_identity_audit(
     state: tauri::State<'_, LocalState>,
 ) -> Result<Vec<AuditEntry>, CommandError> {
     with_scoped_workspace(state, scope, move |w| w.identity_audit(after)).await
+}
+
+#[tauri::command]
+async fn list_local_held_bills(scope: Scope, state: tauri::State<'_, LocalState>) -> Result<Vec<sornio_local_store::held_bills::Bill>, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.list_held_bills()).await
+}
+#[tauri::command]
+async fn mutate_local_held_bill(scope: Scope, r: sornio_local_store::held_bills::Mutation, state: tauri::State<'_, LocalState>) -> Result<sornio_local_store::held_bills::Resumed, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.mutate_held_bill(r)).await
+}
+#[tauri::command]
+async fn prepare_local_held_checkout(scope: Scope, r: sornio_local_store::held_bills::Prepare, state: tauri::State<'_, LocalState>) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.prepare_held_checkout(r)).await
 }
 
 #[tauri::command]
@@ -774,6 +790,9 @@ fn main() {
             restore_local_backup,
             change_local_password,
             reset_local_staff_password,
+            list_local_held_bills,
+            mutate_local_held_bill,
+            prepare_local_held_checkout,
             prepare_local_retail,
             post_local_retail,
             clear_local_retail,

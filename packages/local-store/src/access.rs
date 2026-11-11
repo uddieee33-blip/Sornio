@@ -797,6 +797,18 @@ impl Workspace {
         self.require(Permission::Settings)?;
         self.store.takeover_payment(id, why)
     }
+    pub fn list_held_bills(&self) -> Result<Vec<crate::held_bills::Bill>, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.list_held_bills()
+    }
+    pub fn mutate_held_bill(&mut self, r: crate::held_bills::Mutation) -> Result<crate::held_bills::Resumed, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.mutate_held_bill(r)
+    }
+    pub fn prepare_held_checkout(&mut self, r: crate::held_bills::Prepare) -> Result<(), StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.prepare_held_checkout(r)
+    }
     pub fn prepare_checkout(
         &mut self,
         request: crate::billing::PostInvoice,

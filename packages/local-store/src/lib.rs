@@ -11,6 +11,7 @@ pub mod catalog;
 pub mod checkout;
 pub mod customers;
 pub mod identity;
+pub mod held_bills;
 pub mod inventory_recovery;
 pub mod lan_authority;
 pub mod payments;
@@ -22,6 +23,12 @@ pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("This held bill changed or is already in checkout. Refresh checkout and held bills before continuing.")]
+    HeldBillConflict,
+    #[error("This held bill cannot be read safely. Check its items and amounts; keep the original database for recovery.")]
+    InvalidHeldBill,
+    #[error("You have 100 held bills. Resume or discard one before saving another.")]
+    HeldBillLimit,
     #[error("That saved invoice could not be found. Check its ID and reopen the receipt.")]
     InvoiceMissing,
     #[error("The encrypted backup could not be read or written. Keep the original files.")]
@@ -147,7 +154,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 12;
+const SCHEMA_VERSION: i64 = 13;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -253,6 +260,9 @@ impl Store {
             }
             if locked_version < 12 {
                 lan_authority::migrate(&tx)?;
+            }
+            if locked_version < 13 {
+                held_bills::migrate(&tx)?;
             }
             tx.commit()?;
         }

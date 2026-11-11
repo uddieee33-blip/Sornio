@@ -294,7 +294,7 @@ fn overdue(db: &Connection, id: &str) -> Result<i128, StoreError> {
     }
     Ok(total)
 }
-fn customer(db: &Connection, id: &str) -> Result<Customer, StoreError> {
+pub(crate) fn customer(db: &Connection, id: &str) -> Result<Customer, StoreError> {
     if !valid_id(id) {
         return Err(StoreError::InvalidCustomer);
     }

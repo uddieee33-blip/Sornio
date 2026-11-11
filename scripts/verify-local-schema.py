@@ -60,6 +60,7 @@ MIGRATION_ORDER = [
     "inventory_recovery",
     "recovery",
     "lan_authority",
+    "held_bills",
 ]
 
 # Schema version each module leaves behind, read off lib.rs's `if version < N`
@@ -75,6 +76,7 @@ MODULE_VERSION = {
     "inventory_recovery": 10,
     "recovery": 11,
     "lan_authority": 12,
+    "held_bills": 13,
 }
 
 failures: list[str] = []
