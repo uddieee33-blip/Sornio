@@ -135,6 +135,7 @@ jobs:
           set -o pipefail
           npm ci --prefix apps/desktop
           npm run build --prefix apps/desktop
+          node --test apps/desktop/test-scan.mjs
           npm run dev --prefix apps/desktop > /tmp/sornio-desktop-server.log 2>&1 &
           desktop_pid=$!
           trap 'kill "$desktop_pid" || true' EXIT

@@ -49,6 +49,8 @@ async function stopBridge() {
     const errors = [], calls = [];
     page.on('pageerror', error => errors.push(error.message));
     let holdPost, releasePost, losePost = false, losePrepare = false, failRead = false, failAfterPost = false, failInventoryRead = false;
+    // UI-only malformed-response fixture; normal catalog creation enforces unique SKUs.
+    let injectAmbiguousCode = false;
     let holdNextRead = false, releaseRead, readHeld;
     const heldRead = new Promise(resolve => { releaseRead = resolve; });
     const readReady = new Promise(resolve => { readHeld = resolve; });
@@ -58,6 +60,10 @@ async function stopBridge() {
       if (command === 'list_local_products' && failInventoryRead) { failInventoryRead = false; return { ok: false, error: { code: 'unavailable', message: 'Injected inventory read interruption.' } }; }
       if (command === 'read_cashier_state' && failRead) { failRead = false; return { ok: false, error: { code: 'unavailable', message: 'Injected read interruption.' } }; }
       const reply = await rpc(command, args);
+      if (command === 'read_cashier_state' && injectAmbiguousCode && reply.ok) {
+        const product = reply.value.products.find(p => p.sku === '001234');
+        if (product) reply.value.products.push({ ...product, id: 'synthetic-duplicate', name: 'Synthetic duplicate' });
+      }
       if (command === 'read_cashier_state' && holdNextRead) {
         holdNextRead = false; readHeld(); await heldRead;
       }
@@ -96,8 +102,8 @@ async function stopBridge() {
     await page.getByText('Saved item changes to this PC.', { exact: true }).waitFor();
     await button('Acknowledge item save').click();
     await readReady;
-    for (const [id, name, unit, price, stock] of [['oil','Review oil','litre',10000,5000],['cloth','Review cloth','metre',1999,3000],['widget','Review widget','pcs',199,2000]]) {
-      await native('add_local_product', { request: { operationId: id, name, sku: id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });
+    for (const [id, name, unit, price, stock] of [['oil','Review oil','litre',10000,5000],['cloth','Review cloth','metre',1999,3000],['widget','Review widget','pcs',199,2000],['burst','Review burst','pcs',199,10000]]) {
+      await native('add_local_product', { request: { operationId: id, name, sku: id === 'widget' ? '001234' : id.toUpperCase(), unit, unitPricePaise: price, openingStockMilli: stock } });
     }
     await button('Refresh checkout').click();
     await page.getByText('Cash recorded: ₹0.00', { exact: true }).waitFor();
@@ -107,6 +113,53 @@ async function stopBridge() {
     await page.waitForFunction(before => globalThis.reviewCashierReads > before, readsBeforeRelease);
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
     assert.equal(await button('Add Review oil to sale').count(), 1, 'An old background read replaced the newer explicit checkout snapshot');
+    // Physical scanners act as keyboards; exercise exact code input and review safety.
+    const search = label('Search items for sale');
+    await search.fill('001234'); await search.press('Enter');
+    assert.equal(await label('Quantity for Review widget (pcs)').inputValue(), '1');
+    await search.fill('001234'); await search.press('Enter');
+    assert.equal(await label('Quantity for Review widget (pcs)').inputValue(), '2');
+    await search.fill('1234'); await search.press('Enter');
+    await alert('No exact item code found').waitFor();
+    assert.equal(await label('Quantity for Review widget (pcs)').inputValue(), '2');
+    await button('Remove Review widget from sale').click();
+    // A malformed duplicated catalog response must never choose either item.
+    injectAmbiguousCode = true;
+    await button('Refresh checkout').click();
+    await button('Add Synthetic duplicate to sale').waitFor();
+    await search.fill('001234'); await search.press('Enter');
+    await alert('This code matches more than one item').waitFor();
+    assert.equal(await label('Quantity for Review widget (pcs)').count(), 0);
+    assert.equal(await label('Quantity for Synthetic duplicate (pcs)').count(), 0);
+    assert.equal((await native('list_local_invoices', { after: 0 })).length, 0);
+    injectAmbiguousCode = false;
+    await button('Refresh checkout').click();
+    await button('Add Synthetic duplicate to sale').waitFor({ state: 'detached' });
+
+    // Simulate a burst of keyboard-wedge scans, without UI-state waits between scans.
+    await search.fill(''); await search.focus();
+    for (let i = 0; i < 5; i++) { await page.keyboard.type('BURST'); await page.keyboard.press('Enter'); }
+    assert.equal(await label('Quantity for Review burst (pcs)').inputValue(), '5');
+    await button('Remove Review burst from sale').click();
+    for (const [code, name, unit, amount] of [['OIL','Review oil','litre','1.25'],['CLOTH','Review cloth','metre','0.5']]) {
+      await search.fill(code); await search.press('Enter');
+      const quantity = label(`Quantity for ${name} (${unit})`);
+      assert.equal(await quantity.inputValue(), '');
+      assert.equal(await quantity.evaluate(el => document.activeElement === el), true);
+      await quantity.fill(amount);
+      await button(`Remove ${name} from sale`).click();
+    }
+    await search.fill('RICE'); await search.press('Enter');
+    assert.equal(await label('Quantity for Review rice (kg)').inputValue(), '');
+    assert.equal(await label('Quantity for Review rice (kg)').evaluate(el => document.activeElement === el), true);
+    await label('Quantity for Review rice (kg)').fill('1');
+    await button('Review sale').click();
+    assert.equal(await button('Confirm sale').evaluate(el => document.activeElement === el), true);
+    const postsBeforeScanner = calls.filter(c => c.command === 'post_local_invoice').length;
+    await page.keyboard.type('001234'); await page.keyboard.press('Enter');
+    assert.equal(calls.filter(c => c.command === 'post_local_invoice').length, postsBeforeScanner);
+    await page.keyboard.press('Escape');
+    await button('Remove Review rice from sale').click();
     async function add(name, unit, quantity) {
       await label('Search items for sale').fill(name);
       await button(`Add ${name} to sale`).click();
@@ -122,7 +175,9 @@ async function stopBridge() {
     assert.equal(await button('Review sale').isDisabled(),true);
     await label('Quantity for Review rice (kg)').fill('1.250');
     holdPost = new Promise(resolve => { releasePost = resolve; }); losePost = true;
-    await button('Review sale').click(); await button('Confirm sale').click();
+    await button('Review sale').click();
+    await button('Confirm sale').focus(); await page.keyboard.press('Alt+Enter');
+    await page.keyboard.press('Alt+Enter');
     await page.getByText('Confirming sale on this PC…',{exact:true}).waitFor();
     assert.equal(await saved().count(),0);
     assert.equal((await native('list_local_invoices',{after:0})).length,0);
@@ -130,6 +185,9 @@ async function stopBridge() {
     releasePost(); holdPost = null;
     await alert('Posting reply was lost').waitFor();
     assert.equal(await saved().count(),0);
+    const attemptsBeforeScanner = calls.filter(call => call.command === 'post_local_invoice').length;
+    await button('Retry same sale').focus(); await page.keyboard.type('001234'); await page.keyboard.press('Enter');
+    assert.equal(calls.filter(call => call.command === 'post_local_invoice').length, attemptsBeforeScanner);
     await button('Retry same sale').click(); await saved().waitFor();
     const firstId = await label('Saved invoice ID').inputValue();
     assert.match(firstId,/^[a-f0-9-]{36}$/);

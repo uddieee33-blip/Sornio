@@ -10,6 +10,7 @@ import type { CashierState, Invoice, Product } from './billing-types';
 import { CustomerLookup } from './CustomerLookup';
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
+import { findCode, scanNeedsQuantity } from './scan';
 
 type CartLine = { productId: string; typedQuantity: string };
 type FocusTarget =
@@ -342,19 +343,25 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     if (product.stockMilli <= 0) { setFailed(true); setMessage('This item is out of stock.'); return; }
     const existing = cart.findIndex(line => line.productId === product.id);
     if (existing >= 0) {
-      if (scan) {
+      if (scan && scanNeedsQuantity(product)) {
+        pendingFocus.current = { kind: 'quantity', index: existing };
+        setMessage('Enter the quantity for this item.'); setFailed(false);
+      } else if (scan) {
         const current = parseFixedDecimal(cart[existing].typedQuantity, 3);
         if (current === null || current + 1000 > product.stockMilli) { setFailed(true); setMessage('Check quantity against available stock.'); return; }
         setCart(lines => lines.map((line, index) => index === existing ? { ...line, typedQuantity: quantity(current + 1000) } : line));
       } else { document.getElementById(`sale-quantity-${existing}`)?.focus(); }
       setSearch('');
-      if (failed) { setFailed(false); setMessage(readyMessage); }
+      if (failed && !(scan && scanNeedsQuantity(product))) { setFailed(false); setMessage(readyMessage); }
       return;
     }
     if (cart.length >= 100) { setFailed(true); setMessage('A sale supports up to 100 items.'); return; }
-    setCart(lines => [...lines, { productId: product.id, typedQuantity: quantity(Math.min(1000, product.stockMilli)) }]);
+    if (scan && !scanNeedsQuantity(product) && product.stockMilli < 1000) { setFailed(true); setMessage('Not enough stock for one item.'); return; }
+    const needsQuantity = scan && scanNeedsQuantity(product);
+    if (needsQuantity) { pendingFocus.current = { kind: 'quantity', index: cart.length }; setFailed(false); setMessage('Enter the quantity for this item.'); }
+    setCart(lines => [...lines, { productId: product.id, typedQuantity: needsQuantity ? '' : quantity(Math.min(1000, product.stockMilli)) }]);
     setSearch('');
-    if (failed) { setFailed(false); setMessage(readyMessage); }
+    if (failed && !needsQuantity) { setFailed(false); setMessage(readyMessage); }
   }
 
   const startConfirmation = useCallback((fromKeyboard = false) => {
@@ -474,7 +481,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
-    <p className="muted">F2: find item · F3: edit quantity · Enter: add exact code or single match · F4: review · Enter: confirm · F8: recover pending sale</p>
+    <p className="muted">F2: find item · F3: edit quantity · Enter: add exact code · F4: review · Alt+Enter: confirm when focused · F8: recover pending sale</p>
     {reportsAllowed ? <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div> : null}
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {!invoice && !pending ? <button type="button" disabled={busy || disabled} onClick={() => { setHistoryOpen(true); setHistoricInvoice(null); setHistoricPayments([]); setHistory([]); pendingFocus.current = { kind: 'receipt-lookup' }; }}>Find saved receipt</button> : null}
@@ -488,7 +495,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     </section> : null}
     {invoice ? <><SavedInvoice key={invoice.id} invoice={invoice} payments={invoicePayments} username={username}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it (press F8 to retry).</p>
-        <button ref={retryButton} type="button" disabled={busy || disabled} onClick={() => void confirm(pending)}>Retry same sale</button>
+        <button ref={retryButton} type="button" disabled={busy || disabled} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat && !event.nativeEvent.isComposing) void confirm(pending); } }} onClick={() => void confirm(pending)}>Retry same sale</button>
         {refused ? <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void release(false)}>Edit refused sale</button> : null}
       </div> : null}
       <fieldset disabled={blocked || review}>
@@ -496,11 +503,10 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           if (event.key !== 'Enter' || event.repeat || event.nativeEvent.isComposing || blocked || review) return;
           event.preventDefault();
           if (!normalizedSearch) { setFailed(true); setMessage('Enter an item name or exact code.'); return; }
-          const exactSku = products.filter(product => product.sku && product.sku.toLowerCase() === normalizedSearch);
-          const exact = exactSku.length ? exactSku : products.filter(product => product.id.toLowerCase() === normalizedSearch);
-          const choices = exact.length ? exact : matching;
-          if (choices.length === 1) add(choices[0], exact.length === 1);
-          else { setFailed(true); setMessage('Choose one item. This search or code does not identify one item.'); }
+          const exact = findCode(products, search);
+          if (exact.length === 1) add(exact[0], true);
+          else if (exact.length > 1) { setFailed(true); setMessage('This code matches more than one item. Choose the item manually.'); }
+          else { setFailed(true); setMessage('No exact item code found. Choose a matching item manually.'); }
         }} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Item name or code"/>
         <ul className="checkout-results" aria-label="Items available for sale">{matching.slice(0, 50).map(product => <li key={product.id}>
           <div><strong>{product.name}</strong><span>{product.sku} · {quantity(product.stockMilli)} {product.unit} available · {money(product.unitPricePaise)} / {product.unit}</span></div>
@@ -543,7 +549,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
               </>}
           </div>
           <p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified; any customer-credit amount stays outstanding on the customer’s account.'} Save this sale on this PC?</p>
-          <button type="button" disabled={disabled || busy} ref={confirmButton} onKeyDown={event => { if (event.key === 'Enter' && (event.repeat || event.nativeEvent.isComposing)) event.preventDefault(); }} onClick={postNew}>Confirm sale</button>
+          <button type="button" disabled={disabled || busy} ref={confirmButton} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat && !event.nativeEvent.isComposing) postNew(); } }} onClick={postNew}>Confirm sale</button>
           <button type="button" className="quiet-button" disabled={disabled || busy} onClick={cancelReview}>Edit sale</button>
         </div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={() => startConfirmation(false)}>Review sale</button>}
