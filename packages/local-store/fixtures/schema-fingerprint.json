@@ -239,11 +239,26 @@
    "business_id:TEXT:NOTNULL:0",
    "generation:TEXT:NOTNULL:0"
   ],
+  "local_restaurant_attempts": [
+   "id:TEXT:NOTNULL:1",
+   "order_id:TEXT:NOTNULL:0",
+   "parent_id:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0"
+  ],
   "local_restaurant_bindings": [
    "order_id:TEXT:NOTNULL:1",
    "invoice_id:TEXT:NOTNULL:0",
    "actor_id:TEXT:NOTNULL:0",
    "request:TEXT:NOTNULL:0"
+  ],
+  "local_restaurant_control": [
+   "order_id:TEXT:NOTNULL:1",
+   "parent_id:TEXT:NOTNULL:0",
+   "attempt_id:TEXT:NOTNULL:0",
+   "actor_id:TEXT:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0",
+   "phase:TEXT:NOTNULL:0",
+   "reason:TEXT:NOTNULL:0"
   ],
   "local_restaurant_events": [
    "operation_id:TEXT:NOTNULL:1",
@@ -266,6 +281,13 @@
    "state:TEXT:NOTNULL:0",
    "revision:INTEGER:NOTNULL:0",
    "settled_invoice:TEXT:null:0"
+  ],
+  "local_restaurant_recovery_events": [
+   "sequence:INTEGER:null:1",
+   "order_id:TEXT:NOTNULL:0",
+   "actor_id:TEXT:NOTNULL:0",
+   "payload:TEXT:NOTNULL:0",
+   "created_at:TEXT:NOTNULL:0"
   ],
   "local_restaurant_tables": [
    "id:TEXT:NOTNULL:1",
@@ -529,16 +551,34 @@
    "local_recovery_audit_no_update"
   ],
   [
+   "local_restaurant_attempts_no_delete"
+  ],
+  [
+   "local_restaurant_attempts_no_update"
+  ],
+  [
    "local_restaurant_bindings_no_delete"
   ],
   [
    "local_restaurant_bindings_no_update"
   ],
   [
+   "local_restaurant_control_revision"
+  ],
+  [
+   "local_restaurant_control_settled_guard"
+  ],
+  [
    "local_restaurant_events_no_delete"
   ],
   [
    "local_restaurant_events_no_update"
+  ],
+  [
+   "local_restaurant_recovery_events_no_delete"
+  ],
+  [
+   "local_restaurant_recovery_events_no_update"
   ],
   [
    "local_restaurant_settle_guard"

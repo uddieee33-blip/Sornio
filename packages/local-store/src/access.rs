@@ -797,10 +797,14 @@ impl Workspace {
         self.require(Permission::Settings)?;
         self.store.takeover_payment(id, why)
     }
+    pub fn restaurant_status(&self,order:String)->Result<Option<crate::restaurant_recovery::Status>,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_status(&order)}
+    pub fn edit_restaurant(&mut self,order:String,expected:i64)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.edit_restaurant(&order,expected)}
+    pub fn amend_restaurant(&mut self,r:crate::restaurant_recovery::Amendment)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.amend_restaurant(r)}
+    pub fn takeover_restaurant(&mut self,order:String,expected:i64,target:String)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Settings)?;self.store.takeover_restaurant(&order,expected,&target)}
     pub fn restaurant_menu(&self)->Result<Vec<crate::restaurant_checkout::Menu>,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_menu()}
     pub fn save_restaurant_menu(&mut self,m:crate::restaurant_checkout::Menu)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.save_restaurant_menu(m)}
     pub fn prepare_restaurant(&mut self,r:crate::restaurant_checkout::Prepare)->Result<crate::payments::Request,StoreError>{self.require(Permission::Sell)?;self.store.prepare_restaurant(r)}
-    pub fn post_restaurant(&mut self,order:String)->Result<crate::payments::Receipt,StoreError>{self.require(Permission::Sell)?;self.store.post_restaurant(&order)}
+    pub fn post_restaurant(&mut self,order:String,attempt:String)->Result<crate::payments::Receipt,StoreError>{self.require(Permission::Sell)?;self.store.post_restaurant(&order,&attempt)}
     pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> { self.require(Permission::Sell)?; self.store.restaurant_view() }
     pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> { self.require(Permission::Sell)?; self.store.restaurant_action(r) }
     pub fn list_held_bills(&self) -> Result<Vec<crate::held_bills::Bill>, StoreError> {

@@ -4,12 +4,21 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct Menu { pub id:String, pub product_id:String, pub category:String, pub label:String, pub variant:String, pub available:bool }
-#[derive(Serialize,Deserialize)]
+#[derive(Clone,Serialize,Deserialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct Prepare { pub order_id:String, pub expected_revision:i64, pub operation_id:String, pub tax_basis_points:i64, pub customer_id:Option<String>, pub payments:Vec<PaymentPart> }
 pub(crate) fn migrate(tx:&Transaction<'_>)->Result<(),StoreError>{tx.execute_batch(include_str!("restaurant_checkout-schema.sql"))?;Ok(())}
-pub(crate) fn complete(tx:&Transaction<'_>,invoice:&str)->Result<(),StoreError>{tx.execute("UPDATE local_restaurant_orders SET settled_invoice=?1,revision=revision+1 WHERE id=(SELECT order_id FROM local_restaurant_bindings WHERE invoice_id=?1) AND settled_invoice IS NULL",[invoice])?;Ok(())}
+pub(crate) fn complete(tx:&Transaction<'_>,invoice:&str)->Result<(),StoreError>{crate::restaurant_recovery::complete(tx,invoice)}
+
 impl Store {
+ pub(crate) fn prepare_restaurant(&mut self,r:Prepare)->Result<payments::Request,StoreError>{
+  let result=self.prepare_restaurant_inner(r.clone());
+  if let Err(ref error)=result {
+   if matches!(error,StoreError::StockConflict|StoreError::CreditLimit|StoreError::CustomerMissing|StoreError::InvalidCustomer|StoreError::InvalidPayment|StoreError::InvalidInvoice|StoreError::ProductMissing) {
+    self.restaurant_preparation_refused(&r,&error.to_string())?;
+   }
+  }result
+ }
  pub(crate) fn restaurant_menu(&self)->Result<Vec<Menu>,StoreError>{
   let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::Sell)?;
   Ok(self.0.prepare("SELECT id,product_id,category,label,variant,available FROM local_restaurant_menu ORDER BY category,label,variant")?.query_map([],|r|Ok(Menu{id:r.get(0)?,product_id:r.get(1)?,category:r.get(2)?,label:r.get(3)?,variant:r.get(4)?,available:r.get(5)?}))?.collect::<Result<Vec<_>,_>>()?)
@@ -21,11 +30,11 @@ impl Store {
   tx.execute("INSERT INTO local_restaurant_menu VALUES(?1,?2,?3,?4,?5,?6) ON CONFLICT(id) DO UPDATE SET product_id=excluded.product_id,category=excluded.category,label=excluded.label,variant=excluded.variant,available=excluded.available",params![m.id,m.product_id,m.category,m.label,m.variant,m.available])?;
   identity::guard(&tx,&self.1,Permission::Settings,"restaurant.menu_changed",Some(&m.id))?;tx.commit()?;Ok(())
  }
- pub(crate) fn prepare_restaurant(&mut self,r:Prepare)->Result<payments::Request,StoreError>{
+ fn prepare_restaurant_inner(&mut self,r:Prepare)->Result<payments::Request,StoreError>{
   let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
   let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
   let old:Option<(String,String)>=tx.query_row("SELECT actor_id,request FROM local_restaurant_bindings WHERE order_id=?1",[&r.order_id],|q|Ok((q.get(0)?,q.get(1)?))).optional()?;
-  if let Some((actor,raw))=old {if actor!=s.actor_id{return Err(StoreError::Forbidden);}return Ok(serde_json::from_str(&raw)?);}
+  if old.is_some() {let c=crate::restaurant_recovery::current_request(&tx,&r.order_id,&s.actor_id)?;return Ok(c);}
   let revision:i64=tx.query_row("SELECT revision FROM local_restaurant_orders WHERE id=?1 AND state IN ('open','pending_bill') AND settled_invoice IS NULL",[&r.order_id],|q|q.get(0))?;
   if revision!=r.expected_revision{return Err(StoreError::OperationConflict);}
   let rows=tx.prepare("SELECT items FROM local_restaurant_tickets WHERE order_id=?1 ORDER BY rowid")?.query_map([&r.order_id],|q|q.get::<_,String>(0))?.collect::<Result<Vec<_>,_>>()?;
@@ -48,12 +57,9 @@ impl Store {
   let request=payments::Request{operation_id:r.operation_id.clone(),action:payments::Action::Sale{invoice:PostInvoice{operation_id:r.operation_id.clone(),lines,tax_basis_points:r.tax_basis_points,tender:Tender::Retail,customer_id:r.customer_id},payments:r.payments}};
   payments::prepare_into(&tx,&self.1,request.clone())?;
   tx.execute("INSERT INTO local_restaurant_bindings VALUES(?1,?2,?3,?4)",params![r.order_id,r.operation_id,s.actor_id,serde_json::to_string(&request)?])?;
+  crate::restaurant_recovery::bind(&tx,&r.order_id,&r.operation_id,&s.actor_id,&serde_json::to_string(&request)?)?;
   tx.execute("UPDATE local_restaurant_orders SET state='pending_bill',revision=revision+1 WHERE id=?1",[&r.order_id])?;
   identity::guard(&tx,&self.1,Permission::Sell,"restaurant.checkout_bound",Some(&r.order_id))?;tx.commit()?;Ok(request)
  }
- pub(crate) fn post_restaurant(&mut self,order:&str)->Result<payments::Receipt,StoreError>{
-  let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::Sell)?;
-  let (actor,raw):(String,String)=self.0.query_row("SELECT actor_id,request FROM local_restaurant_bindings WHERE order_id=?1",[order],|q|Ok((q.get(0)?,q.get(1)?)))?;
-  if actor!=s.actor_id{return Err(StoreError::Forbidden);} self.post_retail(serde_json::from_str(&raw)?)
- }
+ pub(crate) fn post_restaurant(&mut self,order:&str,attempt:&str)->Result<payments::Receipt,StoreError>{self.restaurant_recover(order,attempt)}
 }
