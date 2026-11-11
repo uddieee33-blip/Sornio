@@ -388,13 +388,21 @@ async fn read_identity_audit(
 }
 
 #[tauri::command]
+async fn restaurant_status(scope:Scope,order:String,state:tauri::State<'_,LocalState>)->Result<Option<sornio_local_store::restaurant_recovery::Status>,CommandError>{with_scoped_workspace(state,scope,move |w|w.restaurant_status(order)).await}
+#[tauri::command]
+async fn edit_restaurant(scope:Scope,order:String,expected:i64,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::restaurant_recovery::Status,CommandError>{with_scoped_workspace(state,scope,move |w|w.edit_restaurant(order,expected)).await}
+#[tauri::command]
+async fn amend_restaurant(scope:Scope,r:sornio_local_store::restaurant_recovery::Amendment,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::restaurant_recovery::Status,CommandError>{with_scoped_workspace(state,scope,move |w|w.amend_restaurant(r)).await}
+#[tauri::command]
+async fn takeover_restaurant(scope:Scope,order:String,expected:i64,target:String,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::restaurant_recovery::Status,CommandError>{with_scoped_workspace(state,scope,move |w|w.takeover_restaurant(order,expected,target)).await}
+#[tauri::command]
 async fn restaurant_menu(scope:Scope,state:tauri::State<'_,LocalState>)->Result<Vec<sornio_local_store::restaurant_checkout::Menu>,CommandError>{with_scoped_workspace(state,scope,|w|w.restaurant_menu()).await}
 #[tauri::command]
 async fn save_restaurant_menu(scope:Scope,m:sornio_local_store::restaurant_checkout::Menu,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{with_scoped_workspace(state,scope,move |w|w.save_restaurant_menu(m)).await}
 #[tauri::command]
 async fn prepare_restaurant(scope:Scope,r:sornio_local_store::restaurant_checkout::Prepare,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::payments::Request,CommandError>{with_scoped_workspace(state,scope,move |w|w.prepare_restaurant(r)).await}
 #[tauri::command]
-async fn post_restaurant(scope:Scope,order:String,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::payments::Receipt,CommandError>{with_scoped_workspace(state,scope,move |w|w.post_restaurant(order)).await}
+async fn post_restaurant(scope:Scope,order:String,attempt:String,state:tauri::State<'_,LocalState>)->Result<sornio_local_store::payments::Receipt,CommandError>{with_scoped_workspace(state,scope,move |w|w.post_restaurant(order,attempt)).await}
 #[tauri::command]
 async fn read_restaurant(scope: Scope, state: tauri::State<'_, LocalState>) -> Result<sornio_local_store::restaurant::View, CommandError> { with_scoped_workspace(state, scope, |w| w.restaurant_view()).await }
 #[tauri::command]
@@ -802,6 +810,10 @@ fn main() {
             restore_local_backup,
             change_local_password,
             reset_local_staff_password,
+            restaurant_status,
+            edit_restaurant,
+            amend_restaurant,
+            takeover_restaurant,
             restaurant_menu,
             save_restaurant_menu,
             prepare_restaurant,

@@ -1309,7 +1309,7 @@ impl Store {
             "DELETE FROM local_retail_pending WHERE actor_id=?1 AND id=?2",
             params![s.actor_id, id],
         )?;
-        if !saved { crate::held_bills::cancel_checkout(&tx, id)?; }
+        if !saved { crate::held_bills::cancel_checkout(&tx, id)?; crate::restaurant_recovery::canceled(&tx,id)?; }
         tx.commit()?;
         Ok(())
     }
