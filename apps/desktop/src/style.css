@@ -55,3 +55,6 @@
 
 [id^="area-"] { scroll-margin-top: 20px; outline-offset: 6px; }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.grocery-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin: 20px 0; }
+.grocery-filters label { flex: 1 1 160px; }
