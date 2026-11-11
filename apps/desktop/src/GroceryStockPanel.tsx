@@ -15,8 +15,8 @@ export function GroceryStockPanel({ refreshToken, onLocked }: { refreshToken: nu
       .catch((caught: unknown) => { if (active) { setProducts(null); if (errorCode(caught) === 'locked') onLocked(); else setError(errorMessage(caught, 'Stock review could not be loaded.')); } });
     return () => { active = false; };
   }, [refreshToken, retry, onLocked]);
-  const milli = parseFixedDecimal(threshold, unit === 'pcs' ? 0 : 3);
-  const thresholdMilli = milli === null ? null : unit === 'pcs' ? milli * 1000 : milli;
+  const milli = parseFixedDecimal(threshold, 3);
+  const thresholdMilli = milli === null || (unit === 'pcs' && milli % 1000 !== 0) ? null : milli;
   const rows = products && thresholdMilli !== null ? reorderItems(products, unit, thresholdMilli) : [];
   return <section className="panel" aria-labelledby="grocery-review-heading">
     <p className="eyebrow">GROCERY & KIRYANA</p><h2 id="grocery-review-heading">Plan the next delivery.</h2>
