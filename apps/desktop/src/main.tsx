@@ -20,6 +20,7 @@ import type { Draft, Snapshot } from './workspace-types';
 import brandIcon from '../../../public/brand/icon-192.png';
 import './style.css';
 
+type WorkArea = 'counter' | 'stock' | 'customers' | 'operations' | 'settings';
 const empty: Draft = { businessName: '', businessType: 'kirana', note: '' };
 const types = [
   ['kirana', 'Grocery & kiryana'], ['general', 'General store'], ['cafe', 'Café & restaurant'],
@@ -28,6 +29,7 @@ const types = [
 ] as const satisfies ReadonlyArray<readonly [PortalId, string]>;
 
 function App({ onLocked, session }: { onLocked: (detail?: string) => void; session: LocalSession }) {
+  const [workArea, setWorkArea] = useState<WorkArea>('counter');
   const owner = session.principal.role === 'owner';
   const canAdd = session.principal.role !== 'cashier';
   const canCorrect = owner || session.principal.role === 'manager';
@@ -153,20 +155,32 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
     <aside className="rail">
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
-      <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a><a href="#checkout">Checkout</a><a href="#inventory-heading">Items &amp; stock</a></nav>
+      <nav aria-label="Workspace">{([
+        ['counter', 'Counter'], ['stock', 'Items & stock'], ['customers', 'Customers & udhaar'],
+        ['operations', 'Payments & closing'], ['settings', owner ? 'Business & settings' : 'My access'],
+      ] as const).map(([id, label]) => <a key={id} href={`#area-${id}`} className={workArea === id ? 'selected' : ''}
+        aria-current={workArea === id ? 'location' : undefined} onClick={event => {
+          event.preventDefault(); if (busy) return; setWorkArea(id);
+          const target = id === 'counter' ? document.getElementById('checkout-search') : document.getElementById(`area-${id}`);
+          target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'start', behavior: 'instant' });
+        }}>{label}</a>)}</nav>
       <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.3.0</p></div>
     </aside>
     <main id="main">
       <header className="topbar"><span>{session.businessName} · {session.principal.displayName} · {session.principal.role.replaceAll("_", " ")}</span><div className="topbar-actions"><span className="chip"><span className="status-dot"/> On this PC</span><button type="button" className="quiet-button" disabled={busy} onClick={() => void lock()}>Lock workspace</button></div></header>
       <div className="page">
-        <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your business.<br/><span>Right here.</span></h1><p className="intro">A dedicated workspace that opens from your PC.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
+        <div className="heading"><div><p className="eyebrow">SORNIO FOR WINDOWS</p><h1>Your counter.<br/><span>Ready for the day.</span></h1><p className="intro">Scan an item, prepare a bill, and keep serving.</p></div><span className="review-label">Storage foundation<br/>Use test data only</span></div>
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace" onKeyDown={event => { if (event.key === 'Escape' && !busy) { event.preventDefault(); dismissPrompt('lock'); } }}><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button ref={continueLockRef} className="quiet-button" type="button" disabled={busy} onClick={() => dismissPrompt('lock')}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
-        {native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}
+        <section id="area-counter" tabIndex={-1} aria-label="Counter">{native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}</section>
+        <section id="area-stock" tabIndex={-1} aria-label="Items and stock">{native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}</section>
+        <section id="area-customers" tabIndex={-1} aria-label="Customers and udhaar">{native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}</section>
+        <section id="area-operations" tabIndex={-1} aria-label="Payments and closing">{native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}</section>
+        <section id="area-settings" tabIndex={-1} aria-label="Business and access">
         <div className="workspace-grid">
           {owner ? <form className="panel" onSubmit={(event) => void save(event)}>
-            <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Keep a local draft.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
-            <p className="muted">Save a sample business and note, then reopen the app without internet to check that it stays here.</p>
+            <div className="panel-heading"><div><p className="eyebrow">FIRST WORKSPACE</p><h2>Business preferences.</h2></div><span className="small-chip">{draftDirty ? 'Unsaved changes' : snapshot?.draft ? 'Saved' : 'New draft'}</span></div>
+            <p className="muted">Choose your business profile and keep a private workspace note on this device.</p>
             <fieldset disabled={!snapshot || busy}>
               <label htmlFor="business-name">Business name</label><input id="business-name" autoComplete="organization" value={draft.businessName} maxLength={120} required placeholder="Your sample business" onChange={(e) => setDraft({ ...draft, businessName: e.target.value })}/>
               <label htmlFor="business-type">Business type</label><select aria-describedby="business-description" id="business-type" value={draft.businessType} onChange={(e) => setDraft({ ...draft, businessType: e.target.value as PortalId })}>{types.map(([id, label]) => <option key={id} value={id}>{label}</option>)}</select>
@@ -184,13 +198,10 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
           </form> : null}
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Owner and staff access is enforced on this PC. LAN pairing and cloud backup are not enabled. This review does not replace your current business records.</p></aside>
         </div>
-        {native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
-        {native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}
-        {native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}
         {native && snapshot && owner ? <StaffPanel disabled={busy || credentialDirty} refreshToken={staffRefresh} onBusyChange={setStaffBusy} onDirtyChange={setStaffDirty}/> : null}
         {native && snapshot ? <CredentialsPanel owner={owner} disabled={busy} blockedByDraft={otherDirty} onLocked={onLocked} onBusyChange={setCredentialBusy} onDirtyChange={setCredentialDirty} onStaffChanged={staffChanged}/> : null}
         {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}
-        {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
+        {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}</section>
       </div>
     </main>
   </div>;
