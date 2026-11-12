@@ -195,7 +195,7 @@ That a second macOS job (`iOS simulator compile`) was getting a runner all along
 | Artifacts | `Sornio-Android-review`, **50 168 802 bytes** — https://github.com/uddieee33-blip/Sornio/actions/runs/43270253648/artifacts (both APKs, SHA-256 recorded in the run log) |
 | Limitations | **no emulator run.** Nothing here is on-device acceptance |
 
-Runs: https://github.com/uddieee33-blip/Sornio/actions/runs/43270253648 (review shell, **success**), https://github.com/uddieee33-blip/Sornio/actions/runs/43273212994 (companion: `Contracts, types, security` **success**, `Android debug compile` **success**).
+Runs: https://github.com/uddieee33-blip/Sornio/actions/runs/43270253648 (review shell, **success**), https://github.com/uddieee33-blip/Sornio/actions/runs/43273212994 (companion, **success**), and re-confirmed on the final commit: https://github.com/uddieee33-blip/Sornio/actions/runs/43288021094 (review shell) and https://github.com/uddieee33-blip/Sornio/actions/runs/43288021082 (companion — `Contracts, types, security`, `Android debug compile` and `iOS simulator compile` all **success** on one run).
 
 `android-review.yml` previously watched only `mobile/android/**`, so the Expo companion — the actual Android product surface — was never built by it. Widened, and the companion gates added. A duplicate artifact upload (my own error) failed the first green build with `409 Conflict`; fixed in `1c476ac`.
 
@@ -210,7 +210,7 @@ Runs: https://github.com/uddieee33-blip/Sornio/actions/runs/43270253648 (review 
 | Artifacts | build products only (unsigned, simulator slice); no distributable artifact |
 | Limitations | simulator compile only. **No physical iPhone acceptance**, no runtime/IPC exercise of the Bonjour module |
 
-Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43279979056 — `iOS simulator compile` **success**.
+Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43279979056 — `iOS simulator compile` **success**; re-confirmed on the final commit in https://github.com/uddieee33-blip/Sornio/actions/runs/43288021082.
 
 Three defects were found here, each only visible by executing:
 
