@@ -1,0 +1,196 @@
+name: Native lockfile refresh (engineering only)
+
+# This workflow exists because the fix it produces cannot be made anywhere else.
+#
+# Both native manifests need their `Cargo.lock` regenerated — `apps/desktop/src-tauri`
+# gained `rustls`, `rustls-pemfile` and `mdns-sd` across the LAN-hub phases without
+# re-locking, and `packages/local-store` does not resolve on Windows because
+# `keyring`/`fs2`/`zeroize` sit under `[target.'cfg(windows)'.dependencies]`.
+# Resolving either needs crates.io. The environment that reviewed this work had
+# no crates.io access and no Rust toolchain, so the resolution happens here and
+# the result is reviewed as a diff before it is committed.
+#
+# It deliberately does NOT push to the pull-request branch. It commits to a
+# short-lived `ci/native-lockfile-<sha>` branch (or, if the token cannot write,
+# prints everything it changed as annotations) so a human reviews the dependency
+# delta before it lands. `--locked` stays in every build and test workflow: the
+# point is a correct lock, never a relaxed gate.
+#
+# It is also the only place that can report which SQLite/SQLCipher versions the
+# `bundled-sqlcipher-vendored-openssl` feature actually compiles, which is what
+# RUSTSEC-2026-0459 turns on.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/1b1cac28-sornio]
+    paths: ['.github/workflows/native-lockfile.yml']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_NET_RETRY: '3'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: true
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+
+      - name: Record toolchain
+        run: |
+          rustc --version
+          cargo --version
+          rustfmt --version
+          echo "::notice::cargo=$(cargo --version) rustc=$(rustc --version)"
+
+      # `cargo metadata` resolves the graph and rewrites the lockfile *minimally*:
+      # existing pins are preserved and only missing entries are added, which is
+      # what keeps this from becoming an accidental upgrade of the whole tree.
+      # `cargo generate-lockfile` re-resolves from scratch and would bump things
+      # no one asked to move, so it is not used here.
+      - name: Resolve local-store lockfile
+        working-directory: packages/local-store
+        run: |
+          cp Cargo.lock /tmp/local-store.Cargo.lock.orig
+          cargo metadata --format-version 1 > /dev/null
+          echo "--- local-store lockfile delta ---"
+          diff -u /tmp/local-store.Cargo.lock.orig Cargo.lock || true
+
+      - name: Resolve desktop lockfile
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cp Cargo.lock /tmp/src-tauri.Cargo.lock.orig
+          cargo metadata --format-version 1 > /dev/null
+          echo "--- src-tauri lockfile delta ---"
+          diff -u /tmp/src-tauri.Cargo.lock.orig Cargo.lock || true
+
+      - name: Report bundled SQLite and SQLCipher versions
+        # RUSTSEC-2026-0459 is a CVE in the SQLite C source, so the question that
+        # matters is not the Rust wrapper's semver but which amalgamation is
+        # compiled. `bundled-sqlcipher-vendored-openssl` builds from
+        # `sqlcipher-src`; print the version macros and every candidate crate.
+        run: |
+          set -u
+          fetch() { cargo fetch --manifest-path "$1" >/dev/null 2>&1 || cargo metadata --manifest-path "$1" --format-version 1 >/dev/null 2>&1 || true; }
+          fetch packages/local-store/Cargo.toml
+          fetch apps/desktop/src-tauri/Cargo.toml
+          reg="${CARGO_HOME:-$HOME/.cargo}/registry/src"
+          echo "== SQLCipher / SQLite sources present =="
+          for dir in "$reg"/*/; do
+            for crate in libsqlite3-sys sqlcipher-src sqlcipher sys; do
+              for d in "$dir$crate"-*/; do
+                [ -d "$d" ] || continue
+                for h in "$d"sqlite3/sqlite3.h "$d"sqlite3.h; do
+                  [ -f "$h" ] || continue
+                  v=$(grep -m1 -oE '#define SQLITE_VERSION[[:space:]]+"[0-9.]+"' "$h" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+                  s=$(grep -m1 -oE '#define SQLITE_SOURCE_ID[[:space:]]+".*"' "$h" | head -c 160 || true)
+                  [ -n "$v" ] && echo "::notice::$crate: SQLITE_VERSION=$v  $s"
+                done
+                for m in "$d"sqlcipher.h "$d"include/sqlcipher.h; do
+                  [ -f "$m" ] || continue
+                  grep -m1 -oE 'SQLCIPHER_VERSION[^\n]{0,40}' "$m" | sed 's/^/::notice::sqlcipher: /' || true
+                done
+              done
+            done
+          done
+          echo "== resolved wrapper versions =="
+          grep -A1 '^name = "libsqlite3-sys"' packages/local-store/Cargo.lock | sed 's/^/local-store: /'
+          grep -A1 '^name = "libsqlite3-sys"' apps/desktop/src-tauri/Cargo.lock | sed 's/^/src-tauri: /'
+          for c in sqlcipher-src openssl-src; do
+            echo "::notice::$c $(grep -A1 "^name = \"$c\"" packages/local-store/Cargo.lock | tail -1)"
+          done
+
+      - name: Format native Rust sources
+        run: |
+          cargo fmt --manifest-path packages/local-store/Cargo.toml
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - name: Prove formatting is clean
+        run: |
+          cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+          echo "::notice::both native workspaces pass cargo fmt --check after formatting"
+
+      - name: Summarise the change
+        id: summary
+        run: |
+          echo "== changed files =="
+          git status --porcelain | head -60
+          files=$(git status --porcelain | wc -l)
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Native lockfile refresh"
+            echo ""
+            echo "Changed files: $files"
+            echo ""
+            echo '```'
+            git status --porcelain
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the result on a review branch
+        id: publish
+        run: |
+          set +e
+          branch="ci/native-lockfile-${GITHUB_SHA:0:7}"
+          git config user.name "Sornio native lock refresh"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add -A
+          msg="Regenerate native lockfiles with Cargo and apply rustfmt (generated on $GITHUB_SHA)"
+          msg="$msg; lockfiles are cargo metadata output (minimal re-resolution, existing pins preserved), formatting is cargo fmt output"
+          git -c commit.gpgsign=false commit -m "$msg" 2>&1 | tail -3
+          if git push origin "$branch" 2>&1 | tail -3; then
+            echo "::notice title=Review branch::fetched with: git fetch origin $branch"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::the workflow token cannot push; falling back to annotations"
+            echo "branch=" >> "$GITHUB_OUTPUT"
+          fi
+          set -e
+
+      - name: Emit the lockfile diff as annotations
+        # Fallback evidence path. A check-run annotation is capped at 65535 bytes,
+        # so the diff is chunked rather than truncated — the earlier rustfmt
+        # annotation in this repository was silently dropped for exceeding it.
+        run: |
+          git diff --no-color HEAD~1 -- packages/local-store/Cargo.lock apps/desktop/src-tauri/Cargo.lock \
+            > /tmp/lock.diff || true
+          wc -c /tmp/lock.diff
+          python3 - <<'PY'
+          import os, pathlib
+          text = pathlib.Path('/tmp/lock.diff').read_text()
+          if not text.strip():
+              print('::notice::no lockfile change after resolution')
+              raise SystemExit(0)
+          chunk = 55000
+          for i in range(0, len(text), chunk):
+              part = text[i:i+chunk]
+              esc = part.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=lockfile delta {i//chunk}::{esc}')
+          PY
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-lockfiles
+          path: |
+            packages/local-store/Cargo.lock
+            apps/desktop/src-tauri/Cargo.lock
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Report the review branch
+        if: always()
+        run: |
+          echo "review branch: ${{ steps.publish.outputs.branch }}"
+          echo "::notice::review branch: ${{ steps.publish.outputs.branch }}"
