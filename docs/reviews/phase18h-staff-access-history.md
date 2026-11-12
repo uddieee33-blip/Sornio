@@ -1,0 +1,19 @@
+# Phase 18H — employee access reports
+
+Verified dependency: Phase 18G `15bc6e2258d34429057387ae5145bcee627f4636`, draft #178, schema v21. No merges, releases or schema changes.
+
+Native administrative read model provides per-employee responsibility history and currently valid LAN staff-session metadata. History reads the existing immutable staff journal, including legacy responsibility changes, with employee/business isolation, inclusive UTC date filters, bounded pages (25 default, 50 maximum) and timestamp/event-ID keysets. Same-time events paginate deterministically. Missing past events are never invented. Administrator names reflect the current directory; operation IDs, recorded responsibilities, revision and event time come from stored records.
+
+The session query excludes disabled employees, revoked kitchen access, expired/revoked devices, expired sessions, mismatched employee/device revisions or assignments, and old restore generations. Effective expiry is bounded by both session and device-grant expiry. Output contains only device ID/name, effective expiry and last recorded authenticated activity. No bearer tokens, hashes, enrolment secrets or generation identifiers are returned. A valid session is not proof of a live network connection or continued availability; the UI states this explicitly. Desktop login windows are not represented in the LAN-session table and are not claimed as enumerated.
+
+Both native and LAN endpoints require Staff administration, not merely kitchen supervision. Desktop uses the existing kitchen command; Android/iPhone/iPad use the existing approved-device, pinned-HTTPS session route with staff.access.v1 compatibility gating. Existing staff controls gain an employee access panel. Desktop selects an employee; mobile uses its touch-friendly searchable directory. Both support UTC date filters, Older changes, retained confirmed results on connection failure, and explicit result target/time. Editing the query disables old-page continuation until a new report is requested.
+
+This increment is read-only. It performs no responsibility changes, session revocation, financial posting, inventory movement, debt mutation, checkout reopening or table release. Existing Shop LAN hub controls remain available for device-approval revocation; targeted session-only sign-out is future work. No new database or schema migration was introduced. Date validation is shared with preparation history.
+
+Passed: desktop TypeScript/Vite build; mobile TypeScript; all 79 shared-domain tests (3 new access-report contracts); 63 mobile and 38 desktop contract checks; 92 schema checks; actual native-query SQLite tests for tied-time keyset pages, employee/business/date isolation, strict date validity, effective expiry and invalid-session exclusion; existing preparation-history, responsibility and assignment recovery SQL checks; whitespace checks. Strict shared contracts reject token/credential fields in reports.
+
+Two added Rust cases cover administrative permission requirements (including valid kitchen accounts), missing targets and invalid date/limit inputs, but remain unrun. Cargo/native tooling and installed desktop/mobile devices remain unavailable as previously recorded; no Rust RBAC, SQLCipher, physical device, real LAN/TLS or installer success is claimed. Native financial/security and installed-app lifecycle gates remain mandatory.
+
+Limits: maximum 50 audit events and 100 LAN sessions per response; history query performance at large native volumes needs measurement. Reports are on-demand snapshots, not push monitoring. Employee names are current, not historical snapshots. No targeted session-only revocation/recovery UI is implemented.
+
+Next functional increment: targeted staff-session sign-out with administrative confirmation and durable operation recovery.
