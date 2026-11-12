@@ -244,7 +244,7 @@ Three defects were found here, each only visible by executing:
 | Windows / replication native | `cannot update the lock file … --locked` | stale `src-tauri/Cargo.lock` since the LAN-hub phases | **BLOCKED** on crates.io (§3.1.2) |
 | iOS simulator compile | exit 65, no diagnostic | missing `NSObject` base class in `SornioLanModule` | **FIXED, awaiting re-run** |
 | rustfmt (workspace-browser) | exit 1, no diff shown | annotation exceeded the 65 535-byte cap and was discarded | **FIXED** (capped at 60 KB + file list); the underlying minified Rust formatting is **still unformatted** and the step still fails |
-| Dependency audit | exit 1, no detail | `cargo audit` output never surfaced | step now annotates the advisory; the audit itself still fails — see §6 |
+| Dependency audit | exit 1, no detail | output never surfaced (single oversized annotation discarded) | **diagnosis FIXED**: now names `libsqlite3-sys RUSTSEC-2026-0459`, `patched: none`, in both lockfiles — see §6 |
 | Android artifact | `409 Conflict` | duplicate upload step | **FIXED**, job now green |
 | macOS desktop job | 5 runs, zero jobs, no check-run | a step with `name` but neither `run` nor `uses` invalidates the whole workflow; the rejection surfaces as a bare `push`-event failure | **FIXED**; job now runs on a real runner |
 | iOS `NSObjectProtocol` | first fix rejected: multiple inheritance `NSObject` + `BaseModule` | `Module` already inherits `NSObject` | **FIXED** in `5815b0b`; iOS now **PASSES** |
@@ -289,7 +289,19 @@ No assertion was deleted, no rule disabled, no test removed, no `--no-verify`, n
    ```
 
    `scripts/verify-cargo-lock.mjs` now exists so a stale lock cannot recur silently; it fails today, deliberately, and names the manifest and the crates.
-2. **`cargo audit` failure** — the audit job still exits 1 and its findings cannot be read from here: raw job logs are served from `productionresultssa*.blob.core.windows.net`, which this sandbox cannot reach (TLS connection closed), and check-run annotations carried only "exit code 1". Both lockfiles show **no** matching advisory from the GitHub Advisory Database (4 180 Rust advisories cross-checked against 107 + 451 locked packages, including `tokio 1.54.1` which is past GHSA-5wjr-9356-4wc8). The remaining explanations — an advisory newer than the database snapshot, or `cargo audit` erroring rather than reporting — are not distinguishable from the available evidence. The step now annotates the advisory, crate and fix, so the next run will say.
+2. **`cargo audit` — identified, not fixable by editing a version number.** Cause found by making the step parse `cargo audit --json` (run 43287151280, check-run 131423455814):
+
+   ```
+   libsqlite3-sys RUSTSEC-2026-0459 (unknown):
+     `libsqlite3-sys` via C SQLite CVE-2026-119375 — patched: none
+   unmaintained: proc-macro-error
+   ```
+
+   Present in **both** lockfiles (`libsqlite3-sys 0.35.0`). `patched: none` means the RustSec advisory carries no fixed release, because it tracks a **CVE in the bundled SQLite C source** — which `rusqlite`'s `bundled-sqlcipher-vendored-openssl` feature compiles from `sqlcipher-src`. There is no `cargo update` that clears it. The resolution is a `sqlcipher-src`/`libsqlite3-sys` bump when an upstream release carries the CVE fix, and that must be validated by re-running the full native suite — retiring a database encryption engine advisory on the strength of a version bump alone is not acceptable for an offline POS. `proc-macro-error` is unmaintained (build-time only, warning not failure).
+
+   Everything above is now stated by the check record itself; the earlier "exit code 1 with no detail" condition is gone.
+
+   A second, avoidable problem this exposed: both `Lint, types, build` and this job stop at their first failing gate, so a green `npm test`-style tree still shows red for reasons unrelated to source. That is the repository's existing fail-fast design and was left alone.
 3. **macOS workflow not scheduled** (§3.3) — four runs cancelled with no runner.
 4. **Rust formatting** — the repository's Rust sources are minified (build.rs command lists, per-line match arms in `hub_discovery.rs`). `cargo fmt` would reformat them; that is a large diff in code no Phase 19 test covers, so it is reported, not applied.
 5. **`workflow_dispatch` unavailable in this environment** — the agent's token lacks the `actions` permission, so re-running a specific job had to go through a new push. `git push` and `gh pr create/edit` do work.
