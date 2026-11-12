@@ -23,7 +23,7 @@ fn refusal(reason:&str,revision:Option<i64>)->Value{json!({"status":"refused","r
 impl Store{
  pub(crate) fn hub_identity(&self)->Result<Value,StoreError>{
   let (id,name,business):(String,String,String)=self.0.query_row("SELECT h.id,i.business_name,i.business_id FROM local_hub_config h CROSS JOIN local_identity i WHERE i.singleton=1",[],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?)))?;
-  Ok(json!({"version":1,"hubId":id,"businessId":business,"businessName":name,"capabilities":["kitchen.transitions.v1","kitchen.paid.v1","kitchen.assignments.v1","staff.responsibility.v1","staff.access.v1","staff.signout.v1"]}))
+  Ok(json!({"version":1,"hubId":id,"businessId":business,"businessName":name,"capabilities":["kitchen.transitions.v1","kitchen.paid.v1","kitchen.assignments.v1","staff.responsibility.v1","staff.access.v1","staff.signout.v1","staff.security-history.v1"]}))
  }
  pub(crate) fn hub_configure(&mut self,enabled:bool,tls:Option<(String,String)>)->Result<(),StoreError>{let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;identity::verify(&tx,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::Settings)?;
   if let Some((cert,key))=tls{tx.execute("UPDATE local_hub_config SET certificate=?1,private_key=?2 WHERE singleton=1",params![cert,key])?;}

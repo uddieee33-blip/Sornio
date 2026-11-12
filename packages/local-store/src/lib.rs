@@ -19,6 +19,7 @@ pub mod kitchen;
 mod kitchen_staff;
 pub mod kitchen_history;
 pub mod staff_access;
+pub mod security_history;
 mod session_signout;
 pub mod assignment_recovery;
 mod responsibility_access;
