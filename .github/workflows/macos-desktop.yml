@@ -87,12 +87,10 @@ jobs:
             packages/local-store
             apps/desktop/src-tauri
 
-      - name: Check native Rust formatting
-        # Rust formatting is not platform-specific, so it runs in CI's
-        # `workspace-browser` job rather than here. This job's purpose is the
-        # macOS build; making it fail on whitespace would duplicate a check and
-        # spend the scarcest runner in the matrix on it.
-
+      # Rust formatting is not platform-specific, so it is checked in CI's
+      # `workspace-browser` job rather than here: duplicating it would spend the
+      # scarcest runner in the matrix on whitespace.
+      #
       # Shared files under lib/ and packages/ resolve packages from the repo
       # root, so the root install has to run before the desktop one.
       - name: Install shared root dependencies
