@@ -1,7 +1,7 @@
 """Actual migration/CAS/history guards; does not execute Rust permissions."""
 from pathlib import Path
 import re,runpy,sqlite3
-root=Path(__file__).resolve().parents[1];m=runpy.run_path(str(root/'scripts/verify-local-schema.py'));groups,_=m['load_migrations']();db=m['build']([s for label,ddl in groups if label not in {'kitchen_staff','assignment_recovery'} for s in ddl]);m['seed'](db)
+root=Path(__file__).resolve().parents[1];m=runpy.run_path(str(root/'scripts/verify-local-schema.py'));groups,_=m['load_migrations']();db=m['build']([s for label,ddl in groups if label not in {'kitchen_staff','assignment_recovery','responsibility_access'} for s in ddl]);m['seed'](db)
 assert db.execute('PRAGMA user_version').fetchone()[0]==18
 db.execute("INSERT INTO local_restaurant_orders(id,kind,state,revision) VALUES('legacy','takeaway','open',1)")
 db.execute("INSERT INTO local_restaurant_tickets VALUES('legacy-kot','legacy','[]','pending',1)")

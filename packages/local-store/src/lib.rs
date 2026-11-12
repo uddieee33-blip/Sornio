@@ -19,6 +19,7 @@ pub mod kitchen;
 mod kitchen_staff;
 pub mod kitchen_history;
 pub mod assignment_recovery;
+mod responsibility_access;
 pub mod hub;
 pub mod inventory_recovery;
 pub mod lan_authority;
@@ -162,7 +163,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 20;
+const SCHEMA_VERSION: i64 = 21;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -279,6 +280,7 @@ impl Store {
             if locked_version < 18 { hub::migrate(&tx)?; }
             if locked_version < 19 { kitchen_staff::migrate(&tx)?; }
             if locked_version < 20 { assignment_recovery::migrate(&tx)?; }
+            if locked_version < 21 { responsibility_access::migrate(&tx)?; }
             tx.commit()?;
         }
         Ok(Self(db, None))
