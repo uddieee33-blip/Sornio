@@ -1,7 +1,7 @@
 """Run migration, actual responsibility CAS/session deletion and immutable receipts. Not Rust RBAC evidence."""
 from pathlib import Path
 import json,re,runpy
-root=Path(__file__).resolve().parents[1];m=runpy.run_path(str(root/'scripts/verify-local-schema.py'));groups,_=m['load_migrations']();db=m['build']([s for label,ddl in groups if label!='responsibility_access' for s in ddl]);m['seed'](db);assert db.execute('PRAGMA user_version').fetchone()[0]==20
+root=Path(__file__).resolve().parents[1];m=runpy.run_path(str(root/'scripts/verify-local-schema.py'));groups,_=m['load_migrations']();db=m['build']([s for label,ddl in groups if label not in {'responsibility_access','session_signout'} for s in ddl]);m['seed'](db);assert db.execute('PRAGMA user_version').fetchone()[0]==20
 db.execute("INSERT INTO local_principals(id,business_id,username,display_name,role,enabled,revision,password_hash) VALUES('cook','biz-test','cook','Cook','cashier',1,1,'synthetic')");db.execute("INSERT INTO local_kitchen_staff VALUES('cook','preparer')")
 db.execute("INSERT INTO local_hub_devices(id,name,credential_hash,generation,state,actor_id,created,expires) VALUES('phone','Phone','hash','generation','approved','cook',0,9999999999)");db.execute("INSERT INTO local_hub_sessions VALUES('token','phone',1,'cook',1,'generation',9999999999)")
 db.execute("INSERT INTO local_kitchen_assignment_ops(id,actor_id,generation,device,request,state) VALUES('existing-assignment','p1','old-generation','desktop','existing immutable payload','prepared')")
@@ -20,7 +20,7 @@ else:raise AssertionError('Result rewrite accepted')
 assert before=={t:db.execute(f'SELECT * FROM {t}').fetchall() for t in financial};assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
 # Recovery schema generation uses the exact canonical query and retains prior trusted schemas.
 query="SELECT type,name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*' AND NOT(type = 'table' AND name = 'sornio_backup_manifest') ORDER BY type,name"
-for version,excluded in [(19,{'assignment_recovery','responsibility_access'}),(20,{'responsibility_access'})]:
+for version,excluded in [(19,{'assignment_recovery','responsibility_access','session_signout'}),(20,{'responsibility_access','session_signout'})]:
  prior=m['build']([sql for label,ddl in groups if label not in excluded for sql in ddl]);rows=[list(row) for row in prior.execute(query)]
  if version==19:assert rows==json.loads((root/'packages/local-store/fixtures/recovery-v19-schema.json').read_text())
  else:assert rows==json.loads((root/'packages/local-store/fixtures/recovery-v20-schema.json').read_text())
