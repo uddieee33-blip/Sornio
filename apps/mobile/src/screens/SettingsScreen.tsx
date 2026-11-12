@@ -1,3 +1,4 @@
+import { RestaurantScreen } from './RestaurantScreen';
 import { useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { space, touch } from '@sornio/mobile-design';
@@ -15,10 +16,13 @@ const APPEARANCES: { id: ThemePreference; label: string }[] = [
 export function SettingsScreen() {
   const { session, snapshot, sync, refresh, signOut, wipe } = useCompanion();
   const { palette, preference, setPreference } = useTheme();
+  const [restaurant,setRestaurant]=useState(false);
   const [busy, setBusy] = useState(false);
+  if(restaurant)return <RestaurantScreen onBack={()=>setRestaurant(false)}/>;
   return (
     <ScrollView contentContainerStyle={styles.pad}>
       {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
+      <Section title="Restaurant drafts"><ActionButton label="Open restaurant workspace" onPress={()=>setRestaurant(true)}/></Section>
       <Section title={copy.account}>
         <Body>{session?.displayName ?? '—'}</Body>
         <Muted>{session?.userId ?? ''}</Muted>
