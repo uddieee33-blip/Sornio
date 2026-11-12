@@ -9,6 +9,10 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 zeroize = "1"
+serde_json = "1"
+httparse = "1.10"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2.2"
 tauri = { version = "2", features = [] }
 sornio-local-store = { path = "../../../packages/local-store" }
 serde = { version = "1", features = ["derive"] }

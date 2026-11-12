@@ -1,5 +1,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod hub_server;
 use sornio_local_store::customers as crate_types;
 #[cfg(any(windows, target_os = "macos"))]
 use sornio_local_store::device::initialize;
@@ -797,6 +798,39 @@ async fn restore_local_backup(
     })
     .await
 }
+#[tauri::command]
+async fn hub_admin(scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<serde_json::Value,CommandError>{
+ let address={let r=runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;if r.stop.as_ref().is_some_and(|s|!s.load(std::sync::atomic::Ordering::SeqCst)){r.address.clone()}else{None}};
+ with_scoped_workspace(state,scope,move|w|{let mut v=w.hub_admin()?;v["address"]=serde_json::json!(address);Ok(v)}).await
+}
+#[tauri::command]
+async fn hub_device(id:String,revision:i64,actor:Option<String>,scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{with_scoped_workspace(state,scope,move|w|w.hub_device(&id,revision,actor.as_deref())).await}
+#[tauri::command]
+async fn hub_batches(scope:Scope,state:tauri::State<'_,LocalState>)->Result<serde_json::Value,CommandError>{with_scoped_workspace(state,scope,|w|w.hub_batches()).await}
+#[tauri::command]
+async fn hub_dispatch(id:String,revision:i64,scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{with_scoped_workspace(state,scope,move|w|w.hub_dispatch(&id,revision)).await}
+#[tauri::command]
+async fn hub_control(enabled:bool,address:String,scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<(),CommandError>{
+ let ws=Arc::clone(state.inner());let rt=Arc::clone(runtime.inner());
+ tauri::async_runtime::spawn_blocking(move||{let mut r=rt.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;
+  let mut guard=ws.lock().map_err(|_|CommandError::unavailable("Workspace unavailable."))?;let w=guard.as_mut().map_err(|_|CommandError::unavailable("Unlock the workspace."))?;w.verify_scope(&scope)?;w.require(sornio_local_store::identity::Permission::Settings)?;
+  if let Some(stop)=r.stop.take(){stop.store(true,std::sync::atomic::Ordering::SeqCst);}r.address=None;w.hub_configure(false,None)?;
+  if enabled{let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);let tls=hub_server::config(&cert,&key).map_err(|e|CommandError::unavailable(&e))?;let next=hub_server::start(&address,tls,ws.clone()).map_err(|e|CommandError::unavailable(&e))?;w.hub_configure(true,None)?;*r=next;}Ok(())
+ }).await.map_err(|_|CommandError::unavailable("Hub change interrupted."))?
+}
+#[tauri::command]
+async fn hub_import_tls(scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{
+ with_scoped_workspace(state,scope,|w|{w.require(sornio_local_store::identity::Permission::Settings)?;
+  #[cfg(any(windows,target_os="macos"))]{
+   let cert=rfd::FileDialog::new().set_title("Select trusted HTTPS certificate chain PEM").pick_file().ok_or(StoreError::InvalidDraft)?;
+   let key=rfd::FileDialog::new().set_title("Select matching private key PEM (kept in encrypted local database)").pick_file().ok_or(StoreError::InvalidDraft)?;
+   if std::fs::metadata(&cert).map_err(|_|StoreError::AccessUnavailable)?.len()>65536||std::fs::metadata(&key).map_err(|_|StoreError::AccessUnavailable)?.len()>16384{return Err(StoreError::InvalidDraft);}
+   let cert=std::fs::read_to_string(cert).map_err(|_|StoreError::AccessUnavailable)?;let key=std::fs::read_to_string(key).map_err(|_|StoreError::AccessUnavailable)?;
+   hub_server::config(&cert,&key).map_err(|_|StoreError::InvalidIdentity)?;w.hub_configure(false,Some((cert,key)))
+  }
+  #[cfg(not(any(windows,target_os="macos")))]{Err(StoreError::AccessUnavailable)}
+ }).await
+}
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -807,10 +841,12 @@ fn main() {
                 .and_then(|path| initialize(&path))
                 .map(Workspace::new);
             app.manage(Arc::new(Mutex::new(workspace)));
+            app.manage(Arc::new(Mutex::new(hub_server::Runtime::default())));
             app.manage(Arc::new(Mutex::new(RecoverySelection::default())));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            hub_admin, hub_control, hub_import_tls, hub_device, hub_batches, hub_dispatch,
             read_last_restore,
             choose_local_backup,
             export_local_backup,

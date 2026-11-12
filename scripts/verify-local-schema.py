@@ -65,6 +65,7 @@ MIGRATION_ORDER = [
     "restaurant_checkout",
     "restaurant_recovery",
     "kitchen",
+    "hub",
 ]
 
 # Schema version each module leaves behind, read off lib.rs's `if version < N`
@@ -85,6 +86,7 @@ MODULE_VERSION = {
     "restaurant_checkout": 15,
     "restaurant_recovery": 16,
     "kitchen": 17,
+    "hub": 18,
 }
 
 failures: list[str] = []
