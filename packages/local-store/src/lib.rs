@@ -17,6 +17,7 @@ pub mod restaurant_checkout;
 pub mod restaurant_recovery;
 pub mod kitchen;
 mod kitchen_staff;
+pub mod kitchen_history;
 pub mod hub;
 pub mod inventory_recovery;
 pub mod lan_authority;
