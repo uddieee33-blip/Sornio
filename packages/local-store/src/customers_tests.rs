@@ -738,7 +738,7 @@ fn schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity() {
     let invoice = sale(&mut s, "old-credit", "legacy");
     let identity = identity::scope(&s.0).unwrap();
     crate::lan_authority::remove_fixture_tables(&s.0);
-        crate::schema_rollback::drop_tables_newer_than(&s.0, 7);
+    crate::schema_rollback::drop_post_v11_tables(&s.0);
     s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; PRAGMA user_version=7;").unwrap();
     drop(s);
     let s = Store::open(&path, KEY).unwrap();
