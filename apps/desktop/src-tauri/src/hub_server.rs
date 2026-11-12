@@ -5,6 +5,7 @@ use serde_json::{Value,json};
 use std::{io::{Read,Write,BufReader},net::{TcpListener,SocketAddr,IpAddr},sync::{Arc,Mutex,atomic::{AtomicBool,AtomicUsize,Ordering}},time::{Duration,Instant}};
 #[derive(Default)]
 pub struct Runtime{pub stop:Option<Arc<AtomicBool>>,pub address:Option<String>}
+impl Drop for Runtime{fn drop(&mut self){if let Some(stop)=&self.stop{stop.store(true,Ordering::SeqCst);}}}
 pub type State=Arc<Mutex<Runtime>>;
 pub fn config(cert:&str,key:&str)->Result<Arc<ServerConfig>,String>{
  let certs=rustls_pemfile::certs(&mut BufReader::new(cert.as_bytes())).collect::<Result<Vec<_>,_>>().map_err(|_|"Invalid TLS certificate chain.")?;

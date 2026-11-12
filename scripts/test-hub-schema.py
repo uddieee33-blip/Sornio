@@ -25,3 +25,14 @@ assert db.execute(query,(50,50)).fetchone()[0]==0
 assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
 assert db.execute('SELECT count(*) FROM local_hub_operations').fetchone()[0]==1
 print('Hub SQLite: immutable operation/batch identity, deferred atomic linkage, one KOT linkage, revoked/expired session predicates passed.')
+
+# Execute the actual desktop open-order SQL against the full migrated schema.
+import re
+m=runpy.run_path(str(src.parents[2]/'scripts/verify-local-schema.py'))
+groups,_=m['load_migrations']();full=m['build']([sql for _,ddl in groups for sql in ddl])
+source=(src/'restaurant.rs').read_text();sql=re.search(r'"(INSERT INTO local_restaurant_orders[^";]+)"',source).group(1)
+full.execute(sql,('schema-order',None,'takeaway'))
+assert full.execute("SELECT settled_invoice FROM local_restaurant_orders WHERE id='schema-order'").fetchone()[0] is None
+for table in ['local_invoices','local_billing_ledger','local_restaurant_tickets']:
+ assert full.execute(f'SELECT count(*) FROM {table}').fetchone()[0]==0
+print('Desktop open-order SQL works after settlement-column migration without posting a sale or KOT.')

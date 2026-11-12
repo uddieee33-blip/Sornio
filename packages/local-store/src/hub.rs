@@ -29,12 +29,13 @@ impl Store{
  }
  pub(crate) fn hub_tls(&self)->Result<(String,String),StoreError>{identity::verify(&self.0,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::Settings)?;Ok(self.0.query_row("SELECT certificate,private_key FROM local_hub_config WHERE singleton=1",[],|q|Ok((q.get(0)?,q.get(1)?)))?)}
  pub(crate) fn hub_admin(&self)->Result<Value,StoreError>{identity::verify(&self.0,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::Settings)?;
-  let devices=self.0.prepare("SELECT id,name,substr(credential_hash,1,12),state,actor_id,revision,expires,last_seen FROM local_hub_devices ORDER BY created DESC LIMIT 100")?.query_map([],|q|Ok(json!({"id":q.get::<_,String>(0)?,"name":q.get::<_,String>(1)?,"code":q.get::<_,String>(2)?,"state":q.get::<_,String>(3)?,"actorId":q.get::<_,Option<String>>(4)?,"revision":q.get::<_,i64>(5)?,"expires":q.get::<_,i64>(6)?,"lastSeen":q.get::<_,Option<i64>>(7)?})))?.collect::<Result<Vec<_>,_>>()?;
+  let devices=self.0.prepare("SELECT d.id,d.name,substr(d.credential_hash,1,12),d.state,d.actor_id,d.revision,d.expires,d.last_seen,(SELECT max(s.expires) FROM local_hub_sessions s JOIN local_principals p ON p.id=s.actor_id WHERE s.device_id=d.id AND s.device_revision=d.revision AND s.actor_revision=p.revision AND p.enabled=1 AND d.state='approved' AND d.expires>strftime('%s','now') AND s.generation=d.generation AND s.generation=(SELECT generation FROM local_recovery_identity WHERE singleton=1) AND s.expires>strftime('%s','now')) FROM local_hub_devices d ORDER BY d.created DESC LIMIT 100")?.query_map([],|q|Ok(json!({"id":q.get::<_,String>(0)?,"name":q.get::<_,String>(1)?,"code":q.get::<_,String>(2)?,"state":q.get::<_,String>(3)?,"actorId":q.get::<_,Option<String>>(4)?,"revision":q.get::<_,i64>(5)?,"expires":q.get::<_,i64>(6)?,"lastSeen":q.get::<_,Option<i64>>(7)?,"sessionExpires":q.get::<_,Option<i64>>(8)?})))?.collect::<Result<Vec<_>,_>>()?;
   let operations=self.0.prepare("SELECT id,actor_id,result,created FROM local_hub_operations ORDER BY rowid DESC LIMIT 30")?.query_map([],|q|Ok(json!({"id":q.get::<_,String>(0)?,"actorId":q.get::<_,String>(1)?,"result":serde_json::from_str::<Value>(&q.get::<_,String>(2)?).unwrap_or(Value::Null),"created":q.get::<_,i64>(3)?})))?.collect::<Result<Vec<_>,_>>()?;
-  Ok(json!({"identity":self.hub_identity()?,"devices":devices,"operations":operations}))
+  let audit=self.0.prepare("SELECT action,target,created_at FROM local_identity_audit WHERE action LIKE 'hub.%' ORDER BY sequence DESC LIMIT 50")?.query_map([],|q|Ok(json!({"action":q.get::<_,String>(0)?,"target":q.get::<_,Option<String>>(1)?,"createdAt":q.get::<_,String>(2)?})))?.collect::<Result<Vec<_>,_>>()?;
+  Ok(json!({"identity":self.hub_identity()?,"devices":devices,"operations":operations,"audit":audit}))
  }
  pub(crate) fn hub_device(&mut self,id:&str,revision:i64,actor:Option<&str>)->Result<(),StoreError>{let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;identity::verify(&tx,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::Settings)?;
-  if let Some(a)=actor{let p=identity::principal(&tx,a)?;if !p.enabled||!p.role.allows(Permission::Sell){return Err(StoreError::Forbidden);}if tx.execute("UPDATE local_hub_devices SET state='approved',actor_id=?1,revision=revision+1,expires=?2 WHERE id=?3 AND revision=?4 AND state='pending' AND created>?5 AND generation=?6",params![a,now()?+30*86400,id,revision,now()?-300,crate::recovery::generation(&tx)?])?!=1{return Err(StoreError::Conflict);}}
+  if let Some(a)=actor{let p=identity::principal(&tx,a)?;if !p.enabled||!p.role.allows(Permission::Sell){return Err(StoreError::Forbidden);}if tx.execute("UPDATE local_hub_devices SET state='approved',actor_id=?1,revision=revision+1,expires=?2 WHERE id=?3 AND revision=?4 AND ((state='pending' AND created>?5) OR (state='approved' AND actor_id=?1)) AND generation=?6",params![a,now()?+30*86400,id,revision,now()?-300,crate::recovery::generation(&tx)?])?!=1{return Err(StoreError::Conflict);}}
   else{if tx.execute("UPDATE local_hub_devices SET state='revoked',revision=revision+1 WHERE id=?1 AND revision=?2",params![id,revision])?!=1{return Err(StoreError::Conflict);}}
   tx.execute("DELETE FROM local_hub_sessions WHERE device_id=?1",[id])?;identity::guard(&tx,&self.1,Permission::Settings,if actor.is_some(){"hub.device_approved"}else{"hub.device_revoked"},Some(id))?;tx.commit()?;Ok(())
  }
@@ -43,7 +44,9 @@ impl Store{
   if !crate::billing::valid_id(id)||!identity::text(name,60)||!secret(credential){return Err(StoreError::InvalidIdentity);}
   let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let generation=crate::recovery::generation(&tx)?;let fingerprint=hash(credential);
   let old:Option<(String,String,String,String)>=tx.query_row("SELECT credential_hash,state,generation,name FROM local_hub_devices WHERE id=?1",[id],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?,q.get(3)?))).optional()?;
-  if let Some((h,state,g,n))=old{if h!=fingerprint||g!=generation||n!=name{return Err(StoreError::OperationConflict);}return Ok(json!({"state":state,"code":&fingerprint[..12]}));}
+  if let Some((h,state,g,n))=old{if h!=fingerprint||g!=generation||n!=name{return Err(StoreError::OperationConflict);}
+    if state=="pending"{let expired:bool=tx.query_row("SELECT expires<=?1 FROM local_hub_devices WHERE id=?2",params![now()?,id],|q|q.get(0))?;if expired{tx.execute("UPDATE local_hub_devices SET created=?1,expires=?2,revision=revision+1 WHERE id=?3",params![now()?,now()?+300,id])?;identity::audit(&tx,&identity::scope(&tx)?,None,"hub.enrolment_renewed",Some(id))?;tx.commit()?;}}
+    return Ok(json!({"state":state,"code":&fingerprint[..12]}));}
   if tx.query_row("SELECT count(*) FROM local_hub_devices",[],|q|q.get::<_,i64>(0))?>=100{return Err(StoreError::RateLimited);}
   tx.execute("INSERT INTO local_hub_devices(id,name,credential_hash,generation,state,created,expires) VALUES(?1,?2,?3,?4,'pending',?5,?6)",params![id,name,fingerprint,generation,now()?,now()?+300])?;
   identity::audit(&tx,&identity::scope(&tx)?,None,"hub.enrolment_requested",Some(id))?;tx.commit()?;Ok(json!({"state":"pending","code":&fingerprint[..12]}))
@@ -94,10 +97,10 @@ impl Store{
  }
 }
 fn accept(tx:&Transaction<'_>,session:&Option<Session>,r:&Submit)->Result<Value,StoreError>{
- let mut items=Vec::new();for line in &r.items{if !(1..=1000).contains(&line.quantity)||line.note.chars().count()>200||line.note.chars().any(char::is_control){return Err(StoreError::InvalidDraft);}
+ let mut items=Vec::new();let mut total=0i64;for line in &r.items{if !(1..=1000).contains(&line.quantity)||line.note.chars().count()>200||line.note.chars().any(char::is_control){return Err(StoreError::InvalidDraft);}
   let row:Option<(String,String,i64)>=tx.query_row("SELECT p.id,m.label || CASE WHEN m.variant='' THEN '' ELSE ' / ' || m.variant END,p.unit_price_paise FROM local_restaurant_menu m JOIN local_products p ON p.id=m.product_id WHERE m.id=?1 AND m.available=1 AND p.unit='pcs'",[&line.menu_id],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?))).optional()?;
   let (product,name,price)=row.ok_or(StoreError::InvalidProduct)?;if price<0||price!=line.expected_price_paise{return Err(StoreError::StockConflict);}
-  crate::billing::line_total(line.quantity.checked_mul(1000).ok_or(StoreError::InvalidDraft)?,price)?;
+  total=total.checked_add(crate::billing::line_total(line.quantity.checked_mul(1000).ok_or(StoreError::InvalidDraft)?,price)?).ok_or(StoreError::InvalidDraft)?;if total>9_000_000_000_000_000{return Err(StoreError::InvalidDraft);}
   items.push(Item{name,quantity:line.quantity,note:line.note.clone(),product_id:Some(product),unit_price_paise:Some(price)});
  }
  let old:Option<(i64,Option<String>,String)>=tx.query_row("SELECT revision,table_id,state FROM local_restaurant_orders WHERE id=?1",[&r.order_id],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?))).optional()?;
