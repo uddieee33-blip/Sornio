@@ -7,6 +7,8 @@ public final class SornioLanModule: Module, NetServiceBrowserDelegate, NetServic
   public func definition() -> ModuleDefinition {
     Name("SornioLan")
     Events("onService", "onDiscoveryStatus")
+    AsyncFunction("probe") { (origin: String) async throws -> [String: Any] in try await ShopHttps.perform(origin: origin, path: "/v1/identity", body: "{\"version\":1}", bearer: "", pin: nil, probe: true) }
+    AsyncFunction("request") { (origin: String, path: String, body: String, bearer: String, pin: String) async throws -> [String: Any] in try await ShopHttps.perform(origin: origin, path: path, body: body, bearer: bearer, pin: pin, probe: false) }
     AsyncFunction("startDiscovery") { self.start() }.runOnQueue(.main)
     AsyncFunction("stopDiscovery") { self.stop() }.runOnQueue(.main)
     OnDestroy { DispatchQueue.main.async { self.stop() } }
