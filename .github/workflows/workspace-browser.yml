@@ -48,9 +48,18 @@ jobs:
           # One annotation carries the whole diff; newlines escaped as %0A so
           # the check-run API returns it in full instead of truncating a
           # per-line annotation list.
+          #
+          # `head -c 60000` is not cosmetic. Check-run annotation messages are
+          # capped at 65535 bytes, and the Rust sources under `apps/` are
+          # minified (file lists and match arms on single long lines), so the
+          # formatting diff for one such file alone can exceed the cap — in
+          # which case GitHub rejects the annotation and the check record keeps
+          # only "Process completed with exit code 1". Truncating keeps the
+          # beginning of the diff, which is where the reviewer starts anyway.
           git diff -- packages apps \
             | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' \
-            | tr -d '\n' | sed 's/^/::error::rustfmt diff: /'
+            | tr -d '\n' | head -c 60000 | sed 's/^/::error::rustfmt diff: /'
+          echo "::error::rustfmt would reformat these files: $(git diff --name-only -- packages apps | tr '\n' ' ')"
           git checkout -- packages apps
           exit 1
       - name: Test native billing and inventory in debug and release

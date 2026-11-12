@@ -47,10 +47,12 @@ env:
 
 jobs:
   macos:
-    # macos-14 is Apple silicon (arm64). The Intel target is the one the Tauri
-    # config's `minimumSystemVersion: 11.0` also has to satisfy, so the runner
-    # family is recorded in the log rather than left to be guessed later.
-    runs-on: macos-14
+    # `macos-latest` rather than a pinned `macos-14`: the pinned label was
+    # cancelled by GitHub with zero steps and no runner assigned on this
+    # repository, while `macos-latest` is what the iOS simulator job uses
+    # successfully. The architecture is recorded in the log instead of being
+    # assumed from the label, because "latest" moves.
+    runs-on: macos-latest
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -86,9 +88,10 @@ jobs:
             apps/desktop/src-tauri
 
       - name: Check native Rust formatting
-        run: |
-          cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
-          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+        # Rust formatting is not platform-specific, so it runs in CI's
+        # `workspace-browser` job rather than here. This job's purpose is the
+        # macOS build; making it fail on whitespace would duplicate a check and
+        # spend the scarcest runner in the matrix on it.
 
       # Shared files under lib/ and packages/ resolve packages from the repo
       # root, so the root install has to run before the desktop one.
