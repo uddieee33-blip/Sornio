@@ -105,16 +105,83 @@ jobs:
       - name: Native tests (debug profile)
         # Debug keeps integer overflow checks and debug_assert! active, which the
         # financial and money suites rely on.
+        #
+        # This step used to `run: cargo test ...` directly, so a failure left the
+        # check record with "Process completed with exit code 101" and nothing
+        # else: the macOS job produced no annotation capture, and raw job logs are
+        # not retrievable for this repository. The failing test names are now
+        # re-emitted as annotations, matching the browser job's treatment.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
         run: |
+          set -o pipefail
+          log=/tmp/macos-native-debug.log
+          set +e
           cargo test --all-targets --locked \
             --manifest-path packages/local-store/Cargo.toml \
-            --target-dir apps/desktop/src-tauri/target
+            --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::debug native test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::debug native tests failed (exit $code)"
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
+            grep -E '^test .* FAILED$|^test result:' "$log.clean" | head -60 \
+              | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::debug failing tests: /' || true
+            # Panics carry the assertion text. One annotation per 3000 characters:
+            # an oversized annotation is rejected outright and the check record
+            # keeps only "exit code 101", which is the failure mode this replaces.
+            awk '/^failures:$/{f=1} f' "$log.clean" | head -400 > /tmp/macos-failures.txt || true
+            split -b 3000 -a 3 /tmp/macos-failures.txt /tmp/macos-part- || true
+            for part in /tmp/macos-part-*; do
+              [ -f "$part" ] || continue
+              sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n' \
+                | sed "s|^|::error file=packages/local-store/src::debug failure detail: |" || true
+            done
+          fi
+          exit "$code"
 
       - name: Native tests (release profile)
+        # Same annotation capture as the debug step. Release drops overflow
+        # checks, so these cover behaviour rather than arithmetic invariants.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
         run: |
+          set -o pipefail
+          log=/tmp/macos-native-release.log
+          set +e
           cargo test --all-targets --release --locked \
             --manifest-path packages/local-store/Cargo.toml \
-            --target-dir apps/desktop/src-tauri/target
+            --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::release native test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::release native tests failed (exit $code)"
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
+            grep -E '^test .* FAILED$|^test result:' "$log.clean" | head -60 \
+              | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::release failing tests: /' || true
+            awk '/^failures:$/{f=1} f' "$log.clean" | head -400 > /tmp/macos-rel-failures.txt || true
+            split -b 3000 -a 3 /tmp/macos-rel-failures.txt /tmp/macos-rel-part- || true
+            for part in /tmp/macos-rel-part-*; do
+              [ -f "$part" ] || continue
+              sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n' \
+                | sed "s|^|::error file=packages/local-store/src::release failure detail: |" || true
+            done
+          fi
+          exit "$code"
 
       - name: Build unsigned macOS application bundle
         # `tauri.macos.conf.json` declares `app,dmg`; a DMG needs a signed bundle

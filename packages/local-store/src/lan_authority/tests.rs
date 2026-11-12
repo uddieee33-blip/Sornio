@@ -499,6 +499,7 @@ fn migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collis
     w.post_invoice(sale("legacy")).unwrap();
     let invoices = serde_json::to_value(w.list_invoices(0).unwrap()).unwrap();
     remove_fixture_tables(&w.store_for_test().0);
+    crate::schema_rollback::drop_tables_newer_than(&w.store_for_test().0, 11);
     w.store_for_test()
         .0
         .pragma_update(None, "user_version", 11)
@@ -516,6 +517,7 @@ fn migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collis
     );
     assert!(migrated.list_lan_devices().unwrap().is_empty());
     remove_fixture_tables(&migrated.store_for_test().0);
+    crate::schema_rollback::drop_tables_newer_than(&migrated.store_for_test().0, 11);
     migrated
         .store_for_test()
         .0

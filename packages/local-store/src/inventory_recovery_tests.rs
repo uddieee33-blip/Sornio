@@ -255,6 +255,7 @@ fn schema_nine_migration_preserves_inventory_and_legacy_operation_ids() {
     let s = seed(&path);
     let products = s.list_products().unwrap();
     crate::lan_authority::remove_fixture_tables(&s.0);
+        crate::schema_rollback::drop_tables_newer_than(&s.0, 9);
     s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; PRAGMA user_version=9;").unwrap();
     drop(s);
     let mut reopened = authenticated(&path);

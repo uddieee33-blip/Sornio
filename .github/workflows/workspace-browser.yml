@@ -91,8 +91,18 @@ jobs:
                 | sed "s/^/::error::[$profile] failing tests: /" || true
               { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
                 | sed "s/^/::error::[$profile] compiler errors: /" || true
-              { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-                | sed "s/^/::error::[$profile] failure details: /" || true
+              # Chunked, not one annotation. A single annotation is capped at
+              # 65535 bytes, and an oversized one is rejected outright: the
+              # Phase 19B run reported only the first 4096 bytes of panic text,
+              # which hid two distinct failures. Emitting several smaller
+              # annotations keeps every failing assertion in the check record.
+              awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -400 > "/tmp/$profile-failures.txt" || true
+              split -b 3000 -a 3 "/tmp/$profile-failures.txt" "/tmp/$profile-part-" || true
+              for part in /tmp/"$profile"-part-*; do
+                [ -f "$part" ] || continue
+                { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n'; } \
+                  | sed "s|^|::error file=packages/local-store/src::[$profile] failure detail: |" || true
+              done
             fi
             return "$code"
           }

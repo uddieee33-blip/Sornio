@@ -20,6 +20,7 @@ fn version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration()
     let db = Connection::open(&archive).unwrap();
     db.pragma_update(None, "key", SECRET).unwrap();
     crate::lan_authority::remove_fixture_tables(&db);
+    crate::schema_rollback::drop_tables_newer_than(&db, 11);
     db.pragma_update(None, "user_version", 11).unwrap();
     let payload: String = db
         .query_row("SELECT payload FROM sornio_backup_manifest", [], |r| {
@@ -821,6 +822,7 @@ fn recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_erro
     let invoices = s.list_invoices(0).unwrap();
     let products = s.list_products().unwrap();
     crate::lan_authority::remove_fixture_tables(&s.0);
+    crate::schema_rollback::drop_tables_newer_than(&s.0, 10);
     s.0.execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; PRAGMA user_version=10;").unwrap();
     drop(s);
     let migrated = Store::open(&path, KEY).unwrap();
