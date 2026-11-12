@@ -14,6 +14,16 @@ pub(crate) fn authorize_ticket(db:&Connection,session:&Option<Session>,ticket:&s
  let assigned:Option<String>=db.query_row("SELECT actor_id FROM local_kitchen_ticket_staff WHERE ticket_id=?1",[ticket],|q|q.get(0)).optional()?;
  match assigned{Some(actor) if actor==s.actor_id=>Ok(()),Some(_)=>Err(StoreError::Forbidden),None=>{identity::verify(db,s,Permission::Sell)?;crate::kitchen::authorize_order(db,session,order)}}
 }
+pub(crate) fn assign_ticket(tx:&Transaction<'_>,session:&Option<Session>,ticket_id:&str,expected_revision:i64,actor_id:&str)->Result<Value,StoreError>{
+ let next_revision=expected_revision.checked_add(1).ok_or(StoreError::Conflict)?;
+ let s=session.as_ref().ok_or(StoreError::Locked)?;identity::verify(tx,s,Permission::KitchenSupervise)?;
+ if !tx.query_row("SELECT EXISTS(SELECT 1 FROM local_principals WHERE id=?1 AND business_id=?2)",params![actor_id,s.scope.business_id],|q|q.get::<_,bool>(0))?{return Err(StoreError::WorkspaceMismatch);}
+ let target=identity::principal(tx,actor_id)?;if !target.enabled||!allows(tx,&target,Permission::KitchenPrepare)?{return Err(StoreError::Forbidden);}
+ if tx.execute("UPDATE local_restaurant_tickets SET revision=revision+1 WHERE id=?1 AND revision=?2 AND state IN('pending','preparing','ready') AND EXISTS(SELECT 1 FROM local_restaurant_orders WHERE id=local_restaurant_tickets.order_id AND state IN('open','pending_bill'))",params![ticket_id,expected_revision])?!=1{return Err(StoreError::Conflict);}
+ let previous:Option<String>=tx.query_row("SELECT actor_id FROM local_kitchen_ticket_staff WHERE ticket_id=?1",[ticket_id],|q|q.get(0)).optional()?;
+ tx.execute("INSERT INTO local_kitchen_ticket_staff VALUES(?1,?2) ON CONFLICT(ticket_id) DO UPDATE SET actor_id=excluded.actor_id",params![ticket_id,actor_id])?;
+ Ok(json!({"ticketId":ticket_id,"actorId":actor_id,"previousActorId":previous,"revision":next_revision}))
+}
 impl Store{
  pub(crate) fn kitchen_staff_view(&self)->Result<Value,StoreError>{
  let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::KitchenView)?;
@@ -27,6 +37,7 @@ impl Store{
  let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::KitchenView)?;
  let (id,permission)=match &a{Action::Staff{operation_id,..}=>(operation_id,Permission::Staff),Action::AssignTicket{operation_id,..}=>(operation_id,Permission::KitchenSupervise),_=>return Err(StoreError::InvalidDraft)};
  identity::verify(&tx,s,permission)?;if !crate::billing::valid_id(id){return Err(StoreError::InvalidDraft);}
+ if tx.query_row("SELECT EXISTS(SELECT 1 FROM local_kitchen_assignment_ops WHERE id=?1)",[id],|q|q.get::<_,bool>(0))?{return Err(StoreError::OperationConflict);}
  let old:Option<(String,String,String)>=tx.query_row("SELECT actor_id,request,result FROM local_kitchen_staff_events WHERE id=?1",[id],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?))).optional()?;
  if let Some((actor,request,result))=old{if actor!=s.actor_id||request!=raw{return Err(StoreError::OperationConflict);}return Ok(serde_json::from_str(&result)?);}
  let (ticket,result)=match &a{
@@ -39,12 +50,7 @@ impl Store{
  (None,json!({"employeeId":actor_id,"mode":mode,"revision":expected_revision+1}))
  },
  Action::AssignTicket{ticket_id,expected_revision,actor_id,..}=>{
- if !tx.query_row("SELECT EXISTS(SELECT 1 FROM local_principals WHERE id=?1 AND business_id=?2)",params![actor_id,s.scope.business_id],|q|q.get::<_,bool>(0))?{return Err(StoreError::WorkspaceMismatch);}
- let target=identity::principal(&tx,actor_id)?;if !target.enabled||!allows(&tx,&target,Permission::KitchenPrepare)?{return Err(StoreError::Forbidden);}
- if tx.execute("UPDATE local_restaurant_tickets SET revision=revision+1 WHERE id=?1 AND revision=?2 AND state IN('pending','preparing','ready') AND EXISTS(SELECT 1 FROM local_restaurant_orders WHERE id=local_restaurant_tickets.order_id AND state IN('open','pending_bill'))",params![ticket_id,expected_revision])?!=1{return Err(StoreError::Conflict);}
- let previous:Option<String>=tx.query_row("SELECT actor_id FROM local_kitchen_ticket_staff WHERE ticket_id=?1",[ticket_id],|q|q.get(0)).optional()?;
- tx.execute("INSERT INTO local_kitchen_ticket_staff VALUES(?1,?2) ON CONFLICT(ticket_id) DO UPDATE SET actor_id=excluded.actor_id",params![ticket_id,actor_id])?;
- (Some(ticket_id.as_str()),json!({"ticketId":ticket_id,"actorId":actor_id,"previousActorId":previous,"revision":expected_revision+1}))
+ (Some(ticket_id.as_str()),assign_ticket(&tx,&self.1,ticket_id,*expected_revision,actor_id)?)
  },_=>return Err(StoreError::InvalidDraft)};
  tx.execute("INSERT INTO local_kitchen_staff_events(id,actor_id,ticket_id,request,result) VALUES(?1,?2,?3,?4,?5)",params![id,s.actor_id,ticket,raw,result.to_string()])?;
  identity::guard(&tx,&self.1,permission,"restaurant.kitchen_staff_changed",Some(id))?;tx.commit()?;Ok(result)

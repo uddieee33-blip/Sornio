@@ -13,6 +13,9 @@
    "customer_credit_history"
   ],
   [
+   "kitchen_one_pending_assignment"
+  ],
+  [
    "local_held_bills_one_active"
   ],
   [
@@ -229,6 +232,17 @@
    "id:TEXT:NOTNULL:0",
    "request:TEXT:NOTNULL:0",
    "payload:TEXT:NOTNULL:0"
+  ],
+  "local_kitchen_assignment_ops": [
+   "id:TEXT:null:1",
+   "actor_id:TEXT:NOTNULL:0",
+   "generation:TEXT:NOTNULL:0",
+   "device:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0",
+   "state:TEXT:NOTNULL:0",
+   "result:TEXT:null:0",
+   "acknowledged:INTEGER:NOTNULL:0",
+   "created_at:TEXT:NOTNULL:0"
   ],
   "local_kitchen_corrections": [
    "id:TEXT:NOTNULL:1",
@@ -539,6 +553,12 @@
   ],
   [
    "invoice_actor_no_update"
+  ],
+  [
+   "kitchen_assignment_identity"
+  ],
+  [
+   "kitchen_assignment_no_delete"
   ],
   [
    "kitchen_staff_events_no_delete"
