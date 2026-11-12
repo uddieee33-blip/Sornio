@@ -1,0 +1,11 @@
+# Kitchen queue controls
+
+Verified dependency: Phase 18C `cecf8f24c199c4936a68f93ebcb5612ce3343e5d`, draft #173. Continued on an isolated branch; no merges.
+
+Shared `kitchen-queue.ts` creates a read-only preparation projection from authoritative unpaid and paid ticket snapshots. Ready tickets sort first, followed by Pending and Preparing; ties preserve native ticket order. Active is the default. Status counts cover the complete confirmed queue independently of search. Table/ticket/order/item/preparation-note search and dine-in/takeaway filters are shared across desktop and mobile. Desktop additionally supports paid/unpaid filtering and available unpaid Served records. Paid Served records are absent from the active native feed, so the UI explicitly does not claim complete history.
+
+Desktop has one preparation board for paid and unpaid tickets rather than a paid-only block. Existing selected-order ticket controls remain available. Mobile uses touch controls in its existing phone/tablet workspace. Local queued/unknown-operation recovery remains above the filters and is never filtered out. Existing native transition commands, revisions, permission checks and immutable recovery identities are retained. No native/database/schema, financial, inventory, certificate or permission change was introduced.
+
+Passed: desktop TypeScript/Vite build; mobile TypeScript; all 59 shared-domain tests, including six queue cases for service ordering, reused tables, filters and Punjabi notes, global counts, snapshot immutability, malformed orphan/duplicate suppression; 63 mobile and 38 desktop contract checks; diff whitespace checks. Rendering/interaction on installed platforms and real LAN devices remains unverified. Native build, financial and installer/lifecycle acceptance gates remain outstanding as reported in Phase 18; blocked tools were not retried for this frontend/domain increment.
+
+Limitations: filters are local view preferences, not persisted operational state; status counts describe the bounded received snapshot, not unseen server history. No ticket age, completion archive or assigned kitchen-role model is claimed. Next functional increment: preparation-history retrieval and dedicated kitchen staff permissions/assignment.
