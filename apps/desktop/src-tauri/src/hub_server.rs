@@ -5,8 +5,9 @@ use serde_json::{Value,json};
 use sha2::{Digest,Sha256};
 use std::{io::{Read,Write,BufReader},net::{TcpListener,SocketAddr,IpAddr},sync::{Arc,Mutex,atomic::{AtomicBool,AtomicUsize,Ordering}},time::{Duration,Instant}};
 #[derive(Default)]
-pub struct Runtime{pub stop:Option<Arc<AtomicBool>>,pub address:Option<String>}
-impl Drop for Runtime{fn drop(&mut self){if let Some(stop)=&self.stop{stop.store(true,Ordering::SeqCst);}}}
+pub struct Runtime{pub stop:Option<Arc<AtomicBool>>,pub address:Option<String>,pub advertisement:Option<Arc<crate::hub_discovery::Advertisement>>,pub discovery_error:Option<String>}
+impl Runtime{pub fn halt(&mut self){if let Some(stop)=self.stop.take(){stop.store(true,Ordering::SeqCst);}if let Some(ad)=self.advertisement.take(){ad.stop();}self.address=None;self.discovery_error=None;}}
+impl Drop for Runtime{fn drop(&mut self){self.halt();}}
 pub type State=Arc<Mutex<Runtime>>;
 pub fn config(cert:&str,key:&str)->Result<Arc<ServerConfig>,String>{
  let certs=rustls_pemfile::certs(&mut BufReader::new(cert.as_bytes())).collect::<Result<Vec<_>,_>>().map_err(|_|"Invalid TLS certificate chain.")?;
@@ -20,10 +21,12 @@ pub fn tls_status(cert:&str,key:&str)->Value{
  json!({"configured":!cert.is_empty()&&!key.is_empty(),"keyMatches":config(cert,key).is_ok(),"certificateSha256":fingerprint})
 }
 fn local(ip:IpAddr)->bool{match ip{IpAddr::V4(v)=>v.is_private()||v.is_link_local(),_=>false}}
-pub fn start(address:&str,tls:Arc<ServerConfig>,workspace:LocalState)->Result<Runtime,String>{
+pub fn start(address:&str,tls:Arc<ServerConfig>,workspace:LocalState,advertise:Option<(String,Value,String)>)->Result<Runtime,String>{
  let address:SocketAddr=address.parse().map_err(|_|"Enter this computer's private IPv4 address and port.")?;
  if !local(address.ip())||address.port()<1024{return Err("Bind to a private IPv4 interface and a port above 1023. Public/wildcard listeners are refused.".into());}
  let listener=TcpListener::bind(address).map_err(|_|"Could not bind this LAN interface/port.")?;listener.set_nonblocking(true).map_err(|_|"Could not configure listener.")?;
+ let (advertisement,discovery_error)=match advertise{Some((origin,identity,cert))=>match crate::hub_discovery::Advertisement::start(address,&origin,&identity,&cert){Ok(ad)=>(Some(ad),None),Err(e)=>(None,Some(e))},None=>(None,None)};
+ let ad=advertisement.clone();
  let stop=Arc::new(AtomicBool::new(false));let halted=stop.clone();let active=Arc::new(AtomicUsize::new(0));
  std::thread::spawn(move||{let mut window=Instant::now();let mut requests=0;
   while !halted.load(Ordering::SeqCst){match listener.accept(){Ok((socket,peer))=>{
@@ -32,9 +35,9 @@ pub fn start(address:&str,tls:Arc<ServerConfig>,workspace:LocalState)->Result<Ru
    let config=tls.clone();let ws=workspace.clone();let count=active.clone();let stop=halted.clone();
    std::thread::spawn(move||{let _=socket.set_read_timeout(Some(Duration::from_secs(5)));let _=socket.set_write_timeout(Some(Duration::from_secs(5)));if let Ok(conn)=ServerConnection::new(config){let mut stream=StreamOwned::new(conn,socket);let response=serve(&mut stream,&ws,&stop).unwrap_or((400,json!({"error":"invalid_request"})));let body=response.1.to_string();let header=format!("HTTP/1.1 {} Result\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nConnection: close\r\nX-Content-Type-Options: nosniff\r\nContent-Length: {}\r\n\r\n",response.0,body.len());let _=stream.write_all(header.as_bytes());let _=stream.write_all(body.as_bytes());let _=stream.flush();}count.fetch_sub(1,Ordering::SeqCst);});
   },Err(e) if e.kind()==std::io::ErrorKind::WouldBlock=>std::thread::sleep(Duration::from_millis(50)),Err(_)=>break}}
-  halted.store(true,Ordering::SeqCst);
+  halted.store(true,Ordering::SeqCst);if let Some(ad)=ad{ad.stop();}
  });
- Ok(Runtime{stop:Some(stop),address:Some(address.to_string())})
+ Ok(Runtime{stop:Some(stop),address:Some(address.to_string()),advertisement,discovery_error})
 }
 fn serve<S:Read+Write>(stream:&mut S,workspace:&LocalState,stop:&AtomicBool)->Result<(u16,Value),()>{
  let started=Instant::now();let mut data=Vec::new();let header_end;

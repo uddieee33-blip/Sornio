@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod hub_server;
+mod hub_discovery;
 use sornio_local_store::customers as crate_types;
 #[cfg(any(windows, target_os = "macos"))]
 use sornio_local_store::device::initialize;
@@ -800,8 +801,8 @@ async fn restore_local_backup(
 }
 #[tauri::command]
 async fn hub_admin(scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<serde_json::Value,CommandError>{
- let address={let r=runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;if r.stop.as_ref().is_some_and(|s|!s.load(std::sync::atomic::Ordering::SeqCst)){r.address.clone()}else{None}};
- with_scoped_workspace(state,scope,move|w|{let mut v=w.hub_admin()?;let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);v["tls"]=hub_server::tls_status(&cert,&key);v["address"]=serde_json::json!(address);Ok(v)}).await
+ let (address,discovery)={let r=runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;let address=if r.stop.as_ref().is_some_and(|s|!s.load(std::sync::atomic::Ordering::SeqCst)){r.address.clone()}else{None};let discovery=r.advertisement.as_ref().map(|a|a.status()).unwrap_or_else(||serde_json::json!({"state":if r.discovery_error.is_some(){"unavailable"}else{"off"},"message":r.discovery_error}));(address,discovery)};
+ with_scoped_workspace(state,scope,move|w|{let mut v=w.hub_admin()?;let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);v["tls"]=hub_server::tls_status(&cert,&key);v["discovery"]=discovery;v["address"]=serde_json::json!(address);Ok(v)}).await
 }
 #[tauri::command]
 async fn hub_device(id:String,revision:i64,actor:Option<String>,scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{with_scoped_workspace(state,scope,move|w|w.hub_device(&id,revision,actor.as_deref())).await}
@@ -810,17 +811,17 @@ async fn hub_batches(scope:Scope,state:tauri::State<'_,LocalState>)->Result<serd
 #[tauri::command]
 async fn hub_dispatch(id:String,revision:i64,scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{with_scoped_workspace(state,scope,move|w|w.hub_dispatch(&id,revision)).await}
 #[tauri::command]
-async fn hub_control(enabled:bool,address:String,scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<(),CommandError>{
+async fn hub_control(enabled:bool,address:String,origin:Option<String>,scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<(),CommandError>{
  let ws=Arc::clone(state.inner());let rt=Arc::clone(runtime.inner());
  tauri::async_runtime::spawn_blocking(move||{let mut r=rt.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;
   let mut guard=ws.lock().map_err(|_|CommandError::unavailable("Workspace unavailable."))?;let w=guard.as_mut().map_err(|_|CommandError::unavailable("Unlock the workspace."))?;w.verify_scope(&scope)?;w.require(sornio_local_store::identity::Permission::Settings)?;
-  if let Some(stop)=r.stop.take(){stop.store(true,std::sync::atomic::Ordering::SeqCst);}r.address=None;w.hub_configure(false,None)?;
-  if enabled{let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);let tls=hub_server::config(&cert,&key).map_err(|e|CommandError::unavailable(&e))?;let next=hub_server::start(&address,tls,ws.clone()).map_err(|e|CommandError::unavailable(&e))?;w.hub_configure(true,None)?;*r=next;}Ok(())
+  r.halt();w.hub_configure(false,None)?;
+  if enabled{let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);let tls=hub_server::config(&cert,&key).map_err(|e|CommandError::unavailable(&e))?;let identity=w.hub_admin()?["identity"].clone();let fingerprint=hub_server::tls_status(&cert,&key)["certificateSha256"].as_str().unwrap_or("").to_string();let advertise=origin.filter(|s|!s.trim().is_empty()).map(|o|(o,identity,fingerprint));let next=hub_server::start(&address,tls,ws.clone(),advertise).map_err(|e|CommandError::unavailable(&e))?;w.hub_configure(true,None)?;*r=next;}Ok(())
  }).await.map_err(|_|CommandError::unavailable("Hub change interrupted."))?
 }
 #[tauri::command]
-async fn hub_import_tls(scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{
- with_scoped_workspace(state,scope,|w|{w.require(sornio_local_store::identity::Permission::Settings)?;
+async fn hub_import_tls(scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<(),CommandError>{
+ let result=with_scoped_workspace(state,scope,|w|{w.require(sornio_local_store::identity::Permission::Settings)?;
   #[cfg(any(windows,target_os="macos"))]{
    let cert=rfd::FileDialog::new().set_title("Select trusted HTTPS certificate chain PEM").pick_file().ok_or(StoreError::InvalidDraft)?;
    let key=rfd::FileDialog::new().set_title("Select matching private key PEM (kept in encrypted local database)").pick_file().ok_or(StoreError::InvalidDraft)?;
@@ -829,7 +830,9 @@ async fn hub_import_tls(scope:Scope,state:tauri::State<'_,LocalState>)->Result<(
    hub_server::config(&cert,&key).map_err(|_|StoreError::InvalidIdentity)?;w.hub_configure(false,Some((cert,key)))
   }
   #[cfg(not(any(windows,target_os="macos")))]{Err(StoreError::AccessUnavailable)}
- }).await
+ }).await;
+ if result.is_ok(){runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?.halt();}
+ result
 }
 fn main() {
     tauri::Builder::default()

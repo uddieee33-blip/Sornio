@@ -11,6 +11,8 @@ tauri-build = { version = "2", features = [] }
 zeroize = "1"
 serde_json = "1"
 sha2 = "0.10"
+mdns-sd = "0.21.7"
+url = "2"
 httparse = "1.10"
 rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
 rustls-pemfile = "2.2"
