@@ -1,0 +1,10 @@
+CREATE TABLE local_hub_config(singleton INTEGER PRIMARY KEY CHECK(singleton=1), id TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0 CHECK(enabled IN(0,1)), certificate TEXT NOT NULL DEFAULT '', private_key TEXT NOT NULL DEFAULT '');
+CREATE TABLE local_hub_devices(id TEXT PRIMARY KEY, name TEXT NOT NULL, credential_hash TEXT NOT NULL UNIQUE, generation TEXT NOT NULL, state TEXT NOT NULL CHECK(state IN('pending','approved','revoked')), actor_id TEXT REFERENCES local_principals(id), created INTEGER NOT NULL, expires INTEGER NOT NULL, revision INTEGER NOT NULL DEFAULT 1, last_seen INTEGER);
+CREATE TABLE local_hub_sessions(token_hash TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES local_hub_devices(id), device_revision INTEGER NOT NULL, actor_id TEXT NOT NULL REFERENCES local_principals(id), actor_revision INTEGER NOT NULL, generation TEXT NOT NULL, expires INTEGER NOT NULL);
+CREATE TABLE local_hub_operations(id TEXT PRIMARY KEY, device_id TEXT NOT NULL REFERENCES local_hub_devices(id), actor_id TEXT NOT NULL REFERENCES local_principals(id), generation TEXT NOT NULL, request TEXT NOT NULL, result TEXT NOT NULL, created INTEGER NOT NULL);
+CREATE TRIGGER hub_operations_no_update BEFORE UPDATE ON local_hub_operations BEGIN SELECT RAISE(ABORT,'Operation result is immutable'); END;
+CREATE TRIGGER hub_operations_no_delete BEFORE DELETE ON local_hub_operations BEGIN SELECT RAISE(ABORT,'Preserve operation history'); END;
+CREATE TABLE local_hub_batches(id TEXT PRIMARY KEY REFERENCES local_hub_operations(id) DEFERRABLE INITIALLY DEFERRED, order_id TEXT NOT NULL REFERENCES local_restaurant_orders(id), items TEXT NOT NULL, ticket_id TEXT UNIQUE);
+CREATE TRIGGER hub_batch_guard BEFORE UPDATE ON local_hub_batches WHEN NEW.id<>OLD.id OR NEW.order_id<>OLD.order_id OR NEW.items<>OLD.items OR OLD.ticket_id IS NOT NULL BEGIN SELECT RAISE(ABORT,'Accepted items are immutable'); END;
+CREATE TRIGGER hub_batch_no_delete BEFORE DELETE ON local_hub_batches BEGIN SELECT RAISE(ABORT,'Preserve accepted items'); END;
+PRAGMA user_version=18;

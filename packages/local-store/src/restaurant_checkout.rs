@@ -38,6 +38,7 @@ impl Store {
   if old.is_some() {let c=crate::restaurant_recovery::current_request(&tx,&r.order_id,&s.actor_id)?;return Ok(c);}
   let revision:i64=tx.query_row("SELECT revision FROM local_restaurant_orders WHERE id=?1 AND state IN ('open','pending_bill') AND settled_invoice IS NULL",[&r.order_id],|q|q.get(0))?;
   if revision!=r.expected_revision{return Err(StoreError::OperationConflict);}
+  if tx.query_row("SELECT EXISTS(SELECT 1 FROM local_hub_batches WHERE order_id=?1 AND ticket_id IS NULL)",[&r.order_id],|q|q.get::<_,bool>(0))?{return Err(StoreError::CheckoutActive);}
   let rows=tx.prepare("SELECT items FROM local_restaurant_tickets WHERE order_id=?1 ORDER BY rowid")?.query_map([&r.order_id],|q|q.get::<_,String>(0))?.collect::<Result<Vec<_>,_>>()?;
   let mut lines=Vec::new();let mut subtotal=0i64;
   for raw in rows {let items:Vec<Item>=serde_json::from_str(&raw)?;for item in items{

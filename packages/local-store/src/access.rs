@@ -1010,3 +1010,39 @@ mod tests;
 #[cfg(test)]
 #[path = "credential_tests.rs"]
 mod credential_tests;
+
+impl Workspace {
+ pub fn hub_admin(&self)->Result<crate::hub::Document,StoreError>{self.require(Permission::Settings)?;self.store.hub_admin()}
+ pub fn hub_configure(&mut self,enabled:bool,tls:Option<(String,String)>)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.hub_configure(enabled,tls)}
+ /// TLS material never crosses renderer IPC. The native listener consumes this directly.
+ pub fn hub_tls(&self)->Result<(String,String),StoreError>{self.require(Permission::Settings)?;self.store.hub_tls()}
+ pub fn hub_device(&mut self,id:&str,revision:i64,actor:Option<&str>)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.hub_device(id,revision,actor)}
+ pub fn hub_batches(&self)->Result<crate::hub::Document,StoreError>{self.require(Permission::Sell)?;self.store.hub_batches()}
+ pub fn hub_dispatch(&mut self,id:&str,revision:i64)->Result<(),StoreError>{self.require(Permission::Sell)?;self.store.hub_dispatch(id,revision)}
+ /// Called only by the native HTTPS listener. No financial route exists. Session swaps are
+ /// confined to the same native mutex and restored even when authentication is refused.
+ pub fn hub_request(&mut self,path:&str,bearer:&str,body:crate::hub::Document)->Result<crate::hub::Document,StoreError>{
+  self.authorize(Permission::View)?; // A locked/idle desktop does not serve mobile operations.
+  let enabled:bool=self.store.0.query_row("SELECT enabled FROM local_hub_config WHERE singleton=1",[],|q|q.get(0))?;if !enabled{return Err(StoreError::Forbidden);}
+  if body["version"].as_u64()!=Some(1){return Ok(serde_json::json!({"error":"unsupported_version","supported":[1]}));}
+  if path=="/v1/identity"{return self.store.hub_identity();}
+  let identity=self.store.hub_identity()?;if body["businessId"]!=identity["businessId"]||body["hubId"]!=identity["hubId"]{return Err(StoreError::WorkspaceMismatch);}
+  if path=="/v1/enrol"{return self.store.hub_enroll(body);}
+  let desktop=self.store.1.take();let activity=self.last_activity.get();
+  let result=(||{
+   if path=="/v1/session"{
+    let device=body["deviceId"].as_str().ok_or(StoreError::InvalidIdentity)?;let username=body["username"].as_str().ok_or(StoreError::InvalidIdentity)?;let password=body["password"].as_str().ok_or(StoreError::InvalidPassword)?;
+    let actor=self.store.hub_prelogin(device,bearer)?;self.login(username,password)?;
+    if self.store.1.as_ref().map(|s|s.actor_id.as_str())!=Some(actor.as_str()){return Err(StoreError::Forbidden);}
+    return self.store.hub_session(device,bearer);
+   }
+   let (session,device)=self.store.hub_authenticate(bearer)?;self.store.1=Some(session);
+   match path{
+    "/v1/workspace"=>self.store.restaurant_workspace(),
+    "/v1/submit"=>{let r=serde_json::from_value(body)?;self.store.hub_submit(&device,r,bearer)},
+    "/v1/operation"=>self.store.hub_operation(&device,body["operationId"].as_str().ok_or(StoreError::InvalidDraft)?),
+    _=>Err(StoreError::Forbidden)
+   }
+  })();self.store.1=desktop;self.last_activity.set(activity);result
+ }
+}
