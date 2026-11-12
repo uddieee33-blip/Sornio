@@ -4,6 +4,8 @@ Date: 2026-11-12
 Branch under test: `arena/1b1cac28-sornio` (based on `feature/phase18j-security-history` @ `f9680015b9953454e3eae7d8980b14ee87fc83c0`)
 Pull request: **#182** (draft, base `feature/phase18j-security-history`) — https://github.com/uddieee33-blip/Sornio/pull/182
 
+Phase 19B update (this revision): the stale-lockfile blocker that stopped four runners is **fixed**, macOS and Windows now execute the native suite, and the failures that remain are named. Commits `22db580` … `dca1b32`. Section §3 is written against `ff3a145` and later; §10 lists what changed from the first revision of this report and retracts one wrong verdict.
+
 This report separates four kinds of statement, and never blurs them:
 
 * **EXECUTED** — ran, here or on a named GitHub Actions run, with the command and result recorded.
@@ -82,83 +84,72 @@ All CI results below are for `arena/1b1cac28-sornio`. Run links are to the runs 
 
 | Field | Value |
 | --- | --- |
-| Source | `arena/1b1cac28-sornio` @ `af031dd` (and local execution of the same tree) |
-| Environment | ubuntu-latest (GitHub runner) for CI; Debian 12, x86_64, Node 22.22.3, 2 vCPU for local runs |
-| Build | **PASS** — `npm run build` completes (Next.js 16.4.3) |
-| Lint | **PASS** — 0 errors, 5 warnings (was 26 errors) |
-| Types | **PASS** — TS 6.0.3 and tsgo 7.0.2 both report no errors (was 18 × TS5097) |
-| Tests | **EXECUTED**, counts in §3.1.1 |
-| Limitations | Native Rust tests and the PostgreSQL concurrency suite are blocked (§3.1.2) |
+| Source | `arena/1b1cac28-sornio` @ `ff3a145` (and local execution of the same tree) |
+| Environment | ubuntu-latest (GitHub runner) for CI; Debian 12, x86_64, Node 22.22.3 for local runs |
+| Build | **PASS** — `npm run build` completes: 52 routes, 46 static pages (Next.js 16.4.3) |
+| Lint | **PASS** — 0 errors, 5 warnings |
+| Types | **PASS** — TS 6.0.3 and tsgo 7.0.2 both report no errors |
+| Tests | **EXECUTED** — see §3.1.1 |
+| Limitations | Native Rust is executed on macOS/Windows runners, not here (§3.1.2) |
 
-CI: `Lint, types, build` — https://github.com/uddieee33-blip/Sornio/actions/runs/43267295246/job/131354185906 — **passed** on `bc24f83`, including `npm run verify` and `npm run build`. It now fails on `af031dd` for the reason in §3.1.2, by design.
+**Correction to the first revision of this report.** It recorded Linux as green. It was not: on `08fcbc8`, three of the checks below were failing, and two of them had never once executed a test.
 
-#### 3.1.1 Locally executed test counts (same tree, real assertions)
+| Check | `08fcbc8` | `ff3a145` | What changed |
+| --- | --- | --- | --- |
+| `Lint, types, build` | **failure** | **success** | failed at the `verify:cargo-lock` gate before lint/typecheck/tests/build ran |
+| `Real PostgreSQL concurrency` | **failure** | **success** | failed at the same gate |
+| `browser` | **failure** | **failure** (252 pass / 2 fail) | failed at `cargo fmt --check`, so the browser acceptance suite *never ran*; it now runs, and fails on two named native tests |
+| `Contracts, types, security` | success | success | unchanged |
+| `Android debug compile`, `android`, `IOS simulator compile` | success | success | unchanged |
+
+So `Lint, types, build` had been failing since the `verify:cargo-lock` gate was added in `569e380` — a gate doing exactly its job, on a genuinely stale lockfile, upstream of every other check in that job. The earlier report's claim that it "passed on this tree" was true of `bc24f83` and false of the commit that actually shipped.
+
+#### 3.1.1 Executed tests, with counts
+
+Verified locally on `ff3a145` (same tree CI builds), every command exiting 0:
 
 | Suite | Command | Result |
 | --- | --- | --- |
-| Shared-domain behavioural tests | `node packages/business-domain/test-*.mjs` (20 files) | **91 passed, 0 failed** |
-| Native SQL semantics (Python/SQLite) | `python3 scripts/test-*.py` (15 files) | **15/15 exit 0** |
-| Desktop payment allocation/receipt/scan | `npm run test:split-payments --prefix apps/desktop` | **20 passed, 0 failed** |
-| Windows evidence contract | `python3 -m unittest test_windows_evidence.py` | **16 passed** (needs Pillow 12, installed in a venv) |
-| Install data preservation helper | `python3 -m unittest test_install_data.py` | **4 passed** |
-| Mobile contracts | `npm run verify:mobile-contracts` | **63 checks passed** |
-| `npm run verify` (31 gates) | see §7 | **PASS** end to end |
+| Full gate suite (34 gates) | `npm run verify` | **PASS**, 754 individual `ok` assertions, 9 suites reporting `N passed, 0 failed` totalling 348, plus 179 `checks` |
+| Native lockfile gate | `npm run verify:cargo-lock` | **PASS** — 24 declared dependencies present across both lockfiles |
+| Lint | `npm run lint` | **0 errors**, 5 warnings |
+| Types (JS API) | `npm run typecheck` | PASS (typescript 6.0.3) |
+| Types (native) | `npm run typecheck:native` | PASS (tsgo 7.0.2) |
+| Production build | `npm run build` | **PASS** — 52 routes, 46 static pages |
 
-Selected gate contents from `npm run verify` (all EXECUTED locally): billing 25, accounting 64, security 53 invariants over 248 source files, import 20, team 16 guards, team-database, PWA 17, render, recovery 24, database 38, reliability 59, local-schema 92 checks, desktop-contract 38, money 12 (incl. 4 820 randomised invoices against the Rust formula), Windows release-identity 40, replication 116, i18n 22 catalogues × 2 749 phrases.
+Inside `npm run verify`, all of which executed: billing 25, accounting 64, security 53 invariants, import 20, team 16 guards, PWA 17, recovery 24, database 38, reliability 59, local-schema 92, desktop-contract 38, money 12 (incl. 4 820 randomised invoices against the Rust formula), Windows release-identity 40, replication 116, mobile contracts 63.
 
-#### 3.1.2 BLOCKED — native Rust and PostgreSQL concurrency
+#### 3.1.2 Native Rust on Linux runners
 
-`Real PostgreSQL concurrency` fails at the new *"Verify native lockfiles describe their manifests"* step:
-
-```
-apps/desktop/src-tauri/Cargo.lock does not contain mdns-sd (dependencies),
-rustls (dependencies), rustls-pemfile (dependencies)
-```
-
-This is a real repository defect, not infrastructure. `apps/desktop/src-tauri/Cargo.toml` gained `rustls`, `rustls-pemfile` and `mdns-sd` during the LAN-hub phases, and `Cargo.lock` was never regenerated — `git log -S'name = "mdns-sd"' -- apps/desktop/src-tauri/Cargo.lock` returns nothing, so no correct lock has ever been committed. Every `cargo … --locked` invocation fails, which is why Windows native tests and the PostgreSQL native exporter both stopped after a toolchain install.
-
-**Smallest action that unblocks it** (needs crates.io, which this environment cannot reach — `index.crates.io`, `static.crates.io` and `crates.io` are all unreachable from the sandbox):
-
-```
-cargo generate-lockfile --manifest-path apps/desktop/src-tauri/Cargo.toml
-git add apps/desktop/src-tauri/Cargo.lock && git commit -m "Regenerate the stale Tauri lockfile"
-```
-
-Do **not** relax `--locked` to make this green. That would trade a caught defect for a silent dependency change.
-
-`cargo test` for `packages/local-store` (207 `#[test]`s: SQLCipher, migrations v1→v22, atomic checkout, cash/UPI/card/split, credit, hold/resume, inventory, refunds, barcode, kitchen persistence, RBAC, durable recovery, backup/restore) is **BLOCKED** by the same missing toolchain/network in this sandbox. It is not reported as passing anywhere.
+The native suite does not run on the Linux runner: `packages/local-store` builds SQLCipher from source with vendored OpenSSL, and the workflows run it on macOS and Windows. Those results are §3.2 and §3.3. The first revision of this report listed native Rust as BLOCKED on a missing local toolchain; that remains true of this sandbox, but it is no longer true of CI, so it is no longer recorded as a blocker.
 
 ### 3.2 Windows — native POS
 
 | Field | Value |
 | --- | --- |
-| Source | `arena/1b1cac28-sornio` @ `af031dd`; run inspected @ `2e6a643` |
-| Environment | `windows-latest`, x86_64, Strawberry Perl selected for vendored OpenSSL |
-| Build | Frontend **PASS** (`tsc --noEmit` then `vite build`); native build **BLOCKED** |
-| Tests | **NOT RUN** — native step stopped on the stale lockfile (§6, blocker 1) |
-| Artifacts | none produced |
-| Limitations | installer, installed-app startup, uninstall/reinstall preservation: **NOT VERIFIED** |
+| Source | `arena/1b1cac28-sornio` @ `ff3a145`, job `local-windows` |
+| Environment | `windows-latest`, runner "GitHub Actions 1000001544", Strawberry Perl for vendored OpenSSL |
+| Build | Frontend **PASS** (`tsc --noEmit`, then `vite build`); native compile **PASS** |
+| Tests | **EXECUTED** — `cargo test --all-targets --locked`: **250 passed, 4 failed, 6 ignored**, 920.80 s |
+| Artifacts | installer **not built** (step 14 skipped after the test failure) |
+| Limitations | installed-app startup, uninstall/reinstall data preservation, real printing/scanner/drawer: **NOT VERIFIED** |
 
-Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43284416636 (job `local-windows`), plus the earlier https://github.com/uddieee33-blip/Sornio/actions/runs/43273212555.
+Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43309438864/job/131501297293
 
-Latest result on `1254310`: `tsc --noEmit` and `vite build` **PASS**, then:
+This is the phase's most significant change. The job had never compiled a single Rust line on Windows: it died at step 12 with `cannot update the lock file … because --locked was passed`, before the toolchain ever reached the code. With both lockfiles regenerated (§5), steps 1–11 pass and the full native suite executes on Windows for the first time in this repository's history for the current tree.
 
-```
-error: cannot update the lock file D:\a\Sornio\Sornio\packages\local-store\Cargo.lock
-because --locked was passed to prevent this
-```
+Four failures, of which **two are Windows-only** — they do not occur on macOS (§3.3):
 
-That is the lockfile defect appearing on the *second* crate set as well —
-`packages/local-store` resolves differently on Windows than on Linux because
-its `keyring`/`fs2`/`zeroize` dependencies are declared under
-`[target.'cfg(windows)'.dependencies]`. Fixing `apps/desktop/src-tauri` alone
-will not be enough; `packages/local-store/Cargo.lock` must be regenerated with
-the Windows target in play (a Windows or cross-target `cargo generate-lockfile`).
-This is now the single highest-value unblock in the whole matrix: it stops
-Windows native tests, the Windows installer, macOS native tests and the
-PostgreSQL native exporter, on four separate runners.
+| Test | Observed |
+| --- | --- |
+| `lan_authority::tests::migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collision` | **Windows only.** The live schema after rolling back to v11 does not equal `fixtures/recovery-v11-schema.json` |
+| `recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration` | **Windows only.** Preview of a manufactured v11 archive does not report `schema_version == 11` |
+| `held_bills::tests::held_checkout_and_completion_are_atomic_and_retry_safe` | cross-platform (§3.3, defect 1) |
+| `payments::tests::phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting` | cross-platform (§3.3, defect 2) |
 
-Two genuine defects were found and fixed on the way: first, `apps/desktop` had a real type error (`'pending' is possibly 'null'` — my own ref→state conversion) that the Windows job reported as "Build bundled frontend failed"; `tsc --noEmit` and `vite build` are now separate steps. Second, the run then failed inside `cargo test --locked` with `cannot update the lock file … because --locked was passed` — the same stale-lockfile defect, and the first time it has been attributed to the right cause.
+What the two Windows-only failures most plausibly mean, stated as a hypothesis and **not** as a conclusion: both involve a *manufactured* v11 archive, and both differ between platforms, which points at platform-dependent schema text rather than at row data. The prime suspect is the v21 migration, `ALTER TABLE local_kitchen_staff_next RENAME TO local_kitchen_staff`: SQLite's `legacy_alter_table` setting is a connection default that has changed across versions and is configured differently by the bundled SQLCipher build, and `ALTER TABLE … RENAME` rewrites the `sql` text of objects that reference the renamed table — which is what the frozen fixture compares verbatim. Nothing in the record yet distinguishes that from a second cause, and the run that would is `dca1b32` (§10).
+
+**Not claimed:** that the Windows installer builds. Step 14 was skipped, so there is still no installer, no installed-app launch and no uninstall/reinstall preservation evidence.
 
 **Do not confuse this with `windows-desktop.yml`** (hosted WebView2 preview, manual-only, online-only). It is not the product and was not used as evidence here.
 
@@ -166,23 +157,40 @@ Two genuine defects were found and fixed on the way: first, `apps/desktop` had a
 
 | Field | Value |
 | --- | --- |
-| Source | `arena/1b1cac28-sornio` @ `1254310` |
-| Environment | macOS runner (`macos-latest`), toolchain recorded by the job |
-| Build | Frontend **PASS**; native **BLOCKED** at `Native tests (debug profile)` |
-| Tests | **did not run** — stopped by the stale lockfile (§6, blocker 1) |
-| Artifacts | unsigned `.app`, if the bundle step passes |
-| Limitations | **no signing, no notarization**; an unsigned `.app` is partial engineering evidence and is not a distributable macOS release |
+| Source | `arena/1b1cac28-sornio` @ `ff3a145` |
+| Environment | `macos-latest`, arm64, **Xcode 26.6** |
+| Build | Frontend **PASS**; native compile **PASS** |
+| Tests | **EXECUTED** — `cargo test --all-targets --locked`: **252 passed, 2 failed, 6 ignored**, 188.37 s |
+| Artifacts | unsigned `.app` — still **not produced**, because the test failure stops the job before the bundle step |
+| Limitations | **no signing, no notarization**; no installed-app launch against a real login Keychain |
 
-There was **no macOS desktop workflow in the repository at all** before this phase: `desktop:build:macos` and `src-tauri/tauri.macos.conf.json` existed and had never been exercised.
+Run: the `macos` check on `ff3a145`. The job had previously reported only `Process completed with exit code 101` with no test names at all — it had no annotation capture, and raw job logs are not retrievable for this repository. It now reports the failing tests and their panic text (§5), which is how the two defects below were identified at all.
 
-Getting it to run at all took five attempts, and the reason was not runner capacity:
+**The workflow-scheduling defect, from the first revision, stands and was correctly diagnosed:** an edit had left a step with `name` but neither `run` nor `uses`, which invalidates the entire workflow; GitHub surfaced that as a `push`-event run with `total_count: 0` and no check-run, which reads exactly like "no runner available". Runner capacity was never the problem — the `iOS simulator compile` job was getting a macOS runner throughout. Fixed in `1254310`.
 
-* four runs on `macos-14` were cancelled with zero steps and no runner assigned;
-* switching to `macos-latest` did not help, which was the clue;
-* the actual cause was a malformed file — an edit had removed a step's `run:` body while leaving its `- name:` behind, so one step had neither `run` nor `uses`. **GitHub rejects the entire workflow for that**, and because the file only declares `pull_request`/`workflow_dispatch`, the rejection surfaced as a `push`-event failure with an empty job list (`total_count: 0`) and no check-run, which reads exactly like "no runner available".
-* `1254310` removes the empty step. The workflow now schedules and the job is assigned a runner.
+**Two genuine, cross-platform defects remain.** Both are *pre-existing*: they are not caused by this phase's changes, and they only became visible when the suite first executed.
 
-That a second macOS job (`iOS simulator compile`) was getting a runner all along is what ruled out capacity.
+**Defect 1 — a held-bill checkout records a payment row for a plain cash invoice.**
+
+```
+held_bills::tests::held_checkout_and_completion_are_atomic_and_retry_safe
+assertion `left == right` failed
+  left: (1, 0, 1, 98750)
+ right: (1, 0, 0, 98750)
+```
+
+The tuple is `(invoices, credit_entries, retail_payments, rice_stock)`. The test asserts that completing a held bill leaves the invoice posted and stock decremented while writing **no** payment row. `payments::invoice_posted` writes a `local_retail_payments` row for every invoice, using a fallback part equal to the invoice total with method `cash` or `credit`, regardless of tender. On a replay the insert is prevented by the primary key, so one row per invoice is the steady state. The test's expectation predates that behaviour; the code is self-consistent. **No assertion was changed** — deciding whether a held-bill cash sale should book a payment row is a business-semantics decision, not a test repair.
+
+**Defect 2 — an idempotent replay appends an audit row.**
+
+```
+payments::tests::phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting
+assertion `left == right` failed   (snapshots of 12 tables before and after re-posting)
+```
+
+`post_into` calls `identity::guard(..., "sale.posted", ...)` — which unconditionally appends to `local_identity_audit` — *before* the replay short-circuit that returns the stored invoice for a repeated operation id. So re-posting the same operation id is idempotent for financial rows but adds a `sale.posted` audit row, and the test's whole-table snapshot sees it. The failing snapshot differs in `local_identity_audit`; financial tables are unchanged.
+
+This is arguably *correct* — a replayed posting is a real access-control event worth recording — but it is not what the test asserts, and the test's intent (that a replay must not double-book money) is worth preserving. **Neither the audit path nor the assertion was altered.** It needs an explicit decision.
 
 ### 3.4 Android
 
@@ -248,6 +256,17 @@ Three defects were found here, each only visible by executing:
 | Android artifact | `409 Conflict` | duplicate upload step | **FIXED**, job now green |
 | macOS desktop job | 5 runs, zero jobs, no check-run | a step with `name` but neither `run` nor `uses` invalidates the whole workflow; the rejection surfaces as a bare `push`-event failure | **FIXED**; job now runs on a real runner |
 | iOS `NSObjectProtocol` | first fix rejected: multiple inheritance `NSObject` + `BaseModule` | `Module` already inherits `NSObject` | **FIXED** in `5815b0b`; iOS now **PASSES** |
+| Windows `local-windows` | exit 101 at step 12, before any Rust compiled | `packages/local-store/Cargo.lock` unresolvable on Windows *and* `src-tauri/Cargo.lock` stale | **FIXED** — native suite now executes (250 pass / 4 fail) |
+| macOS `Native tests` | exit 101, no test names | lockfile first; then no annotation capture at all, so the failure was unreadable | **FIXED** — names the failing tests (§5) |
+| `Lint, types, build`, `Real PostgreSQL concurrency` | failure at `verify:cargo-lock` | correct gate, stale lockfile | **FIXED** — both **pass** on `ff3a145` |
+| `browser` | failure at `cargo fmt --check` | native sources had never been formatted, so the browser acceptance suite never ran | **FIXED** — formatted in `4418035`; suite now executes |
+| 11 × migration tests | `table local_held_bills already exists` | frozen `DROP TABLE` literals stopped at v4–v11 while the schema grew to v22 | **FIXED** in `0b12f1c` |
+| `schema_rollback` drift test | listed `sqlite_sequence` | SQLite's own bookkeeping is not a schema object | **FIXED** in `ff3a145` |
+| Check-run annotations | text silently truncated or replaced | no trailing newline before the next `::error::`, plus unbounded database dumps | **FIXED** in `6f9dbb4`, `dca1b32` |
+| `held_checkout_and_completion_are_atomic_and_retry_safe` | `(1,0,1,98750)` vs `(1,0,0,98750)` | payment row written for a cash invoice (§3.3) | **OPEN** — product semantics |
+| `phase11a_legacy_…_accounting` | snapshot differs after replay | `identity::guard` audits before the replay short-circuit (§3.3) | **OPEN** — product semantics |
+| 2 × Windows-only v11-archive tests | frozen schema / preview mismatch, Windows only | platform-dependent schema text, suspected `ALTER TABLE RENAME` interaction | **OPEN** — instrumented in `dca1b32` |
+| `Dependency audit` | exit 1 | `libsqlite3-sys` compiles SQLite **3.46.1**; `patched: none` | **OPEN** — no fixed release (§6.2) |
 
 ---
 
@@ -266,6 +285,26 @@ All on `arena/1b1cac28-sornio`, in review as draft PR #182. No merge, no release
 `5815b0b` — the Bonjour delegate conformance moves to a private `LanDiscovery` helper after `NSObject` on the module was rejected as multiple inheritance.
 `1254310` — removes the empty workflow step that made GitHub reject `macos-desktop.yml` outright.
 
+Phase 19B:
+
+`22db580` — a dispatchable, engineering-only `native-lockfile.yml` regenerates both lockfiles where a toolchain and crates.io exist. The review environment has neither (no `cargo`/`rustc`/`rustfmt`; `crates.io`, `index.crates.io` and `static.crates.io` all return `000`), so the resolution must happen on a runner. It uses `cargo metadata` rather than `cargo generate-lockfile` — the latter re-resolves from scratch and would move dependencies nobody asked to move — and publishes to a short-lived review branch so the delta is reviewed before it lands. It also reports the bundled SQLite/SQLCipher version, which is what §6.2 turns on.
+`4418035` — the resolved lockfiles, plus the formatter's own output for both native workspaces, isolated in one commit so it can be reverted independently. The lockfile delta is **purely additive**: `packages/local-store` 107 → 113 packages (adding `core-foundation`, `core-foundation-sys`, `security-framework`, `security-framework-sys` for the macOS `keyring` path), `apps/desktop/src-tauri` 451 → 468 (adding `rustls`, `rustls-pemfile`, `mdns-sd` and their trees). **No existing package changed version**, verified by diffing name/version pairs. `--locked` is untouched in every build and test workflow.
+`0b12f1c` — the migration-fixture repair (§3.3, §4) and working annotation capture for macOS and the browser job.
+`a934a8a` — corrects the drift test's premise and removes a dead version argument.
+`6f9dbb4` — module ordering for rustfmt, and the annotation-emitter fix: a command's output carries no trailing newline, so the following `::error::` was being parsed as part of the previous message.
+`ff3a145` — excludes SQLite's own `sqlite_%` bookkeeping from the drift test.
+`dca1b32` — caps panic-dump line length in three emitters and makes the frozen-schema assertion report the first differing entry instead of printing 123 entries twice.
+
+### On the formatter commit
+
+Formatting 25 Rust files (6 216 changed lines) is a large diff in code no Phase 19 test covers, and the first revision of this report declined to apply it. That was the wrong call, for a reason that only showed up by reading the workflow: `workspace-browser.yml` runs `cargo fmt --check` as its **first** native step, so the entire browser acceptance suite — and the native suite behind it — could never execute until the formatter was satisfied. The change is the formatter's own output with no logic, no rename and no signature change (checked with `git diff -w`), it is its own commit, and it is the only way to obtain the test evidence this phase exists to produce. It is still large enough to deserve separate review.
+
+### On the migration-fixture repair
+
+Eleven of the twelve original native failures were one defect in the *tests*. Each migration test built its historic database by dropping tables and setting `user_version` back to v3–v11, but its frozen `DROP TABLE` literal stopped at the version under test; since the schema grew to v22, the v13–v22 tables survived and the migrator re-ran those phases, failing on `table local_held_bills already exists` before a single assertion ran.
+
+That database state cannot exist: `Store::open` migrates in one transaction, so `user_version` and its tables always move together. **The migrator was not changed.** The per-test literals were deliberately left frozen — each is the record of what the phases above version N created, and quietly extending them would weaken every migration test — and a new `#[cfg(test)]` helper drops only what they miss, with a drift test that fails if a future phase adds a table without listing it. No assertion was removed or relaxed; the tests now assert what they always meant to.
+
 ### On the i18n repair
 
 The extractor was the defect, not the catalogue. `hub-trust.ts` declares `type CertificateReview='known'|'first_connection'|…`, and the values are also *returned*, so `first_connection`, `changed_certificate` and `hint_mismatch` entered `en.json` as translatable copy that no screen renders — and the gate then demanded 22 translations of them. `countStorageKey()`'s `` `sornio.count.v1.${…}` `` was admitted the same way. Type-level literals, identifier-shaped tokens (`^[a-z][a-z0-9]*([._][a-z0-9]+)+$`) and machine-shaped templates are now excluded before any copy rule sees them. The catalogue went from 2 755 keys to 2 749 (four phantom keys and two type literals removed, none added) and all 22 locales were pruned with `i18n:prune`, which only deletes retired keys and never translates.
@@ -280,48 +319,59 @@ No assertion was deleted, no rule disabled, no test removed, no `--no-verify`, n
 
 ## 6. Remaining blockers
 
-1. **Stale native lockfiles — the single highest-value unblock.** `apps/desktop/src-tauri/Cargo.lock` is missing `rustls`, `rustls-pemfile`, `mdns-sd` (three LAN-hub phases never re-locked), *and* `packages/local-store/Cargo.lock` does not resolve on Windows, where `keyring`/`fs2`/`zeroize` are declared under `[target.'cfg(windows)'.dependencies]`. This one defect blocks **four** runners: Windows native tests and installer, macOS native tests and `.app`, the PostgreSQL native exporter, and the SQLCipher/encryption suites that are the core of an offline-first POS.
+Ordered by what they block. Each states the precise blocker and the smallest action that clears it.
 
-   ```bash
-   cargo generate-lockfile --manifest-path apps/desktop/src-tauri/Cargo.toml
-   cargo generate-lockfile --manifest-path packages/local-store/Cargo.toml   # with a Windows/cross target in play
-   git add packages/local-store/Cargo.lock apps/desktop/src-tauri/Cargo.lock
-   ```
+### 6.1 Two native tests need a product decision, not a patch
 
-   `scripts/verify-cargo-lock.mjs` now exists so a stale lock cannot recur silently; it fails today, deliberately, and names the manifest and the crates.
-2. **`cargo audit` — identified, not fixable by editing a version number.** Cause found by making the step parse `cargo audit --json` (run 43287151280, check-run 131423455814):
+`held_checkout_and_completion_are_atomic_and_retry_safe` and `phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting` (§3.3) now fail on both macOS and Windows. They are the only thing standing between the native suite and green, and they cannot be closed by editing a test without answering a business question:
 
-   ```
-   libsqlite3-sys RUSTSEC-2026-0459 (unknown):
-     `libsqlite3-sys` via C SQLite CVE-2026-119375 — patched: none
-   unmaintained: proc-macro-error
-   ```
+* should a completed held-bill cash sale record a `local_retail_payments` row (the code says yes; the test says no)?
+* should an idempotent replay append a `sale.posted` audit row (the code says yes; the test says no)?
 
-   Present in **both** lockfiles (`libsqlite3-sys 0.35.0`). `patched: none` means the RustSec advisory carries no fixed release, because it tracks a **CVE in the bundled SQLite C source** — which `rusqlite`'s `bundled-sqlcipher-vendored-openssl` feature compiles from `sqlcipher-src`. There is no `cargo update` that clears it. The resolution is a `sqlcipher-src`/`libsqlite3-sys` bump when an upstream release carries the CVE fix, and that must be validated by re-running the full native suite — retiring a database encryption engine advisory on the strength of a version bump alone is not acceptable for an offline POS. `proc-macro-error` is unmaintained (build-time only, warning not failure).
+**Smallest unblock:** an owner decision on each. If the answer is "the test is the specification", the fix is in `payments::invoice_posted` and `post_into`'s guard placement, and it is a behavioural change to financial and audit code that must not be made silently to get a green badge.
 
-   Everything above is now stated by the check record itself; the earlier "exit code 1 with no detail" condition is gone.
+### 6.2 `cargo audit`: identified precisely, not fixable by a version bump
 
-   A second, avoidable problem this exposed: both `Lint, types, build` and this job stop at their first failing gate, so a green `npm test`-style tree still shows red for reasons unrelated to source. That is the repository's existing fail-fast design and was left alone.
-3. **macOS workflow not scheduled** (§3.3) — four runs cancelled with no runner.
-4. **Rust formatting** — the repository's Rust sources are minified (build.rs command lists, per-line match arms in `hub_discovery.rs`). `cargo fmt` would reformat them; that is a large diff in code no Phase 19 test covers, so it is reported, not applied.
-5. **`workflow_dispatch` unavailable in this environment** — the agent's token lacks the `actions` permission, so re-running a specific job had to go through a new push. `git push` and `gh pr create/edit` do work.
-6. **iOS simulator interaction tests do not exist**, for iPhone or iPad. The iOS job compiles; it does not drive the UI.
+The advisory is now named with an exact mechanism rather than by proxy:
 
----
+* `libsqlite3-sys 0.35.0` in both lockfiles; advisory **RUSTSEC-2026-0459**, which tracks **CVE-2026-119375 / GHSA-72w2-rjgg-q729** — a *medium*-severity SQLite flaw: "SQLite before 3.54.0 contains an information disclosure vulnerability that allows attackers to read uninitialized page-cache memory by supplying a WAL file with an undersized page size."
+* The Rust side ships two amalgamations. At tag `v0.35.0`: `libsqlite3-sys/sqlite3/sqlite3.h` is SQLite **3.49.1**, `libsqlite3-sys/sqlcipher/sqlite3.h` is SQLite **3.46.1** (`2024-08-13 09:16:08`).
+* The project enables `bundled-sqlcipher-vendored-openssl`, and `libsqlite3-sys/build.rs` selects the directory via `lib_name()`, which returns `"sqlcipher"` for `sqlcipher`/`bundled-sqlcipher`, then compiles `{lib_name}/sqlite3.c`. **So the code that actually ships is SQLite 3.46.1, not 3.49.1** — nearly a year older than the pinned default and far below the 3.54.0 fixed line.
+* `patched: none` is accurate: no `libsqlite3-sys` release carries a fixed SQLCipher amalgamation.
+
+**Exposure, stated honestly:** the precondition is opening an attacker-supplied database *and* WAL file. A shop's store is local and encrypted with SQLCipher, so this is not a remotely triggerable flaw in normal operation. It becomes relevant for any workflow that opens a database file received from elsewhere — most importantly backup *restore* from an untrusted source. That path is guarded by a manifest digest, but the digest is computed by the same library.
+
+**Smallest unblock:** none inside this repository. It requires an upstream `libsqlite3-sys` whose `sqlcipher` amalgamation is ≥ 3.54.0. Retiring a database-encryption advisory on a version bump alone is not acceptable for an offline POS; it needs the full native suite re-run against the bump. Tracked, not fixed. `proc-macro-error` and, newly, `rustls-pemfile` are unmaintained warnings, not failures.
+
+### 6.3 Two Windows-only schema failures are not yet explained
+
+`migration_from_frozen_v11_…` and `version_eleven_backup_…` pass on macOS and fail on Windows. The check record could not say *how* they differ because whole-vector assertions exhausted the annotation budget. `dca1b32` makes the schema comparison report the first differing entry and caps dump line length, so the next Windows run names the difference instead of asserting that one exists. Until that lands, the platform difference is **[UNKNOWN]**, not "a Windows bug".
+
+### 6.4 No physical hardware, no signing
+
+* **Windows installer**: not built (step skipped after the test failure). No install/uninstall, no data-preservation-across-reinstall, no real thermal printer, scanner, cash drawer, or power-loss recovery.
+* **macOS**: no signed or notarized artifact, no installed-app launch against a real login Keychain. An unsigned `.app` would be partial evidence and must never be distributed.
+* **iPadOS**: unchanged from §3.6 — declared only.
+* **iOS**: simulator compile only; the Bonjour module still has never executed.
+
+### 6.5 `workflow_dispatch` is unavailable to this token
+
+The agent's token lacks the `actions` permission, so a run could not be dispatched directly and every cycle cost a commit whose purpose was to trigger CI — and each such commit changed the code under test. The `native-lockfile` job was reached by pushing the workflow file itself, which is why it declares a `push` trigger on that path. `git push` and `gh pr edit` work.
 
 ## 7. Artifact locations
 
 | Artifact | Where |
 | --- | --- |
-| Android APKs (review shell + companion), 50 MB | run `43270253648` → `Sornio-Android-review` |
-| Android APK, companion | run `43273212994` → upload step `success` |
-| Native outbox envelopes, PostgreSQL concurrency | **absent** — job blocked at step 4 |
-| Windows installer | **absent** — never built |
-| macOS `.app` | **absent** — job never scheduled |
-| iOS simulator app | **absent** — build failed, fix unverified |
-| Local gate logs | `/tmp/verify-final.log`, `/tmp/domain-counts.txt`, `/tmp/py-tests.txt` (transient; the commands in §3.1.1 reproduce them) |
+| Android APKs (review shell + companion), 50 168 802 bytes | run `43270253648` → `Sornio-Android-review` |
+| Regenerated lockfiles | run `43292018168` → `native-lockfiles` (34 759 bytes); review branch `ci/native-lockfile-22db580` |
+| Windows job record (250 pass / 4 fail) | run `43309438864` / job `131501297293` |
+| macOS job record (252 pass / 2 fail) | `macos` check on `ff3a145` |
+| Windows installer | **absent** — step skipped after the test failure |
+| macOS `.app` | **absent** — job stops before the bundle step |
+| iOS simulator app | build products only, never uploaded |
+| Local gate logs | transient (`/tmp/gates/*.log`); every count in §3.1.1 is reproduced by the command beside it |
 
----
+Check-run annotations are the durable evidence for this phase, because raw job logs are not retrievable for this repository. Every failure quoted above is a verbatim annotation.
 
 ## 8. Risks that require physical hardware or an account
 
@@ -339,12 +389,41 @@ No assertion was deleted, no rule disabled, no test removed, no `--no-verify`, n
 
 | Area | Verdict | Basis |
 | --- | --- | --- |
-| Shared web/Linux logic, money, i18n, security invariants | **GO** (evidence-backed) | `npm run verify` passes end to end locally; CI `Lint, types, build` passed on this tree; 91 domain tests, 15 native-SQL suites, 63 mobile contracts |
+| Shared web/Linux logic, money, i18n, security invariants | **GO** | 34 gates pass locally on `ff3a145` (754 assertions); `Lint, types, build` and `Real PostgreSQL concurrency` **pass** in CI on the same commit; 52-route production build |
 | Android | **PARTIAL — build only** | two APKs built and uploaded; no emulator or device run |
-| iOS | **PARTIAL — simulator compile only** | Xcode 26.6 / SDK 26.5 simulator build passes; no interaction tests, no device run; the module has never executed |
-| iPadOS | **NO-GO / UNVERIFIED** | `supportsTablet: true` is declared; no iPad destination was built, no tablet UI test exists |
-| macOS | **NO-GO — BLOCKED** | workflow now schedules and the frontend builds; native tests blocked by the lockfile, so no `.app` |
-| Windows native product | **NO-GO — BLOCKED** | frontend builds; native tests and installer blocked by the stale lockfile |
-| Replication / PostgreSQL | **BLOCKED** | concurrency job cannot reach the native tests |
+| iOS | **PARTIAL — simulator compile only** | Xcode 26.6 / SDK 26.5 simulator build passes; no interaction tests; the Bonjour module has never executed |
+| iPadOS | **NO-GO / UNVERIFIED** | `supportsTablet: true` is declared; nothing else was done |
+| macOS | **PARTIAL — native suite executes, 2 failures** | 252 passed / 2 failed; no `.app`, no signing |
+| Windows native product | **PARTIAL — native suite executes, 4 failures** | 250 passed / 4 failed; 2 of the 4 are Windows-only; no installer |
+| Native Rust (SQLCipher, migrations v1→v22, atomic checkout, RBAC, recovery) | **EXECUTED, 2 cross-platform + 2 Windows-only failures** | first execution of this suite on a runner for the current tree |
+| Dependency audit | **FAIL — accepted risk pending upstream** | SQLite 3.46.1 in the shipped SQLCipher build; `patched: none` (§6.2) |
+| Replication / PostgreSQL | **GO** | `Real PostgreSQL concurrency` passes; 116 replication checks pass locally |
 
-The stack's financial and security assertions are the strongest part of the evidence and they pass. The stack is much better instrumented than it was: eleven PRs that produced zero CI runs now produce real results, three source defects that no static gate could see have been fixed, and every remaining failure names its cause. But an offline-first POS whose Windows installer has never been built from the current tree, whose native encryption tests cannot execute on four runners, and whose iPad UI has never been opened is not releasable — regardless of how many Linux gates are green.
+The change this phase actually produced is that the matrix now **executes**. Before it, four runners stopped at a lockfile before compiling a line of Rust, one Linux job stopped at a lockfile before running a single test, and the browser job stopped at the formatter before running the acceptance suite at all — while the report that said so also wrongly called Linux green. On this revision, every platform that can execute has executed, and every remaining failure has a name and a cause.
+
+What stops a release is unchanged in kind, smaller in number, and now specific:
+
+1. two native tests need a product decision (§6.1), not a patch;
+2. two Windows-only schema failures are identified but not yet explained (§6.3);
+3. the shipped SQLite build carries an unfixed advisory (§6.2);
+4. no installer, no signed or notarized macOS app, no iPad or physical-device evidence (§6.4).
+
+An offline-first POS whose Windows installer has never been built from the current tree, whose iPad UI has never been opened, and whose encryption engine compiles a SQLite release carrying an unpatched CVE is not releasable — however many Linux gates are green.
+
+---
+
+## 10. What changed in this revision, and one retraction
+
+Read this section before citing anything above.
+
+**Retracted:** the first revision recorded Linux as **GO** with "CI `Lint, types, build` passed on this tree". That was true of `bc24f83` and false of the commit that actually shipped. On `08fcbc8`, `Lint, types, build`, `Real PostgreSQL concurrency` and `browser` were all red, and `browser` had never executed its suite. The verdict is now backed by runs on `ff3a145`, and the discrepancy is tabulated in §3.1.
+
+**Corrected:** the first revision described the lockfile blocker as "BLOCKED on crates.io" and left it there. It is fixed (§5), and the fix converted four blocked runners into executing ones.
+
+**Corrected:** the first revision said the native Rust suite was BLOCKED and could not be reported. It has now been executed on two platforms: 252 pass / 2 fail on macOS, 250 pass / 4 fail on Windows.
+
+**Corrected:** the first revision declined to apply rustfmt and reported formatting as a blocker. Applying it was necessary for any of the above to execute (§5).
+
+**Corrected:** the first revision attributed the audit finding to a `sqlcipher-src` crate. No such crate is in either lockfile; the amalgamation ships inside `libsqlite3-sys`, and the compiled version is **3.46.1**, not the 3.49.1 default (§6.2).
+
+**Still true, and still not claimed:** no physical iPhone, iPad or Windows POS hardware was touched; no installer, signed macOS app or notarized artifact exists; Android has never run on an emulator; the iOS Bonjour module has never executed; iPadOS is unverified.
