@@ -52,4 +52,4 @@ export function hubOutbox(port:SecurePort,pair:HubPair,actor:string){
  };
 }
 /** Validate a received workspace under the enrolled business, never demo scope. */
-export function hubWorkspace(value:unknown,pair:HubPair):RestaurantSnapshot{return parseRestaurantSnapshot(JSON.stringify(value),pair.hub.businessId);}
+export function hubWorkspace(value:unknown,pair:HubPair):RestaurantSnapshot{return parseRestaurantSnapshot(JSON.stringify(value),pair.hub.businessId,262144);}
