@@ -130,7 +130,7 @@ The native suite does not run on the Linux runner: `packages/local-store` builds
 | Source | `arena/1b1cac28-sornio` @ `ff3a145`, job `local-windows` |
 | Environment | `windows-latest`, runner "GitHub Actions 1000001544", Strawberry Perl for vendored OpenSSL |
 | Build | Frontend **PASS** (`tsc --noEmit`, then `vite build`); native compile **PASS** |
-| Tests | **EXECUTED** — `cargo test --all-targets --locked`: **250 passed, 4 failed, 6 ignored**, 920.80 s |
+| Tests | **EXECUTED** — `cargo test --all-targets --locked`: **250 passed, 4 failed** on `ff3a145`; **251 passed, 1 failed** on `2512e69` after the line-ending fix |
 | Artifacts | installer **not built** (step 14 skipped after the test failure) |
 | Limitations | installed-app startup, uninstall/reinstall data preservation, real printing/scanner/drawer: **NOT VERIFIED** |
 
@@ -138,16 +138,30 @@ Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43309438864/job/13150
 
 This is the phase's most significant change. The job had never compiled a single Rust line on Windows: it died at step 12 with `cannot update the lock file … because --locked was passed`, before the toolchain ever reached the code. With both lockfiles regenerated (§5), steps 1–11 pass and the full native suite executes on Windows for the first time in this repository's history for the current tree.
 
-Four failures, of which **two are Windows-only** — they do not occur on macOS (§3.3):
+Initially four failures, of which **two were Windows-only**:
 
-| Test | Observed |
-| --- | --- |
-| `lan_authority::tests::migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collision` | **Windows only.** The live schema after rolling back to v11 does not equal `fixtures/recovery-v11-schema.json` |
-| `recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration` | **Windows only.** Preview of a manufactured v11 archive does not report `schema_version == 11` |
-| `held_bills::tests::held_checkout_and_completion_are_atomic_and_retry_safe` | cross-platform (§3.3, defect 1) |
-| `payments::tests::phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting` | cross-platform (§3.3, defect 2) |
+| Test | `ff3a145` | `2512e69` |
+| --- | --- | --- |
+| `lan_authority::tests::migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collision` | FAILED (Windows only) | **PASSES** |
+| `recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration` | FAILED (Windows only) | **PASSES** |
+| `held_bills::tests::held_checkout_and_completion_are_atomic_and_retry_safe` | FAILED | FAILED (§3.3, defect 1) |
+| `payments::tests::phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting` | FAILED | trivially satisfied on Windows |
 
-What the two Windows-only failures most plausibly mean, stated as a hypothesis and **not** as a conclusion: both involve a *manufactured* v11 archive, and both differ between platforms, which points at platform-dependent schema text rather than at row data. The prime suspect is the v21 migration, `ALTER TABLE local_kitchen_staff_next RENAME TO local_kitchen_staff`: SQLite's `legacy_alter_table` setting is a connection default that has changed across versions and is configured differently by the bundled SQLCipher build, and `ALTER TABLE … RENAME` rewrites the `sql` text of objects that reference the renamed table — which is what the frozen fixture compares verbatim. Nothing in the record yet distinguishes that from a second cause, and the run that would is `dca1b32` (§10).
+**The Windows-only cause, found exactly.** The instrumented assertion from `dca1b32` named it on the next run:
+
+```
+frozen v11 schema differs at entry 12 of 123/123
+  actual: ("table", "local_billing_audit", "... local_invoices(id), payload TEXT NOT NULL\r\n)")
+  frozen: ("table", "local_billing_audit", "... local_invoices(id), payload TEXT NOT NULL\n)")
+```
+
+The committed fixture contains **zero** CRLF escapes; the database built on the runner contained them. Every schema file is embedded with `include_str!` and executed verbatim, so its bytes become the text stored in `sqlite_schema`. With `core.autocrlf` enabled — the Windows default — checkout rewrites those files to CRLF, and a database created by that build records `\r\n` in all **36** multi-line statements. JSON string escapes in the fixture are compared literally, so the two can never agree on Windows. macOS and Linux passed only by virtue of their checkout defaults.
+
+`2512e69` adds `.gitattributes` pinning `*.sql` to `eol=lf`. Both Windows-only tests now pass, and no assertion was relaxed. This was the right layer to fix: the alternative was to normalise line endings inside the comparison, which would have hidden a genuine cross-platform build difference rather than removing it.
+
+**The Windows and macOS suites now agree**, which is the strongest single signal in this phase: 251/1 on Windows and 252/2 on macOS, the arithmetic difference being a test that a Windows-only path returns early from. Both remaining failures are the same two cross-platform product-semantics defects in §3.3.
+
+**Also observed on Windows, recorded not diagnosed:** the log tail is dominated by `ERROR MEMORY sqlcipher_mlock: VirtualLock() returned 0 LastError=1453`. That is SQLCipher reporting it could not lock key material into RAM — Windows' working-set quota, not a product defect — but for an encryption-at-rest product it is worth stating plainly that on a default Windows runner the memory-locking protection is **not active**. Whether it activates on real shop hardware with normal quotas is **NOT VERIFIED** and cannot be from here.
 
 **Not claimed:** that the Windows installer builds. Step 14 was skipped, so there is still no installer, no installed-app launch and no uninstall/reinstall preservation evidence.
 
@@ -265,7 +279,7 @@ Three defects were found here, each only visible by executing:
 | Check-run annotations | text silently truncated or replaced | no trailing newline before the next `::error::`, plus unbounded database dumps | **FIXED** in `6f9dbb4`, `dca1b32` |
 | `held_checkout_and_completion_are_atomic_and_retry_safe` | `(1,0,1,98750)` vs `(1,0,0,98750)` | payment row written for a cash invoice (§3.3) | **OPEN** — product semantics |
 | `phase11a_legacy_…_accounting` | snapshot differs after replay | `identity::guard` audits before the replay short-circuit (§3.3) | **OPEN** — product semantics |
-| 2 × Windows-only v11-archive tests | frozen schema / preview mismatch, Windows only | platform-dependent schema text, suspected `ALTER TABLE RENAME` interaction | **OPEN** — instrumented in `dca1b32` |
+| 2 × Windows-only v11-archive tests | frozen schema differed by `\r\n` vs `\n` | `core.autocrlf` rewrote `include_str!`-embedded `.sql` to CRLF, changing the schema a Windows build creates | **FIXED** in `2512e69` (`.gitattributes`) |
 | `Dependency audit` | exit 1 | `libsqlite3-sys` compiles SQLite **3.46.1**; `patched: none` | **OPEN** — no fixed release (§6.2) |
 
 ---
@@ -294,6 +308,7 @@ Phase 19B:
 `6f9dbb4` — module ordering for rustfmt, and the annotation-emitter fix: a command's output carries no trailing newline, so the following `::error::` was being parsed as part of the previous message.
 `ff3a145` — excludes SQLite's own `sqlite_%` bookkeeping from the drift test.
 `dca1b32` — caps panic-dump line length in three emitters and makes the frozen-schema assertion report the first differing entry instead of printing 123 entries twice.
+`2512e69` — `.gitattributes` pins `*.sql` to `eol=lf`. Every schema file is embedded with `include_str!` and executed verbatim, so `core.autocrlf` on Windows was changing the schema a build creates; the two Windows-only failures were that, not a migrator bug (§3.2).
 
 ### On the formatter commit
 
@@ -343,9 +358,11 @@ The advisory is now named with an exact mechanism rather than by proxy:
 
 **Smallest unblock:** none inside this repository. It requires an upstream `libsqlite3-sys` whose `sqlcipher` amalgamation is ≥ 3.54.0. Retiring a database-encryption advisory on a version bump alone is not acceptable for an offline POS; it needs the full native suite re-run against the bump. Tracked, not fixed. `proc-macro-error` and, newly, `rustls-pemfile` are unmaintained warnings, not failures.
 
-### 6.3 Two Windows-only schema failures are not yet explained
+### 6.3 Windows memory locking is inactive on a hosted runner
 
-`migration_from_frozen_v11_…` and `version_eleven_backup_…` pass on macOS and fail on Windows. The check record could not say *how* they differ because whole-vector assertions exhausted the annotation budget. `dca1b32` makes the schema comparison report the first differing entry and caps dump line length, so the next Windows run names the difference instead of asserting that one exists. Until that lands, the platform difference is **[UNKNOWN]**, not "a Windows bug".
+Not a failure, and not a product defect, but it belongs in a security review of an offline-first encrypted POS. The Windows log is dominated by `ERROR MEMORY sqlcipher_mlock: VirtualLock() returned 0 LastError=1453` — SQLCipher could not lock key material into physical RAM because the runner's working-set quota refused it. Protection against key material being paged to disk is therefore **not active** in that environment. Whether it activates on a real shop till with normal quotas is **[NOT VERIFIED]**, and it cannot be established from a hosted runner. It is recorded because a security claim that is quietly false on the runner is the kind of thing this report exists to surface.
+
+The Windows-only schema failures that were listed here in the previous revision are now **fixed** — §3.2.
 
 ### 6.4 No physical hardware, no signing
 
@@ -364,7 +381,9 @@ The agent's token lacks the `actions` permission, so a run could not be dispatch
 | --- | --- |
 | Android APKs (review shell + companion), 50 168 802 bytes | run `43270253648` → `Sornio-Android-review` |
 | Regenerated lockfiles | run `43292018168` → `native-lockfiles` (34 759 bytes); review branch `ci/native-lockfile-22db580` |
-| Windows job record (250 pass / 4 fail) | run `43309438864` / job `131501297293` |
+| Windows job record, before the fix (250 pass / 4 fail) | run `43309438864` / job `131501297293` |
+| Windows job record, after the line-ending fix (251 pass / 1 fail) | run `43318532730` / job `131532858149` |
+| `.gitattributes` fix | commit `2512e69` |
 | macOS job record (252 pass / 2 fail) | `macos` check on `ff3a145` |
 | Windows installer | **absent** — step skipped after the test failure |
 | macOS `.app` | **absent** — job stops before the bundle step |
@@ -394,8 +413,8 @@ Check-run annotations are the durable evidence for this phase, because raw job l
 | iOS | **PARTIAL — simulator compile only** | Xcode 26.6 / SDK 26.5 simulator build passes; no interaction tests; the Bonjour module has never executed |
 | iPadOS | **NO-GO / UNVERIFIED** | `supportsTablet: true` is declared; nothing else was done |
 | macOS | **PARTIAL — native suite executes, 2 failures** | 252 passed / 2 failed; no `.app`, no signing |
-| Windows native product | **PARTIAL — native suite executes, 4 failures** | 250 passed / 4 failed; 2 of the 4 are Windows-only; no installer |
-| Native Rust (SQLCipher, migrations v1→v22, atomic checkout, RBAC, recovery) | **EXECUTED, 2 cross-platform + 2 Windows-only failures** | first execution of this suite on a runner for the current tree |
+| Windows native product | **PARTIAL — native suite executes, 1 failure** | 251 passed / 1 failed after the line-ending fix; the remaining failure is the cross-platform product-semantics one; no installer |
+| Native Rust (SQLCipher, migrations v1→v22, atomic checkout, RBAC, recovery) | **EXECUTED, 2 cross-platform failures** | 252/2 on macOS, 251/1 on Windows; the platforms now agree |
 | Dependency audit | **FAIL — accepted risk pending upstream** | SQLite 3.46.1 in the shipped SQLCipher build; `patched: none` (§6.2) |
 | Replication / PostgreSQL | **GO** | `Real PostgreSQL concurrency` passes; 116 replication checks pass locally |
 
@@ -403,10 +422,10 @@ The change this phase actually produced is that the matrix now **executes**. Bef
 
 What stops a release is unchanged in kind, smaller in number, and now specific:
 
-1. two native tests need a product decision (§6.1), not a patch;
-2. two Windows-only schema failures are identified but not yet explained (§6.3);
-3. the shipped SQLite build carries an unfixed advisory (§6.2);
-4. no installer, no signed or notarized macOS app, no iPad or physical-device evidence (§6.4).
+1. two native tests need a product decision (§6.1), not a patch — they now fail identically on Windows and macOS;
+2. the shipped SQLite build carries an unfixed advisory (§6.2);
+3. no installer, no signed or notarized macOS app, no iPad or physical-device evidence (§6.4);
+4. SQLCipher's memory locking is inactive on a hosted Windows runner (§6.3).
 
 An offline-first POS whose Windows installer has never been built from the current tree, whose iPad UI has never been opened, and whose encryption engine compiles a SQLite release carrying an unpatched CVE is not releasable — however many Linux gates are green.
 
@@ -423,6 +442,8 @@ Read this section before citing anything above.
 **Corrected:** the first revision said the native Rust suite was BLOCKED and could not be reported. It has now been executed on two platforms: 252 pass / 2 fail on macOS, 250 pass / 4 fail on Windows.
 
 **Corrected:** the first revision declined to apply rustfmt and reported formatting as a blocker. Applying it was necessary for any of the above to execute (§5).
+
+**Corrected:** the first revision of §3.2 listed two Windows-only schema failures as unexplained. They are explained and fixed: `core.autocrlf` was rewriting the embedded `.sql` sources (§3.2, `2512e69`). The hypothesis floated mid-phase — an `ALTER TABLE RENAME` interaction — was **wrong**, and the instrumented assertion is what disproved it.
 
 **Corrected:** the first revision attributed the audit finding to a `sqlcipher-src` crate. No such crate is in either lockfile; the amalgamation ships inside `libsqlite3-sys`, and the compiled version is **3.46.1**, not the 3.49.1 default (§6.2).
 
