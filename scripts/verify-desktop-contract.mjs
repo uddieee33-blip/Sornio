@@ -133,8 +133,11 @@ const translatedLiterals = [...savedInvoiceSource.matchAll(/translate\(\s*'([^']
 const missingPunjabi = translatedLiterals.filter(key => typeof punjabiCatalog[key] !== 'string' || !punjabiCatalog[key].trim());
 check(translatedLiterals.length >= 15 && missingPunjabi.length === 0, `all ${translatedLiterals.length} SavedInvoice receipt phrases exist in locales/pa.json`);
 const checkoutSource = readFileSync(join(RENDERER, 'CheckoutPanel.tsx'), 'utf8');
+const { cashierNavigationKey } = await import('../apps/desktop/src/desktop-shortcuts.ts');
+assert.ok(checkoutSource.includes('const key = cashierNavigationKey(event)'), 'CheckoutPanel must use the tested shortcut dispatcher');
 for (const key of ['F2', 'F3', 'F4', 'F8', 'Escape']) {
-  assert.ok(checkoutSource.includes(`event.key === '${key}'`), `CheckoutPanel missing ${key} shortcut`);
+  assert.equal(cashierNavigationKey({key,altKey:false,metaKey:false,ctrlKey:false,shiftKey:false,repeat:false,isComposing:false}),key,`Dispatcher missing ${key}`);
+  assert.ok(checkoutSource.includes(`key === '${key}'`), `CheckoutPanel missing ${key} shortcut`);
 }
 check(true, 'CheckoutPanel binds F2, F3, F4, F8 and Escape counter shortcuts');
 const customerSource = readFileSync(join(RENDERER, 'CustomerPanel.tsx'), 'utf8');
