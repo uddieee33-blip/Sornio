@@ -35,7 +35,10 @@ final class ShopHttps: NSObject, URLSessionDataDelegate {
   func urlSession(_ session: URLSession, task: URLSessionTask, didReceive challenge: URLAuthenticationChallenge, completionHandler: @escaping (URLSession.AuthChallengeDisposition, URLCredential?) -> Void) {
     guard challenge.protectionSpace.authenticationMethod == NSURLAuthenticationMethodServerTrust, let trust = challenge.protectionSpace.serverTrust else { completionHandler(.performDefaultHandling, nil); return }
     guard task.currentRequest?.url?.host == challenge.protectionSpace.host else { failure = error("certificate_untrusted"); completionHandler(.cancelAuthenticationChallenge, nil); return }
-    guard SecTrustSetPolicies(trust, SecPolicyCreateSSL(true, challenge.protectionSpace.host as CFString)) == errSecSuccess else { failure = error("certificate_untrusted"); completionHandler(.cancelAuthenticationChallenge, nil); return }
+    var inheritedPolicies: CFArray?
+    guard SecTrustCopyPolicies(trust, &inheritedPolicies) == errSecSuccess, let policies = inheritedPolicies as? [SecPolicy] else { failure = error("certificate_untrusted"); completionHandler(.cancelAuthenticationChallenge, nil); return }
+    let checkedPolicies = policies + [SecPolicyCreateSSL(true, challenge.protectionSpace.host as CFString)]
+    guard SecTrustSetPolicies(trust, checkedPolicies as CFArray) == errSecSuccess else { failure = error("certificate_untrusted"); completionHandler(.cancelAuthenticationChallenge, nil); return }
     var trustError: CFError?
     guard SecTrustEvaluateWithError(trust, &trustError), let certificate = SecTrustCopyCertificateChain(trust) as? [SecCertificate], let leaf = certificate.first else {
       failure = error("certificate_untrusted"); completionHandler(.cancelAuthenticationChallenge, nil); return

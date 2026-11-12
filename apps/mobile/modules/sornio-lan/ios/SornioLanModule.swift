@@ -11,13 +11,13 @@ public final class SornioLanModule: Module, NetServiceBrowserDelegate, NetServic
     AsyncFunction("request") { (origin: String, path: String, body: String, bearer: String, pin: String) async throws -> [String: Any] in try await ShopHttps.perform(origin: origin, path: path, body: body, bearer: bearer, pin: pin, probe: false) }
     AsyncFunction("startDiscovery") { self.start() }.runOnQueue(.main)
     AsyncFunction("stopDiscovery") { self.stop() }.runOnQueue(.main)
-    OnDestroy { DispatchQueue.main.async { self.stop() } }
+    OnDestroy { DispatchQueue.main.async { self.stop(emit: false) } }
   }
-  private func stop() {
+  private func stop(emit: Bool = true) {
     browser?.delegate = nil; browser?.stop(); browser = nil
     for service in services.values { service.delegate = nil; service.stop() }
     services.removeAll()
-    sendEvent("onDiscoveryStatus", ["state": "stopped"])
+    if emit { sendEvent("onDiscoveryStatus", ["state": "stopped"]) }
   }
   private func start() {
     stop()

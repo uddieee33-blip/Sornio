@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invoke } from './native';
+import { liveRefresh } from '../../../packages/business-domain/src/live-refresh';
 import { HubPanel } from './HubPanel';
 import { KitchenPanel } from './KitchenPanel';
 import { RestaurantPayment } from './RestaurantPayment';
@@ -21,10 +22,13 @@ export function RestaurantPanel({ owner, disabled, username }: {owner:boolean;di
   const [ready,setReady]=useState(false), [busy,setBusy]=useState(false), [message,setMessage]=useState('Opening restaurant workspace…');
   const [pending,setPending]=useState<Request|null>(null), [selected,setSelected]=useState('');
   const [tableName,setTableName]=useState(''),[itemName,setItemName]=useState(''),[quantity,setQuantity]=useState('1'),[note,setNote]=useState('');
-  const [items,setItems]=useState<Item[]>([]),[moveTable,setMoveTable]=useState('');
-  const running=useRef(false);
-  const reload=useCallback(async()=>{try {const result=await invoke<Data>('read_restaurant');setData(result);setMenu(await invoke<RestaurantMenu[]>('restaurant_menu'));setProducts(await invoke<Product[]>('list_local_products'));setReady(true);} catch(e){setReady(false);setMessage(errorMessage(e,'Could not open restaurant orders.'));}},[]);
+  const [itemDrafts,setItemDrafts]=useState<Record<string,Item[]>>({}),[moveTable,setMoveTable]=useState('');
+  const items=itemDrafts[selected]??[];
+  function setItems(next:Item[]){setItemDrafts(old=>({...old,[selected]:next}));}
+  const running=useRef(false),reloadEpoch=useRef(0);
+  const reload=useCallback(async()=>{const token=++reloadEpoch.current;try {const result=await invoke<Data>('read_restaurant');if(token!==reloadEpoch.current)return;setData(result);setMenu(await invoke<RestaurantMenu[]>('restaurant_menu'));setProducts(await invoke<Product[]>('list_local_products'));setReady(true);} catch(e){setReady(false);setMessage(errorMessage(e,'Could not open restaurant orders.'));}},[]);
   useEffect(()=>{void reload();},[reload]);
+  useEffect(()=>{const refresh=liveRefresh({eligible:()=>!disabled&&!running.current&&document.visibilityState==='visible',intervalMs:3000,poll:async current=>{const token=reloadEpoch.current;const data=await invoke<Data>('restaurant_live');if(current()&&token===reloadEpoch.current&&!running.current)setData(data);},onError:()=>setMessage('Live updates paused. Unlock or refresh the restaurant workspace.')});refresh.start();return()=>refresh.stop();},[disabled]);
   async function execute(request:Request) {
     if(running.current || disabled)return;
     running.current=true;setBusy(true);setPending(request);

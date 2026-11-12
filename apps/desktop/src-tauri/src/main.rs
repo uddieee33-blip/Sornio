@@ -800,6 +800,13 @@ async fn restore_local_backup(
     .await
 }
 #[tauri::command]
+async fn restaurant_live(scope:Scope,state:tauri::State<'_,LocalState>)->Result<serde_json::Value,CommandError>{with_workspace(state,move|w|{w.verify_live_scope(&scope)?;w.restaurant_live()}).await}
+#[tauri::command]
+async fn hub_live(scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<serde_json::Value,CommandError>{
+ let (address,discovery)={let r=runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;let address=if r.stop.as_ref().is_some_and(|s|!s.load(std::sync::atomic::Ordering::SeqCst)){r.address.clone()}else{None};let discovery=r.advertisement.as_ref().map(|a|a.status()).unwrap_or_else(||serde_json::json!({"state":if r.discovery_error.is_some(){"unavailable"}else{"off"},"message":r.discovery_error}));(address,discovery)};
+ with_workspace(state,move|w|{w.verify_live_scope(&scope)?;let mut view=w.hub_live()?;view["address"]=serde_json::json!(address);view["discovery"]=discovery;Ok(view)}).await
+}
+#[tauri::command]
 async fn hub_admin(scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<serde_json::Value,CommandError>{
  let (address,discovery)={let r=runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;let address=if r.stop.as_ref().is_some_and(|s|!s.load(std::sync::atomic::Ordering::SeqCst)){r.address.clone()}else{None};let discovery=r.advertisement.as_ref().map(|a|a.status()).unwrap_or_else(||serde_json::json!({"state":if r.discovery_error.is_some(){"unavailable"}else{"off"},"message":r.discovery_error}));(address,discovery)};
  with_scoped_workspace(state,scope,move|w|{let mut v=w.hub_admin()?;let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);v["tls"]=hub_server::tls_status(&cert,&key);v["discovery"]=discovery;v["address"]=serde_json::json!(address);Ok(v)}).await
@@ -849,7 +856,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
-            hub_admin, hub_control, hub_import_tls, hub_device, hub_batches, hub_dispatch,
+            restaurant_live, hub_live, hub_admin, hub_control, hub_import_tls, hub_device, hub_batches, hub_dispatch,
             read_last_restore,
             choose_local_backup,
             export_local_backup,

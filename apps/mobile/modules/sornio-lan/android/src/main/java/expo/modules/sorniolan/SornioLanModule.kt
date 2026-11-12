@@ -19,17 +19,17 @@ class SornioLanModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("SornioLan")
     Events("onService", "onDiscoveryStatus")
-    AsyncFunction("probe") { origin: String -> ShopHttps.request(origin, "/v1/identity", "{\"version\":1}", "", "", true) }
-    AsyncFunction("request") { origin: String, path: String, body: String, bearer: String, pin: String -> ShopHttps.request(origin, path, body, bearer, pin, false) }
+    AsyncFunction("probe") { origin: String -> ShopHttps.request(origin, "/v1/identity", "{\"version\":1}", "", "", true, appContext.reactContext) }
+    AsyncFunction("request") { origin: String, path: String, body: String, bearer: String, pin: String -> ShopHttps.request(origin, path, body, bearer, pin, false, appContext.reactContext) }
     AsyncFunction("startDiscovery") { main.post { start() }; Unit }
     AsyncFunction("stopDiscovery") { main.post { stop() }; Unit }
-    OnDestroy { main.post { stop() } }
+    OnDestroy { main.post { stop(false) } }
   }
-  private fun stop() {
+  private fun stop(emit: Boolean = true) {
     epoch++; pending.clear(); present.clear(); resolving = false
     val old = browser; browser = null
     if (old != null) try { manager?.stopServiceDiscovery(old) } catch (_: Exception) {}
-    sendEvent("onDiscoveryStatus", mapOf("state" to "stopped"))
+    if (emit) sendEvent("onDiscoveryStatus", mapOf("state" to "stopped"))
   }
   private fun start() {
     stop(); val token = epoch
@@ -59,9 +59,10 @@ class SornioLanModule : Module() {
         if (token == epoch) {
           resolving = false
           if (present.contains(service.serviceName)) {
+            ServiceAddresses.remember(service)
             val allowed = setOf("v", "hub", "biz", "name", "origin", "cert")
-            val txt = service.attributes.filterKeys { allowed.contains(it) }.mapValues { String(it.value, Charsets.UTF_8).take(250) }
-            sendEvent("onService", mapOf("kind" to "resolved", "key" to service.serviceName, "host" to (service.host?.hostName ?: ""), "port" to service.port, "txt" to txt))
+            val txt = service.attributes.entries.filter { allowed.contains(it.key) }.mapNotNull { entry -> entry.value?.let { entry.key to String(it, Charsets.UTF_8).take(250) } }.toMap()
+            sendEvent("onService", mapOf("kind" to "resolved", "key" to service.serviceName, "host" to (service.host?.hostAddress ?: ""), "port" to service.port, "txt" to txt))
           }
           resolveNext(token)
         }

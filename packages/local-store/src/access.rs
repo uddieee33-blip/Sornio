@@ -1046,3 +1046,16 @@ impl Workspace {
   })();self.store.1=desktop;self.last_activity.set(activity);result
  }
 }
+
+impl Workspace {
+ /// Passive polling must not renew either renderer idle authority or staff tokens.
+ pub fn verify_live_scope(&self,scope:&Scope)->Result<(),StoreError>{self.authorize(Permission::View)?;if &identity::scope(&self.store.0)?!=scope{return Err(StoreError::WorkspaceMismatch);}Ok(())}
+ pub fn restaurant_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::Sell)?;self.store.restaurant_workspace()}
+ pub fn hub_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::Settings)?;self.store.hub_admin()}
+}
+#[cfg(test)]
+mod live_poll_tests {
+ use super::*;
+ #[test]fn passive_reads_do_not_extend_desktop_idle_authority(){let mut w=Workspace::new(Store::open(std::path::Path::new(":memory:"),"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap());w.setup("Synthetic live polling password").unwrap();let before=w.last_activity.get();let scope=w.local_session().unwrap().scope;w.verify_live_scope(&scope).unwrap();w.restaurant_live().unwrap();w.hub_live().unwrap();assert_eq!(w.last_activity.get(),before);}
+ #[test]fn expired_desktop_is_not_revived_by_live_scope_checks(){let mut w=Workspace::new(Store::open(std::path::Path::new(":memory:"),"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap());w.setup("Synthetic live polling password").unwrap();let scope=w.local_session().unwrap().scope;w.last_activity.set(Instant::now()-Duration::from_secs(901));assert!(matches!(w.verify_live_scope(&scope),Err(StoreError::Locked)));assert!(matches!(w.restaurant_live(),Err(StoreError::Locked)));}
+}
