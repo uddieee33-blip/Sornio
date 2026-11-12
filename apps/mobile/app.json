@@ -22,7 +22,8 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
-        }
+        },
+        "NSLocalNetworkUsageDescription": "Connect to the shop\u2019s approved Sornio HTTPS hub to submit restaurant orders on the local network."
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -52,7 +53,8 @@
         {
           "faceIDPermission": "Sornio can unlock this companion session with Face ID. This is not gym-member attendance."
         }
-      ]
+      ],
+      "./plugins/with-lan-security"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
