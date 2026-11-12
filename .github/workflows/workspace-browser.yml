@@ -1,7 +1,9 @@
 name: Workspace browser review
 on:
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
+    # Stacked Phase 13-18 draft PRs use another `feature/` branch as their base,
+    # so a `[main]`-only filter meant they produced no Windows or browser result.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', 'scripts/test-ci-logged-wrappers.py', '.github/workflows/windows-local.yml', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:

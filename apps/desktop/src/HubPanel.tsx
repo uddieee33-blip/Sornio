@@ -10,7 +10,11 @@ export function HubPanel({owner,onChanged}:{owner:boolean;onChanged:()=>void}){
  const [data,setData]=useState<Admin|null>(null),[staff,setStaff]=useState<Principal[]>([]),[batches,setBatches]=useState<Batch[]>([]),[actors,setActors]=useState<Record<string,string>>({}),[busy,setBusy]=useState(false),[message,setMessage]=useState('LAN coordination is off until enabled on this computer.');
  const running=useRef(false),loadEpoch=useRef(0);
  const load=useCallback(async()=>{loadEpoch.current++;setBatches(await invoke<Batch[]>('hub_batches'));if(owner){const [a,s]=await Promise.all([invoke<Admin>('hub_admin'),invoke<Principal[]>('list_local_staff')]);setData(a);setStaff(s);}},[owner]);
- useEffect(()=>{void load().catch(()=>setMessage('Unlock and refresh LAN coordination.'));},[load]);
+ // Ignore a result that arrives after unmount instead of setting state into a
+ // component that no longer exists.
+ // Read the hub once per mount, and ignore a result that arrives after unmount
+ // instead of setting state into a component that no longer exists.
+ useEffect(()=>{let live=true;void (async()=>{try{await load();}catch{if(live)setMessage('Unlock and refresh LAN coordination.');}})();return()=>{live=false;};},[load]);
  async function run(action:()=>Promise<unknown>){if(running.current)return;running.current=true;setBusy(true);try{await action();await load();onChanged();setMessage('Saved by the native hub. Refresh to view incoming updates.');}catch(e){setMessage(errorMessage(e,'Could not confirm the result. Refresh before repeating the action.'));}finally{running.current=false;setBusy(false);}}
  useEffect(()=>{const refresh=liveRefresh({intervalMs:3000,eligible:()=>!running.current&&document.visibilityState==='visible',poll:async current=>{const token=loadEpoch.current;const [snapshot,admin]=await Promise.all([invoke<RestaurantSnapshot>('restaurant_live'),owner?invoke<Partial<Admin>>('hub_live'):Promise.resolve(null)]);if(!current()||running.current||token!==loadEpoch.current)return;setBatches((snapshot.acceptedBatches??[]).map(b=>({...b,revision:snapshot.orders.find(o=>o.id===b.orderId)?.revision??0})));if(admin)setData(old=>old?{...old,...admin}:old);},onError:()=>setMessage('Live hub view paused. Unlock or refresh to continue.')});refresh.start();return()=>refresh.stop();},[owner]);
  return <section className="panel" aria-label="Local network coordination"><h3>Shop LAN hub</h3><p role="status">{message}</p><button type="button" disabled={busy} onClick={()=>void run(load)}>Refresh devices & incoming orders</button>

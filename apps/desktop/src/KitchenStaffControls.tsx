@@ -8,7 +8,11 @@ export function KitchenStaffControls({staff,tickets,onChanged,disabled}:{staff:K
  const [busy,setBusy]=useState(false),[message,setMessage]=useState('Ticket assignments do not transfer checkout ownership.'),[employee,setEmployee]=useState(''),[mode,setMode]=useState('preparer'),[choices,setChoices]=useState<Record<string,string>>({});const running=useRef(false);
  const [saved,setSaved]=useState<{state:string;request:{operationId:string;responsibility?:string;targetActorId?:string;sessionHandle?:string};result?:{status:string;reason?:string;revision?:number;outcome?:string}}|null>(null),[recoveryReady,setRecoveryReady]=useState(false);
  async function loadSaved(){setSaved(await invoke('kitchen_action',{a:{kind:'pending_assignment'}}));setRecoveryReady(true);}
- useEffect(()=>{void loadSaved().catch(()=>setMessage('Could not load durable assignments. New assignments are blocked.'));},[staff.actorId]);
+ // Durable assignments are read once per employee. Gate on unmount rather than
+ // writing state into a torn-down panel.
+ // Durable assignments are read once per employee; a late reply from the
+ // previous employee must not overwrite the current one's recovery state.
+ useEffect(()=>{let live=true;void (async()=>{try{await loadSaved();}catch{if(live)setMessage('Could not load durable assignments. New assignments are blocked.');}})();return()=>{live=false;};},[staff.actorId]);
  async function durable(a:Record<string,unknown>){if(running.current)return;running.current=true;setBusy(true);try{setSaved(await invoke('kitchen_action',{a}));setMessage('Native operation state refreshed. Review its confirmed outcome before another request.');onChanged();}catch(e){setMessage(errorMessage(e,'Outcome unconfirmed. Recover the saved operation.'));}finally{try{await loadSaved();}catch{setRecoveryReady(false);}running.current=false;setBusy(false);}}
  const locked=disabled||busy||!!saved||!recoveryReady;
  return <section aria-label="Kitchen staff management"><SecurityHistoryPanel key={`security-${staff.actorId}`} staff={staff}/><StaffAccessPanel key={staff.actorId} staff={staff} disabled={locked} onPrepareSignout={(actor_id,expected_revision,session_handle)=>durable({kind:'prepare_session_signout',operation_id:crypto.randomUUID(),actor_id,expected_revision,session_handle})}/><p role="status">{message}</p>

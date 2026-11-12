@@ -1,15 +1,24 @@
 name: Android review package
 on:
   pull_request:
-    branches: [main]
-    paths: ['mobile/android/**', '.github/workflows/android-review.yml']
+    # The stacked Phase 18 draft PR graph does not use `main` as its base, so a
+    # `[main]`-only filter meant every one of those PRs produced no Android
+    # result at all. Keep the list explicit rather than using `**` so a fork PR
+    # cannot quietly change what a required check means.
+    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    paths:
+      - 'mobile/android/**'
+      - 'apps/mobile/**'
+      - 'packages/mobile-contracts/**'
+      - 'packages/mobile-design/**'
+      - '.github/workflows/android-review.yml'
   workflow_dispatch:
 permissions:
   contents: read
 jobs:
   android:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v6
@@ -23,13 +32,56 @@ jobs:
       - uses: gradle/actions/setup-gradle@v6
         with:
           gradle-version: '8.11.1'
+      # `mobile/android` is a second, independently maintained Android shell.
+      # Its host allow-list is security-relevant, so it is compiled and run with
+      # plain javac before Gradle so a hostile-URL regression fails in seconds
+      # rather than after a full Android build.
       - name: Verify navigation boundary
         run: |
           javac -d /tmp/sornio-tests mobile/android/app/src/main/java/com/sornio/app/NavigationPolicy.java mobile/android/tests/NavigationPolicyTest.java
           java -cp /tmp/sornio-tests NavigationPolicyTest
-      - name: Compile and lint Android app
+      - name: Compile and lint the review shell
         working-directory: mobile/android
         run: gradle --no-daemon :app:assembleDebug :app:lintDebug
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      # The Expo companion is the Android/iOS product surface. These are the
+      # same three gates `mobile.yml` runs, repeated here so this workflow is
+      # meaningful on its own when it is the one a PR triggers.
+      - name: Contract tests
+        run: node scripts/verify-mobile-contracts.mjs
+      - name: Typecheck companion
+        working-directory: apps/mobile
+        run: npx tsc --noEmit
+      - name: Prebuild Android
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform android --non-interactive
+      - name: Assemble companion debug APK
+        working-directory: apps/mobile/android
+        run: ./gradlew --no-daemon :app:assembleDebug
+      - name: Record APK identity
+        run: |
+          set -euo pipefail
+          for apk in apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk \
+                     mobile/android/app/build/outputs/apk/debug/app-debug.apk; do
+            test -f "$apk" || { echo "::error::missing $apk"; exit 1; }
+            echo "$apk $(sha256sum "$apk")"
+            echo "::notice::$apk $(sha256sum "$apk")"
+          done
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: Sornio-Android-review
+          path: |
+            mobile/android/app/build/outputs/apk/debug/app-debug.apk
+            apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+          retention-days: 7
       - uses: actions/upload-artifact@v7.0.2
         with:
           name: Sornio-Android-review

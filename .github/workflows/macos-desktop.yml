@@ -1,0 +1,157 @@
+name: macOS desktop workspace
+
+# The product desktop app is the offline Tauri binary in `apps/desktop`, and it
+# targets macOS as well as Windows. Until this file existed there was **no**
+# macOS job anywhere in the repository: `windows-local.yml` built and acceptance
+# tested the Windows product, `mobile.yml` built the iOS companion, and nothing
+# compiled the macOS desktop product at all. `apps/desktop/package.json` already
+# carries `desktop:build:macos` and `src-tauri/tauri.macos.conf.json` already
+# declares a hardened-runtime `.app`/`.dmg` bundle, so the target was declared but
+# never exercised.
+#
+# What this proves, and what it does not:
+#   * It compiles the native store, the Rust desktop binary and the bundled
+#     frontend on macOS, and runs the native test suite in debug and release.
+#   * It produces an **unsigned** `.app`. Apple signing and notarization are not
+#     available to CI here, and the build is explicitly configured with
+#     `CODE_SIGNING_ALLOWED=NO`-equivalent settings. An unsigned build is partial
+#     engineering evidence: it is not a distributable macOS release, and this
+#     workflow must never be described as one.
+#   * MacOS Keychain-backed vault behaviour at runtime is exercised by the native
+#     tests where they cover it; a stored keychain item in a real login session is
+#     not reproducible in CI, so it is reported as unverified rather than assumed.
+
+on:
+  pull_request:
+    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/business-domain/**'
+      - 'packages/local-store/**'
+      - 'packages/replication-cloud/**'
+      - '.github/workflows/macos-desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TEST_THREADS: '4'
+  CARGO_BUILD_JOBS: '2'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  macos:
+    # macos-14 is Apple silicon (arm64). The Intel target is the one the Tauri
+    # config's `minimumSystemVersion: 11.0` also has to satisfy, so the runner
+    # family is recorded in the log rather than left to be guessed later.
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Record host and toolchain
+        run: |
+          uname -a
+          sw_vers
+          xcodebuild -version
+          rustc --version
+          cargo --version
+          echo "::notice::runner=$(uname -m) xcode=$(xcodebuild -version | head -1)"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            packages/local-store
+            apps/desktop/src-tauri
+
+      - name: Check native Rust formatting
+        run: |
+          cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+
+      # Shared files under lib/ and packages/ resolve packages from the repo
+      # root, so the root install has to run before the desktop one.
+      - name: Install shared root dependencies
+        run: npm ci
+
+      - name: Install desktop dependencies
+        run: npm ci --prefix apps/desktop
+
+      - name: Build bundled frontend
+        run: npm run build --prefix apps/desktop
+
+      - name: Native tests (debug profile)
+        # Debug keeps integer overflow checks and debug_assert! active, which the
+        # financial and money suites rely on.
+        run: |
+          cargo test --all-targets --locked \
+            --manifest-path packages/local-store/Cargo.toml \
+            --target-dir apps/desktop/src-tauri/target
+
+      - name: Native tests (release profile)
+        run: |
+          cargo test --all-targets --release --locked \
+            --manifest-path packages/local-store/Cargo.toml \
+            --target-dir apps/desktop/src-tauri/target
+
+      - name: Build unsigned macOS application bundle
+        # `tauri.macos.conf.json` declares `app,dmg`; a DMG needs a signed bundle
+        # to be useful to anyone, so CI builds the `.app` only and says so. The
+        # command mirrors `package.json` → `desktop:build:macos` exactly, with
+        # `dmg` dropped from the bundle list for that reason.
+        working-directory: apps/desktop
+        run: |
+          ./node_modules/.bin/tauri build \
+            --config src-tauri/tauri.macos.conf.json \
+            --bundles app
+
+      - name: Record bundle identity and signing state
+        run: |
+          set -euo pipefail
+          bundle=apps/desktop/src-tauri/target/release/bundle/macos
+          test -d "$bundle" || { echo "::error::no macOS bundle was produced"; exit 1; }
+          app=$(find "$bundle" -maxdepth 1 -name '*.app' | head -1)
+          test -n "$app" || { echo "::error::no .app in $bundle"; exit 1; }
+          mat=$(find "$app" -maxdepth 2 -name Info.plist | head -1)
+          echo "app=$app"
+          echo "executable=$(ls "$app/Contents/MacOS")"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$mat" || true
+          /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$mat" || true
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$mat" || true
+          echo "architectures: $(lipo -archs "$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)" || echo unknown)"
+          # An unsigned build must say so in the log. `codesign -dv` failing here
+          # is the expected, recorded state — not a pass for notarization.
+          codesign -dv "$app" 2>&1 || echo "::notice::bundle is unsigned (expected in CI; not a distributable release)"
+          du -sh "$app"
+
+      # NOTE ON SCOPE: this step compiles native code and produces an unsigned
+      # .app. It does not prove that an installed macOS app launches against a
+      # real login Keychain, and it does not prove notarized distribution.
+      # Those stay unverified until they run on Apple hardware/account.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-macOS-unsigned-app
+          path: apps/desktop/src-tauri/target/release/bundle/macos/*.app
+          if-no-files-found: error
+          retention-days: 7

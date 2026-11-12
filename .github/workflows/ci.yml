@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces']
+    # `feature/*phase1*`, `feature/*lane*`, `repair/*` and `arena/*` cover the
+    # stacked draft-PR graph: those PRs do not use `main` as their base, so this
+    # workflow used to produce no result at all for a Phase 13-18 PR. The
+    # patterns are explicit so a fork cannot change what a check means.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
 
 # Run checks for every pushed commit instead of silently cancelling an earlier
 # verification when another commit is pushed to the same PR. GitHub queues

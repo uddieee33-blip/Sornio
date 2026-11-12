@@ -2,7 +2,9 @@ name: Mobile companion
 
 on:
   pull_request:
-    branches: [main]
+    # Stacked draft PRs base on other `feature/` branches, so a `[main]`-only
+    # filter never ran the companion checks for the Phase 12-18 stack.
+    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths:
       - 'apps/mobile/**'
       - 'packages/mobile-contracts/**'

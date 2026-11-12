@@ -1,7 +1,9 @@
 name: Replication PostgreSQL
 on:
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31']
+    # Stacked Phase 13-18 draft PRs base on other `feature/` branches; a
+    # `[main]`-only filter produced no replication result for them.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths:
       - 'packages/replication-cloud/**'
       - 'packages/local-store/**'
