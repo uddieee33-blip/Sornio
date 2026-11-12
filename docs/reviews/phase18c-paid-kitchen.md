@@ -1,0 +1,15 @@
+# Paid-order kitchen continuation
+
+Dependency: `feature/phase18b-mobile-kitchen`, verified published commit `af07903e115c4eab72da3b0e4612dba57c348180`, draft PR #172. No merges.
+
+Problem: a paid takeaway or dine-in order disappeared from the preparation workspace immediately, even when its ticket was still Pending, Preparing or Ready.
+
+Implementation: native `paid_kitchen` exposes a separate, bounded read model of unfinished tickets joined to real settled invoices and existing assignments/control actors. Existing unpaid orders, table occupancy, menu additions and checkout flows retain their existing queries. The paid queue includes original table labels for context; a table can already have new guests. Served paid tickets leave the active queue on refresh. `kitchen.paid.v1` is advertised alongside existing kitchen transition support. Optional `paidKitchen` snapshot data keeps older snapshots readable.
+
+Windows/macOS desktop shows a dedicated paid preparation queue with ticket items, notes, assignment, revision and next-state controls. Android/iPhone/iPad kitchen views label paid tickets and reuse the existing immutable encrypted command queue, native pinned transport and authoritative revision/permission/ownership checks. No new settlement interface or financial engine is introduced. The same native transition helper accepts operational preparation after settlement only while the order is not cancelled and its referenced authoritative invoice exists. SQL repeats the state/revision/invoice guards. Kitchen changes do not alter order revisions, table state, checkout control or financial records.
+
+Passed: desktop TypeScript/Vite build; mobile TypeScript; 53 shared-domain tests including three paid-queue compatibility/isolation checks; 63 mobile and 38 desktop contract checks; 92 SQLite schema/migration checks; existing kitchen SQL checks; new paid-kitchen SQL test executing actual native read/update statements against the fully migrated database. The new SQLite test uses a real seeded invoice and valid settlement attempt/control linkage, seats new guests at the same table, advances the paid ticket through Served, rejects duplicate revisions, and compares financial, stock, order and checkout-control rows before/after.
+
+Added native regression: real restaurant checkout recovery/amendment/settlement followed by preparation retries and new guests at the released table. Not run: Cargo and native platform/device infrastructure remain unavailable as established in Phase 18. No dependency lockfiles, schema migrations or security gates were changed. Native compilation, SQLCipher/RBAC execution, installed desktop/mobile interaction, TLS and real-device LAN interoperability remain release gates. The source is not a production-readiness claim.
+
+Limitations: active paid queue is bounded to the oldest 1000 unfinished tickets; completed tickets remain in native history but do not have a dedicated searchable UI yet. Paid preparation uses the existing assigned cashier/control actor or owner override; a dedicated kitchen staffing permission/assignment model is still a future increment.
