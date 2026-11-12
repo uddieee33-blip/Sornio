@@ -1039,7 +1039,8 @@ impl Workspace {
    let (session,device)=self.store.hub_authenticate(bearer)?;self.store.1=Some(session);
    if matches!(path,"/v1/submit"|"/v1/kitchen-state"){if let Some(id)=body["operationId"].as_str(){if self.store.0.query_row("SELECT EXISTS(SELECT 1 FROM local_kitchen_assignment_ops WHERE id=?1)",[id],|q|q.get::<_,bool>(0))?{return Err(StoreError::OperationConflict);}}}
    match path{
-    "/v1/kitchen-assign"=>self.store.assignment_execute(&device,serde_json::from_value(body)?,Some(bearer)),
+    "/v1/kitchen-assign"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.responsibility.is_some(){return Err(StoreError::Forbidden);}self.store.assignment_execute(&device,r,Some(bearer))},
+    "/v1/staff-responsibility"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.responsibility.is_none(){return Err(StoreError::InvalidDraft);}self.store.assignment_execute(&device,r,Some(bearer))},
     "/v1/assignment-operation"=>self.store.assignment_status(&format!("lan:{device}"),body["operationId"].as_str().ok_or(StoreError::InvalidDraft)?),
     "/v1/kitchen-history"=>self.store.kitchen_history(serde_json::from_value(body["query"].clone())?),
     "/v1/workspace"=>self.store.restaurant_workspace(),
