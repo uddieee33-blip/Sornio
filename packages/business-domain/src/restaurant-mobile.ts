@@ -1,3 +1,4 @@
+import {kitchenStaffView} from './kitchen-staff.ts';
 import { KOT_STATES, type RestaurantDraft, type RestaurantSnapshot } from './restaurant-operations.ts';
 export type RestaurantScope={businessId:string;actorId:string;mode:'demo'|'live'};
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
@@ -23,6 +24,7 @@ export function parseRestaurantSnapshot(raw:string,businessId:string,maxLength=6
  if(s.acceptedBatches!==undefined&&(!array(s.acceptedBatches,1000)||s.acceptedBatches.some(b=>!object(b)||!id(b.id)||!orders.has(b.orderId)||!array(b.items,30)||b.items.some(i=>!object(i)||!text(i.name,243)||!integer(i.quantity,1)||!text(i.note,200)||!integer(i.unitPricePaise)))))throw new Error('Invalid accepted restaurant batch.');
  if(s.assignments.some(a=>!object(a)||!orders.has(a.orderId)||!(a.actorId===null||id(a.actorId))||!(a.displayName===null||text(a.displayName,120))||!['unpaid','editable','bound','submitting','refused','unknown','settled'].includes(String(a.checkoutState))))throw new Error('Invalid assignment.');
  for(const rows of [s.tables,s.orders,s.menu,s.tickets,s.assignments]){const keys=rows.map(r=>{const x=r as Record<string,unknown>;return x.id??x.orderId;});if(new Set(keys).size!==keys.length)throw new Error('Duplicate operational identity.');}
+ if(s.kitchenStaff!==undefined)kitchenStaffView(s.kitchenStaff);
  return s as unknown as RestaurantSnapshot;
 }
 export function parseRestaurantDraft(raw:string,scope:RestaurantScope):RestaurantDraft{

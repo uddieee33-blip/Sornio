@@ -32,7 +32,7 @@ pub struct Order { id: String, table_id: Option<String>, kind: String, state: St
 pub struct Ticket { id: String, order_id: String, items: Vec<Item>, state: String, revision: i64 }
 #[derive(Serialize)]
 #[serde(rename_all="camelCase")]
-pub struct View { tables: Vec<Table>, orders: Vec<Order>, tickets: Vec<Ticket>, #[serde(rename="paidKitchen")] paid_kitchen: serde_json::Value }
+pub struct View { tables: Vec<Table>, orders: Vec<Order>, tickets: Vec<Ticket>, #[serde(rename="paidKitchen")] paid_kitchen: serde_json::Value, kitchen_staff:serde_json::Value }
 
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> { tx.execute_batch(include_str!("restaurant-schema.sql"))?; Ok(()) }
 fn id(s: &str) -> Result<(), StoreError> { if billing::valid_id(s) { Ok(()) } else { Err(StoreError::InvalidInvoice) } }
@@ -41,16 +41,16 @@ fn changed(n: usize) -> Result<(), StoreError> { if n == 1 { Ok(()) } else { Err
 impl Store {
     pub(crate) fn restaurant_view(&self) -> Result<View, StoreError> {
         let session = self.1.as_ref().ok_or(StoreError::Locked)?;
-        identity::verify(&self.0, session, Permission::Sell)?;
+        identity::verify(&self.0, session, Permission::KitchenView)?;
         let tables = self.0.prepare("SELECT id,name FROM local_restaurant_tables WHERE active=1 ORDER BY name")?.query_map([], |r| Ok(Table{id:r.get(0)?,name:r.get(1)?}))?.collect::<Result<Vec<_>,_>>()?;
         let orders = self.0.prepare("SELECT id,table_id,kind,state,revision FROM local_restaurant_orders WHERE state IN ('open','pending_bill') AND settled_invoice IS NULL ORDER BY rowid")?.query_map([], |r| Ok(Order{id:r.get(0)?,table_id:r.get(1)?,kind:r.get(2)?,state:r.get(3)?,revision:r.get(4)?}))?.collect::<Result<Vec<_>,_>>()?;
         let rows = self.0.prepare("SELECT t.id,t.order_id,t.items,t.state,t.revision FROM local_restaurant_tickets t JOIN local_restaurant_orders o ON o.id=t.order_id WHERE o.state IN ('open','pending_bill') AND o.settled_invoice IS NULL ORDER BY t.rowid")?.query_map([], |r| Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?,r.get::<_,String>(3)?,r.get::<_,i64>(4)?)))?.collect::<Result<Vec<_>,_>>()?;
         let mut tickets = Vec::new(); for (id,order_id,items,state,revision) in rows { tickets.push(Ticket{id,order_id,items:serde_json::from_str(&items)?,state,revision}); }
-        Ok(View {tables,orders,tickets,paid_kitchen:self.paid_kitchen()?})
+        Ok(View {tables,orders,tickets,paid_kitchen:self.paid_kitchen()?,kitchen_staff:self.kitchen_staff_view()?})
     }
     /// Paid preparation is a separate read model: never reopen orders or occupy tables.
     pub(crate) fn paid_kitchen(&self)->Result<serde_json::Value,StoreError>{
-        identity::verify(&self.0,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::Sell)?;
+        identity::verify(&self.0,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::KitchenView)?;
         let rows=self.0.prepare("SELECT t.id,t.order_id,o.kind,tb.name,t.items,t.state,t.revision,COALESCE(c.actor_id,a.actor_id),p.display_name FROM local_restaurant_tickets t JOIN local_restaurant_orders o ON o.id=t.order_id JOIN local_invoices i ON i.id=o.settled_invoice LEFT JOIN local_restaurant_tables tb ON tb.id=o.table_id LEFT JOIN local_restaurant_control c ON c.order_id=o.id LEFT JOIN local_restaurant_assignments a ON a.order_id=o.id LEFT JOIN local_principals p ON p.id=COALESCE(c.actor_id,a.actor_id) WHERE o.state IN ('open','pending_bill') AND t.state<>'served' ORDER BY t.rowid LIMIT 1000")?.query_map([],|q|Ok((q.get::<_,String>(0)?,q.get::<_,String>(1)?,q.get::<_,String>(2)?,q.get::<_,Option<String>>(3)?,q.get::<_,String>(4)?,q.get::<_,String>(5)?,q.get::<_,i64>(6)?,q.get::<_,Option<String>>(7)?,q.get::<_,Option<String>>(8)?)))?.collect::<Result<Vec<_>,_>>()?;
         let mut result=Vec::new();for (id,order,kind,table,items,state,revision,actor,name) in rows{let items:Vec<Item>=serde_json::from_str(&items)?;result.push(serde_json::json!({"id":id,"orderId":order,"kind":kind,"tableName":table,"items":items,"state":state,"revision":revision,"actorId":actor,"displayName":name}));}Ok(serde_json::json!(result))
     }
@@ -59,7 +59,7 @@ impl Store {
         let raw = serde_json::to_string(&request)?;
         let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
         let session = self.1.as_ref().ok_or(StoreError::Locked)?;
-        identity::verify(&tx, session, Permission::Sell)?;
+        identity::verify(&tx, session, if matches!(&request.action,Action::SetTicketState{..}){Permission::KitchenPrepare}else{Permission::Sell})?;
         let old: Option<(String,String)> = tx.query_row("SELECT actor_id,request FROM local_restaurant_events WHERE operation_id=?1",[&request.operation_id],|r|Ok((r.get(0)?,r.get(1)?))).optional()?;
         if let Some((actor, previous)) = old { return if actor == session.actor_id && previous == raw { Ok(()) } else { Err(StoreError::OperationConflict) }; }
         let target = match &request.action { Action::MoveOrder{id,..}|Action::RequestBill{id,..}|Action::CancelOrder{id,..} => Some(id), Action::SendTicket{order_id,..} => Some(order_id), _=>None };
@@ -73,7 +73,7 @@ impl Store {
             Action::RequestBill{id:key,expected_revision} => { id(key)?; changed(tx.execute("UPDATE local_restaurant_orders SET state='pending_bill',revision=revision+1 WHERE id=?1 AND revision=?2 AND state='open'",params![key,expected_revision])?)?; }
             Action::CancelOrder{id:key,expected_revision} => { id(key)?; identity::verify(&tx,session,Permission::Settings)?; changed(tx.execute("UPDATE local_restaurant_orders SET state='cancelled',revision=revision+1 WHERE id=?1 AND revision=?2 AND state IN ('open','pending_bill')",params![key,expected_revision])?)?; }
         }
-        identity::guard(&tx,&self.1,Permission::Sell,"restaurant.changed",Some(&request.operation_id))?;
+        identity::guard(&tx,&self.1,if matches!(&request.action,Action::SetTicketState{..}){Permission::KitchenPrepare}else{Permission::Sell},"restaurant.changed",Some(&request.operation_id))?;
         tx.execute("INSERT INTO local_restaurant_events(operation_id,actor_id,request) VALUES(?1,?2,?3)",params![request.operation_id,session.actor_id,raw])?;
         tx.commit()?; Ok(())
     }
@@ -90,11 +90,11 @@ fn priced_items(tx:&Transaction<'_>,items:&[Item])->Result<Vec<Item>,StoreError>
 /// One authoritative operational transition shared by desktop and authenticated LAN.
 /// It changes neither order items/revisions nor money, stock, debt or table ownership.
 pub(crate) fn transition_ticket(tx:&Transaction<'_>,session:&Option<crate::identity::Session>,ticket:&str,expected:i64,next:&str)->Result<(String,i64),StoreError>{
- id(ticket)?;let actor=session.as_ref().ok_or(StoreError::Locked)?;identity::verify(tx,actor,Permission::Sell)?;
+ id(ticket)?;let actor=session.as_ref().ok_or(StoreError::Locked)?;identity::verify(tx,actor,Permission::KitchenPrepare)?;
  if expected<1||!matches!(next,"preparing"|"ready"|"served"){return Err(StoreError::InvalidDraft);}
  let row:Option<(String,String,i64,String,Option<String>)>=tx.query_row("SELECT t.order_id,t.state,t.revision,o.state,o.settled_invoice FROM local_restaurant_tickets t JOIN local_restaurant_orders o ON o.id=t.order_id WHERE t.id=?1",[ticket],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?,q.get(3)?,q.get(4)?))).optional()?;
  let (order,state,revision,order_state,invoice)=row.ok_or(StoreError::InvalidDraft)?;
- crate::kitchen::authorize_order(tx,session,&order)?;
+ crate::kitchen_staff::authorize_ticket(tx,session,ticket,&order)?;
  if revision!=expected{return Err(StoreError::Conflict);}
  if !matches!(order_state.as_str(),"open"|"pending_bill"){return Err(StoreError::CheckoutActive);}
  if let Some(invoice)=invoice{if !tx.query_row("SELECT EXISTS(SELECT 1 FROM local_invoices WHERE id=?1)",[invoice],|q|q.get::<_,bool>(0))?{return Err(StoreError::CheckoutActive);}}
