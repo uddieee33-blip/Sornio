@@ -104,7 +104,11 @@ pub(crate) fn prepare_into(
     }
     let inserted = tx.execute(
         "INSERT INTO local_checkout(singleton,operation_id,request,actor_id) VALUES(1,?1,?2,?3)",
-        params![request.operation_id, raw, session.as_ref().map(|s|s.actor_id.as_str())],
+        params![
+            request.operation_id,
+            raw,
+            session.as_ref().map(|s| s.actor_id.as_str())
+        ],
     )?;
     if inserted != 1 {
         return Err(StoreError::CheckoutActive);
@@ -114,8 +118,12 @@ pub(crate) fn prepare_into(
 
 impl Store {
     pub(crate) fn prepare_checkout(&mut self, request: PostInvoice) -> Result<(), StoreError> {
-        let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if prepare_into(&tx, &self.1, request)? { tx.commit()?; }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if prepare_into(&tx, &self.1, request)? {
+            tx.commit()?;
+        }
         Ok(())
     }
     /// Compare the caller's expected result while holding the same writer lock
@@ -182,7 +190,9 @@ impl Store {
         {
             return Err(StoreError::CheckoutActive);
         }
-        if !saved { crate::held_bills::cancel_checkout(&tx, operation_id)?; }
+        if !saved {
+            crate::held_bills::cancel_checkout(&tx, operation_id)?;
+        }
         tx.commit()?;
         Ok(())
     }

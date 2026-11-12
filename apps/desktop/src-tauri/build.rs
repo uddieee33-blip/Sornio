@@ -1,7 +1,14 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
-            "restaurant_live", "hub_live", "hub_admin", "hub_control", "hub_import_tls", "hub_device", "hub_batches", "hub_dispatch",
+            "restaurant_live",
+            "hub_live",
+            "hub_admin",
+            "hub_control",
+            "hub_import_tls",
+            "hub_device",
+            "hub_batches",
+            "hub_dispatch",
             "read_last_restore",
             "choose_local_backup",
             "export_local_backup",

@@ -6,29 +6,29 @@ use std::{path::Path, time::Duration};
 use thiserror::Error;
 
 pub mod access;
+pub mod assignment_recovery;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
 pub mod customers;
-pub mod identity;
 pub mod held_bills;
-pub mod restaurant;
-pub mod restaurant_checkout;
-pub mod restaurant_recovery;
-pub mod kitchen;
-mod kitchen_staff;
-pub mod kitchen_history;
-pub mod staff_access;
-pub mod security_history;
-mod session_signout;
-pub mod assignment_recovery;
-mod responsibility_access;
 pub mod hub;
+pub mod identity;
 pub mod inventory_recovery;
+pub mod kitchen;
+pub mod kitchen_history;
+mod kitchen_staff;
 pub mod lan_authority;
 pub mod payments;
 pub mod recovery;
 pub mod replication;
+mod responsibility_access;
+pub mod restaurant;
+pub mod restaurant_checkout;
+pub mod restaurant_recovery;
+pub mod security_history;
+mod session_signout;
+pub mod staff_access;
 
 #[cfg(any(windows, target_os = "macos"))]
 pub mod device;
@@ -276,15 +276,33 @@ impl Store {
             if locked_version < 13 {
                 held_bills::migrate(&tx)?;
             }
-            if locked_version < 14 { restaurant::migrate(&tx)?; }
-            if locked_version < 15 { restaurant_checkout::migrate(&tx)?; }
-            if locked_version < 16 { restaurant_recovery::migrate(&tx)?; }
-            if locked_version < 17 { kitchen::migrate(&tx)?; }
-            if locked_version < 18 { hub::migrate(&tx)?; }
-            if locked_version < 19 { kitchen_staff::migrate(&tx)?; }
-            if locked_version < 20 { assignment_recovery::migrate(&tx)?; }
-            if locked_version < 21 { responsibility_access::migrate(&tx)?; }
-            if locked_version < 22 { session_signout::migrate(&tx)?; }
+            if locked_version < 14 {
+                restaurant::migrate(&tx)?;
+            }
+            if locked_version < 15 {
+                restaurant_checkout::migrate(&tx)?;
+            }
+            if locked_version < 16 {
+                restaurant_recovery::migrate(&tx)?;
+            }
+            if locked_version < 17 {
+                kitchen::migrate(&tx)?;
+            }
+            if locked_version < 18 {
+                hub::migrate(&tx)?;
+            }
+            if locked_version < 19 {
+                kitchen_staff::migrate(&tx)?;
+            }
+            if locked_version < 20 {
+                assignment_recovery::migrate(&tx)?;
+            }
+            if locked_version < 21 {
+                responsibility_access::migrate(&tx)?;
+            }
+            if locked_version < 22 {
+                session_signout::migrate(&tx)?;
+            }
             tx.commit()?;
         }
         Ok(Self(db, None))

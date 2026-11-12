@@ -1186,7 +1186,9 @@ fn validate(r: &Request) -> Result<(), StoreError> {
 }
 
 pub(crate) fn prepare_into(
-    tx: &Transaction<'_>, session: &Option<Session>, r: Request,
+    tx: &Transaction<'_>,
+    session: &Option<Session>,
+    r: Request,
 ) -> Result<bool, StoreError> {
     validate(&r)?;
     let raw = serde_json::to_string(&r)?;
@@ -1237,8 +1239,12 @@ pub(crate) fn prepare_into(
 
 impl Store {
     pub(crate) fn prepare_retail(&mut self, r: Request) -> Result<(), StoreError> {
-        let tx = self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
-        if prepare_into(&tx, &self.1, r)? { tx.commit()?; }
+        let tx = self
+            .0
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if prepare_into(&tx, &self.1, r)? {
+            tx.commit()?;
+        }
         Ok(())
     }
     pub(crate) fn pending_retail(&self) -> Result<Option<Pending>, StoreError> {
@@ -1309,7 +1315,10 @@ impl Store {
             "DELETE FROM local_retail_pending WHERE actor_id=?1 AND id=?2",
             params![s.actor_id, id],
         )?;
-        if !saved { crate::held_bills::cancel_checkout(&tx, id)?; crate::restaurant_recovery::canceled(&tx,id)?; }
+        if !saved {
+            crate::held_bills::cancel_checkout(&tx, id)?;
+            crate::restaurant_recovery::canceled(&tx, id)?;
+        }
         tx.commit()?;
         Ok(())
     }
