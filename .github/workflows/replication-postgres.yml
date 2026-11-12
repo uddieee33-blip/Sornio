@@ -55,6 +55,12 @@ jobs:
           workspaces: packages/local-store
       - name: Install dependencies
         run: npm ci
+      # The native assertions read their schema from `billing.rs`, and the
+      # ingest-race checks that ran above are the only thing between a broken
+      # lockfile and a Rust toolchain install. Surface a stale lock here, with
+      # the manifest named, instead of inside a `--locked` cargo invocation.
+      - name: Verify native lockfiles describe their manifests
+        run: node scripts/verify-cargo-lock.mjs
       - name: Real PostgreSQL ingest races
         run: node scripts/verify-replication-postgres.mjs
       - name: Export native SQLCipher outbox envelopes

@@ -68,8 +68,18 @@ jobs:
         run: npm ci
       - name: Install desktop dependencies
         run: npm ci --prefix apps/desktop
+      - name: Type check the desktop app
+        # `npm run build --prefix apps/desktop` is `tsc --noEmit && vite build`,
+        # so a type error in the Tauri frontend only surfaced as "Build bundled
+        # frontend failed" with the compiler's one-line diagnostic buried in a
+        # log that expires. Split it out so the failing file and symbol are the
+        # step name, and so a type error never reads as a bundler problem.
+        working-directory: apps/desktop
+        run: ./node_modules/.bin/tsc --noEmit
+
       - name: Build bundled frontend
-        run: npm run build --prefix apps/desktop
+        working-directory: apps/desktop
+        run: ./node_modules/.bin/vite build
       - name: Test encrypted storage, Windows vault and restart behavior
         # Emit each failing test as a workflow ::error:: annotation so the exact
         # failure is visible in the check record even when raw logs expire.

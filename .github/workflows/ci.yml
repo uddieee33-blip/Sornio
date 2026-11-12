@@ -104,7 +104,31 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Install pinned Rust advisory scanner
         run: cargo install cargo-audit --version 0.22.2 --locked
+      # Raw job logs expire and, in this repository's case, are not reliably
+      # retrievable at all — the first Phase 19 run of this job failed and the
+      # only surviving evidence was "exit code 1", which says nothing about
+      # *which* advisory or *which* lockfile. Both audits therefore run with
+      # their output captured, print it, and re-emit the findings as an
+      # annotation so the check record itself carries the crate, the advisory id
+      # and the fix. The step still fails with cargo audit's own exit code.
       - name: Audit native lockfiles
+        shell: bash
         run: |
-          cargo audit --file packages/local-store/Cargo.lock
-          cargo audit --file apps/desktop/src-tauri/Cargo.lock
+          set +e
+          cargo audit --file packages/local-store/Cargo.lock > /tmp/audit-store.log 2>&1
+          store=$?
+          cargo audit --file apps/desktop/src-tauri/Cargo.lock > /tmp/audit-desktop.log 2>&1
+          desktop=$?
+          set -e
+          cat /tmp/audit-store.log /tmp/audit-desktop.log || true
+          if [ "$store" -ne 0 ] || [ "$desktop" -ne 0 ]; then
+            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+            {
+              grep -hE '^(ID:|Crate:|Version:|Title:|Solution:|URL:|error:|warning: .*unmaintained)' \
+                /tmp/audit-store.log /tmp/audit-desktop.log \
+                || tail -40 /tmp/audit-store.log /tmp/audit-desktop.log
+            } | head -120 | esc | sed 's/^/::error::native advisory audit: /'
+            echo "::error::cargo audit exited $store for packages/local-store and $desktop for apps/desktop/src-tauri."
+          fi
+          if [ "$store" -ne 0 ] || [ "$desktop" -ne 0 ]; then exit 1; fi
+          echo "Both native lockfiles passed cargo audit."
