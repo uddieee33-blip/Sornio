@@ -1,7 +1,7 @@
 """Execute migration and recovery constraints, not Rust or SQLCipher authorization."""
 from pathlib import Path
 import runpy,sqlite3,json,re
-root=Path(__file__).resolve().parents[1];m=runpy.run_path(str(root/'scripts/verify-local-schema.py'));groups,_=m['load_migrations']();db=m['build']([s for label,ddl in groups if label not in {'assignment_recovery','responsibility_access'} for s in ddl]);m['seed'](db);assert db.execute('PRAGMA user_version').fetchone()[0]==19
+root=Path(__file__).resolve().parents[1];m=runpy.run_path(str(root/'scripts/verify-local-schema.py'));groups,_=m['load_migrations']();db=m['build']([s for label,ddl in groups if label not in {'assignment_recovery','responsibility_access','session_signout'} for s in ddl]);m['seed'](db);assert db.execute('PRAGMA user_version').fetchone()[0]==19
 db.execute("INSERT INTO local_restaurant_orders(id,kind,state,revision) VALUES('order','takeaway','open',1)");db.execute("INSERT INTO local_restaurant_tickets VALUES('kot','order','[]','pending',1)");db.executescript((root/'packages/local-store/src/assignment_recovery-schema.sql').read_text());assert db.execute('PRAGMA user_version').fetchone()[0]==20
 financial=['local_invoices','local_billing_ledger','local_retail_payments','local_credit_entries','local_products','local_restaurant_orders'];before={t:db.execute(f'SELECT * FROM {t}').fetchall() for t in financial}
 db.execute("INSERT INTO local_kitchen_assignment_ops(id,actor_id,generation,device,request,state) VALUES('op','p1','generation','desktop','immutable','prepared')");db.commit()

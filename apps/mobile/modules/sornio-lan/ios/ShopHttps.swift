@@ -16,7 +16,7 @@ final class ShopHttps: NSObject, URLSessionDataDelegate {
   init(pin: String?) { self.pin = pin }
   private func error(_ code: String) -> Exception { Exception(name: "ShopConnection", description: "Sornio secure connection could not be confirmed.", code: code) }
   static func perform(origin: String, path: String, body: String, bearer: String, pin: String?, probe: Bool) async throws -> [String: Any] {
-    let routes = ["/v1/identity", "/v1/enrol", "/v1/session", "/v1/workspace", "/v1/submit", "/v1/operation", "/v1/kitchen-state","/v1/kitchen-history","/v1/kitchen-assign","/v1/assignment-operation","/v1/staff-responsibility","/v1/staff-access"]
+    let routes = ["/v1/identity", "/v1/enrol", "/v1/session", "/v1/workspace", "/v1/submit", "/v1/operation", "/v1/kitchen-state","/v1/kitchen-history","/v1/kitchen-assign","/v1/assignment-operation","/v1/staff-responsibility","/v1/staff-access","/v1/session-signout"]
     let worker = ShopHttps(pin: pin)
     guard let parts = URLComponents(string: origin), parts.scheme == "https", parts.host != nil, parts.user == nil, parts.password == nil, parts.query == nil, parts.fragment == nil, parts.path.isEmpty || parts.path == "/", routes.contains(path), body.utf8.count <= 32768, bearer.count <= 128,
       probe ? (path == "/v1/identity" && bearer.isEmpty && pin == nil) : (pin?.range(of: "^[a-f0-9]{64}$", options: .regularExpression) != nil), let url = URL(string: origin.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + path) else { throw worker.error("invalid_request") }

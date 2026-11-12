@@ -167,6 +167,10 @@
    "result:TEXT:NOTNULL:0",
    "created:INTEGER:NOTNULL:0"
   ],
+  "local_hub_session_handles": [
+   "handle:TEXT:NOTNULL:1",
+   "token_hash:TEXT:NOTNULL:0"
+  ],
   "local_hub_sessions": [
    "token_hash:TEXT:null:1",
    "device_id:TEXT:NOTNULL:0",
