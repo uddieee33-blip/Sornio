@@ -9,6 +9,7 @@ pub struct Change { pub kind:String,pub description:String,pub before:String,pub
 #[derive(Serialize,Deserialize)]
 #[serde(tag="kind",rename_all="snake_case",deny_unknown_fields)]
 pub enum Action {
+ History {query:crate::kitchen_history::Query},
  Staff {operation_id:String,actor_id:String,expected_revision:i64,mode:String},
  AssignTicket {operation_id:String,ticket_id:String,expected_revision:i64,actor_id:String},
  Correct {id:String,order_id:String,expected_revision:i64,changes:Vec<Change>},
@@ -41,10 +42,11 @@ impl Store {
   Ok(json!({"destinations":destinations,"corrections":corrections,"jobs":jobs}))
  }
  pub(crate) fn kitchen_action(&mut self,a:Action)->Result<Value,StoreError>{
+  if let Action::History{query}=a{return self.kitchen_history(query);}
   if matches!(&a,Action::Staff{..}|Action::AssignTicket{..}){return self.kitchen_staff_action(a);}
   let raw=serde_json::to_string(&a)?;let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
   let result=match &a {
-   Action::Staff{..}|Action::AssignTicket{..}=>return Err(StoreError::Forbidden),
+   Action::History{..}|Action::Staff{..}|Action::AssignTicket{..}=>return Err(StoreError::Forbidden),
    Action::Correct{id,order_id,expected_revision,changes}=>{
     if !billing::valid_id(id)||changes.is_empty()||changes.len()>50||changes.iter().any(|c|!matches!(c.kind.as_str(),"added"|"removed"|"quantity"|"instructions")||c.description.trim().is_empty()||!valid(&c.description,120)||!valid(&c.before,200)||!valid(&c.after,200)){return Err(StoreError::InvalidDraft);}
     authorize_order(&tx,&self.1,order_id)?;
