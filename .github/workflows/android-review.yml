@@ -82,9 +82,3 @@ jobs:
             apps/mobile/android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
           retention-days: 7
-      - uses: actions/upload-artifact@v7.0.2
-        with:
-          name: Sornio-Android-review
-          path: mobile/android/app/build/outputs/apk/debug/app-debug.apk
-          if-no-files-found: error
-          retention-days: 7
