@@ -798,8 +798,8 @@ impl Workspace {
         self.store.takeover_payment(id, why)
     }
     pub fn kitchen_view(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.kitchen_view()}
-    pub fn kitchen_action(&mut self,a:crate::kitchen::Action)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.kitchen_action(a)}
-    pub fn restaurant_workspace(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_workspace()}
+    pub fn kitchen_action(&mut self,a:crate::kitchen::Action)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::KitchenView)?;self.store.kitchen_action(a)}
+    pub fn restaurant_workspace(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::KitchenView)?;self.store.restaurant_workspace()}
     pub fn restaurant_status(&self,order:String)->Result<Option<crate::restaurant_recovery::Status>,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_status(&order)}
     pub fn edit_restaurant(&mut self,order:String,expected:i64)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.edit_restaurant(&order,expected)}
     pub fn amend_restaurant(&mut self,r:crate::restaurant_recovery::Amendment)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.amend_restaurant(r)}
@@ -808,8 +808,8 @@ impl Workspace {
     pub fn save_restaurant_menu(&mut self,m:crate::restaurant_checkout::Menu)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.save_restaurant_menu(m)}
     pub fn prepare_restaurant(&mut self,r:crate::restaurant_checkout::Prepare)->Result<crate::payments::Request,StoreError>{self.require(Permission::Sell)?;self.store.prepare_restaurant(r)}
     pub fn post_restaurant(&mut self,order:String,attempt:String)->Result<crate::payments::Receipt,StoreError>{self.require(Permission::Sell)?;self.store.post_restaurant(&order,&attempt)}
-    pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> { self.require(Permission::Sell)?; self.store.restaurant_view() }
-    pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> { self.require(Permission::Sell)?; self.store.restaurant_action(r) }
+    pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> { self.require(Permission::KitchenView)?; self.store.restaurant_view() }
+    pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> { self.require(if matches!(&r.action,crate::restaurant::Action::SetTicketState{..}){Permission::KitchenPrepare}else{Permission::Sell})?; self.store.restaurant_action(r) }
     pub fn list_held_bills(&self) -> Result<Vec<crate::held_bills::Bill>, StoreError> {
         self.require(Permission::Sell)?;
         self.store.list_held_bills()
@@ -1051,7 +1051,7 @@ impl Workspace {
 impl Workspace {
  /// Passive polling must not renew either renderer idle authority or staff tokens.
  pub fn verify_live_scope(&self,scope:&Scope)->Result<(),StoreError>{self.authorize(Permission::View)?;if &identity::scope(&self.store.0)?!=scope{return Err(StoreError::WorkspaceMismatch);}Ok(())}
- pub fn restaurant_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::Sell)?;self.store.restaurant_workspace()}
+ pub fn restaurant_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::KitchenView)?;self.store.restaurant_workspace()}
  pub fn hub_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::Settings)?;self.store.hub_admin()}
 }
 #[cfg(test)]

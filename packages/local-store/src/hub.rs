@@ -59,19 +59,19 @@ impl Store{
   self.0.query_row("SELECT actor_id FROM local_hub_devices WHERE id=?1 AND credential_hash=?2 AND state='approved' AND expires>?3 AND generation=?4",params![device,hash(credential),now()?,crate::recovery::generation(&self.0)?],|q|q.get(0)).optional()?.ok_or(StoreError::Forbidden)
  }
  pub(crate) fn hub_session(&mut self,device:&str,credential:&str)->Result<Value,StoreError>{let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;
-  let s=self.1.as_ref().ok_or(StoreError::Locked)?;let p=identity::verify(&tx,s,Permission::Sell)?;
+  let s=self.1.as_ref().ok_or(StoreError::Locked)?;let p=identity::verify(&tx,s,Permission::KitchenView)?;
   let revision:Option<i64>=tx.query_row("SELECT revision FROM local_hub_devices WHERE id=?1 AND credential_hash=?2 AND actor_id=?3 AND state='approved' AND expires>?4 AND generation=?5",params![device,hash(credential),p.id,now()?,s.generation],|q|q.get(0)).optional()?;let revision=revision.ok_or(StoreError::Forbidden)?;
   let token=identity::random_id()?;let expires=now()?+900;
   tx.execute("UPDATE local_hub_devices SET last_seen=?1 WHERE id=?2",params![now()?,device])?;
   tx.execute("DELETE FROM local_hub_sessions WHERE expires<=?1 OR device_id=?2",params![now()?,device])?;
   tx.execute("INSERT INTO local_hub_sessions VALUES(?1,?2,?3,?4,?5,?6,?7)",params![hash(&token),device,revision,p.id,p.revision,s.generation,expires])?;
-  identity::guard(&tx,&self.1,Permission::Sell,"hub.staff_connected",Some(device))?;tx.commit()?;Ok(json!({"token":token,"expires":expires,"actorId":p.id,"displayName":p.display_name}))
+  identity::guard(&tx,&self.1,Permission::KitchenView,"hub.staff_connected",Some(device))?;tx.commit()?;Ok(json!({"token":token,"expires":expires,"actorId":p.id,"displayName":p.display_name}))
  }
  pub(crate) fn hub_authenticate(&self,token:&str)->Result<(Session,String),StoreError>{
   if !secret(token){return Err(StoreError::Forbidden);}
   let row:Option<(String,String,i64,String)>=self.0.query_row("SELECT s.device_id,s.actor_id,s.actor_revision,s.generation FROM local_hub_sessions s JOIN local_hub_devices d ON d.id=s.device_id WHERE s.token_hash=?1 AND s.expires>?2 AND d.state='approved' AND d.expires>?2 AND d.revision=s.device_revision AND d.generation=s.generation AND d.actor_id=s.actor_id",params![hash(token),now()?],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?,q.get(3)?))).optional()?;
   let (device,actor,revision,generation)=row.ok_or(StoreError::Locked)?;let session=Session{scope:identity::scope(&self.0)?,actor_id:actor,revision,generation,expires:Instant::now()+Duration::from_secs(30)};
-  identity::verify(&self.0,&session,Permission::Sell)?;Ok((session,device))
+  identity::verify(&self.0,&session,Permission::KitchenView)?;Ok((session,device))
  }
  pub(crate) fn hub_submit(&mut self,device:&str,r:Submit,token:&str)->Result<Value,StoreError>{
   if r.version!=1||!crate::billing::valid_id(&r.operation_id)||!crate::billing::valid_id(&r.order_id)||r.items.is_empty()||r.items.len()>30{return Err(StoreError::InvalidDraft);}
@@ -88,7 +88,7 @@ impl Store{
  }
  pub(crate) fn hub_kitchen(&mut self,device:&str,r:KitchenSubmit,token:&str)->Result<Value,StoreError>{
   if r.version!=1||!crate::billing::valid_id(&r.operation_id)||!crate::billing::valid_id(&r.ticket_id){return Err(StoreError::InvalidDraft);}
-  let raw=serde_json::to_string(&r)?;let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
+  let raw=serde_json::to_string(&r)?;let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::KitchenPrepare)?;
   if !tx.query_row("SELECT EXISTS(SELECT 1 FROM local_hub_sessions hs JOIN local_hub_devices d ON d.id=hs.device_id WHERE hs.token_hash=?1 AND hs.device_id=?2 AND hs.actor_id=?3 AND hs.actor_revision=?4 AND hs.expires>?5 AND d.expires>?5 AND d.state='approved' AND d.revision=hs.device_revision AND d.generation=hs.generation AND d.generation=?6 AND d.actor_id=hs.actor_id)",params![hash(token),device,s.actor_id,s.revision,now()?,s.generation],|q|q.get::<_,bool>(0))?{return Err(StoreError::Forbidden);}
   if r.actor_id!=s.actor_id||r.business_id!=s.scope.business_id||r.hub_id!=tx.query_row("SELECT id FROM local_hub_config",[],|q|q.get::<_,String>(0))?{return Err(StoreError::WorkspaceMismatch);}
   let old:Option<(String,String,String,String,String)>=tx.query_row("SELECT device_id,actor_id,generation,request,result FROM local_hub_operations WHERE id=?1",[&r.operation_id],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?,q.get(3)?,q.get(4)?))).optional()?;
@@ -100,9 +100,9 @@ impl Store{
    Err(error)=>{tx.execute_batch("ROLLBACK TO hub_kitchen")?;let reason=match error{StoreError::Conflict=>"revision_conflict",StoreError::InvalidDraft|StoreError::InvalidInvoice=>"transition_refused",StoreError::Forbidden=>"assigned_to_other_staff",StoreError::CheckoutActive=>"order_closed",_=>return Err(error)};let current:Option<(i64,String)>=tx.query_row("SELECT revision,state FROM local_restaurant_tickets WHERE id=?1",[&r.ticket_id],|q|Ok((q.get(0)?,q.get(1)?))).optional()?;json!({"status":"refused","kind":"kitchen_state","operationId":r.operation_id,"ticketId":r.ticket_id,"reason":reason,"revision":current.as_ref().map(|x|x.0),"state":current.map(|x|x.1)})}
   };tx.execute_batch("RELEASE hub_kitchen")?;
   tx.execute("INSERT INTO local_hub_operations VALUES(?1,?2,?3,?4,?5,?6,?7)",params![r.operation_id,device,s.actor_id,s.generation,raw,result.to_string(),now()?])?;
-  identity::guard(&tx,&self.1,Permission::Sell,"hub.kitchen_result",Some(&r.operation_id))?;tx.execute("UPDATE local_hub_devices SET last_seen=?1 WHERE id=?2",params![now()?,device])?;tx.commit()?;Ok(result)
+  identity::guard(&tx,&self.1,Permission::KitchenPrepare,"hub.kitchen_result",Some(&r.operation_id))?;tx.execute("UPDATE local_hub_devices SET last_seen=?1 WHERE id=?2",params![now()?,device])?;tx.commit()?;Ok(result)
  }
- pub(crate) fn hub_operation(&self,device:&str,id:&str)->Result<Value,StoreError>{let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::Sell)?;
+ pub(crate) fn hub_operation(&self,device:&str,id:&str)->Result<Value,StoreError>{let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::KitchenView)?;
   let result:Option<String>=self.0.query_row("SELECT result FROM local_hub_operations WHERE id=?1 AND device_id=?2 AND actor_id=?3 AND generation=?4",params![id,device,s.actor_id,s.generation],|q|q.get(0)).optional()?;
   Ok(result.map(|r|serde_json::from_str(&r)).transpose()?.unwrap_or(json!({"status":"not_found"})))
  }

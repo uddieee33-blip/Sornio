@@ -15,7 +15,7 @@ type Table = {id:string;name:string};
 type Order = {id:string;tableId:string|null;kind:'dine_in'|'takeaway';state:'open'|'pending_bill';revision:number};
 type Item = {name:string;quantity:number;note:string;productId?:string;unitPricePaise?:number};
 type Ticket = {id:string;orderId:string;items:Item[];state:'pending'|'preparing'|'ready'|'served';revision:number};
-type Data = {paidKitchen?:PaidKitchenTicket[];tables:Table[];orders:Order[];tickets:Ticket[]};
+type Data = {kitchenStaff?:import('../../../packages/business-domain/src/kitchen-staff').KitchenStaffView;paidKitchen?:PaidKitchenTicket[];tables:Table[];orders:Order[];tickets:Ticket[]};
 type Request = {operationId:string;action:Record<string,unknown>};
 export function RestaurantPanel({ owner, disabled, username }: {owner:boolean;disabled:boolean;username:string}) {
   const [menu,setMenu]=useState<RestaurantMenu[]>([]),[products,setProducts]=useState<Product[]>([]);
@@ -28,7 +28,7 @@ export function RestaurantPanel({ owner, disabled, username }: {owner:boolean;di
   const items=itemDrafts[selected]??[];
   function setItems(next:Item[]){setItemDrafts(old=>({...old,[selected]:next}));}
   const running=useRef(false),reloadEpoch=useRef(0);
-  const reload=useCallback(async()=>{const token=++reloadEpoch.current;try {const result=await invoke<Data>('read_restaurant');if(token!==reloadEpoch.current)return;setData(result);setMenu(await invoke<RestaurantMenu[]>('restaurant_menu'));setProducts(await invoke<Product[]>('list_local_products'));setReady(true);} catch(e){setReady(false);setMessage(errorMessage(e,'Could not open restaurant orders.'));}},[]);
+  const reload=useCallback(async()=>{const token=++reloadEpoch.current;try {const result=await invoke<Data>('read_restaurant');if(token!==reloadEpoch.current)return;setData(result);if(result.kitchenStaff?.canSell!==false){setMenu(await invoke<RestaurantMenu[]>('restaurant_menu'));setProducts(await invoke<Product[]>('list_local_products'));}else{setMenu([]);setProducts([]);}setReady(true);} catch(e){setReady(false);setMessage(errorMessage(e,'Could not open restaurant orders.'));}},[]);
   useEffect(()=>{void reload();},[reload]);
   useEffect(()=>{const refresh=liveRefresh({eligible:()=>!disabled&&!running.current&&document.visibilityState==='visible',intervalMs:3000,poll:async current=>{const token=reloadEpoch.current;const data=await invoke<Data>('restaurant_live');if(current()&&token===reloadEpoch.current&&!running.current)setData(data);},onError:()=>setMessage('Live updates paused. Unlock or refresh the restaurant workspace.')});refresh.start();return()=>refresh.stop();},[disabled]);
   async function execute(request:Request) {
@@ -40,7 +40,8 @@ export function RestaurantPanel({ owner, disabled, username }: {owner:boolean;di
   }
   function run(action:Record<string,unknown>) {void execute({operationId:crypto.randomUUID(),action});}
   const order=data.orders.find(x=>x.id===selected);
-  const locked=disabled||busy||!ready||pending!==null;
+  const kitchenLocked=disabled||busy||!ready||pending!==null;
+  const locked=kitchenLocked||data.kitchenStaff?.canSell===false;
   return <section className="panel restaurant-panel" aria-label="Restaurant operations">
     <div className="panel-heading"><div><p className="eyebrow">RESTAURANT · LOCAL ORDERS</p><h2>Tables & kitchen</h2></div></div>
     <p className="muted">Development workspace. Menu variants and paid add-ons use individual catalog products. Add add-ons as separate priced items; preparation notes are free. Accepted prices are retained; changed catalog prices require review before checkout.</p>
@@ -49,7 +50,7 @@ export function RestaurantPanel({ owner, disabled, username }: {owner:boolean;di
     {owner?<div><label htmlFor="rest-table-name">New table name</label><input id="rest-table-name" value={tableName} maxLength={40} disabled={locked} onChange={e=>setTableName(e.target.value)}/><button type="button" disabled={locked||!tableName.trim()} onClick={()=>{run({kind:'create_table',id:crypto.randomUUID(),name:tableName.trim()});setTableName('');}}>Add table</button></div>:null}
     {owner?<fieldset disabled={locked}><legend>Menu configuration</legend><label>Category<input value={category} onChange={e=>setCategory(e.target.value)}/></label><label>Variant<input value={variant} onChange={e=>setVariant(e.target.value)} placeholder="Large / Extra cheese"/></label><label>Catalog product<select value={product} onChange={e=>setProduct(e.target.value)}><option value="">Select product</option>{products.filter(p=>p.unit==='pcs').map(p=><option key={p.id} value={p.id}>{p.name}</option>)}</select></label><button type="button" disabled={!product} onClick={()=>{void invoke('save_restaurant_menu',{m:{id:crypto.randomUUID(),productId:product,category,label:products.find(p=>p.id===product)?.name??'',variant,available:true}}).then(reload).catch(e=>setMessage(errorMessage(e,'Menu save failed.')));}}>Add priced menu entry</button>{menu.map(m=><button type="button" key={m.id} onClick={()=>void invoke('save_restaurant_menu',{m:{...m,available:!m.available}}).then(reload)}>{m.label} / {m.variant}: {m.available?'Available':'Unavailable'}</button>)}</fieldset>:null}
     <HubPanel owner={owner} onChanged={()=>void reload()}/>
-    <KitchenQueuePanel data={data} disabled={locked} onTransition={(id,revision,state)=>run({kind:'set_ticket_state',id,expected_revision:revision,state})}/>
+    <KitchenQueuePanel data={data} disabled={kitchenLocked} onChanged={()=>void reload()} onTransition={(id,revision,state)=>run({kind:'set_ticket_state',id,expected_revision:revision,state})}/>
     <h3>Tables</h3><div className="restaurant-grid">{data.tables.map(table=>{const current=data.orders.find(o=>o.tableId===table.id);return <div className="restaurant-table" key={table.id}><strong>{table.name}</strong><span>{current?current.state==='pending_bill'?'Bill requested':'Occupied':'Available'}</span><button type="button" disabled={locked} onClick={()=>current?setSelected(current.id):run({kind:'open_order',id:crypto.randomUUID(),table_id:table.id})}>{current?'Open order':'Seat guests'}</button></div>;})}</div>
     <button type="button" disabled={locked} onClick={()=>run({kind:'open_order',id:crypto.randomUUID(),table_id:null})}>New takeaway order</button>
     <h3>Open orders</h3><div className="restaurant-grid">{data.orders.map(o=><button type="button" key={o.id} disabled={locked} aria-pressed={selected===o.id} onClick={()=>setSelected(o.id)}>{o.tableId ? data.tables.find(t=>t.id===o.tableId)?.name ?? 'Table' : 'Takeaway'} · {o.state==='pending_bill'?'Bill requested':'Open'} · {o.id.slice(0,6)}</button>)}</div>

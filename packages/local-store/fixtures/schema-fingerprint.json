@@ -252,6 +252,23 @@
    "payload:TEXT:NOTNULL:0",
    "state:TEXT:NOTNULL:0"
   ],
+  "local_kitchen_staff": [
+   "actor_id:TEXT:null:1",
+   "mode:TEXT:NOTNULL:0"
+  ],
+  "local_kitchen_staff_events": [
+   "sequence:INTEGER:null:1",
+   "id:TEXT:NOTNULL:0",
+   "actor_id:TEXT:NOTNULL:0",
+   "ticket_id:TEXT:null:0",
+   "request:TEXT:NOTNULL:0",
+   "result:TEXT:NOTNULL:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_kitchen_ticket_staff": [
+   "ticket_id:TEXT:null:1",
+   "actor_id:TEXT:NOTNULL:0"
+  ],
   "local_lan_devices": [
    "id:TEXT:NOTNULL:1",
    "business_id:TEXT:NOTNULL:0",
@@ -522,6 +539,12 @@
   ],
   [
    "invoice_actor_no_update"
+  ],
+  [
+   "kitchen_staff_events_no_delete"
+  ],
+  [
+   "kitchen_staff_events_no_update"
   ],
   [
    "lan_device_identity_no_update"

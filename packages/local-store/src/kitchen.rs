@@ -9,6 +9,8 @@ pub struct Change { pub kind:String,pub description:String,pub before:String,pub
 #[derive(Serialize,Deserialize)]
 #[serde(tag="kind",rename_all="snake_case",deny_unknown_fields)]
 pub enum Action {
+ Staff {operation_id:String,actor_id:String,expected_revision:i64,mode:String},
+ AssignTicket {operation_id:String,ticket_id:String,expected_revision:i64,actor_id:String},
  Correct {id:String,order_id:String,expected_revision:i64,changes:Vec<Change>},
  Destination {id:String,name:String,layout:String},
  Print {id:String,ticket_id:String,ticket_kind:String,destination_id:String},
@@ -39,8 +41,10 @@ impl Store {
   Ok(json!({"destinations":destinations,"corrections":corrections,"jobs":jobs}))
  }
  pub(crate) fn kitchen_action(&mut self,a:Action)->Result<Value,StoreError>{
+  if matches!(&a,Action::Staff{..}|Action::AssignTicket{..}){return self.kitchen_staff_action(a);}
   let raw=serde_json::to_string(&a)?;let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
   let result=match &a {
+   Action::Staff{..}|Action::AssignTicket{..}=>return Err(StoreError::Forbidden),
    Action::Correct{id,order_id,expected_revision,changes}=>{
     if !billing::valid_id(id)||changes.is_empty()||changes.len()>50||changes.iter().any(|c|!matches!(c.kind.as_str(),"added"|"removed"|"quantity"|"instructions")||c.description.trim().is_empty()||!valid(&c.description,120)||!valid(&c.before,200)||!valid(&c.after,200)){return Err(StoreError::InvalidDraft);}
     authorize_order(&tx,&self.1,order_id)?;
@@ -65,12 +69,12 @@ impl Store {
  }
  pub(crate) fn restaurant_workspace(&self)->Result<Value,StoreError>{
   let tx=self.0.unchecked_transaction()?;
-  let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::Sell)?;
+  let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::KitchenView)?;
   let view=serde_json::to_value(self.restaurant_view()?)?;
   let menu=self.0.prepare("SELECT m.id,m.product_id,m.category,m.label,m.variant,m.available,p.unit_price_paise FROM local_restaurant_menu m JOIN local_products p ON p.id=m.product_id ORDER BY m.id")?.query_map([],|q|Ok(json!({"id":q.get::<_,String>(0)?,"productId":q.get::<_,String>(1)?,"category":q.get::<_,String>(2)?,"label":q.get::<_,String>(3)?,"variant":q.get::<_,String>(4)?,"available":q.get::<_,bool>(5)?,"pricePaise":q.get::<_,i64>(6)?})))?.collect::<Result<Vec<_>,_>>()?;
   let assignments=self.0.prepare("SELECT o.id,COALESCE(c.actor_id,a.actor_id),p.display_name,COALESCE(c.phase,'unpaid') FROM local_restaurant_orders o LEFT JOIN local_restaurant_control c ON c.order_id=o.id LEFT JOIN local_restaurant_assignments a ON a.order_id=o.id LEFT JOIN local_principals p ON p.id=COALESCE(c.actor_id,a.actor_id) WHERE o.settled_invoice IS NULL AND o.state<>'cancelled'")?.query_map([],|q|Ok(json!({"orderId":q.get::<_,String>(0)?,"actorId":q.get::<_,Option<String>>(1)?,"displayName":q.get::<_,Option<String>>(2)?,"checkoutState":q.get::<_,String>(3)?})))?.collect::<Result<Vec<_>,_>>()?;
   let batches=self.0.prepare("SELECT b.id,b.order_id,b.items FROM local_hub_batches b JOIN local_restaurant_orders o ON o.id=b.order_id WHERE b.ticket_id IS NULL AND o.state IN('open','pending_bill') AND o.settled_invoice IS NULL ORDER BY b.rowid LIMIT 1000")?.query_map([],|q|Ok(json!({"id":q.get::<_,String>(0)?,"orderId":q.get::<_,String>(1)?,"items":serde_json::from_str::<Value>(&q.get::<_,String>(2)?).unwrap_or(Value::Null)})))?.collect::<Result<Vec<_>,_>>()?;
   let generated:String=self.0.query_row("SELECT strftime('%Y-%m-%dT%H:%M:%fZ','now')",[],|q|q.get(0))?;
-  let result=json!({"schemaVersion":1,"source":"shop","businessId":s.scope.business_id,"generatedAt":generated,"tables":view["tables"],"orders":view["orders"],"tickets":view["tickets"],"paidKitchen":view["paidKitchen"],"menu":menu,"assignments":assignments,"acceptedBatches":batches});tx.commit()?;Ok(result)
+  let result=json!({"schemaVersion":1,"source":"shop","businessId":s.scope.business_id,"generatedAt":generated,"tables":view["tables"],"orders":view["orders"],"tickets":view["tickets"],"paidKitchen":view["paidKitchen"],"menu":menu,"assignments":assignments,"acceptedBatches":batches,"kitchenStaff":self.kitchen_staff_view()?});tx.commit()?;Ok(result)
  }
 }
