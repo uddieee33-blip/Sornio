@@ -801,7 +801,7 @@ async fn restore_local_backup(
 #[tauri::command]
 async fn hub_admin(scope:Scope,state:tauri::State<'_,LocalState>,runtime:tauri::State<'_,hub_server::State>)->Result<serde_json::Value,CommandError>{
  let address={let r=runtime.lock().map_err(|_|CommandError::unavailable("Hub state unavailable."))?;if r.stop.as_ref().is_some_and(|s|!s.load(std::sync::atomic::Ordering::SeqCst)){r.address.clone()}else{None}};
- with_scoped_workspace(state,scope,move|w|{let mut v=w.hub_admin()?;v["address"]=serde_json::json!(address);Ok(v)}).await
+ with_scoped_workspace(state,scope,move|w|{let mut v=w.hub_admin()?;let (cert,key)=w.hub_tls()?;let key=Zeroizing::new(key);v["tls"]=hub_server::tls_status(&cert,&key);v["address"]=serde_json::json!(address);Ok(v)}).await
 }
 #[tauri::command]
 async fn hub_device(id:String,revision:i64,actor:Option<String>,scope:Scope,state:tauri::State<'_,LocalState>)->Result<(),CommandError>{with_scoped_workspace(state,scope,move|w|w.hub_device(&id,revision,actor.as_deref())).await}

@@ -2,6 +2,7 @@
 use crate::LocalState;
 use rustls::{ServerConfig,ServerConnection,StreamOwned};
 use serde_json::{Value,json};
+use sha2::{Digest,Sha256};
 use std::{io::{Read,Write,BufReader},net::{TcpListener,SocketAddr,IpAddr},sync::{Arc,Mutex,atomic::{AtomicBool,AtomicUsize,Ordering}},time::{Duration,Instant}};
 #[derive(Default)]
 pub struct Runtime{pub stop:Option<Arc<AtomicBool>>,pub address:Option<String>}
@@ -11,6 +12,12 @@ pub fn config(cert:&str,key:&str)->Result<Arc<ServerConfig>,String>{
  let certs=rustls_pemfile::certs(&mut BufReader::new(cert.as_bytes())).collect::<Result<Vec<_>,_>>().map_err(|_|"Invalid TLS certificate chain.")?;
  let key=rustls_pemfile::private_key(&mut BufReader::new(key.as_bytes())).map_err(|_|"Invalid TLS key.")?.ok_or("A TLS private key is required.")?;
  let mut cfg=ServerConfig::builder().with_no_client_auth().with_single_cert(certs,key).map_err(|_|"Certificate and key do not match.")?;cfg.alpn_protocols=vec![b"http/1.1".to_vec()];Ok(Arc::new(cfg))
+}
+/// Public diagnostics only. Matching material does not prove OS trust, validity dates,
+/// hostname coverage or reachability; the mobile TLS stack still checks those.
+pub fn tls_status(cert:&str,key:&str)->Value{
+ let fingerprint=rustls_pemfile::certs(&mut BufReader::new(cert.as_bytes())).next().and_then(Result::ok).map(|der|format!("{:x}",Sha256::digest(der.as_ref())));
+ json!({"configured":!cert.is_empty()&&!key.is_empty(),"keyMatches":config(cert,key).is_ok(),"certificateSha256":fingerprint})
 }
 fn local(ip:IpAddr)->bool{match ip{IpAddr::V4(v)=>v.is_private()||v.is_link_local(),_=>false}}
 pub fn start(address:&str,tls:Arc<ServerConfig>,workspace:LocalState)->Result<Runtime,String>{

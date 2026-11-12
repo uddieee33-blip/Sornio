@@ -12,7 +12,7 @@ export type HubWire=(path:string,body:Record<string,unknown>,bearer:string)=>Pro
 const obj=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
 const id=(s:unknown):s is string=>typeof s==='string'&&/^[a-zA-Z0-9][a-zA-Z0-9._:-]{0,127}$/.test(s);
 const int=(n:unknown,min=0):n is number=>typeof n==='number'&&Number.isSafeInteger(n)&&n>=min&&n<=9_000_000_000_000_000;
-export function hubOrigin(raw:string){const u=new URL(raw);if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/'||u.hostname.length>253)throw new Error('Enter an HTTPS hub origin without a path, credentials or query.');return u.origin;}
+export function hubOrigin(raw:string){let u:URL;try{u=new URL(raw);}catch{throw new Error('Enter a valid HTTPS hub origin without credentials, a path or a query.');}if(u.protocol!=='https:'||u.username||u.password||u.search||u.hash||u.pathname!=='/'||u.hostname.length>253)throw new Error('Enter an HTTPS hub origin without a path, credentials or query.');return u.origin;}
 export function hubIdentity(value:unknown,expected:{hubId:string;businessId:string}):HubIdentity{
  if(!id(expected.hubId)||!id(expected.businessId)||!obj(value)||value.version!==1||value.hubId!==expected.hubId||value.businessId!==expected.businessId||typeof value.businessName!=='string'||value.businessName.length>120)throw new Error('The hub does not match the IDs shown on the desktop.');return value as HubIdentity;
 }
