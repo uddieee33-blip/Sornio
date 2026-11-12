@@ -142,8 +142,13 @@ mod tests {
     const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 
     /// Names of every table the live schema creates.
+    ///
+    /// `sqlite_%` is SQLite's own bookkeeping - `sqlite_sequence` appears as soon
+    /// as any AUTOINCREMENT table exists - and is not part of the schema this
+    /// helper rolls back, so it is excluded rather than listed.
     fn schema_tables(db: &rusqlite::Connection) -> BTreeSet<String> {
-        let sql = "SELECT name FROM sqlite_master WHERE type='table'";
+        let sql = "SELECT name FROM sqlite_master \
+                   WHERE type='table' AND name NOT LIKE 'sqlite_%'";
         let mut stmt = db.prepare(sql).unwrap();
         stmt.query_map([], |r| r.get::<_, String>(0))
             .unwrap()
