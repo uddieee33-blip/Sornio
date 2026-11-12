@@ -1,3 +1,4 @@
+import { LanRestaurantScreen } from './LanRestaurantScreen';
 import { useEffect, useRef, useState } from 'react';
 import { ScrollView, View, TextInput, Text, Pressable, useWindowDimensions } from 'react-native';
 import { ActionButton, Body, Eyebrow, Hairline, Muted, Title } from '../components/primitives';
@@ -10,6 +11,7 @@ import { parseFixedDecimal } from '../../../../packages/business-domain/src/fixe
 import { formatQuantity, formatInr, parseQuantityMilli, parsePaise } from '@sornio/mobile-contracts';
 export function RestaurantScreen({onBack}:{onBack?:()=>void}){
  const {session}=useCompanion(),{palette}=useTheme(),{width,fontScale}=useWindowDimensions();
+ const [lan,setLan]=useState(false);
  const [snapshot,setSnapshot]=useState<RestaurantSnapshot|null>(null),[draft,setDraft]=useState<RestaurantDraft|null>(null),[raw,setRaw]=useState(''),[selected,setSelected]=useState(''),[query,setQuery]=useState(''),[name,setName]=useState(''),[quantity,setQuantity]=useState('1'),[note,setNote]=useState('');
  const [ready,setReady]=useState(false),[busy,setBusy]=useState(false),[message,setMessage]=useState('Opening secure restaurant records…');const running=useRef(false),generation=useRef(0);
  const businessId=session?.business.businessId,actorId=session?.userId,mode=session?.mode;
@@ -22,12 +24,13 @@ export function RestaurantScreen({onBack}:{onBack?:()=>void}){
   else if(draft){const d={...draft,savedAt:new Date().toISOString()};await storage.saveDraft(d);if(generation.current===token){setDraft(d);setMessage('Draft saved securely on this device. No KOT, stock, invoice or debt was posted.');}}
  }catch(e){if(generation.current===token)setMessage(e instanceof Error?e.message:'Could not confirm secure save. Retry before leaving.');}finally{running.current=false;if(generation.current===token)setBusy(false);}}
  function add(productId:string,label:string){if(!draft||draft.items.length>=30)return;const q=parseFixedDecimal(quantity,3);if(q===null||q<=0){setMessage('Enter a positive quantity with up to three decimals.');return;}setDraft({...draft,items:[...draft.items,{productId,label,quantityMilli:q,note}]});setName('');setNote('');setQuantity('1');setMessage('Local draft changed. Save before leaving.');}
+ if(lan)return <LanRestaurantScreen onBack={()=>setLan(false)} localDraft={draft}/>;
  if(!session)return <View style={{padding:20}}><Body>Unlock a companion session first.</Body></View>;
  const allowed=restaurantCanDraft(session.role),disabled=!allowed||busy||!ready,wide=width>=1000&&fontScale<=1.5;
  const order=snapshot?.orders.find(o=>o.id===selected),assignment=snapshot?.assignments.find(a=>a.orderId===selected);
  const field={minHeight:48,padding:12,borderWidth:1,borderColor:palette.line,color:palette.ink};
  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,gap:16,paddingBottom:64}}>
- {onBack?<ActionButton label="Back to settings" onPress={onBack}/>:null}<Eyebrow>Restaurant workspace</Eyebrow><Title>{session.business.businessName}</Title><Muted>{session.mode==='demo'?'Demonstration account identity · local drafts only':'Companion account · local drafts only'}</Muted><Body>Financial settlement and sending orders to the shop are unavailable on mobile.</Body><View accessibilityLiveRegion="polite"><Muted>{message}</Muted></View>
+ {onBack?<ActionButton label="Back to settings" onPress={onBack}/>:null}<ActionButton label="Connect to authoritative shop hub" onPress={()=>setLan(true)}/><Eyebrow>Restaurant workspace</Eyebrow><Title>{session.business.businessName}</Title><Muted>{session.mode==='demo'?'Demonstration account identity · local drafts only':'Companion account · local drafts only'}</Muted><Body>Financial settlement and sending orders to the shop are unavailable on mobile.</Body><View accessibilityLiveRegion="polite"><Muted>{message}</Muted></View>
  <View style={{flexDirection:wide?'row':'column',gap:24}}><View style={{flex:1,gap:12}}><Eyebrow>Tables & shop copy</Eyebrow><Muted>{snapshot?`Manual snapshot from ${snapshot.generatedAt}. Origin is not authenticated; this copy may be stale.`:'No shop snapshot imported. No tables, menu or confirmed orders are invented.'}</Muted>
  {snapshot?.tables.map(table=>{const current=snapshot.orders.find(o=>o.tableId===table.id);return <View key={table.id} style={{padding:12,borderWidth:1,borderColor:palette.line,gap:8}}><Body>{`${table.name} · ${current?current.state==='pending_bill'?'Bill requested in snapshot':'Occupied in snapshot':'Available in snapshot'}`}</Body>{current?<ActionButton label={`View ${table.name} order`} onPress={()=>setSelected(current.id)}/>:null}<ActionButton label={`Draft for ${table.name}`} disabled={disabled} onPress={()=>start(table.id)}/></View>;})}
  {snapshot?.orders.filter(o=>o.kind==='takeaway').map(o=><ActionButton key={o.id} label={`View takeaway ${o.id.slice(0,8)}`} onPress={()=>setSelected(o.id)}/>)}

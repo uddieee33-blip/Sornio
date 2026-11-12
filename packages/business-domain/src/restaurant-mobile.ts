@@ -32,14 +32,7 @@ export function restaurantStorage(port:SecurePort,scope:RestaurantScope){
  if(!id(scope.businessId)||!id(scope.actorId)||!['demo','live'].includes(scope.mode))throw new Error('Invalid restaurant storage scope.');
  const hex=(s:string)=>Array.from(s).map(c=>c.codePointAt(0)!.toString(16).padStart(6,'0')).join('');
  const root=`sornio.restaurant.v1.${scope.mode}.${hex(scope.businessId)}.${hex(scope.actorId)}`;
- async function write(kind:string,raw:string){if(raw.length>60000)throw new Error('Record is too large.');const queueKey=`${root}.${kind}`;
-  const next=(writes.get(queueKey)??Promise.resolve()).catch(()=>{}).then(async()=>{const version=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);const count=Math.max(1,Math.ceil(raw.length/320));for(let i=0;i<count;i++)await port.set(`${root}.${kind}.${version}.${i}`,raw.slice(i*320,(i+1)*320));await port.set(`${root}.${kind}.current`,JSON.stringify({version,count,length:raw.length}));});
-  writes.set(queueKey,next);try{await next;}finally{if(writes.get(queueKey)===next)writes.delete(queueKey);}
- }
- async function read(kind:string){await writes.get(`${root}.${kind}`)?.catch(()=>{});const raw=await port.get(`${root}.${kind}.current`);if(raw===null)return null;if(raw.length>500)throw new Error('Invalid secure manifest.');const m:unknown=JSON.parse(raw);
-  if(!object(m)||typeof m.version!=='string'||!/^[a-z0-9-]{1,80}$/.test(m.version)||!integer(m.count,1)||m.count>188||!integer(m.length)||m.length>60000||m.count!==Math.max(1,Math.ceil(m.length/320)))throw new Error('Invalid secure manifest.');
-  let value='';for(let i=0;i<m.count;i++){const chunk=await port.get(`${root}.${kind}.${m.version}.${i}`);if(chunk===null||chunk.length>320)throw new Error('Secure record is incomplete; keep the original device data.');value+=chunk;}if(value.length!==m.length)throw new Error('Secure record length differs.');return value;
- }
+ const {write,read}=secureRestaurantRecords(port,root);
  return {
   async saveDraft(draft:RestaurantDraft){const raw=JSON.stringify(draft);parseRestaurantDraft(raw,scope);await write('draft',raw);},
   async loadDraft(){const raw=await read('draft');return raw===null?null:parseRestaurantDraft(raw,scope);},
@@ -47,4 +40,19 @@ export function restaurantStorage(port:SecurePort,scope:RestaurantScope){
   async saveSnapshot(raw:string){parseRestaurantSnapshot(raw,scope.businessId);await write('snapshot',raw);},
   async loadSnapshot(){const raw=await read('snapshot');return raw===null?null:parseRestaurantSnapshot(raw,scope.businessId);},
  };
+}
+
+/** Bounded encrypted-record port shared by drafts and LAN outbox. ASCII JSON chunks
+ * avoid splitting UTF-16 surrogate pairs at a native SecureStore boundary. */
+export function secureRestaurantRecords(port:SecurePort,root:string){
+ if(!/^[a-zA-Z0-9._-]{1,3000}$/.test(root))throw new Error('Invalid secure record scope.');
+ async function write(kind:string,raw:string){raw=raw.replace(/[\u007f-\uffff]/g,c=>'\\u'+c.charCodeAt(0).toString(16).padStart(4,'0'));if(raw.length>60000)throw new Error('Record is too large.');const queueKey=`${root}.${kind}`;
+  const next=(writes.get(queueKey)??Promise.resolve()).catch(()=>{}).then(async()=>{const version=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2);const count=Math.max(1,Math.ceil(raw.length/320));for(let i=0;i<count;i++)await port.set(`${root}.${kind}.${version}.${i}`,raw.slice(i*320,(i+1)*320));await port.set(`${root}.${kind}.current`,JSON.stringify({version,count,length:raw.length}));});
+  writes.set(queueKey,next);try{await next;}finally{if(writes.get(queueKey)===next)writes.delete(queueKey);}
+ }
+ async function read(kind:string){await writes.get(`${root}.${kind}`)?.catch(()=>{});const raw=await port.get(`${root}.${kind}.current`);if(raw===null)return null;if(raw.length>500)throw new Error('Invalid secure manifest.');const m:unknown=JSON.parse(raw);
+  if(!object(m)||typeof m.version!=='string'||!/^[a-z0-9-]{1,80}$/.test(m.version)||!integer(m.count,1)||m.count>188||!integer(m.length)||m.length>60000||m.count!==Math.max(1,Math.ceil(m.length/320)))throw new Error('Invalid secure manifest.');
+  let value='';for(let i=0;i<m.count;i++){const chunk=await port.get(`${root}.${kind}.${m.version}.${i}`);if(chunk===null||chunk.length>320)throw new Error('Secure record is incomplete; keep the original device data.');value+=chunk;}if(value.length!==m.length)throw new Error('Secure record length differs.');return value;
+ }
+ return {write,read};
 }
