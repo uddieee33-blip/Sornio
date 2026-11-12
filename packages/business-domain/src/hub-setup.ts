@@ -5,14 +5,14 @@ export const HUB_ORIGIN_EXAMPLE='https://shop-hostname:8443';
 const CARD_KIND='sornio.hub.setup';
 const DAY=24*60*60*1000;
 const object=(v:unknown):v is Record<string,unknown>=>typeof v==='object'&&v!==null&&!Array.isArray(v);
-function exact(v:Record<string,unknown>,keys:string[]){if(Object.keys(v).some(k=>!keys.includes(k))||keys.some(k=>!(k in v)))throw new Error('Connection details contain unsupported fields. Use a fresh card from the desktop.');}
-export type HubConnectionCard={kind:typeof CARD_KIND;version:1;origin:string;hubId:string;businessId:string;businessName:string;createdAt:string;expiresAt:string};
-export type HubProfile={version:1;origin:string;hub:HubIdentity;verifiedAt:string};
+function exact(v:Record<string,unknown>,keys:string[],optional:string[]=[]){if(Object.keys(v).some(k=>!keys.includes(k)&&!optional.includes(k))||keys.some(k=>!(k in v)))throw new Error('Connection details contain unsupported fields. Use a fresh card from the desktop.');}
+export type HubConnectionCard={kind:typeof CARD_KIND;version:1;origin:string;hubId:string;businessId:string;businessName:string;certificateSha256?:string;createdAt:string;expiresAt:string};
+export type HubProfile={certificateSha256?:string;version:1;origin:string;hub:HubIdentity;verifiedAt:string};
 
 /** Public routing hints only. No device secret, staff identity, token or trust override. */
-export function makeHubCard(origin:string,identity:HubIdentity,now=Date.now()):HubConnectionCard{
+export function makeHubCard(origin:string,identity:HubIdentity,now=Date.now(),certificateSha256?:string):HubConnectionCard{
  const hub=hubIdentity(identity,identity);
- const value={kind:CARD_KIND,version:1,origin:hubOrigin(origin),hubId:hub.hubId,businessId:hub.businessId,businessName:Array.from(hub.businessName).slice(0,60).join(''),createdAt:new Date(now).toISOString(),expiresAt:new Date(now+DAY).toISOString()};
+ const value={...(certificateSha256?{certificateSha256}:{}),kind:CARD_KIND,version:1,origin:hubOrigin(origin),hubId:hub.hubId,businessId:hub.businessId,businessName:Array.from(hub.businessName).slice(0,60).join(''),createdAt:new Date(now).toISOString(),expiresAt:new Date(now+DAY).toISOString()};
  return parseHubCard(JSON.stringify(value),now);
 }
 export function hubCardLink(card:HubConnectionCard,now=Date.now()):string{
@@ -23,7 +23,8 @@ export function parseHubCard(input:string,now=Date.now()):HubConnectionCard{
  if(input.length>6000)throw new Error('Connection card is too large.');let raw=input.trim();
  if(raw.startsWith('sornio:')){let u:URL;try{u=new URL(raw);}catch{throw new Error('Unsupported Sornio connection link.');}if(u.hostname!=='hub-connect'||u.pathname&&u.pathname!=='/'||u.username||u.password||u.port||u.hash||[...u.searchParams.keys()].length!==1||!u.searchParams.has('card'))throw new Error('Unsupported Sornio connection link.');raw=u.searchParams.get('card')!;}
  if(raw.length>2000)throw new Error('Connection card is too large.');let value:unknown;try{value=JSON.parse(raw);}catch{throw new Error('Connection card could not be read. Paste the public card from the desktop.');}
- if(!object(value))throw new Error('Invalid connection card.');exact(value,['kind','version','origin','hubId','businessId','businessName','createdAt','expiresAt']);
+ if(!object(value))throw new Error('Invalid connection card.');exact(value,['kind','version','origin','hubId','businessId','businessName','createdAt','expiresAt'],['certificateSha256']);
+ if(value.certificateSha256!==undefined&&(typeof value.certificateSha256!=='string'||!/^[a-f0-9]{64}$/.test(value.certificateSha256)))throw new Error('Invalid public certificate fingerprint.');
  if(value.kind!==CARD_KIND||value.version!==1||typeof value.origin!=='string'||typeof value.businessName!=='string'||Array.from(value.businessName).length>60||/[\u0000-\u001f\u007f]/.test(value.businessName)||typeof value.createdAt!=='string'||typeof value.expiresAt!=='string')throw new Error('Unsupported connection card.');
  hubIdentity({version:1,hubId:value.hubId,businessId:value.businessId,businessName:value.businessName},{hubId:String(value.hubId),businessId:String(value.businessId)});
  const start=Date.parse(value.createdAt),end=Date.parse(value.expiresAt);
@@ -31,10 +32,11 @@ export function parseHubCard(input:string,now=Date.now()):HubConnectionCard{
  let origin:string;try{origin=hubOrigin(value.origin);}catch{throw new Error('The connection card must contain an HTTPS origin without credentials or a path.');}return {...value,origin} as HubConnectionCard;
 }
 function profile(value:unknown):HubProfile{
- if(!object(value))throw new Error('Saved shop shortcut is invalid.');exact(value,['version','origin','hub','verifiedAt']);
+ if(!object(value))throw new Error('Saved shop shortcut is invalid.');exact(value,['version','origin','hub','verifiedAt'],['certificateSha256']);
+ if(value.certificateSha256!==undefined&&(typeof value.certificateSha256!=='string'||!/^[a-f0-9]{64}$/.test(value.certificateSha256)))throw new Error('Invalid saved certificate hint.');
  if(value.version!==1||typeof value.origin!=='string'||!object(value.hub)||typeof value.verifiedAt!=='string'||!Number.isFinite(Date.parse(value.verifiedAt)))throw new Error('Saved shop shortcut is invalid.');
  exact(value.hub,['version','hubId','businessId','businessName']);
- const hub=hubIdentity(value.hub,{hubId:String(value.hub.hubId),businessId:String(value.hub.businessId)});return {version:1,origin:hubOrigin(value.origin),hub,verifiedAt:value.verifiedAt};
+ const hub=hubIdentity(value.hub,{hubId:String(value.hub.hubId),businessId:String(value.hub.businessId)});return {...(value.certificateSha256?{certificateSha256:value.certificateSha256}:{}),version:1,origin:hubOrigin(value.origin),hub,verifiedAt:value.verifiedAt};
 }
 let profileWrite=Promise.resolve();
 /** Shortcuts are not credentials or authorization. Device grants and unresolved
@@ -46,15 +48,21 @@ export function hubProfiles(port:SecurePort){
  return {
   async load(){await profileWrite.catch(()=>{});return load();},
   /** Call only after an explicit HTTPS identity check; still confers no access. */
-  async remember(origin:string,identity:HubIdentity,now=Date.now()){
-   const hub=hubIdentity(identity,identity);const entry=profile({version:1,origin,hub:{version:1,hubId:hub.hubId,businessId:hub.businessId,businessName:hub.businessName},verifiedAt:new Date(now).toISOString()});
+  async remember(origin:string,identity:HubIdentity,now=Date.now(),certificateSha256?:string){
+   const hub=hubIdentity(identity,identity);const entry=profile({...(certificateSha256?{certificateSha256}:{}),version:1,origin,hub:{version:1,hubId:hub.hubId,businessId:hub.businessId,businessName:hub.businessName},verifiedAt:new Date(now).toISOString()});
    await change(old=>[entry,...old.filter(p=>p.hub.hubId!==entry.hub.hubId)].slice(0,5));
   },
   async removeShortcut(hubId:string){await change(old=>old.filter(p=>p.hub.hubId!==hubId));}
  };
 }
-export type HubFailureCode='session_required'|'credentials_refused'|'access_refused'|'wrong_shop'|'try_later'|'operation_identity_conflict'|'unsupported_version'|'invalid_request'|'outcome_unknown'|'network_unavailable'|'redirect_refused'|'response_too_large';
+export type HubFailureCode='certificate_changed'|'certificate_untrusted'|'certificate_expired'|'certificate_confirmation_required'|'native_connection_unavailable'|'session_required'|'credentials_refused'|'access_refused'|'wrong_shop'|'try_later'|'operation_identity_conflict'|'unsupported_version'|'invalid_request'|'outcome_unknown'|'network_unavailable'|'redirect_refused'|'response_too_large';
 const messages:Record<HubFailureCode,string>={
+ certificate_changed:'The desktop certificate differs from your saved confirmation. Keep saved requests, ask the owner to review the new fingerprint, then explicitly confirm it.',
+ certificate_untrusted:'HTTPS trust or hostname validation failed. Ask the owner to check the certificate chain, hostname, expiry and device trust settings. Sornio cannot bypass this check.',
+ certificate_expired:'The desktop certificate is expired or not yet valid. Check device clocks and ask the owner to replace it, then verify the new fingerprint.',
+ certificate_confirmation_required:'Verify the desktop certificate fingerprint before sending device credentials or orders.',
+ native_connection_unavailable:'Install a native Sornio build with LAN support. Secure connection inspection is unavailable in this build.',
+
  session_required:'Staff session expired. Sign in again, then recover the same saved request.',
  credentials_refused:'Staff sign-in was refused. Check the assigned employee account and password.',
  access_refused:'Access refused. Ask the owner to check device approval, expiry and employee assignment.',

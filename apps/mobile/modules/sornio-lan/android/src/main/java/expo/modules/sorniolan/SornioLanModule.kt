@@ -19,6 +19,8 @@ class SornioLanModule : Module() {
   override fun definition() = ModuleDefinition {
     Name("SornioLan")
     Events("onService", "onDiscoveryStatus")
+    AsyncFunction("probe") { origin: String -> ShopHttps.request(origin, "/v1/identity", "{\"version\":1}", "", "", true) }
+    AsyncFunction("request") { origin: String, path: String, body: String, bearer: String, pin: String -> ShopHttps.request(origin, path, body, bearer, pin, false) }
     AsyncFunction("startDiscovery") { main.post { start() }; Unit }
     AsyncFunction("stopDiscovery") { main.post { stop() }; Unit }
     OnDestroy { main.post { stop() } }
