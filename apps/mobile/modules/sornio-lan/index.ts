@@ -9,4 +9,4 @@ export interface SornioLanNative {
  addListener(event:'onService',listener:(event:DiscoveryEvent)=>void):EventSubscription;
  addListener(event:'onDiscoveryStatus',listener:(event:DiscoveryStatus)=>void):EventSubscription;
 }
-export function nativeLan():SornioLanNative{return requireNativeModule<SornioLanNative>('SornioLan');}
+export function nativeLan():SornioLanNative{try{return requireNativeModule<SornioLanNative>('SornioLan');}catch{throw Object.assign(new Error('Native Sornio LAN module is unavailable.'),{code:'ERR_MODULE_NOT_FOUND'});}}
