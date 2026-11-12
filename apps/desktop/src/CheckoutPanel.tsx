@@ -13,6 +13,7 @@ import { allocationPreview, paymentMethods, remainingForMethod } from './payment
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
 import { findCode, scanNeedsQuantity } from './scan';
+import { cashierNavigationKey, deliberateCheckoutConfirm } from './desktop-shortcuts';
 import { heldDraftInput } from './held-bills';
 import type { HeldBill, HeldMutation, HeldPrepare, ResumedBill } from './held-bills';
 
@@ -517,13 +518,16 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || disabled || busy || heldPending) return;
+      if (event.defaultPrevented || disabled || busy || heldPending) return;
+      // Do not intercept Command shortcuts while another workspace form has focus.
+      if (event.metaKey && !searchInput.current?.closest('#checkout')?.contains(document.activeElement)) return;
+      const key = cashierNavigationKey(event); if (!key) return;
       if (document.querySelector('.lock-prompt, .reopen-prompt')) return;
-      if (event.key === 'F8') {
+      if (key === 'F8') {
         if (pending && !invoice) { event.preventDefault(); void confirm(pending); }
         return;
       }
-      if (event.key === 'F2') {
+      if (key === 'F2') {
         if (pending || invoice || !ready) return;
         event.preventDefault();
         if (review || historyOpen) {
@@ -535,7 +539,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
         }
         return;
       }
-      if (event.key === 'F3') {
+      if (key === 'F3') {
         if (pending || invoice || historyOpen || !ready) return;
         event.preventDefault();
         if (!cart.length) {
@@ -559,14 +563,14 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
         }
         return;
       }
-      if (event.key === 'F4') {
+      if (key === 'F4') {
         if (!pending && !invoice && !historyOpen && !review) {
           event.preventDefault();
           startConfirmation(true);
         }
         return;
       }
-      if (event.key === 'Escape') {
+      if (key === 'Escape') {
         if (review) { event.preventDefault(); cancelReview(); }
         else if (historyOpen && !invoice && !pending) { event.preventDefault(); closeHistory(); }
       }
@@ -602,7 +606,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
-    <p className="muted">F2: find item · F3: edit quantity · Enter: add exact code · F4: review · Alt+Enter: confirm when focused · F8: recover pending sale</p>
+    <p className="muted">F2 / Command+F: find item · F3: edit quantity · Enter: add exact code · F4 / Command+B: review · Alt+Enter / Command+Enter: confirm when focused · F8: recover pending sale</p>
     {reportsAllowed ? <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div> : null}
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
     {!invoice && !pending ? <div className="held-bill-toolbar">
@@ -637,7 +641,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     </section> : null}
     {invoice ? <><SavedInvoice key={invoice.id} invoice={invoice} payments={invoicePayments} username={username}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it (press F8 to retry).</p>
-        <button ref={retryButton} type="button" disabled={busy || disabled} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat && !event.nativeEvent.isComposing) void confirm(pending); } }} onClick={() => void confirm(pending)}>Retry same sale</button>
+        <button ref={retryButton} aria-keyshortcuts="Alt+Enter Meta+Enter" type="button" disabled={busy || disabled} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (deliberateCheckoutConfirm({key:event.key,altKey:event.altKey,metaKey:event.metaKey,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,repeat:event.repeat,isComposing:event.nativeEvent.isComposing})) void confirm(pending); } }} onClick={() => void confirm(pending)}>Retry same sale</button>
         {refused ? <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void release(false)}>Edit refused sale</button> : null}
       </div> : null}
       <fieldset disabled={blocked || review}>
@@ -708,7 +712,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
               </>}
           </div>
           <p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified; any customer-credit amount stays outstanding on the customer’s account.'} Save this sale on this PC?</p>
-          <button type="button" disabled={disabled || busy || Boolean(problem)} ref={confirmButton} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (event.altKey && !event.ctrlKey && !event.metaKey && !event.shiftKey && !event.repeat && !event.nativeEvent.isComposing) postNew(); } }} onClick={postNew}>Confirm sale</button>
+          <button type="button" disabled={disabled || busy || Boolean(problem)} ref={confirmButton} aria-keyshortcuts="Alt+Enter Meta+Enter" onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (deliberateCheckoutConfirm({key:event.key,altKey:event.altKey,metaKey:event.metaKey,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,repeat:event.repeat,isComposing:event.nativeEvent.isComposing})) postNew(); } }} onClick={postNew}>Confirm sale</button>
           <button type="button" className="quiet-button" disabled={disabled || busy} onClick={cancelReview}>Edit sale</button>
         </div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={() => startConfirmation(false)}>Review sale</button>}

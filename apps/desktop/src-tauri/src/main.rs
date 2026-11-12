@@ -45,6 +45,8 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::Conflict => "conflict",
+            StoreError::InvalidDraft => "invalid_draft",
             StoreError::HeldBillConflict => "held_bill_conflict",
             StoreError::InvalidHeldBill => "invalid_held_bill",
             StoreError::HeldBillLimit => "held_bill_limit",
