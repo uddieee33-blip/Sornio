@@ -102,6 +102,9 @@ jobs:
                 [ -f "$part" ] || continue
                 { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n'; } \
                   | sed "s|^|::error file=packages/local-store/src::[$profile] failure detail: |" || true
+                # The command must end the line itself: without this, the next
+                # ::error:: token is parsed as part of this message and disappears.
+                echo
               done
             fi
             return "$code"

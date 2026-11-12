@@ -134,15 +134,24 @@ jobs:
             grep -E '^test .* FAILED$|^test result:' "$log.clean" | head -60 \
               | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n' \
               | sed 's/^/::error::debug failing tests: /' || true
+            echo
             # Panics carry the assertion text. One annotation per 3000 characters:
             # an oversized annotation is rejected outright and the check record
             # keeps only "exit code 101", which is the failure mode this replaces.
-            awk '/^failures:$/{f=1} f' "$log.clean" | head -400 > /tmp/macos-failures.txt || true
+            # Only the first block per failing test: a single assertion can print a
+            # whole database snapshot, which is what pushed the drift test's own
+            # message past the per-annotation cap and made it look like an
+            # unlisted-table failure.
+            awk '/^failures:$/{f=1} f' "$log.clean" | head -250 > /tmp/macos-failures.txt || true
             split -b 3000 -a 3 /tmp/macos-failures.txt /tmp/macos-part- || true
             for part in /tmp/macos-part-*; do
               [ -f "$part" ] || continue
               sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n' \
                 | sed "s|^|::error file=packages/local-store/src::debug failure detail: |" || true
+              # A command's output needs its own newline, or the next ::error::
+              # token is parsed as part of this line's message. That is what hid
+              # the drift test's assertion text in the Phase 19B run.
+              echo
             done
           fi
           exit "$code"
@@ -173,12 +182,21 @@ jobs:
             grep -E '^test .* FAILED$|^test result:' "$log.clean" | head -60 \
               | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n' \
               | sed 's/^/::error::release failing tests: /' || true
-            awk '/^failures:$/{f=1} f' "$log.clean" | head -400 > /tmp/macos-rel-failures.txt || true
+            echo
+            # Only the first block per failing test: a single assertion can print a
+            # whole database snapshot, which is what pushed the drift test's own
+            # message past the per-annotation cap and made it look like an
+            # unlisted-table failure.
+            awk '/^failures:$/{f=1} f' "$log.clean" | head -250 > /tmp/macos-rel-failures.txt || true
             split -b 3000 -a 3 /tmp/macos-rel-failures.txt /tmp/macos-rel-part- || true
             for part in /tmp/macos-rel-part-*; do
               [ -f "$part" ] || continue
               sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n' \
                 | sed "s|^|::error file=packages/local-store/src::release failure detail: |" || true
+              # A command's output needs its own newline, or the next ::error::
+              # token is parsed as part of this line's message. That is what hid
+              # the drift test's assertion text in the Phase 19B run.
+              echo
             done
           fi
           exit "$code"

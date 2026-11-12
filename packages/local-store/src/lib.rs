@@ -23,11 +23,11 @@ pub mod payments;
 pub mod recovery;
 pub mod replication;
 mod responsibility_access;
-#[cfg(test)]
-mod schema_rollback;
 pub mod restaurant;
 pub mod restaurant_checkout;
 pub mod restaurant_recovery;
+#[cfg(test)]
+mod schema_rollback;
 pub mod security_history;
 mod session_signout;
 pub mod staff_access;
