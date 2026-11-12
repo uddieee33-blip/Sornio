@@ -7,8 +7,8 @@ const timestamp=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}T/.test(v)&
 const array=(v:unknown,max:number):v is unknown[]=>Array.isArray(v)&&v.length<=max;
 const integer=(v:unknown,min=0):v is number=>typeof v==='number'&&Number.isSafeInteger(v)&&v>=min&&v<=9_000_000_000_000;
 export function restaurantCanDraft(role:string):boolean{return ['owner','manager','assistant_manager','cashier'].includes(role);}
-export function parseRestaurantSnapshot(raw:string,businessId:string):RestaurantSnapshot{
- if(raw.length>60000)throw new Error('Use a smaller operational snapshot.');const s:unknown=JSON.parse(raw);
+export function parseRestaurantSnapshot(raw:string,businessId:string,maxLength=60000):RestaurantSnapshot{
+ if(!Number.isInteger(maxLength)||maxLength<1||maxLength>262144||raw.length>maxLength)throw new Error('Use a smaller operational snapshot.');const s:unknown=JSON.parse(raw);
  if(!object(s)||s.schemaVersion!==1||s.source!=='shop'||s.businessId!==businessId||!timestamp(s.generatedAt)||!array(s.tables,200)||!array(s.orders,1000)||!array(s.menu,2000)||!array(s.tickets,2000)||!array(s.assignments,1000))throw new Error('Snapshot does not match this business or its supported format.');
  if(s.tables.some(t=>!object(t)||!id(t.id)||!text(t.name,120)))throw new Error('Invalid table.');
  const tables=new Set(s.tables.map(t=>(t as Record<string,unknown>).id));
