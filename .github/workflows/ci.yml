@@ -50,6 +50,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Cheap, static, and first: a stale Cargo.lock makes every `--locked`
+      # native command fail later on another runner, after a toolchain install.
+      # This check names the manifest and the missing crates instead.
+      - name: Verify native lockfiles describe their manifests
+        run: npm run verify:cargo-lock
+
       # Two type checks, on purpose. `typecheck` runs the JavaScript-API
       # compiler that typescript-eslint, the i18n extractor and Next's build
       # check all read; `typecheck:native` runs TypeScript 7's native compiler

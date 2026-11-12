@@ -236,6 +236,8 @@ All on `arena/1b1cac28-sornio`, in review as draft PR #182. No merge, no release
 `1c476ac` — duplicate Android artifact upload removed.
 `2e6a643` — macOS job on `macos-latest` and off rustfmt; iOS records Xcode/SDK and annotates build errors; rustfmt annotation capped.
 `af031dd` — `NSObject` base class for the iOS LAN module; `verify-cargo-lock` runs early in the replication job.
+`fd9dd3e` — this report.
+(next) `verify:cargo-lock` becomes its own gate (`verify:cargo-lock`), run early in CI's verify job and in the replication job, instead of being chained into `verify:lock`. Chaining it there stopped the other 24 gates from running at all, which trades one failing check for 24 unexecuted ones — the opposite of the point.
 
 ### On the i18n repair
 

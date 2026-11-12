@@ -60,7 +60,7 @@ jobs:
       # lockfile and a Rust toolchain install. Surface a stale lock here, with
       # the manifest named, instead of inside a `--locked` cargo invocation.
       - name: Verify native lockfiles describe their manifests
-        run: node scripts/verify-cargo-lock.mjs
+        run: npm run verify:cargo-lock
       - name: Real PostgreSQL ingest races
         run: node scripts/verify-replication-postgres.mjs
       - name: Export native SQLCipher outbox envelopes
