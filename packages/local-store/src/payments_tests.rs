@@ -1842,10 +1842,24 @@ fn phase11a_all_tender_combinations_preserve_invoice_statement_and_replay() {
         let d = tempfile::tempdir().unwrap();
         let path = d.path().join("sale.db");
         let mut s = seed(&path);
-        s.save_customer(customer_profile("c1", Some(100000))).unwrap();
-        let credit: i64 = parts.iter().filter(|(m, _)| *m == "credit").map(|(_, a)| *a).sum();
-        let cash: i64 = parts.iter().filter(|(m, _)| *m == "cash").map(|(_, a)| *a).sum();
-        let r = split_sale_req(&s, "matrix-sale", if credit > 0 { Some("c1") } else { None }, &parts);
+        s.save_customer(customer_profile("c1", Some(100000)))
+            .unwrap();
+        let credit: i64 = parts
+            .iter()
+            .filter(|(m, _)| *m == "credit")
+            .map(|(_, a)| *a)
+            .sum();
+        let cash: i64 = parts
+            .iter()
+            .filter(|(m, _)| *m == "cash")
+            .map(|(_, a)| *a)
+            .sum();
+        let r = split_sale_req(
+            &s,
+            "matrix-sale",
+            if credit > 0 { Some("c1") } else { None },
+            &parts,
+        );
         s.prepare_retail(r.clone()).unwrap();
         // Restart with an unposted intent: the exact operation survives.
         drop(s);
@@ -1857,16 +1871,32 @@ fn phase11a_all_tender_combinations_preserve_invoice_statement_and_replay() {
         assert_eq!(payments.len(), parts.len());
         for p in &payments {
             assert!(!p.externally_verified);
-            assert_eq!(p.status, match p.method.as_str() { "cash" => "recorded", "credit" => "credit_due", _ => "pending" });
+            assert_eq!(
+                p.status,
+                match p.method.as_str() {
+                    "cash" => "recorded",
+                    "credit" => "credit_due",
+                    _ => "pending",
+                }
+            );
         }
         assert_eq!(s.list_products().unwrap()[0].stock_milli, 90000);
-        assert_eq!(s.cashier_state().unwrap().balances.cash_paise, cash.to_string());
-        assert_eq!(s.read_customer("c1").unwrap().balance_paise, credit.to_string());
+        assert_eq!(
+            s.cashier_state().unwrap().balances.cash_paise,
+            cash.to_string()
+        );
+        assert_eq!(
+            s.read_customer("c1").unwrap().balance_paise,
+            credit.to_string()
+        );
         let statement = s.customer_statement("c1", 0, None).unwrap();
         assert_eq!(statement.closing_balance_paise, credit.to_string());
         assert_eq!(statement.entries.len(), if credit > 0 { 1 } else { 0 });
         if credit > 0 {
-            assert_eq!(statement.entries[0].invoice_id.as_deref(), Some("matrix-sale"));
+            assert_eq!(
+                statement.entries[0].invoice_id.as_deref(),
+                Some("matrix-sale")
+            );
             assert_eq!(statement.entries[0].amount_paise, credit.to_string());
         }
         // Simulate a lost response after commit, then restart and retry exactly.
@@ -1883,26 +1913,49 @@ fn phase11a_all_tender_combinations_preserve_invoice_statement_and_replay() {
 
 #[test]
 fn phase11a_refusals_leave_every_financial_and_stock_table_unchanged() {
-    for case in ["under", "over", "missing", "unknown", "limit", "stock", "duplicate"] {
+    for case in [
+        "under",
+        "over",
+        "missing",
+        "unknown",
+        "limit",
+        "stock",
+        "duplicate",
+    ] {
         let d = tempfile::tempdir().unwrap();
         let mut s = seed(&d.path().join("sale.db"));
-        s.save_customer(customer_profile("c1", Some(30000))).unwrap();
-        let mut r = split_sale_req(&s, "refused", Some("c1"), &[("cash", 80000), ("credit", 20000)]);
+        s.save_customer(customer_profile("c1", Some(30000)))
+            .unwrap();
+        let mut r = split_sale_req(
+            &s,
+            "refused",
+            Some("c1"),
+            &[("cash", 80000), ("credit", 20000)],
+        );
         if let Action::Sale { invoice, payments } = &mut r.action {
             match case {
                 "under" => payments[0].amount_paise -= 1,
                 "over" => payments[0].amount_paise += 1,
                 "missing" => invoice.customer_id = None,
                 "unknown" => invoice.customer_id = Some("absent".into()),
-                "limit" => { payments[0].amount_paise = 60000; payments[1].amount_paise = 40000; },
-                "stock" => { invoice.lines[0].quantity_milli = 101000; payments[0].amount_paise = 990000; },
+                "limit" => {
+                    payments[0].amount_paise = 60000;
+                    payments[1].amount_paise = 40000;
+                }
+                "stock" => {
+                    invoice.lines[0].quantity_milli = 101000;
+                    payments[0].amount_paise = 990000;
+                }
                 "duplicate" => payments[1].id = payments[0].id.clone(),
                 _ => unreachable!(),
             }
         }
         if case == "missing" {
             let before = snapshots(&s);
-            assert!(matches!(s.prepare_retail(r.clone()), Err(StoreError::InvalidPayment)));
+            assert!(matches!(
+                s.prepare_retail(r.clone()),
+                Err(StoreError::InvalidPayment)
+            ));
             assert!(matches!(s.post_retail(r), Err(StoreError::InvalidPayment)));
             assert_eq!(snapshots(&s), before);
             continue;
@@ -1925,7 +1978,12 @@ fn phase11a_late_failure_rolls_back_credit_and_retries_same_intent() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("sale.db"));
     s.save_customer(customer_profile("c1", None)).unwrap();
-    let r = split_sale_req(&s, "atomic", Some("c1"), &[("cash", 60000), ("credit", 40000)]);
+    let r = split_sale_req(
+        &s,
+        "atomic",
+        Some("c1"),
+        &[("cash", 60000), ("credit", 40000)],
+    );
     s.prepare_retail(r.clone()).unwrap();
     let prepared = snapshots(&s);
     s.0.execute_batch("CREATE TRIGGER fail_split BEFORE INSERT ON local_retail_outbox BEGIN SELECT RAISE(ABORT,'late failure'); END;").unwrap();
@@ -1943,12 +2001,30 @@ fn phase11a_late_failure_rolls_back_credit_and_retries_same_intent() {
 fn phase11a_selected_customer_lookup_is_exact_and_requires_a_live_session() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("sale.db"));
-    s.save_customer(customer_profile("c1", Some(40000))).unwrap();
+    s.save_customer(customer_profile("c1", Some(40000)))
+        .unwrap();
     s.save_customer(customer_profile("c10", None)).unwrap();
-    assert_eq!(s.read_customer("c1").unwrap().available_credit_paise.as_deref(), Some("40000"));
-    assert!(matches!(s.read_customer("c"), Err(StoreError::CustomerMissing)));
-    assert!(matches!(s.read_customer("bad/id"), Err(StoreError::InvalidCustomer)));
-    let r = split_sale_req(&s, "locked", Some("c1"), &[("cash", 60000), ("credit", 40000)]);
+    assert_eq!(
+        s.read_customer("c1")
+            .unwrap()
+            .available_credit_paise
+            .as_deref(),
+        Some("40000")
+    );
+    assert!(matches!(
+        s.read_customer("c"),
+        Err(StoreError::CustomerMissing)
+    ));
+    assert!(matches!(
+        s.read_customer("bad/id"),
+        Err(StoreError::InvalidCustomer)
+    ));
+    let r = split_sale_req(
+        &s,
+        "locked",
+        Some("c1"),
+        &[("cash", 60000), ("credit", 40000)],
+    );
     s.prepare_retail(r.clone()).unwrap();
     s.1 = None;
     let before = snapshots(&s);
@@ -1962,23 +2038,49 @@ fn phase11a_cashier_cannot_raise_credit_limit_or_forge_credit_adjustments() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("sale.db");
     let mut s = seed(&path);
-    s.save_customer(customer_profile("c1", Some(30000))).unwrap();
-    let r = split_sale_req(&s, "cashier-credit", Some("c1"), &[("cash", 60000), ("credit", 40000)]);
+    s.save_customer(customer_profile("c1", Some(30000)))
+        .unwrap();
+    let r = split_sale_req(
+        &s,
+        "cashier-credit",
+        Some("c1"),
+        &[("cash", 60000), ("credit", 40000)],
+    );
     drop(s);
     let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
     w.unlock(PASSWORD).unwrap();
-    w.create_staff(StaffDetails { username: "cashier".into(), display_name: "Cashier".into(), role: Role::Cashier }, PASSWORD).unwrap();
+    w.create_staff(
+        StaffDetails {
+            username: "cashier".into(),
+            display_name: "Cashier".into(),
+            role: Role::Cashier,
+        },
+        PASSWORD,
+    )
+    .unwrap();
     w.login("cashier", PASSWORD).unwrap();
     let c = w.read_customer("c1").unwrap();
     let mut policy = customer_profile("c1", None);
     policy.operation_id = "bypass-limit".into();
     policy.expected_revision = Some(c.revision);
-    assert!(matches!(w.save_customer(policy), Err(StoreError::Forbidden)));
+    assert!(matches!(
+        w.save_customer(policy),
+        Err(StoreError::Forbidden)
+    ));
     let correction = CreditRequest {
-        operation_id: "forged-writeoff".into(), customer_id: "c1".into(), expected_revision: c.revision,
-        kind: CreditKind::WriteOff, amount_paise: 10000, reason: "Unauthorized credit adjustment".into(), due_on: None, reverse_of: None,
+        operation_id: "forged-writeoff".into(),
+        customer_id: "c1".into(),
+        expected_revision: c.revision,
+        kind: CreditKind::WriteOff,
+        amount_paise: 10000,
+        reason: "Unauthorized credit adjustment".into(),
+        due_on: None,
+        reverse_of: None,
     };
-    assert!(matches!(w.prepare_credit(correction), Err(StoreError::Forbidden)));
+    assert!(matches!(
+        w.prepare_credit(correction),
+        Err(StoreError::Forbidden)
+    ));
     w.prepare_retail(r.clone()).unwrap();
     assert!(matches!(w.post_retail(r), Err(StoreError::CreditLimit)));
     assert_eq!(w.read_customer("c1").unwrap().balance_paise, "0");
@@ -1989,13 +2091,20 @@ fn phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting() {
     for tender in [Tender::Cash, Tender::Credit] {
         let d = tempfile::tempdir().unwrap();
         let mut s = seed(&d.path().join("sale.db"));
-        s.save_customer(customer_profile("c1", Some(100000))).unwrap();
+        s.save_customer(customer_profile("c1", Some(100000)))
+            .unwrap();
         let r = split_sale_req(&s, "legacy", Some("c1"), &[]);
-        let Action::Sale { mut invoice, .. } = r.action else { unreachable!() };
+        let Action::Sale { mut invoice, .. } = r.action else {
+            unreachable!()
+        };
         invoice.tender = tender.clone();
         let saved = s.post_invoice(invoice.clone()).unwrap();
         assert_eq!(saved.total_paise, 100000);
-        let due = if tender == Tender::Credit { "100000" } else { "0" };
+        let due = if tender == Tender::Credit {
+            "100000"
+        } else {
+            "0"
+        };
         assert_eq!(s.read_customer("c1").unwrap().balance_paise, due);
         assert_eq!(s.cashier_state().unwrap().balances.credit_paise, due);
         let snapshot = snapshots(&s);

@@ -1,16 +1,189 @@
 //! Public session handles are random references, never authentication credentials.
-use crate::{StoreError,identity::{self,Permission,Session}};use rusqlite::{Transaction,OptionalExtension,params};use serde_json::{Value,json};
-pub(crate) fn migrate(tx:&Transaction<'_>)->Result<(),StoreError>{tx.execute_batch(include_str!("session_signout-schema.sql"))?;Ok(())}
-pub(crate) fn end_session(tx:&Transaction<'_>,session:&Option<Session>,target:&str,expected:i64,handle:&str)->Result<Value,StoreError>{
- let s=session.as_ref().ok_or(StoreError::Locked)?;identity::verify(tx,s,Permission::Staff)?;if target==s.actor_id{return Err(StoreError::Forbidden);}
- let revision:Option<i64>=tx.query_row("SELECT revision FROM local_principals WHERE id=?1 AND business_id=?2",params![target,s.scope.business_id],|q|q.get(0)).optional()?;let revision=revision.ok_or(StoreError::WorkspaceMismatch)?;
- let existing:Option<(String,String)>=tx.query_row("SELECT h.actor_id,h.generation FROM local_hub_session_handles k JOIN local_hub_sessions h ON h.token_hash=k.token_hash WHERE k.handle=?1",[handle],|q|Ok((q.get(0)?,q.get(1)?))).optional()?;
- let outcome=if let Some((actor,generation))=existing{if actor!=target{return Err(StoreError::Forbidden);}if generation!=s.generation{"already_inactive"}else{if revision!=expected{return Err(StoreError::Conflict);}let changed=tx.execute("DELETE FROM local_hub_sessions WHERE token_hash=(SELECT token_hash FROM local_hub_session_handles WHERE handle=?1) AND actor_id=?2 AND actor_revision=?3 AND generation=?4",params![handle,target,expected,s.generation])?;if changed==1{"signed_out"}else{"already_inactive"}}}else{"already_inactive"};
- Ok(json!({"outcome":outcome,"revision":revision}))
+use crate::{
+    identity::{self, Permission, Session},
+    StoreError,
+};
+use rusqlite::{params, OptionalExtension, Transaction};
+use serde_json::{json, Value};
+pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
+    tx.execute_batch(include_str!("session_signout-schema.sql"))?;
+    Ok(())
 }
-#[cfg(test)]mod tests{use super::*;use crate::{Store,access::Workspace,kitchen::Action,identity::{Role,StaffDetails},staff_access::Query};
-const KEY:&str="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";const PASSWORD:&str="Synthetic targeted sign-out password";
-#[test]fn restart_recovery_ends_observed_session_and_keeps_reauthenticated_session(){let dir=tempfile::tempdir().unwrap();let path=dir.path().join("session.db");let mut w=Workspace::new(Store::open(&path,KEY).unwrap());w.setup(PASSWORD).unwrap();let cook=w.create_staff(StaffDetails{username:"cook".into(),display_name:"Cook".into(),role:Role::Cashier},PASSWORD).unwrap();w.hub_configure(true,None).unwrap();let identity=w.hub_admin().unwrap()["identity"].clone();let credential="a".repeat(64);w.hub_request("/v1/enrol","",json!({"version":1,"hubId":identity["hubId"],"businessId":identity["businessId"],"deviceId":"phone","name":"Cook phone","credential":credential})).unwrap();w.hub_device("phone",1,Some(&cook.id)).unwrap();let login=json!({"version":1,"hubId":identity["hubId"],"businessId":identity["businessId"],"deviceId":"phone","username":"cook","password":PASSWORD});let old=w.hub_request("/v1/session",&credential,login.clone()).unwrap();let report=w.kitchen_action(Action::StaffAccess{query:Query{employee_id:cook.id.clone(),start_date:"".into(),end_date:"".into(),cursor:None,include_session_handles:true,limit:25}}).unwrap();let handle=report["sessions"][0]["sessionHandle"].as_str().unwrap().to_string();w.kitchen_action(Action::PrepareSessionSignout{operation_id:"end".into(),actor_id:cook.id.clone(),expected_revision:1,session_handle:handle}).unwrap();drop(w);
-let mut w=Workspace::new(Store::open(&path,KEY).unwrap());w.login("owner",PASSWORD).unwrap();let receipt=w.kitchen_action(Action::ResumeAssignment).unwrap();assert_eq!(receipt["result"]["outcome"],"signed_out");let body=json!({"version":1,"hubId":identity["hubId"],"businessId":identity["businessId"]});assert!(w.hub_request("/v1/workspace",old["token"].as_str().unwrap(),body.clone()).is_err());let fresh=w.hub_request("/v1/session",&credential,login).unwrap();assert_eq!(w.kitchen_action(Action::ResumeAssignment).unwrap(),receipt);assert!(w.hub_request("/v1/workspace",fresh["token"].as_str().unwrap(),body).is_ok());assert_eq!(w.store_for_test().0.query_row("SELECT revision FROM local_principals WHERE id=?1",[cook.id],|q|q.get::<_,i64>(0)).unwrap(),1);assert_eq!(w.store_for_test().0.query_row("SELECT count(*) FROM local_invoices",[],|q|q.get::<_,i64>(0)).unwrap(),0);}
-#[test]fn non_administrators_cannot_prepare_session_signout_and_legacy_queries_stay_read_only(){let mut w=Workspace::new(Store::open(std::path::Path::new(":memory:"),KEY).unwrap());w.setup(PASSWORD).unwrap();let owner=w.local_session().unwrap().principal.id;let cook=w.create_staff(StaffDetails{username:"cook".into(),display_name:"Cook".into(),role:Role::Cashier},PASSWORD).unwrap();let raw=json!({"employeeId":cook.id,"startDate":"","endDate":"","cursor":null,"limit":25});let q:Query=serde_json::from_value(raw).unwrap();assert!(!q.include_session_handles);assert!(w.kitchen_action(Action::StaffAccess{query:q}).unwrap().get("employeeRevision").is_none());w.lock();w.login("cook",PASSWORD).unwrap();assert!(w.kitchen_action(Action::PrepareSessionSignout{operation_id:"forbidden".into(),actor_id:owner,expected_revision:1,session_handle:"a".repeat(32)}).is_err());}
+pub(crate) fn end_session(
+    tx: &Transaction<'_>,
+    session: &Option<Session>,
+    target: &str,
+    expected: i64,
+    handle: &str,
+) -> Result<Value, StoreError> {
+    let s = session.as_ref().ok_or(StoreError::Locked)?;
+    identity::verify(tx, s, Permission::Staff)?;
+    if target == s.actor_id {
+        return Err(StoreError::Forbidden);
+    }
+    let revision: Option<i64> = tx
+        .query_row(
+            "SELECT revision FROM local_principals WHERE id=?1 AND business_id=?2",
+            params![target, s.scope.business_id],
+            |q| q.get(0),
+        )
+        .optional()?;
+    let revision = revision.ok_or(StoreError::WorkspaceMismatch)?;
+    let existing:Option<(String,String)>=tx.query_row("SELECT h.actor_id,h.generation FROM local_hub_session_handles k JOIN local_hub_sessions h ON h.token_hash=k.token_hash WHERE k.handle=?1",[handle],|q|Ok((q.get(0)?,q.get(1)?))).optional()?;
+    let outcome = if let Some((actor, generation)) = existing {
+        if actor != target {
+            return Err(StoreError::Forbidden);
+        }
+        if generation != s.generation {
+            "already_inactive"
+        } else {
+            if revision != expected {
+                return Err(StoreError::Conflict);
+            }
+            let changed=tx.execute("DELETE FROM local_hub_sessions WHERE token_hash=(SELECT token_hash FROM local_hub_session_handles WHERE handle=?1) AND actor_id=?2 AND actor_revision=?3 AND generation=?4",params![handle,target,expected,s.generation])?;
+            if changed == 1 {
+                "signed_out"
+            } else {
+                "already_inactive"
+            }
+        }
+    } else {
+        "already_inactive"
+    };
+    Ok(json!({"outcome":outcome,"revision":revision}))
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{
+        access::Workspace,
+        identity::{Role, StaffDetails},
+        kitchen::Action,
+        staff_access::Query,
+        Store,
+    };
+    const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+    const PASSWORD: &str = "Synthetic targeted sign-out password";
+    #[test]
+    fn restart_recovery_ends_observed_session_and_keeps_reauthenticated_session() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("session.db");
+        let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+        w.setup(PASSWORD).unwrap();
+        let cook = w
+            .create_staff(
+                StaffDetails {
+                    username: "cook".into(),
+                    display_name: "Cook".into(),
+                    role: Role::Cashier,
+                },
+                PASSWORD,
+            )
+            .unwrap();
+        w.hub_configure(true, None).unwrap();
+        let identity = w.hub_admin().unwrap()["identity"].clone();
+        let credential = "a".repeat(64);
+        w.hub_request("/v1/enrol","",json!({"version":1,"hubId":identity["hubId"],"businessId":identity["businessId"],"deviceId":"phone","name":"Cook phone","credential":credential})).unwrap();
+        w.hub_device("phone", 1, Some(&cook.id)).unwrap();
+        let login = json!({"version":1,"hubId":identity["hubId"],"businessId":identity["businessId"],"deviceId":"phone","username":"cook","password":PASSWORD});
+        let old = w
+            .hub_request("/v1/session", &credential, login.clone())
+            .unwrap();
+        let report = w
+            .kitchen_action(Action::StaffAccess {
+                query: Query {
+                    employee_id: cook.id.clone(),
+                    start_date: "".into(),
+                    end_date: "".into(),
+                    cursor: None,
+                    include_session_handles: true,
+                    limit: 25,
+                },
+            })
+            .unwrap();
+        let handle = report["sessions"][0]["sessionHandle"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        w.kitchen_action(Action::PrepareSessionSignout {
+            operation_id: "end".into(),
+            actor_id: cook.id.clone(),
+            expected_revision: 1,
+            session_handle: handle,
+        })
+        .unwrap();
+        drop(w);
+        let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+        w.login("owner", PASSWORD).unwrap();
+        let receipt = w.kitchen_action(Action::ResumeAssignment).unwrap();
+        assert_eq!(receipt["result"]["outcome"], "signed_out");
+        let body =
+            json!({"version":1,"hubId":identity["hubId"],"businessId":identity["businessId"]});
+        assert!(w
+            .hub_request(
+                "/v1/workspace",
+                old["token"].as_str().unwrap(),
+                body.clone()
+            )
+            .is_err());
+        let fresh = w.hub_request("/v1/session", &credential, login).unwrap();
+        assert_eq!(w.kitchen_action(Action::ResumeAssignment).unwrap(), receipt);
+        assert!(w
+            .hub_request("/v1/workspace", fresh["token"].as_str().unwrap(), body)
+            .is_ok());
+        assert_eq!(
+            w.store_for_test()
+                .0
+                .query_row(
+                    "SELECT revision FROM local_principals WHERE id=?1",
+                    [cook.id],
+                    |q| q.get::<_, i64>(0)
+                )
+                .unwrap(),
+            1
+        );
+        assert_eq!(
+            w.store_for_test()
+                .0
+                .query_row("SELECT count(*) FROM local_invoices", [], |q| q
+                    .get::<_, i64>(0))
+                .unwrap(),
+            0
+        );
+    }
+    #[test]
+    fn non_administrators_cannot_prepare_session_signout_and_legacy_queries_stay_read_only() {
+        let mut w = Workspace::new(Store::open(std::path::Path::new(":memory:"), KEY).unwrap());
+        w.setup(PASSWORD).unwrap();
+        let owner = w.local_session().unwrap().principal.id;
+        let cook = w
+            .create_staff(
+                StaffDetails {
+                    username: "cook".into(),
+                    display_name: "Cook".into(),
+                    role: Role::Cashier,
+                },
+                PASSWORD,
+            )
+            .unwrap();
+        let raw =
+            json!({"employeeId":cook.id,"startDate":"","endDate":"","cursor":null,"limit":25});
+        let q: Query = serde_json::from_value(raw).unwrap();
+        assert!(!q.include_session_handles);
+        assert!(w
+            .kitchen_action(Action::StaffAccess { query: q })
+            .unwrap()
+            .get("employeeRevision")
+            .is_none());
+        w.lock();
+        w.login("cook", PASSWORD).unwrap();
+        assert!(w
+            .kitchen_action(Action::PrepareSessionSignout {
+                operation_id: "forbidden".into(),
+                actor_id: owner,
+                expected_revision: 1,
+                session_handle: "a".repeat(32)
+            })
+            .is_err());
+    }
 }
