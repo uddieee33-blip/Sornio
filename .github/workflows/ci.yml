@@ -121,20 +121,42 @@ jobs:
         shell: bash
         run: |
           set +e
-          cargo audit --file packages/local-store/Cargo.lock > /tmp/audit-store.log 2>&1
+          cargo audit --file packages/local-store/Cargo.lock --json > /tmp/audit-store.json 2>/tmp/audit-store.err
           store=$?
-          cargo audit --file apps/desktop/src-tauri/Cargo.lock > /tmp/audit-desktop.log 2>&1
+          cargo audit --file apps/desktop/src-tauri/Cargo.lock --json > /tmp/audit-desktop.json 2>/tmp/audit-desktop.err
           desktop=$?
           set -e
-          cat /tmp/audit-store.log /tmp/audit-desktop.log || true
+
+          # Findings must reach the check record: raw job logs live in artefact
+          # storage that could not be retrieved for any run in this repository
+          # (the API returns "exit code 1" and nothing else). One ::error:: per
+          # advisory, carrying crate, version, id, severity and the patched
+          # range. Nothing is suppressed — the step fails on cargo audit's own
+          # exit code regardless of whether parsing succeeded.
+          report() {
+            lock="$1"; json="$2"; err="$3"; code="$4"
+            if [ "$code" -eq 0 ]; then
+              echo "::notice::$lock passed cargo audit"
+              return 0
+            fi
+            if ! command -v jq >/dev/null 2>&1 || ! jq -e . "$json" >/dev/null 2>&1; then
+              echo "::error file=$lock::cargo audit could not run (exit $code): $(head -c 500 "$err" | tr '\n' ' ')"
+              return 0
+            fi
+            echo "::error file=$lock::$(jq -r '.vulnerabilities.count // 0' "$json") advisory(ies) reported for $lock"
+            jq -r --arg lock "$lock" '.vulnerabilities.list[]? | .advisory |
+              "::error file=" + $lock + "::" + (.package // "?") + " " + (.id // "?") +
+              " (" + ((.severity // "unknown")|tostring) + "): " + (.title // "") +
+              " — patched: " + ((.patched_versions // "none")|tostring)' "$json" || true
+            jq -r --arg lock "$lock" '.warnings.unmaintained[]? |
+              "::warning file=" + $lock + "::unmaintained: " + (.package.name // "?")' "$json" || true
+          }
+
+          report packages/local-store/Cargo.lock /tmp/audit-store.json /tmp/audit-store.err "$store"
+          report apps/desktop/src-tauri/Cargo.lock /tmp/audit-desktop.json /tmp/audit-desktop.err "$desktop"
+
           if [ "$store" -ne 0 ] || [ "$desktop" -ne 0 ]; then
-            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
-            {
-              grep -hE '^(ID:|Crate:|Version:|Title:|Solution:|URL:|error:|warning: .*unmaintained)' \
-                /tmp/audit-store.log /tmp/audit-desktop.log \
-                || tail -40 /tmp/audit-store.log /tmp/audit-desktop.log
-            } | head -120 | esc | sed 's/^/::error::native advisory audit: /'
-            echo "::error::cargo audit exited $store for packages/local-store and $desktop for apps/desktop/src-tauri."
+            echo "::error::cargo audit failed (local-store exit $store, src-tauri exit $desktop)"
+            exit 1
           fi
-          if [ "$store" -ne 0 ] || [ "$desktop" -ne 0 ]; then exit 1; fi
           echo "Both native lockfiles passed cargo audit."
