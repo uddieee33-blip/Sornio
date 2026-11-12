@@ -1,0 +1,8 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {parseRestaurantSnapshot} from './src/restaurant-mobile.ts';
+const ticket={id:'paid-ticket',orderId:'paid-order',kind:'dine_in',tableName:'Table 1',actorId:'owner',displayName:'Owner',state:'preparing',revision:2,items:[{name:'Pizza',quantity:2,note:'No onion'}]};
+const snapshot={schemaVersion:1,source:'shop',businessId:'shop',generatedAt:'2026-11-12T00:00:00Z',tables:[{id:'table',name:'Table 1'}],orders:[{id:'new-guests',tableId:'table',kind:'dine_in',state:'open',revision:1}],tickets:[],menu:[],assignments:[],paidKitchen:[ticket]};
+const parse=s=>parseRestaurantSnapshot(JSON.stringify(s),'shop');
+test('paid preparation coexists with new guests at the same table without entering open orders',()=>{const s=parse(snapshot);assert.equal(s.orders.length,1);assert.equal(s.orders[0].id,'new-guests');assert.equal(s.paidKitchen[0].orderId,'paid-order');assert.equal(s.paidKitchen[0].items[0].note,'No onion');});
+test('old snapshots remain compatible; paid takeaway does not require a table',()=>{const {paidKitchen,...old}=snapshot;assert.equal(parse(old).paidKitchen,undefined);assert.equal(parse({...snapshot,paidKitchen:[{...ticket,kind:'takeaway',tableName:null}]}).paidKitchen.length,1);});
+test('paid queue rejects duplicate identities, unpaid overlaps, invalid statuses and malformed items',()=>{for(const change of [{state:'served'},{state:'settled'},{revision:0},{items:[{name:'Pizza',quantity:0,note:''}]},{actorId:''},{orderId:'new-guests'}])assert.throws(()=>parse({...snapshot,paidKitchen:[{...ticket,...change}]}));assert.throws(()=>parse({...snapshot,paidKitchen:[ticket,ticket]}));assert.throws(()=>parse({...snapshot,tickets:[{...ticket,orderId:'new-guests'}]}));});

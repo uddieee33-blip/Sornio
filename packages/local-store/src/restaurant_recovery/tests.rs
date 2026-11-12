@@ -58,3 +58,18 @@ fn preparation_refusal_is_durable_and_can_correct_allocations(){
  assert!(s.prepare_restaurant(Prepare{order_id:"order2".into(),expected_revision:2,operation_id:"bad-allocation".into(),tax_basis_points:0,customer_id:None,payments:vec![part(1)]}).is_err());
  let c=s.restaurant_status("order2").unwrap().unwrap();assert_eq!(c.phase,"refused");assert_eq!(c.parent_id,"bad-allocation");assert!(s.restaurant_recover("order2","bad-allocation").is_err());
 }
+#[test]
+fn paid_tickets_finish_without_reopening_checkout_or_occupying_the_table(){
+ let d=tempfile::tempdir().unwrap();let mut s=seed(&d.path().join("paid-kitchen.db"));
+ s.restaurant_recover("order","original").unwrap_err();let c=s.restaurant_status("order").unwrap().unwrap();s.amend_restaurant(correction(c.revision)).unwrap();s.restaurant_recover("order","corrected").unwrap();
+ assert_eq!(s.paid_kitchen().unwrap().as_array().unwrap().len(),1);
+ s.restaurant_action(Request{operation_id:"new-guests-op".into(),action:Action::OpenOrder{id:"new-guests".into(),table_id:Some("table".into())}}).unwrap();
+ let before=s.0.query_row("SELECT revision FROM local_restaurant_orders WHERE id='order'",[],|q|q.get::<_,i64>(0)).unwrap();
+ for (n,state) in ["preparing","ready","served"].iter().enumerate(){let r=Request{operation_id:format!("paid-kitchen-{n}"),action:Action::SetTicketState{id:"kot".into(),expected_revision:n as i64+1,state:(*state).into()}};s.restaurant_action(r.clone()).unwrap();s.restaurant_action(r).unwrap();}
+ assert!(s.paid_kitchen().unwrap().as_array().unwrap().is_empty());
+ assert_eq!(s.0.query_row("SELECT revision FROM local_restaurant_orders WHERE id='order'",[],|q|q.get::<_,i64>(0)).unwrap(),before);
+ assert_eq!(s.0.query_row("SELECT count(*) FROM local_invoices",[],|q|q.get::<_,i64>(0)).unwrap(),1);
+ assert_eq!(s.0.query_row("SELECT stock_milli FROM local_products WHERE id='pizza'",[],|q|q.get::<_,i64>(0)).unwrap(),0);
+ assert_eq!(s.0.query_row("SELECT id FROM local_restaurant_orders WHERE table_id='table' AND settled_invoice IS NULL",[],|q|q.get::<_,String>(0)).unwrap(),"new-guests");
+ assert!(s.amend_restaurant(correction(1)).is_err());
+}
