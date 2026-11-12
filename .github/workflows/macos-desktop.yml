@@ -142,7 +142,7 @@ jobs:
             # whole database snapshot, which is what pushed the drift test's own
             # message past the per-annotation cap and made it look like an
             # unlisted-table failure.
-            awk '/^failures:$/{f=1} f' "$log.clean" | head -250 > /tmp/macos-failures.txt || true
+            awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | head -250 > /tmp/macos-failures.txt || true
             split -b 3000 -a 3 /tmp/macos-failures.txt /tmp/macos-part- || true
             for part in /tmp/macos-part-*; do
               [ -f "$part" ] || continue
@@ -187,7 +187,7 @@ jobs:
             # whole database snapshot, which is what pushed the drift test's own
             # message past the per-annotation cap and made it look like an
             # unlisted-table failure.
-            awk '/^failures:$/{f=1} f' "$log.clean" | head -250 > /tmp/macos-rel-failures.txt || true
+            awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | head -250 > /tmp/macos-rel-failures.txt || true
             split -b 3000 -a 3 /tmp/macos-rel-failures.txt /tmp/macos-rel-part- || true
             for part in /tmp/macos-rel-part-*; do
               [ -f "$part" ] || continue

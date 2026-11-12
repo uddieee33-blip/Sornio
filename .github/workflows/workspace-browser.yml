@@ -96,7 +96,7 @@ jobs:
               # Phase 19B run reported only the first 4096 bytes of panic text,
               # which hid two distinct failures. Emitting several smaller
               # annotations keeps every failing assertion in the check record.
-              awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -400 > "/tmp/$profile-failures.txt" || true
+              awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | grep -vE '^test .* ok$' | head -400 > "/tmp/$profile-failures.txt" || true
               split -b 3000 -a 3 "/tmp/$profile-failures.txt" "/tmp/$profile-part-" || true
               for part in /tmp/"$profile"-part-*; do
                 [ -f "$part" ] || continue

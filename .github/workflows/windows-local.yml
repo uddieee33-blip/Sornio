@@ -108,7 +108,7 @@ jobs:
               | sed 's/^/::error::failing tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
               | sed 's/^/::error::compiler errors: /' || true
-            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | cut -c1-400 | head -120 | esc; } \
               | sed 's/^/::error::failure details: /' || true
             { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /' || true
           fi
@@ -141,7 +141,7 @@ jobs:
               | sed 's/^/::error::failing debug-profile tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
               | sed 's/^/::error::compiler errors (debug): /' || true
-            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | cut -c1-400 | head -120 | esc; } \
               | sed 's/^/::error::debug failure details: /' || true
             { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /' || true
           fi
