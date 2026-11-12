@@ -1,3 +1,4 @@
+import { RestaurantScreen } from './RestaurantScreen';
 import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { formatInr, vocabularyFor } from '@sornio/mobile-contracts';
 import { space } from '@sornio/mobile-design';
@@ -10,6 +11,7 @@ export function HomeScreen() {
   const { snapshot, sync, session } = useCompanion();
   const { palette } = useTheme();
   const { width } = useWindowDimensions();
+  if(snapshot?.portalId==='cafe')return <RestaurantScreen/>;
   if (!snapshot || !session) {
     return (
       <View style={styles.pad}>
