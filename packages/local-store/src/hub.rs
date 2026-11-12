@@ -16,11 +16,14 @@ pub struct Line{pub menu_id:String,pub quantity:i64,pub expected_price_paise:i64
 #[derive(Deserialize,Serialize)]
 #[serde(rename_all="camelCase",deny_unknown_fields)]
 pub struct Submit{pub version:u32,pub hub_id:String,pub business_id:String,pub operation_id:String,pub actor_id:String,pub order_id:String,pub table_id:Option<String>,pub expected_revision:i64,pub items:Vec<Line>}
+#[derive(Deserialize,Serialize)]
+#[serde(rename_all="camelCase",deny_unknown_fields)]
+pub struct KitchenSubmit{pub version:u32,pub hub_id:String,pub business_id:String,pub actor_id:String,pub operation_id:String,pub ticket_id:String,pub expected_revision:i64,pub state:String}
 fn refusal(reason:&str,revision:Option<i64>)->Value{json!({"status":"refused","reason":reason,"revision":revision})}
 impl Store{
  pub(crate) fn hub_identity(&self)->Result<Value,StoreError>{
   let (id,name,business):(String,String,String)=self.0.query_row("SELECT h.id,i.business_name,i.business_id FROM local_hub_config h CROSS JOIN local_identity i WHERE i.singleton=1",[],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?)))?;
-  Ok(json!({"version":1,"hubId":id,"businessId":business,"businessName":name}))
+  Ok(json!({"version":1,"hubId":id,"businessId":business,"businessName":name,"capabilities":["kitchen.transitions.v1"]}))
  }
  pub(crate) fn hub_configure(&mut self,enabled:bool,tls:Option<(String,String)>)->Result<(),StoreError>{let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;identity::verify(&tx,self.1.as_ref().ok_or(StoreError::Locked)?,Permission::Settings)?;
   if let Some((cert,key))=tls{tx.execute("UPDATE local_hub_config SET certificate=?1,private_key=?2 WHERE singleton=1",params![cert,key])?;}
@@ -82,6 +85,22 @@ impl Store{
   let result=match accept(&tx,&self.1,&r){Ok(v)=>v,Err(e)=>{tx.execute_batch("ROLLBACK TO hub_accept")?;match e{StoreError::Conflict|StoreError::OperationConflict=>refusal("revision_conflict",tx.query_row("SELECT revision FROM local_restaurant_orders WHERE id=?1",[&r.order_id],|q|q.get(0)).optional()?),StoreError::InvalidProduct|StoreError::InvalidDraft=>refusal("menu_or_quantity_invalid",None),StoreError::StockConflict=>refusal("price_changed_review_required",None),StoreError::CheckoutActive=>refusal("checkout_active",None),StoreError::Forbidden=>refusal("assigned_to_other_staff",None),_=>return Err(e)}}};tx.execute_batch("RELEASE hub_accept")?;
   tx.execute("INSERT INTO local_hub_operations VALUES(?1,?2,?3,?4,?5,?6,?7)",params![r.operation_id,device,s.actor_id,s.generation,raw,result.to_string(),now()?])?;
   identity::guard(&tx,&self.1,Permission::Sell,"hub.order_result",Some(&r.operation_id))?;tx.execute("UPDATE local_hub_devices SET last_seen=?1 WHERE id=?2",params![now()?,device])?;tx.commit()?;Ok(result)
+ }
+ pub(crate) fn hub_kitchen(&mut self,device:&str,r:KitchenSubmit,token:&str)->Result<Value,StoreError>{
+  if r.version!=1||!crate::billing::valid_id(&r.operation_id)||!crate::billing::valid_id(&r.ticket_id){return Err(StoreError::InvalidDraft);}
+  let raw=serde_json::to_string(&r)?;let tx=self.0.transaction_with_behavior(TransactionBehavior::Immediate)?;let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&tx,s,Permission::Sell)?;
+  if !tx.query_row("SELECT EXISTS(SELECT 1 FROM local_hub_sessions hs JOIN local_hub_devices d ON d.id=hs.device_id WHERE hs.token_hash=?1 AND hs.device_id=?2 AND hs.actor_id=?3 AND hs.actor_revision=?4 AND hs.expires>?5 AND d.expires>?5 AND d.state='approved' AND d.revision=hs.device_revision AND d.generation=hs.generation AND d.generation=?6 AND d.actor_id=hs.actor_id)",params![hash(token),device,s.actor_id,s.revision,now()?,s.generation],|q|q.get::<_,bool>(0))?{return Err(StoreError::Forbidden);}
+  if r.actor_id!=s.actor_id||r.business_id!=s.scope.business_id||r.hub_id!=tx.query_row("SELECT id FROM local_hub_config",[],|q|q.get::<_,String>(0))?{return Err(StoreError::WorkspaceMismatch);}
+  let old:Option<(String,String,String,String,String)>=tx.query_row("SELECT device_id,actor_id,generation,request,result FROM local_hub_operations WHERE id=?1",[&r.operation_id],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?,q.get(3)?,q.get(4)?))).optional()?;
+  if let Some((d,a,g,previous,result))=old{if d!=device||a!=s.actor_id||g!=s.generation||previous!=raw{return Err(StoreError::OperationConflict);}return Ok(serde_json::from_str(&result)?);}
+  if tx.query_row("SELECT EXISTS(SELECT 1 FROM local_restaurant_events WHERE operation_id=?1)",[&r.operation_id],|q|q.get::<_,bool>(0))?{return Err(StoreError::OperationConflict);}
+  tx.execute_batch("SAVEPOINT hub_kitchen")?;
+  let result=match crate::restaurant::transition_ticket(&tx,&self.1,&r.ticket_id,r.expected_revision,&r.state){
+   Ok((order,revision))=>{let event=crate::restaurant::Request{operation_id:r.operation_id.clone(),action:crate::restaurant::Action::SetTicketState{id:r.ticket_id.clone(),expected_revision:r.expected_revision,state:r.state.clone()}};tx.execute("INSERT INTO local_restaurant_events(operation_id,actor_id,request) VALUES(?1,?2,?3)",params![r.operation_id,s.actor_id,serde_json::to_string(&event)?])?;json!({"status":"accepted","kind":"kitchen_state","operationId":r.operation_id,"ticketId":r.ticket_id,"orderId":order,"revision":revision,"state":r.state})},
+   Err(error)=>{tx.execute_batch("ROLLBACK TO hub_kitchen")?;let reason=match error{StoreError::Conflict=>"revision_conflict",StoreError::InvalidDraft|StoreError::InvalidInvoice=>"transition_refused",StoreError::Forbidden=>"assigned_to_other_staff",StoreError::CheckoutActive=>"order_closed",_=>return Err(error)};let current:Option<(i64,String)>=tx.query_row("SELECT revision,state FROM local_restaurant_tickets WHERE id=?1",[&r.ticket_id],|q|Ok((q.get(0)?,q.get(1)?))).optional()?;json!({"status":"refused","kind":"kitchen_state","operationId":r.operation_id,"ticketId":r.ticket_id,"reason":reason,"revision":current.as_ref().map(|x|x.0),"state":current.map(|x|x.1)})}
+  };tx.execute_batch("RELEASE hub_kitchen")?;
+  tx.execute("INSERT INTO local_hub_operations VALUES(?1,?2,?3,?4,?5,?6,?7)",params![r.operation_id,device,s.actor_id,s.generation,raw,result.to_string(),now()?])?;
+  identity::guard(&tx,&self.1,Permission::Sell,"hub.kitchen_result",Some(&r.operation_id))?;tx.execute("UPDATE local_hub_devices SET last_seen=?1 WHERE id=?2",params![now()?,device])?;tx.commit()?;Ok(result)
  }
  pub(crate) fn hub_operation(&self,device:&str,id:&str)->Result<Value,StoreError>{let s=self.1.as_ref().ok_or(StoreError::Locked)?;identity::verify(&self.0,s,Permission::Sell)?;
   let result:Option<String>=self.0.query_row("SELECT result FROM local_hub_operations WHERE id=?1 AND device_id=?2 AND actor_id=?3 AND generation=?4",params![id,device,s.actor_id,s.generation],|q|q.get(0)).optional()?;

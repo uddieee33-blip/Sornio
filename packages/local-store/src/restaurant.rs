@@ -63,7 +63,7 @@ impl Store {
             Action::OpenOrder{id:key,table_id} => { id(key)?; if let Some(table)=table_id { id(table)?; if !tx.query_row("SELECT EXISTS(SELECT 1 FROM local_restaurant_tables WHERE id=?1 AND active=1)",[table],|r|r.get::<_,bool>(0))? { return Err(StoreError::InvalidInvoice); } } changed(tx.execute("INSERT INTO local_restaurant_orders(id,table_id,kind,state,revision) VALUES(?1,?2,?3,'open',1)",params![key,table_id,if table_id.is_some(){"dine_in"}else{"takeaway"}])?)?; }
             Action::MoveOrder{id:key,expected_revision,table_id} => { id(key)?; id(table_id)?; changed(tx.execute("UPDATE local_restaurant_orders SET table_id=?1,revision=revision+1 WHERE id=?2 AND revision=?3 AND kind='dine_in' AND state='open' AND EXISTS(SELECT 1 FROM local_restaurant_tables WHERE id=?1 AND active=1)",params![table_id,key,expected_revision])?)?; }
             Action::SendTicket{id:key,order_id,expected_revision,items} => { id(key)?;id(order_id)?;if items.is_empty() || items.len()>50 || items.iter().any(|i| !label(&i.name,120) || !(1..=1000).contains(&i.quantity) || i.note.chars().count()>200 || i.note.chars().any(char::is_control)) { return Err(StoreError::InvalidInvoice); } changed(tx.execute("UPDATE local_restaurant_orders SET revision=revision+1 WHERE id=?1 AND revision=?2 AND state='open'",params![order_id,expected_revision])?)?; changed(tx.execute("INSERT INTO local_restaurant_tickets VALUES(?1,?2,?3,'pending',1)",params![key,order_id,serde_json::to_string(&priced_items(&tx,items)?)?])?)?; }
-            Action::SetTicketState{id:key,expected_revision,state} => { id(key)?;let order:String=tx.query_row("SELECT order_id FROM local_restaurant_tickets WHERE id=?1",[key],|q|q.get(0))?;crate::kitchen::authorize_order(&tx,&self.1,&order)?; if !matches!(state.as_str(),"preparing"|"ready"|"served") { return Err(StoreError::InvalidInvoice); } changed(tx.execute("UPDATE local_restaurant_tickets SET state=?1,revision=revision+1 WHERE id=?2 AND revision=?3 AND ((state='pending' AND ?1='preparing') OR (state='preparing' AND ?1='ready') OR (state='ready' AND ?1='served')) AND EXISTS(SELECT 1 FROM local_restaurant_orders WHERE id=order_id AND state IN ('open','pending_bill'))",params![state,key,expected_revision])?)?; }
+            Action::SetTicketState{id:key,expected_revision,state} => { transition_ticket(&tx,&self.1,key,*expected_revision,state)?; }
             Action::RequestBill{id:key,expected_revision} => { id(key)?; changed(tx.execute("UPDATE local_restaurant_orders SET state='pending_bill',revision=revision+1 WHERE id=?1 AND revision=?2 AND state='open'",params![key,expected_revision])?)?; }
             Action::CancelOrder{id:key,expected_revision} => { id(key)?; identity::verify(&tx,session,Permission::Settings)?; changed(tx.execute("UPDATE local_restaurant_orders SET state='cancelled',revision=revision+1 WHERE id=?1 AND revision=?2 AND state IN ('open','pending_bill')",params![key,expected_revision])?)?; }
         }
@@ -79,4 +79,20 @@ fn priced_items(tx:&Transaction<'_>,items:&[Item])->Result<Vec<Item>,StoreError>
   let (price,name):(i64,String)=tx.query_row("SELECT p.unit_price_paise,m.label || CASE WHEN m.variant='' THEN '' ELSE ' / ' || m.variant END FROM local_products p JOIN local_restaurant_menu m ON m.product_id=p.id WHERE p.id=?1 AND m.available=1 ORDER BY m.id LIMIT 1",[product],|q|Ok((q.get(0)?,q.get(1)?)))?;
   result.push(Item{name,quantity:i.quantity,note:i.note.clone(),product_id:Some(product.into()),unit_price_paise:Some(price)});
  }Ok(result)
+}
+
+/// One authoritative operational transition shared by desktop and authenticated LAN.
+/// It changes neither order items/revisions nor money, stock, debt or table ownership.
+pub(crate) fn transition_ticket(tx:&Transaction<'_>,session:&Option<crate::identity::Session>,ticket:&str,expected:i64,next:&str)->Result<(String,i64),StoreError>{
+ id(ticket)?;let actor=session.as_ref().ok_or(StoreError::Locked)?;identity::verify(tx,actor,Permission::Sell)?;
+ if expected<1||!matches!(next,"preparing"|"ready"|"served"){return Err(StoreError::InvalidDraft);}
+ let row:Option<(String,String,i64,String,Option<String>)>=tx.query_row("SELECT t.order_id,t.state,t.revision,o.state,o.settled_invoice FROM local_restaurant_tickets t JOIN local_restaurant_orders o ON o.id=t.order_id WHERE t.id=?1",[ticket],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?,q.get(3)?,q.get(4)?))).optional()?;
+ let (order,state,revision,order_state,invoice)=row.ok_or(StoreError::InvalidDraft)?;
+ crate::kitchen::authorize_order(tx,session,&order)?;
+ if revision!=expected{return Err(StoreError::Conflict);}
+ if invoice.is_some()||!matches!(order_state.as_str(),"open"|"pending_bill"){return Err(StoreError::CheckoutActive);}
+ if !matches!((state.as_str(),next),("pending","preparing")|("preparing","ready")|("ready","served")){return Err(StoreError::InvalidDraft);}
+ let revision=revision.checked_add(1).ok_or(StoreError::Conflict)?;
+ if tx.execute("UPDATE local_restaurant_tickets SET state=?1,revision=?2 WHERE id=?3 AND revision=?4 AND state=?5 AND ((state='pending' AND ?1='preparing') OR (state='preparing' AND ?1='ready') OR (state='ready' AND ?1='served')) AND EXISTS(SELECT 1 FROM local_restaurant_orders WHERE id=local_restaurant_tickets.order_id AND state IN ('open','pending_bill') AND settled_invoice IS NULL)",params![next,revision,ticket,expected,state])?!=1{return Err(StoreError::Conflict);}
+ Ok((order,revision))
 }

@@ -1039,6 +1039,7 @@ impl Workspace {
    let (session,device)=self.store.hub_authenticate(bearer)?;self.store.1=Some(session);
    match path{
     "/v1/workspace"=>self.store.restaurant_workspace(),
+    "/v1/kitchen-state"=>{let r=serde_json::from_value(body)?;self.store.hub_kitchen(&device,r,bearer)},
     "/v1/submit"=>{let r=serde_json::from_value(body)?;self.store.hub_submit(&device,r,bearer)},
     "/v1/operation"=>self.store.hub_operation(&device,body["operationId"].as_str().ok_or(StoreError::InvalidDraft)?),
     _=>Err(StoreError::Forbidden)
