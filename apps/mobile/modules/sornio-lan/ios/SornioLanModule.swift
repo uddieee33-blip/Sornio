@@ -1,7 +1,22 @@
 import ExpoModulesCore
 import Foundation
 
-public final class SornioLanModule: Module, NetServiceBrowserDelegate, NetServiceDelegate {
+// `NetServiceBrowserDelegate` and `NetServiceDelegate` are `@objc` protocols, and
+// Swift only lets a class conform to those if it inherits `NSObject`. Without it
+// the Swift compiler rejects the declaration outright:
+//
+//   error: cannot declare conformance to 'NSObjectProtocol' in Swift;
+//   'SornioLanModule' should inherit 'NSObject' instead
+//
+// `ExpoModulesCore.Module` is not an NSObject subclass, so the conformance has to
+// be earned here. This module had never been compiled: the iOS simulator job did
+// not exist for the stacked Phase 18 PRs, and the failure blocked the whole Pods
+// target, taking the app build with it.
+//
+// `NSObject` must be listed first — Swift requires the superclass before any
+// protocol in the inheritance clause — and `Module` follows so the Expo module
+// definition and lifecycle still come from it.
+public final class SornioLanModule: NSObject, Module, NetServiceBrowserDelegate, NetServiceDelegate {
   private var browser: NetServiceBrowser?
   private var services: [String: NetService] = [:]
   public func definition() -> ModuleDefinition {
