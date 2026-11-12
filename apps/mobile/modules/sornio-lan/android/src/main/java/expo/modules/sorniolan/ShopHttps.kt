@@ -18,7 +18,7 @@ import javax.net.ssl.SSLPeerUnverifiedException
 import java.io.IOException
 
 internal object ShopHttps {
-  private val routes = setOf("/v1/identity", "/v1/enrol", "/v1/session", "/v1/workspace", "/v1/submit", "/v1/operation", "/v1/kitchen-state","/v1/kitchen-history","/v1/kitchen-assign","/v1/assignment-operation","/v1/staff-responsibility","/v1/staff-access")
+  private val routes = setOf("/v1/identity", "/v1/enrol", "/v1/session", "/v1/workspace", "/v1/submit", "/v1/operation", "/v1/kitchen-state","/v1/kitchen-history","/v1/kitchen-assign","/v1/assignment-operation","/v1/staff-responsibility","/v1/staff-access","/v1/session-signout")
   private fun digest(bytes: ByteArray) = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it.toInt() and 255) }
   private fun failure(code: String): CodedException = CodedException(code, "Sornio secure connection could not be confirmed.", null)
   private class ChangedCertificate : IOException()
