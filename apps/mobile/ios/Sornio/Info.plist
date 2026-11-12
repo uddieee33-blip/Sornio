@@ -40,6 +40,8 @@
     <string>12.0</string>
     <key>LSRequiresIPhoneOS</key>
     <true/>
+    <key>NSBonjourServices</key>
+    <array><string>_sornio._tcp</string></array>
     <key>NSLocalNetworkUsageDescription</key>
     <string>Connect to the shop’s approved Sornio HTTPS hub to submit restaurant orders on the local network.</string>
     <key>NSAppTransportSecurity</key>
