@@ -1042,6 +1042,7 @@ impl Workspace {
     "/v1/kitchen-assign"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.responsibility.is_some(){return Err(StoreError::Forbidden);}self.store.assignment_execute(&device,r,Some(bearer))},
     "/v1/staff-responsibility"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.responsibility.is_none(){return Err(StoreError::InvalidDraft);}self.store.assignment_execute(&device,r,Some(bearer))},
     "/v1/assignment-operation"=>self.store.assignment_status(&format!("lan:{device}"),body["operationId"].as_str().ok_or(StoreError::InvalidDraft)?),
+    "/v1/staff-access"=>self.store.staff_access(serde_json::from_value(body["query"].clone())?),
     "/v1/kitchen-history"=>self.store.kitchen_history(serde_json::from_value(body["query"].clone())?),
     "/v1/workspace"=>self.store.restaurant_workspace(),
     "/v1/kitchen-state"=>{let r=serde_json::from_value(body)?;self.store.hub_kitchen(&device,r,bearer)},
