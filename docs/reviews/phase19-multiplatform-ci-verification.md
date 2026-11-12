@@ -135,11 +135,28 @@ Do **not** relax `--locked` to make this green. That would trade a caught defect
 | Source | `arena/1b1cac28-sornio` @ `af031dd`; run inspected @ `2e6a643` |
 | Environment | `windows-latest`, x86_64, Strawberry Perl selected for vendored OpenSSL |
 | Build | Frontend **PASS** (`tsc --noEmit` then `vite build`); native build **BLOCKED** |
-| Tests | **NOT RUN** — native step stopped on the lockfile error above |
+| Tests | **NOT RUN** — native step stopped on the stale lockfile (§6, blocker 1) |
 | Artifacts | none produced |
 | Limitations | installer, installed-app startup, uninstall/reinstall preservation: **NOT VERIFIED** |
 
-Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43273212555 (job `local-windows`).
+Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43284416636 (job `local-windows`), plus the earlier https://github.com/uddieee33-blip/Sornio/actions/runs/43273212555.
+
+Latest result on `1254310`: `tsc --noEmit` and `vite build` **PASS**, then:
+
+```
+error: cannot update the lock file D:\a\Sornio\Sornio\packages\local-store\Cargo.lock
+because --locked was passed to prevent this
+```
+
+That is the lockfile defect appearing on the *second* crate set as well —
+`packages/local-store` resolves differently on Windows than on Linux because
+its `keyring`/`fs2`/`zeroize` dependencies are declared under
+`[target.'cfg(windows)'.dependencies]`. Fixing `apps/desktop/src-tauri` alone
+will not be enough; `packages/local-store/Cargo.lock` must be regenerated with
+the Windows target in play (a Windows or cross-target `cargo generate-lockfile`).
+This is now the single highest-value unblock in the whole matrix: it stops
+Windows native tests, the Windows installer, macOS native tests and the
+PostgreSQL native exporter, on four separate runners.
 
 Two genuine defects were found and fixed on the way: first, `apps/desktop` had a real type error (`'pending' is possibly 'null'` — my own ref→state conversion) that the Windows job reported as "Build bundled frontend failed"; `tsc --noEmit` and `vite build` are now separate steps. Second, the run then failed inside `cargo test --locked` with `cannot update the lock file … because --locked was passed` — the same stale-lockfile defect, and the first time it has been attributed to the right cause.
 
@@ -149,18 +166,23 @@ Two genuine defects were found and fixed on the way: first, `apps/desktop` had a
 
 | Field | Value |
 | --- | --- |
-| Source | `arena/1b1cac28-sornio` @ `af031dd` |
-| Environment | **BLOCKED — no runner assigned** |
-| Build | **NOT RUN** |
-| Tests | **NOT RUN** |
-| Artifacts | none |
-| Limitations | everything: Tauri compile, native tests, `.app`, keychain behaviour |
+| Source | `arena/1b1cac28-sornio` @ `1254310` |
+| Environment | macOS runner (`macos-latest`), toolchain recorded by the job |
+| Build | Frontend **PASS**; native **BLOCKED** at `Native tests (debug profile)` |
+| Tests | **did not run** — stopped by the stale lockfile (§6, blocker 1) |
+| Artifacts | unsigned `.app`, if the bundle step passes |
+| Limitations | **no signing, no notarization**; an unsigned `.app` is partial engineering evidence and is not a distributable macOS release |
 
-There was **no macOS desktop workflow in the repository at all** before this phase: `desktop:build:macos` and `src-tauri/tauri.macos.conf.json` existed and were never exercised. `macos-desktop.yml` was added (native debug + release tests, frontend build, unsigned `.app`, signing state recorded rather than faked).
+There was **no macOS desktop workflow in the repository at all** before this phase: `desktop:build:macos` and `src-tauri/tauri.macos.conf.json` existed and had never been exercised.
 
-It does not currently run: three attempts on `macos-14` and one on `macos-latest` were cancelled in 1 s with **no runner ever assigned** (`runner_name: ""`, zero steps), and unlike other workflows no check-run is created on commits containing the file. A second macOS job (`mobile.yml` → `iOS simulator compile`) *does* get a runner on the same account and reaches `xcodebuild`, so macOS capacity exists. This specific workflow is not being scheduled. **BLOCKED**, cause not attributable from the outside; the smallest next action is to re-dispatch it from the Actions UI (`workflow_dispatch`) and, if it stays cancelled, raise it with GitHub support quoting run `43273202460`.
+Getting it to run at all took five attempts, and the reason was not runner capacity:
 
-An unsigned `.app` would anyway be partial evidence only. Signing and notarization are **not** claimed.
+* four runs on `macos-14` were cancelled with zero steps and no runner assigned;
+* switching to `macos-latest` did not help, which was the clue;
+* the actual cause was a malformed file — an edit had removed a step's `run:` body while leaving its `- name:` behind, so one step had neither `run` nor `uses`. **GitHub rejects the entire workflow for that**, and because the file only declares `pull_request`/`workflow_dispatch`, the rejection surfaced as a `push`-event failure with an empty job list (`total_count: 0`) and no check-run, which reads exactly like "no runner available".
+* `1254310` removes the empty step. The workflow now schedules and the job is assigned a runner.
+
+That a second macOS job (`iOS simulator compile`) was getting a runner all along is what ruled out capacity.
 
 ### 3.4 Android
 
@@ -181,22 +203,22 @@ Runs: https://github.com/uddieee33-blip/Sornio/actions/runs/43270253648 (review 
 
 | Field | Value |
 | --- | --- |
-| Source | `arena/1b1cac28-sornio` @ `af031dd` |
-| Environment | macOS runner, `xcodebuild` with `-sdk iphonesimulator`, x86_64 slice (`normal x86_64` in the failing command list) |
-| Build | **FAILED → fixed → re-running** |
-| Tests | contract/typecheck/secret-scan **PASS**; simulator compile has not yet succeeded |
-| Limitations | exact Xcode/SDK version now recorded by the job; **no simulator interaction tests exist**, and no physical-device acceptance is claimed |
+| Source | `arena/1b1cac28-sornio` @ `5815b0b` |
+| Environment | macOS runner `GitHub Actions 1000001438`, **Xcode 26.6**, **iOS Simulator SDK 26.5** (`-sdk iphonesimulator26.5`) |
+| Build | **PASS** — `expo prebuild --platform ios`, `pod install`, then `xcodebuild -workspace Sornio.xcworkspace -scheme Sornio -configuration Debug -sdk iphonesimulator -destination 'generic/platform=iOS Simulator' CODE_SIGNING_ALLOWED=NO … build` |
+| Tests | companion contract tests (63 checks), contracts typecheck, companion typecheck, secret scan — all **PASS**; no simulator interaction tests exist |
+| Artifacts | build products only (unsigned, simulator slice); no distributable artifact |
+| Limitations | simulator compile only. **No physical iPhone acceptance**, no runtime/IPC exercise of the Bonjour module |
 
-Real defect, found by execution and invisible to every static gate:
+Run: https://github.com/uddieee33-blip/Sornio/actions/runs/43279979056 — `iOS simulator compile` **success**.
 
-```
-apps/mobile/modules/sornio-lan/ios/SornioLanModule.swift:4:20: error:
-cannot declare conformance to 'NSObjectProtocol' in Swift;
-'SornioLanModule' should inherit 'NSObject' instead
-** BUILD FAILED **  (exit 65)
-```
+Three defects were found here, each only visible by executing:
 
-`SornioLanModule` conforms to the `@objc` protocols `NetServiceBrowserDelegate`/`NetServiceDelegate`, which Swift only permits on an `NSObject` subclass; `ExpoModulesCore.Module` is not one. The Pods target failed to emit, so the app build failed with it. Fixed in `af031dd` by declaring `NSObject` first. **Re-run is the evidence; this document does not certify it before that run finishes.**
+1. `error: cannot declare conformance to 'NSObjectProtocol' in Swift; 'SornioLanModule' should inherit 'NSObject' instead` — the class conformed to `@objc` delegates without an `NSObject` base.
+2. The first fix (`NSObject` added to the class) was rejected: `error: multiple inheritance from classes 'NSObject' and 'BaseModule'` and `error: type 'SornioLanModule' does not conform to protocol 'AnyModule'` — `ExpoModulesCore.Module` already inherits `NSObject` through `BaseModule`.
+3. The correct shape, in `5815b0b`: the delegate conformance lives on a private `LanDiscovery: NSObject` helper that owns the browser and service table and reports through closures. The module keeps its definition, events and lifetime, and the JS-visible API (`startDiscovery`, `stopDiscovery`, `probe`, `request`, `onService`, `onDiscoveryStatus`) is unchanged.
+
+**No functional regression was introduced to make this compile** — nothing was deleted or stubbed; the discovery logic moved.
 
 ### 3.6 iPadOS
 
@@ -224,6 +246,8 @@ cannot declare conformance to 'NSObjectProtocol' in Swift;
 | rustfmt (workspace-browser) | exit 1, no diff shown | annotation exceeded the 65 535-byte cap and was discarded | **FIXED** (capped at 60 KB + file list); the underlying minified Rust formatting is **still unformatted** and the step still fails |
 | Dependency audit | exit 1, no detail | `cargo audit` output never surfaced | step now annotates the advisory; the audit itself still fails — see §6 |
 | Android artifact | `409 Conflict` | duplicate upload step | **FIXED**, job now green |
+| macOS desktop job | 5 runs, zero jobs, no check-run | a step with `name` but neither `run` nor `uses` invalidates the whole workflow; the rejection surfaces as a bare `push`-event failure | **FIXED**; job now runs on a real runner |
+| iOS `NSObjectProtocol` | first fix rejected: multiple inheritance `NSObject` + `BaseModule` | `Module` already inherits `NSObject` | **FIXED** in `5815b0b`; iOS now **PASSES** |
 
 ---
 
@@ -237,7 +261,10 @@ All on `arena/1b1cac28-sornio`, in review as draft PR #182. No merge, no release
 `2e6a643` — macOS job on `macos-latest` and off rustfmt; iOS records Xcode/SDK and annotates build errors; rustfmt annotation capped.
 `af031dd` — `NSObject` base class for the iOS LAN module; `verify-cargo-lock` runs early in the replication job.
 `fd9dd3e` — this report.
-(next) `verify:cargo-lock` becomes its own gate (`verify:cargo-lock`), run early in CI's verify job and in the replication job, instead of being chained into `verify:lock`. Chaining it there stopped the other 24 gates from running at all, which trades one failing check for 24 unexecuted ones — the opposite of the point.
+`fd9dd3e` — this report (first draft).
+`569e380` — `verify:cargo-lock` becomes its own gate, run early in CI's verify job and in the replication job, instead of being chained into `verify:lock`. Chaining it there stopped the other 24 gates from running at all: one failing check instead of 24 executed ones, which is the opposite of the point.
+`5815b0b` — the Bonjour delegate conformance moves to a private `LanDiscovery` helper after `NSObject` on the module was rejected as multiple inheritance.
+`1254310` — removes the empty workflow step that made GitHub reject `macos-desktop.yml` outright.
 
 ### On the i18n repair
 
@@ -253,7 +280,15 @@ No assertion was deleted, no rule disabled, no test removed, no `--no-verify`, n
 
 ## 6. Remaining blockers
 
-1. **Stale `apps/desktop/src-tauri/Cargo.lock`** — blocks every native Rust suite on every platform, the Windows installer, and the PostgreSQL native exporter. One `cargo generate-lockfile` with crates.io access, then commit. `scripts/verify-cargo-lock.mjs` exists so this cannot recur silently; it fails today, deliberately.
+1. **Stale native lockfiles — the single highest-value unblock.** `apps/desktop/src-tauri/Cargo.lock` is missing `rustls`, `rustls-pemfile`, `mdns-sd` (three LAN-hub phases never re-locked), *and* `packages/local-store/Cargo.lock` does not resolve on Windows, where `keyring`/`fs2`/`zeroize` are declared under `[target.'cfg(windows)'.dependencies]`. This one defect blocks **four** runners: Windows native tests and installer, macOS native tests and `.app`, the PostgreSQL native exporter, and the SQLCipher/encryption suites that are the core of an offline-first POS.
+
+   ```bash
+   cargo generate-lockfile --manifest-path apps/desktop/src-tauri/Cargo.toml
+   cargo generate-lockfile --manifest-path packages/local-store/Cargo.toml   # with a Windows/cross target in play
+   git add packages/local-store/Cargo.lock apps/desktop/src-tauri/Cargo.lock
+   ```
+
+   `scripts/verify-cargo-lock.mjs` now exists so a stale lock cannot recur silently; it fails today, deliberately, and names the manifest and the crates.
 2. **`cargo audit` failure** — the audit job still exits 1 and its findings cannot be read from here: raw job logs are served from `productionresultssa*.blob.core.windows.net`, which this sandbox cannot reach (TLS connection closed), and check-run annotations carried only "exit code 1". Both lockfiles show **no** matching advisory from the GitHub Advisory Database (4 180 Rust advisories cross-checked against 107 + 451 locked packages, including `tokio 1.54.1` which is past GHSA-5wjr-9356-4wc8). The remaining explanations — an advisory newer than the database snapshot, or `cargo audit` erroring rather than reporting — are not distinguishable from the available evidence. The step now annotates the advisory, crate and fix, so the next run will say.
 3. **macOS workflow not scheduled** (§3.3) — four runs cancelled with no runner.
 4. **Rust formatting** — the repository's Rust sources are minified (build.rs command lists, per-line match arms in `hub_discovery.rs`). `cargo fmt` would reformat them; that is a large diff in code no Phase 19 test covers, so it is reported, not applied.
@@ -294,10 +329,10 @@ No assertion was deleted, no rule disabled, no test removed, no `--no-verify`, n
 | --- | --- | --- |
 | Shared web/Linux logic, money, i18n, security invariants | **GO** (evidence-backed) | `npm run verify` passes end to end locally; CI `Lint, types, build` passed on this tree; 91 domain tests, 15 native-SQL suites, 63 mobile contracts |
 | Android | **PARTIAL — build only** | two APKs built and uploaded; no emulator or device run |
-| iOS | **NO-GO** | the native LAN module did not compile; fix awaits a green re-run |
-| iPadOS | **NO-GO / UNVERIFIED** | declared in config only; no iPad build, no UI test |
-| macOS | **NO-GO — BLOCKED** | workflow never scheduled; no build evidence |
-| Windows native product | **NO-GO — BLOCKED** | native tests and installer blocked by the stale lockfile |
+| iOS | **PARTIAL — simulator compile only** | Xcode 26.6 / SDK 26.5 simulator build passes; no interaction tests, no device run; the module has never executed |
+| iPadOS | **NO-GO / UNVERIFIED** | `supportsTablet: true` is declared; no iPad destination was built, no tablet UI test exists |
+| macOS | **NO-GO — BLOCKED** | workflow now schedules and the frontend builds; native tests blocked by the lockfile, so no `.app` |
+| Windows native product | **NO-GO — BLOCKED** | frontend builds; native tests and installer blocked by the stale lockfile |
 | Replication / PostgreSQL | **BLOCKED** | concurrency job cannot reach the native tests |
 
-The stack's financial and security assertions are the strongest part of the evidence and they pass. But an offline-first POS whose Windows installer has never been built from the current tree, and whose iOS module has never compiled, is not releasable — regardless of how many Linux gates are green.
+The stack's financial and security assertions are the strongest part of the evidence and they pass. The stack is much better instrumented than it was: eleven PRs that produced zero CI runs now produce real results, three source defects that no static gate could see have been fixed, and every remaining failure names its cause. But an offline-first POS whose Windows installer has never been built from the current tree, whose native encryption tests cannot execute on four runners, and whose iPad UI has never been opened is not releasable — regardless of how many Linux gates are green.
