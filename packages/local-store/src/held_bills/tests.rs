@@ -157,9 +157,8 @@ fn held_checkout_and_completion_are_atomic_and_retry_safe() {
     // assertion is stronger than the one it replaces, not weaker: it pins the
     // amount and the tender as well as the count.
     assert_eq!(financial_state(&s), (1, 0, 1, 98750, 98750));
-    let (invoice_id, method, amount): (String, String, i64) = s
-        .0
-        .query_row(
+    let (invoice_id, method, amount): (String, String, i64) =
+        s.0.query_row(
             "SELECT invoice_id,method,amount FROM local_retail_payments",
             [],
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
