@@ -131,10 +131,21 @@ jobs:
           npm run start > /tmp/sornio-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" || true' EXIT
+          # Wait for the server to answer, and fail with its log when it does
+          # not. The old loop fell through silently after sixty seconds, so a
+          # server that never started was reported as a page-load timeout
+          # inside the acceptance script.
+          server_ready=0
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then server_ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
             sleep 1
           done
+          if [ "$server_ready" -ne 1 ]; then
+            echo "::error::the local server never became ready on port 3000."
+            tail -40 /tmp/sornio-server.log || true
+            exit 1
+          fi
           log=/tmp/sornio-browser-acceptance.log
           set +e
           NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs 2>&1 | tee "$log"
@@ -163,13 +174,29 @@ jobs:
           npm run dev --prefix apps/desktop > /tmp/sornio-desktop-server.log 2>&1 &
           desktop_pid=$!
           trap 'kill "$desktop_pid" || true' EXIT
+          # Wait for the desktop server to actually answer, and say so when it
+          # does not. The old loop fell through silently after sixty seconds,
+          # so a server that never started produced a locator timeout in the
+          # first UI check instead of "the server never came up".
+          desktop_ready=0
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:1420 > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:1420 > /dev/null; then desktop_ready=1; break; fi
+            if ! kill -0 "$desktop_pid" 2>/dev/null; then break; fi
             sleep 1
           done
+          if [ "$desktop_ready" -ne 1 ]; then
+            echo "::error::the desktop dev server never became ready on port 1420."
+            tail -40 /tmp/sornio-desktop-server.log || true
+            exit 1
+          fi
           export NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules"
           log=/tmp/sornio-desktop-checks.log
           : > "$log"
+          # Every desktop check runs even when an earlier one fails. The old
+          # loop exited on the first failure, so a single stale assertion hid
+          # every check behind it — which is how three separate copy drifts
+          # sat unnoticed behind one broken selector.
+          failed_checks=()
           run_check() {
             local name="$1"; shift
             local -a statuses
@@ -183,11 +210,12 @@ jobs:
               if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
             fi
             if [ "$code" -ne 0 ]; then
-              echo "::error::Desktop UI check $name or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
-              tail -40 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
-                | sed "s/^/::error::desktop UI check $name failed: /" || true
-              exit "$code"
+              echo "::error::desktop UI check $name failed (exit ${code})."
+              failed_checks+=("$name")
+            else
+              echo "desktop UI check $name passed"
             fi
+            return 0
           }
           run_check check-ui
           run_check check-focus
@@ -201,6 +229,13 @@ jobs:
           run_check check-statement-print http://127.0.0.1:1420 "" /tmp/sornio-screenshots/customer-statements
           run_check check-retail
           run_check check-inventory-recovery
+          if [ "${#failed_checks[@]}" -gt 0 ]; then
+            echo "::error::${#failed_checks[@]} desktop UI check(s) failed: ${failed_checks[*]}"
+            echo "::error::full desktop UI check log follows"
+            tail -200 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::desktop UI checks: /' || true
+            exit 1
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:

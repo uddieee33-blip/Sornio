@@ -21,6 +21,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--no-zygote'],
   } : {}) });
   const errors = [];
+  const throttled = [];
   async function contextFor(theme, portal, width) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
     await context.addCookies([
@@ -43,11 +44,38 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     }, { portal });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
+    page.on('response', response => {
+      // The console throttles its own clients. A throttled run sees missing
+      // data and stale screens, so it cannot prove anything about the screens
+      // it was meant to review. Record it instead of letting the run pass.
+      if (response.status() === 429) throttled.push(`${response.status()} ${response.url()}`);
+    });
     return { context, page };
   }
+  /**
+   * Navigate and wait for the console to actually be ready.
+   *
+   * The console polls its own identity and sync endpoints on a timer, so
+   * "networkidle" depends on where that poll happens to fall: it can sit
+   * waiting for the next poll, and it says nothing at all about whether the
+   * screen the reviewer is meant to see has rendered. Readiness is instead
+   * two observable application states — the route's own heading is on screen,
+   * and the console's loading placeholder has gone.
+   */
+  async function openWorkspace(page, route) {
+    await page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.locator('main#main h1').first().waitFor({ state: 'visible', timeout: 60000 });
+    // The console shows "Loading business…" in the navigation and the page
+    // body while it hydrates. Wait for every one of them to clear.
+    await page.waitForFunction(
+      () => !document.body.innerText.includes('Loading business…'),
+      undefined,
+      { timeout: 60000 },
+    );
+    await page.locator('.console-workspace').waitFor({ state: 'visible', timeout: 60000 });
+  }
   async function inspect(page, route, name) {
-    await page.goto(origin + route, { waitUntil: 'networkidle' });
-    await page.locator('.console-workspace').waitFor();
+    await openWorkspace(page, route);
     assert(new URL(page.url()).pathname === route, `Unexpected redirect from ${route}: ${page.url()}`);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert(overflow <= 1, `${name}: page overflows by ${overflow}px`);
@@ -68,7 +96,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       for (const route of ['/customers', '/products', '/billing/new']) {
         await inspect(page, route, `${route.replaceAll('/', '-')}-${width}`);
       }
-      await page.goto(origin + '/products', { waitUntil: 'networkidle' });
+      await openWorkspace(page, '/products');
       const trigger = page.getByRole('button', { name: 'Import CSV', exact: true }).first();
       await trigger.click();
       const dialog = page.getByRole('dialog', { name: 'Import CSV', exact: true });
@@ -89,7 +117,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       await context.close();
     }
     const { context, page } = await contextFor('graphite', 'general', 390);
-    await page.goto(origin + '/customers', { waitUntil: 'networkidle' });
+    await openWorkspace(page, '/customers');
     await page.getByPlaceholder('e.g. Kiran Malhotra').fill('Theme Review Customer');
     await page.getByRole('button', { name: 'Save customer', exact: true }).click();
     await page.getByText('Theme Review Customer', { exact: true }).click();
@@ -108,7 +136,9 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     const paidEnd = now + 30 * 86400;
     const wire = Buffer.from(JSON.stringify({ p: 'growth', s: now, r: paidEnd, t: 0, b: 'activation-code', f: 'local-review' })).toString('base64url');
     await billing.context.addCookies([{ name: 'dukaan.plan', value: `${wire}.${crypto.createHmac('sha256', secret).update(wire).digest('base64url')}`, url: origin, httpOnly: true }]);
-    await billing.page.goto(origin + '/subscription?plan=growth&interval=year', { waitUntil: 'networkidle' });
+    // The subscription page states its own readiness with the plan heading,
+    // so the navigation only has to get the document there.
+    await billing.page.goto(origin + '/subscription?plan=growth&interval=year', { waitUntil: 'domcontentloaded', timeout: 60000 });
     await billing.page.getByRole('heading', { name: 'You are on Growth', exact: true }).waitFor();
     assert.equal(await billing.page.getByRole('button', { name: 'Growth year', exact: true }).getAttribute('aria-pressed'), 'true');
     const paidDate = await billing.page.getByText('Paid access ends', { exact: false }).textContent();
@@ -145,7 +175,11 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     for (const [theme, width] of [['monsoon', 1440], ['graphite', 390]]) {
       const visitor = await contextFor(theme, 'general', width);
       for (const route of ['/', '/install']) {
-        await visitor.page.goto(origin + route, { waitUntil: 'networkidle' });
+        // Public pages are outside the console, so the document itself is the
+        // readiness signal; the pathname assertion below proves the marketing
+        // surface stayed separate from the workspace.
+        await visitor.page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await visitor.page.waitForLoadState('load', { timeout: 60000 });
         assert.equal(new URL(visitor.page.url()).pathname, route, 'Marketing and download pages stay separate from the workspace');
         assert(await visitor.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Public pages fit the viewport');
         await visitor.page.screenshot({ path: path.join(out, `public-${route === '/' ? 'landing' : 'install'}-${width}.png`), fullPage: true });
@@ -154,6 +188,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       await visitor.context.close();
     }
     assert.deepEqual(errors, [], 'No uncaught browser exceptions');
+    assert.deepEqual(throttled, [], `The run was rate limited by the console's own throttle (${throttled.length} responses). A throttled run cannot prove the screens work.`);
     console.log('Workspace browser acceptance passed: eight portals, responsive pages, bidirectional modal focus and subscription API transitions.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
