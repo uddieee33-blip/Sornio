@@ -1,7 +1,9 @@
 name: Workspace browser review
 on:
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
+    # Stacked Phase 13-18 draft PRs use another `feature/` branch as their base,
+    # so a `[main]`-only filter meant they produced no Windows or browser result.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', 'scripts/test-ci-logged-wrappers.py', '.github/workflows/windows-local.yml', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
@@ -46,9 +48,18 @@ jobs:
           # One annotation carries the whole diff; newlines escaped as %0A so
           # the check-run API returns it in full instead of truncating a
           # per-line annotation list.
+          #
+          # `head -c 60000` is not cosmetic. Check-run annotation messages are
+          # capped at 65535 bytes, and the Rust sources under `apps/` are
+          # minified (file lists and match arms on single long lines), so the
+          # formatting diff for one such file alone can exceed the cap — in
+          # which case GitHub rejects the annotation and the check record keeps
+          # only "Process completed with exit code 1". Truncating keeps the
+          # beginning of the diff, which is where the reviewer starts anyway.
           git diff -- packages apps \
             | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' \
-            | tr -d '\n' | sed 's/^/::error::rustfmt diff: /'
+            | tr -d '\n' | head -c 60000 | sed 's/^/::error::rustfmt diff: /'
+          echo "::error::rustfmt would reformat these files: $(git diff --name-only -- packages apps | tr '\n' ' ')"
           git checkout -- packages apps
           exit 1
       - name: Test native billing and inventory in debug and release
@@ -80,8 +91,21 @@ jobs:
                 | sed "s/^/::error::[$profile] failing tests: /" || true
               { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
                 | sed "s/^/::error::[$profile] compiler errors: /" || true
-              { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-                | sed "s/^/::error::[$profile] failure details: /" || true
+              # Chunked, not one annotation. A single annotation is capped at
+              # 65535 bytes, and an oversized one is rejected outright: the
+              # Phase 19B run reported only the first 4096 bytes of panic text,
+              # which hid two distinct failures. Emitting several smaller
+              # annotations keeps every failing assertion in the check record.
+              awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | grep -vE '^test .* ok$' | head -400 > "/tmp/$profile-failures.txt" || true
+              split -b 3000 -a 3 "/tmp/$profile-failures.txt" "/tmp/$profile-part-" || true
+              for part in /tmp/"$profile"-part-*; do
+                [ -f "$part" ] || continue
+                { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n'; } \
+                  | sed "s|^|::error file=packages/local-store/src::[$profile] failure detail: |" || true
+                # The command must end the line itself: without this, the next
+                # ::error:: token is parsed as part of this message and disappears.
+                echo
+              done
             fi
             return "$code"
           }

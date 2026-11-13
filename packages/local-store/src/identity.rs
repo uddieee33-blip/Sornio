@@ -211,7 +211,7 @@ pub(crate) fn verify(
     if !p.enabled || p.revision != session.revision {
         return Err(StoreError::Locked);
     }
-    if !crate::kitchen_staff::allows(db,&p,permission)? {
+    if !crate::kitchen_staff::allows(db, &p, permission)? {
         return Err(StoreError::Forbidden);
     }
     Ok(p)

@@ -158,15 +158,16 @@ pub(crate) fn post_into(
         return Err(StoreError::InvalidPayment);
     }
     let raw = serde_json::to_string(&request)?;
-    crate::identity::guard(
-        &tx,
-        session,
-        crate::identity::Permission::Sell,
-        "sale.posted",
-        Some(&request.operation_id),
-    )?;
-    crate::identity::checkout_actor(&tx, session)?;
-    crate::payments::invoice_id_check(tx, &request.operation_id, retail.is_some())?;
+    // The replay short-circuit has to come *before* anything that writes, or a
+    // repeated operation id is not idempotent at the database level. It used to
+    // follow `identity::guard`, which appends a `sale.posted` row unconditionally,
+    // so a retry returned the original invoice while adding an audit event that
+    // reads as a second sale. Authority is still checked first, by `verify`
+    // rather than `guard`: same permission and same session checks, including the
+    // recovery generation, but it records nothing.
+    if let Some(s) = session {
+        crate::identity::verify(&tx, s, crate::identity::Permission::Sell)?;
+    }
     let previous: Option<(String, String)> = tx
         .query_row(
             "SELECT request,payload FROM local_invoices WHERE id=?1",
@@ -181,6 +182,18 @@ pub(crate) fn post_into(
         }
         return Ok(serde_json::from_str(&payload)?);
     }
+    // Only a first, authoritative posting is audited. `guard` re-verifies the
+    // permission, which is redundant after the `verify` above but keeps this the
+    // single write path for `sale.posted`.
+    crate::identity::guard(
+        &tx,
+        session,
+        crate::identity::Permission::Sell,
+        "sale.posted",
+        Some(&request.operation_id),
+    )?;
+    crate::identity::checkout_actor(&tx, session)?;
+    crate::payments::invoice_id_check(tx, &request.operation_id, retail.is_some())?;
     crate::held_bills::guard_checkout(tx, session, &request.operation_id)?;
     let canceled: bool = tx.query_row(
         "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
@@ -872,6 +885,7 @@ mod tests {
         )
         .unwrap();
         crate::lan_authority::remove_fixture_tables(&s.0);
+        crate::schema_rollback::drop_post_v11_tables(&s.0);
         s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
         drop(s);
         let mut w = Workspace::new(Store::open(&path, KEY).unwrap());

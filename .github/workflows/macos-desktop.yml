@@ -1,0 +1,243 @@
+name: macOS desktop workspace
+
+# The product desktop app is the offline Tauri binary in `apps/desktop`, and it
+# targets macOS as well as Windows. Until this file existed there was **no**
+# macOS job anywhere in the repository: `windows-local.yml` built and acceptance
+# tested the Windows product, `mobile.yml` built the iOS companion, and nothing
+# compiled the macOS desktop product at all. `apps/desktop/package.json` already
+# carries `desktop:build:macos` and `src-tauri/tauri.macos.conf.json` already
+# declares a hardened-runtime `.app`/`.dmg` bundle, so the target was declared but
+# never exercised.
+#
+# What this proves, and what it does not:
+#   * It compiles the native store, the Rust desktop binary and the bundled
+#     frontend on macOS, and runs the native test suite in debug and release.
+#   * It produces an **unsigned** `.app`. Apple signing and notarization are not
+#     available to CI here, and the build is explicitly configured with
+#     `CODE_SIGNING_ALLOWED=NO`-equivalent settings. An unsigned build is partial
+#     engineering evidence: it is not a distributable macOS release, and this
+#     workflow must never be described as one.
+#   * MacOS Keychain-backed vault behaviour at runtime is exercised by the native
+#     tests where they cover it; a stored keychain item in a real login session is
+#     not reproducible in CI, so it is reported as unverified rather than assumed.
+
+on:
+  pull_request:
+    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/business-domain/**'
+      - 'packages/local-store/**'
+      - 'packages/replication-cloud/**'
+      - '.github/workflows/macos-desktop.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-desktop-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_TEST_THREADS: '4'
+  CARGO_BUILD_JOBS: '2'
+  NEXT_TELEMETRY_DISABLED: '1'
+
+jobs:
+  macos:
+    # `macos-latest` rather than a pinned `macos-14`: the pinned label was
+    # cancelled by GitHub with zero steps and no runner assigned on this
+    # repository, while `macos-latest` is what the iOS simulator job uses
+    # successfully. The architecture is recorded in the log instead of being
+    # assumed from the label, because "latest" moves.
+    runs-on: macos-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Record host and toolchain
+        run: |
+          uname -a
+          sw_vers
+          xcodebuild -version
+          rustc --version
+          cargo --version
+          echo "::notice::runner=$(uname -m) xcode=$(xcodebuild -version | head -1)"
+
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            apps/desktop/package-lock.json
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            packages/local-store
+            apps/desktop/src-tauri
+
+      # Rust formatting is not platform-specific, so it is checked in CI's
+      # `workspace-browser` job rather than here: duplicating it would spend the
+      # scarcest runner in the matrix on whitespace.
+      #
+      # Shared files under lib/ and packages/ resolve packages from the repo
+      # root, so the root install has to run before the desktop one.
+      - name: Install shared root dependencies
+        run: npm ci
+
+      - name: Install desktop dependencies
+        run: npm ci --prefix apps/desktop
+
+      - name: Build bundled frontend
+        run: npm run build --prefix apps/desktop
+
+      - name: Native tests (debug profile)
+        # Debug keeps integer overflow checks and debug_assert! active, which the
+        # financial and money suites rely on.
+        #
+        # This step used to `run: cargo test ...` directly, so a failure left the
+        # check record with "Process completed with exit code 101" and nothing
+        # else: the macOS job produced no annotation capture, and raw job logs are
+        # not retrievable for this repository. The failing test names are now
+        # re-emitted as annotations, matching the browser job's treatment.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          set -o pipefail
+          log=/tmp/macos-native-debug.log
+          set +e
+          cargo test --all-targets --locked \
+            --manifest-path packages/local-store/Cargo.toml \
+            --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::debug native test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::debug native tests failed (exit $code)"
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
+            grep -E '^test .* FAILED$|^test result:' "$log.clean" | head -60 \
+              | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::debug failing tests: /' || true
+            echo
+            # Panics carry the assertion text. One annotation per 3000 characters:
+            # an oversized annotation is rejected outright and the check record
+            # keeps only "exit code 101", which is the failure mode this replaces.
+            # Only the first block per failing test: a single assertion can print a
+            # whole database snapshot, which is what pushed the drift test's own
+            # message past the per-annotation cap and made it look like an
+            # unlisted-table failure.
+            awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | head -250 > /tmp/macos-failures.txt || true
+            split -b 3000 -a 3 /tmp/macos-failures.txt /tmp/macos-part- || true
+            for part in /tmp/macos-part-*; do
+              [ -f "$part" ] || continue
+              sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n' \
+                | sed "s|^|::error file=packages/local-store/src::debug failure detail: |" || true
+              # A command's output needs its own newline, or the next ::error::
+              # token is parsed as part of this line's message. That is what hid
+              # the drift test's assertion text in the Phase 19B run.
+              echo
+            done
+          fi
+          exit "$code"
+
+      - name: Native tests (release profile)
+        # Same annotation capture as the debug step. Release drops overflow
+        # checks, so these cover behaviour rather than arithmetic invariants.
+        shell: bash
+        env:
+          CARGO_TERM_COLOR: never
+        run: |
+          set -o pipefail
+          log=/tmp/macos-native-release.log
+          set +e
+          cargo test --all-targets --release --locked \
+            --manifest-path packages/local-store/Cargo.toml \
+            --target-dir apps/desktop/src-tauri/target 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::release native test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
+          if [ "$code" -ne 0 ]; then
+            echo "::error::release native tests failed (exit $code)"
+            sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
+            grep -E '^test .* FAILED$|^test result:' "$log.clean" | head -60 \
+              | sed -e 's/%/%25/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::release failing tests: /' || true
+            echo
+            # Only the first block per failing test: a single assertion can print a
+            # whole database snapshot, which is what pushed the drift test's own
+            # message past the per-annotation cap and made it look like an
+            # unlisted-table failure.
+            awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | head -250 > /tmp/macos-rel-failures.txt || true
+            split -b 3000 -a 3 /tmp/macos-rel-failures.txt /tmp/macos-rel-part- || true
+            for part in /tmp/macos-rel-part-*; do
+              [ -f "$part" ] || continue
+              sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n' \
+                | sed "s|^|::error file=packages/local-store/src::release failure detail: |" || true
+              # A command's output needs its own newline, or the next ::error::
+              # token is parsed as part of this line's message. That is what hid
+              # the drift test's assertion text in the Phase 19B run.
+              echo
+            done
+          fi
+          exit "$code"
+
+      - name: Build unsigned macOS application bundle
+        # `tauri.macos.conf.json` declares `app,dmg`; a DMG needs a signed bundle
+        # to be useful to anyone, so CI builds the `.app` only and says so. The
+        # command mirrors `package.json` → `desktop:build:macos` exactly, with
+        # `dmg` dropped from the bundle list for that reason.
+        working-directory: apps/desktop
+        run: |
+          ./node_modules/.bin/tauri build \
+            --config src-tauri/tauri.macos.conf.json \
+            --bundles app
+
+      - name: Record bundle identity and signing state
+        run: |
+          set -euo pipefail
+          bundle=apps/desktop/src-tauri/target/release/bundle/macos
+          test -d "$bundle" || { echo "::error::no macOS bundle was produced"; exit 1; }
+          app=$(find "$bundle" -maxdepth 1 -name '*.app' | head -1)
+          test -n "$app" || { echo "::error::no .app in $bundle"; exit 1; }
+          mat=$(find "$app" -maxdepth 2 -name Info.plist | head -1)
+          echo "app=$app"
+          echo "executable=$(ls "$app/Contents/MacOS")"
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$mat" || true
+          /usr/libexec/PlistBuddy -c 'Print :LSMinimumSystemVersion' "$mat" || true
+          /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$mat" || true
+          echo "architectures: $(lipo -archs "$app/Contents/MacOS/$(ls "$app/Contents/MacOS" | head -1)" || echo unknown)"
+          # An unsigned build must say so in the log. `codesign -dv` failing here
+          # is the expected, recorded state — not a pass for notarization.
+          codesign -dv "$app" 2>&1 || echo "::notice::bundle is unsigned (expected in CI; not a distributable release)"
+          du -sh "$app"
+
+      # NOTE ON SCOPE: this step compiles native code and produces an unsigned
+      # .app. It does not prove that an installed macOS app launches against a
+      # real login Keychain, and it does not prove notarized distribution.
+      # Those stay unverified until they run on Apple hardware/account.
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-macOS-unsigned-app
+          path: apps/desktop/src-tauri/target/release/bundle/macos/*.app
+          if-no-files-found: error
+          retention-days: 7

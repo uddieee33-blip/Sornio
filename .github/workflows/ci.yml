@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces']
+    # `feature/*phase1*`, `feature/*lane*`, `repair/*` and `arena/*` cover the
+    # stacked draft-PR graph: those PRs do not use `main` as their base, so this
+    # workflow used to produce no result at all for a Phase 13-18 PR. The
+    # patterns are explicit so a fork cannot change what a check means.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
 
 # Run checks for every pushed commit instead of silently cancelling an earlier
 # verification when another commit is pushed to the same PR. GitHub queues
@@ -45,6 +49,12 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # Cheap, static, and first: a stale Cargo.lock makes every `--locked`
+      # native command fail later on another runner, after a toolchain install.
+      # This check names the manifest and the missing crates instead.
+      - name: Verify native lockfiles describe their manifests
+        run: npm run verify:cargo-lock
 
       # Two type checks, on purpose. `typecheck` runs the JavaScript-API
       # compiler that typescript-eslint, the i18n extractor and Next's build
@@ -100,7 +110,53 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Install pinned Rust advisory scanner
         run: cargo install cargo-audit --version 0.22.2 --locked
+      # Raw job logs expire and, in this repository's case, are not reliably
+      # retrievable at all — the first Phase 19 run of this job failed and the
+      # only surviving evidence was "exit code 1", which says nothing about
+      # *which* advisory or *which* lockfile. Both audits therefore run with
+      # their output captured, print it, and re-emit the findings as an
+      # annotation so the check record itself carries the crate, the advisory id
+      # and the fix. The step still fails with cargo audit's own exit code.
       - name: Audit native lockfiles
+        shell: bash
         run: |
-          cargo audit --file packages/local-store/Cargo.lock
-          cargo audit --file apps/desktop/src-tauri/Cargo.lock
+          set +e
+          cargo audit --file packages/local-store/Cargo.lock --json > /tmp/audit-store.json 2>/tmp/audit-store.err
+          store=$?
+          cargo audit --file apps/desktop/src-tauri/Cargo.lock --json > /tmp/audit-desktop.json 2>/tmp/audit-desktop.err
+          desktop=$?
+          set -e
+
+          # Findings must reach the check record: raw job logs live in artefact
+          # storage that could not be retrieved for any run in this repository
+          # (the API returns "exit code 1" and nothing else). One ::error:: per
+          # advisory, carrying crate, version, id, severity and the patched
+          # range. Nothing is suppressed — the step fails on cargo audit's own
+          # exit code regardless of whether parsing succeeded.
+          report() {
+            lock="$1"; json="$2"; err="$3"; code="$4"
+            if [ "$code" -eq 0 ]; then
+              echo "::notice::$lock passed cargo audit"
+              return 0
+            fi
+            if ! command -v jq >/dev/null 2>&1 || ! jq -e . "$json" >/dev/null 2>&1; then
+              echo "::error file=$lock::cargo audit could not run (exit $code): $(head -c 500 "$err" | tr '\n' ' ')"
+              return 0
+            fi
+            echo "::error file=$lock::$(jq -r '.vulnerabilities.count // 0' "$json") advisory(ies) reported for $lock"
+            jq -r --arg lock "$lock" '.vulnerabilities.list[]? | .advisory |
+              "::error file=" + $lock + "::" + (.package // "?") + " " + (.id // "?") +
+              " (" + ((.severity // "unknown")|tostring) + "): " + (.title // "") +
+              " — patched: " + ((.patched_versions // "none")|tostring)' "$json" || true
+            jq -r --arg lock "$lock" '.warnings.unmaintained[]? |
+              "::warning file=" + $lock + "::unmaintained: " + (.package.name // "?")' "$json" || true
+          }
+
+          report packages/local-store/Cargo.lock /tmp/audit-store.json /tmp/audit-store.err "$store"
+          report apps/desktop/src-tauri/Cargo.lock /tmp/audit-desktop.json /tmp/audit-desktop.err "$desktop"
+
+          if [ "$store" -ne 0 ] || [ "$desktop" -ne 0 ]; then
+            echo "::error::cargo audit failed (local-store exit $store, src-tauri exit $desktop)"
+            exit 1
+          fi
+          echo "Both native lockfiles passed cargo audit."

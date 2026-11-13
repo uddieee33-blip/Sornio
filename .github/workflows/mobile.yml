@@ -2,7 +2,9 @@ name: Mobile companion
 
 on:
   pull_request:
-    branches: [main]
+    # Stacked draft PRs base on other `feature/` branches, so a `[main]`-only
+    # filter never ran the companion checks for the Phase 12-18 stack.
+    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths:
       - 'apps/mobile/**'
       - 'packages/mobile-contracts/**'
@@ -144,9 +146,22 @@ jobs:
       - name: CocoaPods
         working-directory: apps/mobile/ios
         run: pod install
+      - name: Record Xcode and SDK versions
+        run: |
+          xcodebuild -version
+          xcodebuild -showsdks
+          xcrun simctl list runtimes
+          echo "::notice::xcode=$(xcodebuild -version | head -1) sdk=$(xcodebuild -showsdks | grep -i iphonesimulator | head -1)"
+
       - name: Simulator compile
+        # `exit code 65` is xcodebuild's generic "build failed" and the raw log
+        # lives in artefact storage that is not always retrievable, so the
+        # errors are re-emitted as annotations here: the failing file and the
+        # compiler message end up in the check record itself.
+        shell: bash
         working-directory: apps/mobile/ios
         run: |
+          set +e
           xcodebuild \
             -workspace Sornio.xcworkspace \
             -scheme Sornio \
@@ -156,4 +171,13 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO \
             CODE_SIGN_IDENTITY= \
-            build
+            build > /tmp/ios-build.log 2>&1
+          code=$?
+          set -e
+          tail -60 /tmp/ios-build.log || true
+          if [ "$code" -ne 0 ]; then
+            esc() { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n'; }
+            { grep -E 'error:|\*\* BUILD FAILED \*\*|The following build commands failed' -A2 /tmp/ios-build.log \
+              | head -80 | esc; } | sed 's/^/::error::iOS simulator build: /'
+          fi
+          exit "$code"

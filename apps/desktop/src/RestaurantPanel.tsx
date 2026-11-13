@@ -29,7 +29,11 @@ export function RestaurantPanel({ owner, disabled, username }: {owner:boolean;di
   function setItems(next:Item[]){setItemDrafts(old=>({...old,[selected]:next}));}
   const running=useRef(false),reloadEpoch=useRef(0);
   const reload=useCallback(async()=>{const token=++reloadEpoch.current;try {const result=await invoke<Data>('read_restaurant');if(token!==reloadEpoch.current)return;setData(result);if(result.kitchenStaff?.canSell!==false){setMenu(await invoke<RestaurantMenu[]>('restaurant_menu'));setProducts(await invoke<Product[]>('list_local_products'));}else{setMenu([]);setProducts([]);}setReady(true);} catch(e){setReady(false);setMessage(errorMessage(e,'Could not open restaurant orders.'));}},[]);
-  useEffect(()=>{void reload();},[reload]);
+  // `reload` writes the whole restaurant view; skip the result if this panel has
+ // already unmounted rather than scheduling a render on a dead tree.
+ // `reload` writes the whole restaurant view; skip the result if this panel has
+ // already unmounted rather than scheduling a render on a dead tree.
+ useEffect(()=>{let live=true;void (async()=>{try{await reload();}catch{if(live)setMessage('Could not open restaurant orders.');}})();return()=>{live=false;};},[reload]);
   useEffect(()=>{const refresh=liveRefresh({eligible:()=>!disabled&&!running.current&&document.visibilityState==='visible',intervalMs:3000,poll:async current=>{const token=reloadEpoch.current;const data=await invoke<Data>('restaurant_live');if(current()&&token===reloadEpoch.current&&!running.current)setData(data);},onError:()=>setMessage('Live updates paused. Unlock or refresh the restaurant workspace.')});refresh.start();return()=>refresh.stop();},[disabled]);
   async function execute(request:Request) {
     if(running.current || disabled)return;
