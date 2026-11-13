@@ -308,7 +308,7 @@ recovery path, neither of which was asserted before.
 
 `scripts/verify-desktop-copy-contract.mjs` extracts every literal the desktop
 acceptance scripts expect to see and checks that the product can still produce it,
-across **346 expectations**, **103 product source files** and **11,490 product
+across **347 expectations**, **103 product source files** and **11,490 product
 templates**. It is wired into CI as `npm run verify:desktop-copy`, next to
 `verify:desktop-contract`, so drift fails in the fast job with a precise message
 instead of on a Windows runner as a mystery timeout.
