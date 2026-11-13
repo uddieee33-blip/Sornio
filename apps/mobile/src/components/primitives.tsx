@@ -179,6 +179,11 @@ export function ActionButton({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      // An explicit label keeps VoiceOver announcing one phrase. Without it the
+      // name is derived from whatever text nodes happen to be children, which
+      // reads compound labels such as "Draft additions · revision 7" in
+      // fragments and leaves the control unfindable by name.
+      accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         styles.button,

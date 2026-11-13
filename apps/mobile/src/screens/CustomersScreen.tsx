@@ -1,10 +1,31 @@
-import { useMemo, useState } from 'react';
-import { ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { filterCustomers, formatInr, vocabularyFor } from '@sornio/mobile-contracts';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { filterCustomers, formatInr, vocabularyFor, type CustomerSummary } from '@sornio/mobile-contracts';
 import { layout, space } from '@sornio/mobile-design';
 import { Body, DemoBanner, EmptyState, Hairline, Muted, Row, SearchField, Title } from '../components/primitives';
 import { copy } from '../i18n/en';
 import { useCompanion } from '../app/CompanionContext';
+
+/** Memoised list row so a selection or keystroke does not rebuild every line. */
+const CustomerRow = memo(function CustomerRow({
+  row,
+  onSelect,
+}: {
+  row: CustomerSummary;
+  onSelect: (id: string) => void;
+}) {
+  return (
+    <View style={styles.block}>
+      <Row
+        title={row.name}
+        detail={row.phone ?? 'No phone on file'}
+        meta={formatInr(row.outstandingPaise)}
+        onPress={() => onSelect(row.id)}
+      />
+      <Hairline />
+    </View>
+  );
+});
 
 export function CustomersScreen() {
   const { snapshot } = useCompanion();
@@ -16,31 +37,37 @@ export function CustomersScreen() {
   const selected = rows.find((row) => row.id === selectedId) ?? rows[0] ?? null;
   const statement = selected ? snapshot?.statements[selected.id] ?? [] : [];
   const wide = width >= layout.tabletMin;
+  const open = useCallback((id: string) => setSelectedId(id), []);
+  const renderItem = useCallback(
+    ({ item }: { item: CustomerSummary }) => <CustomerRow row={item} onSelect={open} />,
+    [open],
+  );
   return (
     <View style={wide ? styles.split : styles.stack}>
-      <ScrollView style={styles.pane} contentContainerStyle={styles.pad}>
-        {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
-        <View style={styles.block}>
-          <SearchField value={query} onChange={setQuery} placeholder={copy.searchPeople} />
-        </View>
-        {rows.length === 0 ? (
+      <FlatList
+        style={styles.pane}
+        contentContainerStyle={styles.pad}
+        data={rows}
+        renderItem={renderItem}
+        keyExtractor={(row: CustomerSummary) => row.id}
+        keyboardShouldPersistTaps="handled"
+        initialNumToRender={12}
+        maxToRenderPerBatch={16}
+        windowSize={9}
+        ListHeaderComponent={
+          <>
+            {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
+            <View style={styles.block}>
+              <SearchField value={query} onChange={setQuery} placeholder={copy.searchPeople} />
+            </View>
+          </>
+        }
+        ListEmptyComponent={
           <View style={styles.block}>
             <EmptyState title={terms.customers} detail={copy.emptyPeople} />
           </View>
-        ) : (
-          rows.map((row) => (
-            <View key={row.id} style={styles.block}>
-              <Row
-                title={row.name}
-                detail={row.phone ?? 'No phone on file'}
-                meta={formatInr(row.outstandingPaise)}
-                onPress={() => setSelectedId(row.id)}
-              />
-              <Hairline />
-            </View>
-          ))
-        )}
-      </ScrollView>
+        }
+      />
       {selected ? (
         <ScrollView style={styles.pane} contentContainerStyle={styles.pad}>
           <View style={styles.block}>

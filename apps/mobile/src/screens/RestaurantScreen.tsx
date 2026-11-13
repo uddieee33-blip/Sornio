@@ -8,6 +8,7 @@ import { createSecureStore } from '../storage/secureStore';
 import { restaurantStorage, restaurantCanDraft } from '../../../../packages/business-domain/src/restaurant-mobile';
 import type { RestaurantDraft,RestaurantSnapshot } from '../../../../packages/business-domain/src/restaurant-operations';
 import { parseFixedDecimal } from '../../../../packages/business-domain/src/fixed-decimal';
+import { layout } from '@sornio/mobile-design';
 import { formatQuantity, formatInr, parseQuantityMilli, parsePaise } from '@sornio/mobile-contracts';
 export function RestaurantScreen({onBack}:{onBack?:()=>void}){
  const {session}=useCompanion(),{palette}=useTheme(),{width,fontScale}=useWindowDimensions();
@@ -26,7 +27,7 @@ export function RestaurantScreen({onBack}:{onBack?:()=>void}){
  function add(productId:string,label:string){if(!draft||draft.items.length>=30)return;const q=parseFixedDecimal(quantity,3);if(q===null||q<=0){setMessage('Enter a positive quantity with up to three decimals.');return;}setDraft({...draft,items:[...draft.items,{productId,label,quantityMilli:q,note}]});setName('');setNote('');setQuantity('1');setMessage('Local draft changed. Save before leaving.');}
  if(lan)return <LanRestaurantScreen onBack={()=>setLan(false)} localDraft={draft}/>;
  if(!session)return <View style={{padding:20}}><Body>Unlock a companion session first.</Body></View>;
- const allowed=restaurantCanDraft(session.role),disabled=!allowed||busy||!ready,wide=width>=1000&&fontScale<=1.5;
+ const allowed=restaurantCanDraft(session.role),disabled=!allowed||busy||!ready,wide=width>=layout.railMin&&fontScale<=1.5;
  const order=snapshot?.orders.find(o=>o.id===selected),assignment=snapshot?.assignments.find(a=>a.orderId===selected);
  const field={minHeight:48,padding:12,borderWidth:1,borderColor:palette.line,color:palette.ink};
  return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,gap:16,paddingBottom:64}}>

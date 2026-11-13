@@ -1,12 +1,45 @@
-import { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { filterInventory, formatQuantity, vocabularyFor } from '@sornio/mobile-contracts';
+import { memo, useCallback, useMemo, useState } from 'react';
+import { FlatList, Pressable, StyleSheet, Text, View } from 'react-native';
+import { filterInventory, formatQuantity, vocabularyFor, type InventoryItem } from '@sornio/mobile-contracts';
 import { space, touch } from '@sornio/mobile-design';
 import { Body, DemoBanner, EmptyState, Hairline, Muted, Row, SearchField } from '../components/primitives';
 import { StockCount } from '../components/StockCount';
 import { copy } from '../i18n/en';
 import { useCompanion } from '../app/CompanionContext';
 import { useTheme } from '../theme/ThemeProvider';
+
+type StockRow = InventoryItem;
+
+/**
+ * A single stock line. Extracted and memoised because each row also mounts a
+ * `StockCount` editor (device secure storage); without memoisation, a keystroke
+ * in the search field re-rendered every row's editor subtree.
+ */
+const InventoryRow = memo(function InventoryRow({
+  row,
+  scope,
+}: {
+  row: StockRow;
+  scope: string;
+}) {
+  return (
+    <View style={styles.block}>
+      <Row
+        title={row.name}
+        detail={`${copy.sku} ${row.sku} · ${copy.updated} ${row.updatedAtIso}`}
+        meta={formatQuantity(row.quantityMilli)}
+      />
+      {row.lowStock ? <Body>Low stock</Body> : <Muted>{copy.available}</Muted>}
+      <StockCount
+        key={`${scope}:${row.sourceProductId}`}
+        productId={row.sourceProductId}
+        observedMilli={row.quantityMilli}
+        snapshotAt={row.updatedAtIso}
+      />
+      <Hairline />
+    </View>
+  );
+});
 
 export function InventoryScreen() {
   const { snapshot, session } = useCompanion();
@@ -18,6 +51,14 @@ export function InventoryScreen() {
     () => filterInventory(snapshot?.inventory ?? [], query, lowOnly),
     [snapshot, query, lowOnly],
   );
+  const scope = `${session?.mode}:${session?.business.businessId}:${session?.userId}`;
+
+  const renderItem = useCallback(
+    ({ item }: { item: StockRow }) => <InventoryRow row={item} scope={scope} />,
+    [scope],
+  );
+  const keyExtractor = useCallback((item: StockRow) => item.id, []);
+
   if (snapshot?.portalId === 'gym') {
     return (
       <View style={styles.block}>
@@ -26,38 +67,40 @@ export function InventoryScreen() {
     );
   }
   return (
-    <ScrollView contentContainerStyle={styles.pad}>
-      {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
-      <View style={styles.block}>
-        <SearchField value={query} onChange={setQuery} placeholder={copy.searchStock} />
-        <Pressable
-          onPress={() => setLowOnly((value) => !value)}
-          accessibilityRole="button"
-          accessibilityState={{ selected: lowOnly }}
-          style={[styles.chip, { borderColor: palette.line, backgroundColor: lowOnly ? palette.brand : palette.lift }]}
-        >
-          <Text style={{ color: lowOnly ? palette.brandInk : palette.ink }}>{copy.lowStock}</Text>
-        </Pressable>
-      </View>
-      {rows.length === 0 ? (
+    <FlatList
+      data={rows}
+      renderItem={renderItem}
+      keyExtractor={keyExtractor}
+      contentContainerStyle={styles.pad}
+      keyboardShouldPersistTaps="handled"
+      initialNumToRender={10}
+      maxToRenderPerBatch={12}
+      windowSize={7}
+      ListHeaderComponent={
+        <>
+          {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
+          <View style={styles.block}>
+            <SearchField value={query} onChange={setQuery} placeholder={copy.searchStock} />
+            <Pressable
+              onPress={() => setLowOnly((value) => !value)}
+              accessibilityRole="button"
+              accessibilityLabel={copy.lowStock}
+              accessibilityState={{ selected: lowOnly }}
+              style={[styles.chip, { borderColor: palette.line, backgroundColor: lowOnly ? palette.brand : palette.lift }]}
+            >
+              <Text allowFontScaling style={{ color: lowOnly ? palette.brandInk : palette.ink }}>
+                {copy.lowStock}
+              </Text>
+            </Pressable>
+          </View>
+        </>
+      }
+      ListEmptyComponent={
         <View style={styles.block}>
           <EmptyState title={terms.stock} detail={copy.emptyStock} />
         </View>
-      ) : (
-        rows.map((row) => (
-          <View key={row.id} style={styles.block}>
-            <Row
-              title={row.name}
-              detail={`${copy.sku} ${row.sku} · ${copy.updated} ${row.updatedAtIso}`}
-              meta={formatQuantity(row.quantityMilli)}
-            />
-            {row.lowStock ? <Body>Low stock</Body> : <Muted>{copy.available}</Muted>}
-            <StockCount key={`${session?.mode}:${session?.business.businessId}:${session?.userId}:${row.sourceProductId}`} productId={row.sourceProductId} observedMilli={row.quantityMilli} snapshotAt={row.updatedAtIso}/>
-            <Hairline />
-          </View>
-        ))
-      )}
-    </ScrollView>
+      }
+    />
   );
 }
 

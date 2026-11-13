@@ -12,7 +12,8 @@
       ]
     },
     "allowImportingTsExtensions": true,
-    "noEmit": true
+    "noEmit": true,
+    "types": ["jest", "node"]
   },
   "include": [
     "**/*.ts",

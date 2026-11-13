@@ -8,7 +8,9 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "typecheck": "tsc --noEmit",
-    "test": "node ../../scripts/verify-mobile-contracts.mjs"
+    "test": "node ../../scripts/verify-mobile-contracts.mjs",
+    "test:runtime": "jest --testTimeout=60000",
+    "test:bench": "jest __runtime__/bench.test.tsx --testTimeout=300000"
   },
   "dependencies": {
     "expo": "~58.0.22",
@@ -22,7 +24,14 @@
     "react-native-safe-area-context": "~5.10.1"
   },
   "devDependencies": {
+    "@testing-library/react-native": "^14.1.0",
+    "@types/jest": "^30.0.0",
+    "@types/node": "^26.6.6",
     "@types/react": "~19.3.0",
+    "babel-preset-expo": "~58.0.23",
+    "jest": "^30.5.2",
+    "jest-expo": "^58.0.14",
+    "react-test-renderer": "^19.3.0",
     "typescript": "~6.0.3"
   },
   "expo": {

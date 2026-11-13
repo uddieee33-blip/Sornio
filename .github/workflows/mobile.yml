@@ -10,6 +10,8 @@ on:
       - 'packages/mobile-contracts/**'
       - 'packages/mobile-design/**'
       - 'scripts/verify-mobile-contracts.mjs'
+      - 'apps/mobile/__runtime__/**'
+      - 'apps/mobile/jest.config.js'
       - '.github/workflows/mobile.yml'
   workflow_dispatch:
 
@@ -181,3 +183,144 @@ jobs:
               | head -80 | esc; } | sed 's/^/::error::iOS simulator build: /'
           fi
           exit "$code"
+
+  runtime:
+    name: Headless runtime acceptance
+    # Runs on Linux by design: this executes the real component tree in Node and
+    # needs no simulator. It is NOT a substitute for simulator acceptance — see
+    # the `simulator` job below and docs/reviews/phase20-ios-ipados-product-completion.md.
+    needs: shared
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: iPhone, iPad and Android layout acceptance
+        working-directory: apps/mobile
+        run: npx jest --testTimeout=60000 --ci
+      - name: Measured render benchmark
+        working-directory: apps/mobile
+        run: npx jest __runtime__/bench.test.tsx --testTimeout=300000 --ci
+      - name: Record measured numbers
+        run: |
+          echo '::notice::Render measurements were printed by the benchmark step above. Compare them with docs/reviews/phase20-ios-ipados-product-completion.md.'
+
+  simulator:
+    name: iPhone and iPad simulator launch (${{ matrix.device }})
+    # Compiling proves the project builds. This boots a simulator, installs the
+    # app, launches it and asserts the process stays up, which is the interactive
+    # evidence Phase 19E did not have. It deliberately does not claim workflow
+    # correctness — that needs the headless suite plus a device.
+    needs: ios
+    runs-on: macos-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - device: iPhone 16
+            runtime: iOS Simulator
+          - device: iPad Pro 11-inch (M4)
+            runtime: iOS Simulator
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Prebuild iOS
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --non-interactive --no-install
+      - name: CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install
+      - name: Boot simulator
+        id: boot
+        run: |
+          set -euo pipefail
+          DEVICE="${{ matrix.device }}"
+          # Pick the newest available runtime for the requested device type.
+          UDID=$(xcrun simctl list devices available --json \
+            | node -e '
+              let raw = "";
+              process.stdin.on("data", (d) => (raw += d));
+              process.stdin.on("end", () => {
+                const wanted = process.argv[1];
+                const parsed = JSON.parse(raw);
+                const matches = [];
+                for (const [runtime, devices] of Object.entries(parsed.devices)) {
+                  if (!/iOS/.test(runtime)) continue;
+                  for (const device of devices) {
+                    if (device.name === wanted) matches.push({ runtime, udid: device.udid });
+                  }
+                }
+                if (!matches.length) process.exit(2);
+                matches.sort((a, b) => a.runtime.localeCompare(b.runtime));
+                process.stdout.write(matches[matches.length - 1].udid);
+              });
+            ' "$DEVICE")
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+          xcrun simctl boot "$UDID" || true
+          xcrun simctl bootstatus "$UDID" -b
+          echo "::notice::Booted $DEVICE simulator $UDID"
+          xcrun simctl list runtimes
+      - name: Build for the booted simulator
+        working-directory: apps/mobile/ios
+        run: |
+          set -euo pipefail
+          xcodebuild \
+            -workspace Sornio.xcworkspace \
+            -scheme Sornio \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.boot.outputs.udid }}" \
+            -derivedDataPath /tmp/dd \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
+            build
+      - name: Install and launch
+        run: |
+          set -euo pipefail
+          UDID="${{ steps.boot.outputs.udid }}"
+          APP=$(find /tmp/dd/Build/Products -name 'Sornio.app' -maxdepth 3 | head -1)
+          test -d "$APP"
+          xcrun simctl install "$UDID" "$APP"
+          xcrun simctl launch "$UDID" com.sornio.companion | tee /tmp/launch.txt
+          sleep 12
+          PID=$(awk '{print $2}' /tmp/launch.txt)
+          if ! xcrun simctl spawn "$UDID" launchctl list | grep -q com.sornio.companion; then
+            echo '::error::The companion did not stay running after launch.'
+            xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "Sornio"' | tail -80 || true
+            exit 1
+          fi
+          echo "::notice::com.sornio.companion is running on ${{ matrix.device }} (pid $PID)"
+      - name: Screenshot
+        if: always()
+        run: |
+          mkdir -p artifacts
+          xcrun simctl io "${{ steps.boot.outputs.udid }}" screenshot "artifacts/${{ strategy.job-index }}-${{ matrix.device }}.png" || true
+      - name: Diagnostics
+        if: always()
+        run: |
+          xcrun simctl spawn "${{ steps.boot.outputs.udid }}" log show --last 5m --predicate 'process == "Sornio"' > artifacts/sornio-log.txt 2>&1 || true
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: simulator-${{ strategy.job-index }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 7

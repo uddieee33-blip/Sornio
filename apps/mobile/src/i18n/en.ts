@@ -6,6 +6,9 @@ export const copy = {
   home: 'Home',
   activity: 'Activity',
   inventory: 'Stock',
+  // Vocabulary-driven labels replace `inventory` and `customers` per portal, so
+  // these two tab names must never be announced as the generic English term.
+  stockFallback: 'Inventory',
   customers: 'People',
   settings: 'More',
   todaySales: "Today's sales",
