@@ -29,7 +29,7 @@ recovery, and every uncommitted change in this session was kept.
 ### 0.2 What this branch changes
 
 ```
-17 files changed, 2455 insertions(+), 87 deletions(-)
+17 files changed, 2456 insertions(+), 87 deletions(-)
 ```
 
 **No product source changed.** `git diff --stat 33d56e4 eb181ce` over
@@ -37,7 +37,8 @@ recovery, and every uncommitted change in this session was kept.
 `apps/desktop/src-tauri/permissions/` and `packages/local-store/examples/security/`
 is **empty**: no native command was added, removed, or re-permissioned, and no
 business, financial, encryption or authorisation logic was touched. Every change is in
-the acceptance harness, the CI configuration, and one new gate.
+the acceptance harness, the CI configuration, this report, and two new review
+artefacts: a copy-drift gate and a mock review bridge.
 
 | File | What it is |
 | --- | --- |
