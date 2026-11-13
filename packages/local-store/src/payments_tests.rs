@@ -2114,3 +2114,304 @@ fn phase11a_legacy_cash_and_credit_only_paths_keep_their_accounting() {
         journals_balance(&s);
     }
 }
+
+// ---------------------------------------------------------------------------
+// Financial exactly-once contracts
+//
+// These pin the invariants the payment ledger depends on, not just "the call
+// returned Ok": one authoritative record per tender, one `sale.posted` per sale
+// however many times it is retried, and no partial financial state left behind
+// by a failure. `audit_count` is the whole point of the replay tests - before
+// this phase a retry appended a second `sale.posted` for a sale that happened
+// once, which any audit review of the day would read as two sales.
+// ---------------------------------------------------------------------------
+
+/// How many audit rows exist for `action` against `target`.
+fn audit_count(s: &Store, action: &str, target: &str) -> i64 {
+    s.0.query_row(
+        "SELECT count(*) FROM local_identity_audit WHERE action=?1 AND target=?2",
+        params![action, target],
+        |r| r.get(0),
+    )
+    .unwrap()
+}
+
+/// Payment rows as `(invoice_id, method, amount)`, ordered for stable comparison.
+fn payment_rows(s: &Store) -> Vec<(String, String, i64)> {
+    let mut q = s
+        .0
+        .prepare("SELECT invoice_id,method,amount FROM local_retail_payments ORDER BY invoice_id,method,amount")
+        .unwrap();
+    q.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))
+        .unwrap()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap()
+}
+
+#[test]
+fn cash_invoice_writes_one_authoritative_cash_payment() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    perform(&mut s, sale_req(&s, "cash-1", &[("cash", 10000)]));
+    assert_eq!(
+        payment_rows(&s),
+        vec![("cash-1".to_string(), "cash".to_string(), 10000)]
+    );
+    // The row and the ledger agree; the drawer totals it as recorded cash.
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "10000");
+    assert_eq!(audit_count(&s, "sale.posted", "cash-1"), 1);
+    journals_balance(&s);
+}
+
+#[test]
+fn digital_invoice_records_upi_and_card_without_cash() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    perform(&mut s, sale_req(&s, "digital-1", &[("upi", 4000), ("card", 6000)]));
+    assert_eq!(
+        payment_rows(&s),
+        vec![
+            ("digital-1".to_string(), "card".to_string(), 6000),
+            ("digital-1".to_string(), "upi".to_string(), 4000),
+        ]
+    );
+    // Digital money is receivable until a statement match, never counted cash.
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "0");
+    let digital: i64 = s
+        .0
+        .query_row(
+            "SELECT COALESCE(SUM(amount),0) FROM local_retail_payments WHERE method IN ('upi','card')",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(digital, 10000, "the whole invoice is digital, none of it cash");
+    assert_eq!(audit_count(&s, "sale.posted", "digital-1"), 1);
+    journals_balance(&s);
+}
+
+#[test]
+fn split_payment_with_credit_part_books_each_tender_once() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    s.save_customer(customer_profile("c1", Some(100000))).unwrap();
+    let mut r = sale_req(&s, "split-1", &[("cash", 4000), ("upi", 3000)]);
+    if let Action::Sale { invoice, .. } = &mut r.action {
+        invoice.customer_id = Some("c1".into());
+    }
+    // 10000 invoice: 4000 cash, 3000 upi, 3000 on customer credit.
+    if let Action::Sale { payments, .. } = &mut r.action {
+        payments.push(PaymentPart {
+            id: "split-1-p-2".into(),
+            method: "credit".into(),
+            amount_paise: 3000,
+            reference: String::new(),
+        });
+    }
+    perform(&mut s, r);
+    assert_eq!(
+        payment_rows(&s),
+        vec![
+            ("split-1".to_string(), "cash".to_string(), 4000),
+            ("split-1".to_string(), "credit".to_string(), 3000),
+            ("split-1".to_string(), "upi".to_string(), 3000),
+        ]
+    );
+    assert_eq!(s.read_customer("c1").unwrap().balance_paise, "3000");
+    assert_eq!(s.cashier_state().unwrap().balances.cash_paise, "4000");
+    journals_balance(&s);
+}
+
+#[test]
+fn failed_checkout_leaves_no_payment_row_and_no_sale_audit() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "fail-1", &[("cash", 10000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    let before = snapshots(&s);
+    let audits_before = audit_count(&s, "sale.posted", "fail-1");
+    // Fail the write that persists the payment row, after the invoice row exists.
+    s.0.execute_batch(
+        "CREATE TRIGGER fail_payment BEFORE INSERT ON local_retail_payments \
+         BEGIN SELECT RAISE(ABORT,'synthetic payment failure'); END;",
+    )
+    .unwrap();
+    assert!(s.post_retail(r.clone()).is_err());
+    s.0.execute_batch("DROP TRIGGER fail_payment").unwrap();
+    // Nothing partial survives: no invoice, no payment, no stock move, no audit.
+    assert_eq!(snapshots(&s), before);
+    assert!(payment_rows(&s).is_empty());
+    assert_eq!(audit_count(&s, "sale.posted", "fail-1"), audits_before);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 100000);
+    // And the operation is still usable afterwards, exactly once.
+    s.post_retail(r).unwrap();
+    assert_eq!(payment_rows(&s).len(), 1);
+    assert_eq!(audit_count(&s, "sale.posted", "fail-1"), 1);
+}
+
+#[test]
+fn retried_checkout_with_identical_operation_id_posts_once() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "retry-1", &[("cash", 10000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    let first = s.post_retail(r.clone()).unwrap();
+    assert_eq!(audit_count(&s, "sale.posted", "retry-1"), 1);
+    let after_first = snapshots(&s);
+    // Retry the identical request any number of times.
+    let second = s.post_retail(r.clone()).unwrap();
+    let third = s.post_retail(r).unwrap();
+    assert_eq!(first, second);
+    assert_eq!(first, third);
+    assert_eq!(
+        snapshots(&s),
+        after_first,
+        "a replay must not alter any table, including the audit table"
+    );
+    assert_eq!(
+        audit_count(&s, "sale.posted", "retry-1"),
+        1,
+        "a retried sale must not produce a second sale.posted event"
+    );
+    assert_eq!(payment_rows(&s).len(), 1);
+    journals_balance(&s);
+}
+
+#[test]
+fn reused_operation_id_with_conflicting_payload_is_refused() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let r = sale_req(&s, "conflict-1", &[("cash", 10000)]);
+    perform(&mut s, r.clone());
+    let audits = audit_count(&s, "sale.posted", "conflict-1");
+    let after = snapshots(&s);
+    // Same operation id, different amount.
+    let mut other = r;
+    if let Action::Sale { payments, .. } = &mut other.action {
+        payments[0].amount_paise = 9000;
+    }
+    // Refused either as an unbalanced allocation or as a conflicting operation id;
+    // what matters is that it is refused and nothing moves.
+    assert!(s.post_retail(other).is_err());
+    assert_eq!(snapshots(&s), after);
+    assert_eq!(audit_count(&s, "sale.posted", "conflict-1"), audits);
+    assert_eq!(payment_rows(&s).len(), 1);
+}
+
+#[test]
+fn concurrent_checkout_attempts_post_financially_once() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut a = seed(&path);
+    let r = sale_req(&a, "race-1", &[("cash", 10000)]);
+    a.prepare_retail(r.clone()).unwrap();
+    let mut b = authenticated(&path);
+    let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
+    let other_barrier = barrier.clone();
+    let second_request = r.clone();
+    let t = std::thread::spawn(move || {
+        other_barrier.wait();
+        a.post_retail(second_request)
+    });
+    barrier.wait();
+    let second = b.post_retail(r);
+    let first = t.join().unwrap();
+    assert!(first.is_ok(), "first attempt must succeed");
+    assert!(second.is_ok(), "a concurrent retry must return the same receipt");
+    assert_eq!(first.unwrap(), second.unwrap());
+    // Regardless of which thread won, the ledger holds one of everything.
+    assert_eq!(payment_rows(&b).len(), 1);
+    assert_eq!(audit_count(&b, "sale.posted", "race-1"), 1);
+    assert_eq!(b.list_products().unwrap()[0].stock_milli, 99000);
+    journals_balance(&b);
+}
+
+#[test]
+fn restart_after_uncertain_response_posts_once() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let r = sale_req(&s, "restart-1", &[("cash", 10000)]);
+    s.prepare_retail(r.clone()).unwrap();
+    s.post_retail(r.clone()).unwrap();
+    // Drop the handle without clearing the prepared intent, exactly as a crash
+    // after commit and before the UI received the response would leave it.
+    let session = s.1.clone();
+    drop(s);
+    let mut s = Store::open(&path, KEY).unwrap();
+    s.1 = session;
+    let receipt = s.post_retail(r.clone()).unwrap();
+    assert_eq!(receipt.data["operationId"], "restart-1");
+    assert_eq!(payment_rows(&s).len(), 1);
+    assert_eq!(audit_count(&s, "sale.posted", "restart-1"), 1);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    journals_balance(&s);
+}
+
+#[test]
+fn direct_invoice_posting_is_also_exactly_once() {
+    // The same contract on the billing entry point that a held bill uses, which
+    // is where the duplicate `sale.posted` was first observed.
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let invoice = |tender: Tender| PostInvoice {
+        operation_id: "held-direct".into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: s.list_products().unwrap()[0].revision,
+            quantity_milli: 1000,
+        }],
+        tax_basis_points: 0,
+        tender,
+        customer_id: None,
+    };
+    let request = invoice(Tender::Cash);
+    s.post_invoice(request.clone()).unwrap();
+    let after = snapshots(&s);
+    let again = s.post_invoice(request.clone()).unwrap();
+    assert_eq!(again.id, "held-direct");
+    assert_eq!(snapshots(&s), after);
+    assert_eq!(audit_count(&s, "sale.posted", "held-direct"), 1);
+    assert_eq!(payment_rows(&s).len(), 1);
+    assert_eq!(payment_rows(&s)[0].1, "cash");
+    journals_balance(&s);
+}
+
+#[test]
+fn invoice_replay_never_double_books_money_or_stock() {
+    // Guards the arithmetic invariant even if statement ordering changes again:
+    // N postings of one operation id move stock once and book one ledger entry.
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seed(&d.path().join("s.db"));
+    let request = PostInvoice {
+        operation_id: "once-only".into(),
+        lines: vec![BillLine {
+            product_id: "rice".into(),
+            expected_revision: s.list_products().unwrap()[0].revision,
+            quantity_milli: 1000,
+        }],
+        tax_basis_points: 0,
+        tender: Tender::Cash,
+        customer_id: None,
+    };
+    for _ in 0..3 {
+        s.post_invoice(request.clone()).unwrap();
+    }
+    let invoices: i64 = s
+        .0
+        .query_row("SELECT count(*) FROM local_invoices", [], |r| r.get(0))
+        .unwrap();
+    let ledger: i64 = s
+        .0
+        .query_row(
+            "SELECT count(*) FROM local_billing_ledger WHERE account='revenue'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(invoices, 1);
+    assert_eq!(ledger, 1, "one revenue posting per invoice, not one per call");
+    assert_eq!(payment_rows(&s).len(), 1);
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    journals_balance(&s);
+}
