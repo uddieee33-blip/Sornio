@@ -5,13 +5,22 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 
+// Shared source now imports siblings with explicit `.ts` extensions (desktop and
+// mobile set `allowImportingTsExtensions`, and Vite/Metro both resolve them).
+// These one-off emits must ask for the same treatment, and for
+// `rewriteRelativeImportExtensions`, because TypeScript refuses
+// `allowImportingTsExtensions` unless `noEmit`, `emitDeclarationOnly` or that
+// rewrite is set — and this script needs real JavaScript to load.
+const T_EXT = ['--allowImportingTsExtensions', '--rewriteRelativeImportExtensions'];
+
+
 const require = createRequire(import.meta.url);
 const out = mkdtempSync(join(tmpdir(), 'sornio-native-money-'));
 const fixture = name => JSON.parse(readFileSync(`packages/business-domain/fixtures/${name}.json`, 'utf8'));
 try {
   execFileSync(process.execPath, [require.resolve('typescript/lib/tsc.js'),
     'packages/business-domain/src/native-invoice.ts', '--outDir', out, '--target', 'es2022',
-    '--module', 'commonjs', '--strict', '--skipLibCheck', '--ignoreConfig'], { stdio: 'inherit' });
+    '--module', 'commonjs', '--strict', '--skipLibCheck', '--ignoreConfig', ...T_EXT], { stdio: 'inherit' });
   const { calculateNativeInvoice: calculate, validateNativeInvoiceRequest: validate } = require(join(out, 'native-invoice.js'));
   for (const f of fixture('native-invoices')) {
     assert.deepEqual(calculate([{ quantityMilli: f.quantity, unitPricePaise: f.price }], f.bps), {

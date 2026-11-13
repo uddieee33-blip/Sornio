@@ -7,23 +7,29 @@ export function SecurityHistoryPanel({staff}: {staff: KitchenStaffView}) {
   const [filters, setFilters] = useState({...emptySecurityHistory});
   const [report, setReport] = useState<SecurityHistoryReport | null>(null);
   const [busy, setBusy] = useState(false), [message, setMessage] = useState('Read recorded session and device security actions.');
-  const applied = useRef<SecurityHistoryQuery | null>(null), running = useRef(false);
+  const running = useRef(false);
+  // `applied` used to be a ref read directly in the render below. A ref read
+  // during render is not a subscription: React may render, discard the result
+  // and render again, and the fieldset's disabled state would then be computed
+  // from a value the committed tree never saw. The applied query drives visible
+  // UI, so it is state.
+  const [applied, setApplied] = useState<SecurityHistoryQuery | null>(null);
   async function load(older: boolean) {
     if (running.current || !staff.canManageStaff) return;
     running.current = true; setBusy(true);
-    const query = older && applied.current ? {...applied.current, cursor: report?.nextCursor ?? null} : {...filters, cursor: null};
+    const query = older && applied ? {...applied, cursor: report?.nextCursor ?? null} : {...filters, cursor: null};
     try {
       const identity = await invoke<LocalSession>('read_local_session');
       const value = await invoke('kitchen_action', {a: {kind: 'security_history', query}});
       // Native IPC scopes the report to the authenticated shop; validate that identity too.
       const businessId = identity.scope.businessId;
-      setReport(securityHistoryReport(value, businessId, query)); applied.current = query;
+      setReport(securityHistoryReport(value, businessId, query)); setApplied(query);
       setMessage('Native history received. Each page replaces the previous page.');
     } catch (e) { setMessage(errorMessage(e, 'History unavailable; previous confirmed page retained.')); }
     finally { running.current = false; setBusy(false); }
   }
   if (!staff.canManageStaff) return null;
-  const unchanged = applied.current && ['action','actorId','search','startDate','endDate'].every(k => filters[k as keyof SecurityHistoryQuery] === applied.current![k as keyof SecurityHistoryQuery]);
+  const unchanged = applied !== null && ['action','actorId','search','startDate','endDate'].every(k => filters[k as keyof SecurityHistoryQuery] === applied[k as keyof SecurityHistoryQuery]);
   return <details><summary>Session & device security history</summary><p role="status">{message}</p><fieldset disabled={busy}>
     <label>Action<select value={filters.action} onChange={e => setFilters({...filters, action: e.target.value as SecurityHistoryQuery['action']})}><option value="">All security actions</option>{securityActions.map(a => <option key={a} value={a}>{securityActionLabel[a]}</option>)}</select></label>
     <label>Performed by<select value={filters.actorId} onChange={e => setFilters({...filters, actorId: e.target.value})}><option value="">All recorded actors</option>{staff.employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}</select></label>

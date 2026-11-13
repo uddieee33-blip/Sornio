@@ -797,28 +797,107 @@ impl Workspace {
         self.require(Permission::Settings)?;
         self.store.takeover_payment(id, why)
     }
-    pub fn kitchen_view(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::Sell)?;self.store.kitchen_view()}
-    pub fn kitchen_action(&mut self,a:crate::kitchen::Action)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::KitchenView)?;self.store.kitchen_action(a)}
-    pub fn restaurant_workspace(&self)->Result<crate::kitchen::Document,StoreError>{self.require(Permission::KitchenView)?;self.store.restaurant_workspace()}
-    pub fn restaurant_status(&self,order:String)->Result<Option<crate::restaurant_recovery::Status>,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_status(&order)}
-    pub fn edit_restaurant(&mut self,order:String,expected:i64)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.edit_restaurant(&order,expected)}
-    pub fn amend_restaurant(&mut self,r:crate::restaurant_recovery::Amendment)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Sell)?;self.store.amend_restaurant(r)}
-    pub fn takeover_restaurant(&mut self,order:String,expected:i64,target:String)->Result<crate::restaurant_recovery::Status,StoreError>{self.require(Permission::Settings)?;self.store.takeover_restaurant(&order,expected,&target)}
-    pub fn restaurant_menu(&self)->Result<Vec<crate::restaurant_checkout::Menu>,StoreError>{self.require(Permission::Sell)?;self.store.restaurant_menu()}
-    pub fn save_restaurant_menu(&mut self,m:crate::restaurant_checkout::Menu)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.save_restaurant_menu(m)}
-    pub fn prepare_restaurant(&mut self,r:crate::restaurant_checkout::Prepare)->Result<crate::payments::Request,StoreError>{self.require(Permission::Sell)?;self.store.prepare_restaurant(r)}
-    pub fn post_restaurant(&mut self,order:String,attempt:String)->Result<crate::payments::Receipt,StoreError>{self.require(Permission::Sell)?;self.store.post_restaurant(&order,&attempt)}
-    pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> { self.require(Permission::KitchenView)?; self.store.restaurant_view() }
-    pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> { self.require(if matches!(&r.action,crate::restaurant::Action::SetTicketState{..}){Permission::KitchenPrepare}else{Permission::Sell})?; self.store.restaurant_action(r) }
+    pub fn kitchen_view(&self) -> Result<crate::kitchen::Document, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.kitchen_view()
+    }
+    pub fn kitchen_action(
+        &mut self,
+        a: crate::kitchen::Action,
+    ) -> Result<crate::kitchen::Document, StoreError> {
+        self.require(Permission::KitchenView)?;
+        self.store.kitchen_action(a)
+    }
+    pub fn restaurant_workspace(&self) -> Result<crate::kitchen::Document, StoreError> {
+        self.require(Permission::KitchenView)?;
+        self.store.restaurant_workspace()
+    }
+    pub fn restaurant_status(
+        &self,
+        order: String,
+    ) -> Result<Option<crate::restaurant_recovery::Status>, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.restaurant_status(&order)
+    }
+    pub fn edit_restaurant(
+        &mut self,
+        order: String,
+        expected: i64,
+    ) -> Result<crate::restaurant_recovery::Status, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.edit_restaurant(&order, expected)
+    }
+    pub fn amend_restaurant(
+        &mut self,
+        r: crate::restaurant_recovery::Amendment,
+    ) -> Result<crate::restaurant_recovery::Status, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.amend_restaurant(r)
+    }
+    pub fn takeover_restaurant(
+        &mut self,
+        order: String,
+        expected: i64,
+        target: String,
+    ) -> Result<crate::restaurant_recovery::Status, StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.takeover_restaurant(&order, expected, &target)
+    }
+    pub fn restaurant_menu(&self) -> Result<Vec<crate::restaurant_checkout::Menu>, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.restaurant_menu()
+    }
+    pub fn save_restaurant_menu(
+        &mut self,
+        m: crate::restaurant_checkout::Menu,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.save_restaurant_menu(m)
+    }
+    pub fn prepare_restaurant(
+        &mut self,
+        r: crate::restaurant_checkout::Prepare,
+    ) -> Result<crate::payments::Request, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.prepare_restaurant(r)
+    }
+    pub fn post_restaurant(
+        &mut self,
+        order: String,
+        attempt: String,
+    ) -> Result<crate::payments::Receipt, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.post_restaurant(&order, &attempt)
+    }
+    pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> {
+        self.require(Permission::KitchenView)?;
+        self.store.restaurant_view()
+    }
+    pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> {
+        self.require(
+            if matches!(&r.action, crate::restaurant::Action::SetTicketState { .. }) {
+                Permission::KitchenPrepare
+            } else {
+                Permission::Sell
+            },
+        )?;
+        self.store.restaurant_action(r)
+    }
     pub fn list_held_bills(&self) -> Result<Vec<crate::held_bills::Bill>, StoreError> {
         self.require(Permission::Sell)?;
         self.store.list_held_bills()
     }
-    pub fn mutate_held_bill(&mut self, r: crate::held_bills::Mutation) -> Result<crate::held_bills::Resumed, StoreError> {
+    pub fn mutate_held_bill(
+        &mut self,
+        r: crate::held_bills::Mutation,
+    ) -> Result<crate::held_bills::Resumed, StoreError> {
         self.require(Permission::Sell)?;
         self.store.mutate_held_bill(r)
     }
-    pub fn prepare_held_checkout(&mut self, r: crate::held_bills::Prepare) -> Result<(), StoreError> {
+    pub fn prepare_held_checkout(
+        &mut self,
+        r: crate::held_bills::Prepare,
+    ) -> Result<(), StoreError> {
         self.require(Permission::Sell)?;
         self.store.prepare_held_checkout(r)
     }
@@ -1012,59 +1091,219 @@ mod tests;
 mod credential_tests;
 
 impl Workspace {
- pub fn hub_admin(&self)->Result<crate::hub::Document,StoreError>{self.require(Permission::Settings)?;self.store.hub_admin()}
- pub fn hub_configure(&mut self,enabled:bool,tls:Option<(String,String)>)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.hub_configure(enabled,tls)}
- /// TLS material never crosses renderer IPC. The native listener consumes this directly.
- pub fn hub_tls(&self)->Result<(String,String),StoreError>{self.require(Permission::Settings)?;self.store.hub_tls()}
- pub fn hub_device(&mut self,id:&str,revision:i64,actor:Option<&str>)->Result<(),StoreError>{self.require(Permission::Settings)?;self.store.hub_device(id,revision,actor)}
- pub fn hub_batches(&self)->Result<crate::hub::Document,StoreError>{self.require(Permission::Sell)?;self.store.hub_batches()}
- pub fn hub_dispatch(&mut self,id:&str,revision:i64)->Result<(),StoreError>{self.require(Permission::Sell)?;self.store.hub_dispatch(id,revision)}
- /// Called only by the native HTTPS listener. No financial route exists. Session swaps are
- /// confined to the same native mutex and restored even when authentication is refused.
- pub fn hub_request(&mut self,path:&str,bearer:&str,body:crate::hub::Document)->Result<crate::hub::Document,StoreError>{
-  self.authorize(Permission::View)?; // A locked/idle desktop does not serve mobile operations.
-  let enabled:bool=self.store.0.query_row("SELECT enabled FROM local_hub_config WHERE singleton=1",[],|q|q.get(0))?;if !enabled{return Err(StoreError::Forbidden);}
-  if body["version"].as_u64()!=Some(1){return Ok(serde_json::json!({"error":"unsupported_version","supported":[1]}));}
-  if path=="/v1/identity"{return self.store.hub_identity();}
-  let identity=self.store.hub_identity()?;if body["businessId"]!=identity["businessId"]||body["hubId"]!=identity["hubId"]{return Err(StoreError::WorkspaceMismatch);}
-  if path=="/v1/enrol"{return self.store.hub_enroll(body);}
-  let desktop=self.store.1.take();let activity=self.last_activity.get();
-  let result=(||{
-   if path=="/v1/session"{
-    let device=body["deviceId"].as_str().ok_or(StoreError::InvalidIdentity)?;let username=body["username"].as_str().ok_or(StoreError::InvalidIdentity)?;let password=body["password"].as_str().ok_or(StoreError::InvalidPassword)?;
-    let actor=self.store.hub_prelogin(device,bearer)?;self.login(username,password)?;
-    if self.store.1.as_ref().map(|s|s.actor_id.as_str())!=Some(actor.as_str()){return Err(StoreError::Forbidden);}
-    return self.store.hub_session(device,bearer);
-   }
-   let (session,device)=self.store.hub_authenticate(bearer)?;self.store.1=Some(session);
-   if matches!(path,"/v1/submit"|"/v1/kitchen-state"){if let Some(id)=body["operationId"].as_str(){if self.store.0.query_row("SELECT EXISTS(SELECT 1 FROM local_kitchen_assignment_ops WHERE id=?1)",[id],|q|q.get::<_,bool>(0))?{return Err(StoreError::OperationConflict);}}}
-   match path{
-    "/v1/kitchen-assign"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.responsibility.is_some()||r.session_handle.is_some(){return Err(StoreError::Forbidden);}self.store.assignment_execute(&device,r,Some(bearer))},
-    "/v1/staff-responsibility"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.responsibility.is_none()||r.session_handle.is_some(){return Err(StoreError::InvalidDraft);}self.store.assignment_execute(&device,r,Some(bearer))},
-    "/v1/assignment-operation"=>self.store.assignment_status(&format!("lan:{device}"),body["operationId"].as_str().ok_or(StoreError::InvalidDraft)?),
-    "/v1/session-signout"=>{let r:crate::assignment_recovery::Request=serde_json::from_value(body)?;if r.session_handle.is_none(){return Err(StoreError::InvalidDraft);}self.store.assignment_execute(&device,r,Some(bearer))},
-    "/v1/security-history"=>self.store.security_history(serde_json::from_value(body["query"].clone())?),
-    "/v1/staff-access"=>self.store.staff_access(serde_json::from_value(body["query"].clone())?),
-    "/v1/kitchen-history"=>self.store.kitchen_history(serde_json::from_value(body["query"].clone())?),
-    "/v1/workspace"=>self.store.restaurant_workspace(),
-    "/v1/kitchen-state"=>{let r=serde_json::from_value(body)?;self.store.hub_kitchen(&device,r,bearer)},
-    "/v1/submit"=>{let r=serde_json::from_value(body)?;self.store.hub_submit(&device,r,bearer)},
-    "/v1/operation"=>self.store.hub_operation(&device,body["operationId"].as_str().ok_or(StoreError::InvalidDraft)?),
-    _=>Err(StoreError::Forbidden)
-   }
-  })();self.store.1=desktop;self.last_activity.set(activity);result
- }
+    pub fn hub_admin(&self) -> Result<crate::hub::Document, StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_admin()
+    }
+    pub fn hub_configure(
+        &mut self,
+        enabled: bool,
+        tls: Option<(String, String)>,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_configure(enabled, tls)
+    }
+    /// TLS material never crosses renderer IPC. The native listener consumes this directly.
+    pub fn hub_tls(&self) -> Result<(String, String), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_tls()
+    }
+    pub fn hub_device(
+        &mut self,
+        id: &str,
+        revision: i64,
+        actor: Option<&str>,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_device(id, revision, actor)
+    }
+    pub fn hub_batches(&self) -> Result<crate::hub::Document, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.hub_batches()
+    }
+    pub fn hub_dispatch(&mut self, id: &str, revision: i64) -> Result<(), StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.hub_dispatch(id, revision)
+    }
+    /// Called only by the native HTTPS listener. No financial route exists. Session swaps are
+    /// confined to the same native mutex and restored even when authentication is refused.
+    pub fn hub_request(
+        &mut self,
+        path: &str,
+        bearer: &str,
+        body: crate::hub::Document,
+    ) -> Result<crate::hub::Document, StoreError> {
+        self.authorize(Permission::View)?; // A locked/idle desktop does not serve mobile operations.
+        let enabled: bool = self.store.0.query_row(
+            "SELECT enabled FROM local_hub_config WHERE singleton=1",
+            [],
+            |q| q.get(0),
+        )?;
+        if !enabled {
+            return Err(StoreError::Forbidden);
+        }
+        if body["version"].as_u64() != Some(1) {
+            return Ok(serde_json::json!({"error":"unsupported_version","supported":[1]}));
+        }
+        if path == "/v1/identity" {
+            return self.store.hub_identity();
+        }
+        let identity = self.store.hub_identity()?;
+        if body["businessId"] != identity["businessId"] || body["hubId"] != identity["hubId"] {
+            return Err(StoreError::WorkspaceMismatch);
+        }
+        if path == "/v1/enrol" {
+            return self.store.hub_enroll(body);
+        }
+        let desktop = self.store.1.take();
+        let activity = self.last_activity.get();
+        let result = (|| {
+            if path == "/v1/session" {
+                let device = body["deviceId"]
+                    .as_str()
+                    .ok_or(StoreError::InvalidIdentity)?;
+                let username = body["username"]
+                    .as_str()
+                    .ok_or(StoreError::InvalidIdentity)?;
+                let password = body["password"]
+                    .as_str()
+                    .ok_or(StoreError::InvalidPassword)?;
+                let actor = self.store.hub_prelogin(device, bearer)?;
+                self.login(username, password)?;
+                if self.store.1.as_ref().map(|s| s.actor_id.as_str()) != Some(actor.as_str()) {
+                    return Err(StoreError::Forbidden);
+                }
+                return self.store.hub_session(device, bearer);
+            }
+            let (session, device) = self.store.hub_authenticate(bearer)?;
+            self.store.1 = Some(session);
+            if matches!(path, "/v1/submit" | "/v1/kitchen-state") {
+                if let Some(id) = body["operationId"].as_str() {
+                    if self.store.0.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM local_kitchen_assignment_ops WHERE id=?1)",
+                        [id],
+                        |q| q.get::<_, bool>(0),
+                    )? {
+                        return Err(StoreError::OperationConflict);
+                    }
+                }
+            }
+            match path {
+                "/v1/kitchen-assign" => {
+                    let r: crate::assignment_recovery::Request = serde_json::from_value(body)?;
+                    if r.responsibility.is_some() || r.session_handle.is_some() {
+                        return Err(StoreError::Forbidden);
+                    }
+                    self.store.assignment_execute(&device, r, Some(bearer))
+                }
+                "/v1/staff-responsibility" => {
+                    let r: crate::assignment_recovery::Request = serde_json::from_value(body)?;
+                    if r.responsibility.is_none() || r.session_handle.is_some() {
+                        return Err(StoreError::InvalidDraft);
+                    }
+                    self.store.assignment_execute(&device, r, Some(bearer))
+                }
+                "/v1/assignment-operation" => self.store.assignment_status(
+                    &format!("lan:{device}"),
+                    body["operationId"]
+                        .as_str()
+                        .ok_or(StoreError::InvalidDraft)?,
+                ),
+                "/v1/session-signout" => {
+                    let r: crate::assignment_recovery::Request = serde_json::from_value(body)?;
+                    if r.session_handle.is_none() {
+                        return Err(StoreError::InvalidDraft);
+                    }
+                    self.store.assignment_execute(&device, r, Some(bearer))
+                }
+                "/v1/security-history" => self
+                    .store
+                    .security_history(serde_json::from_value(body["query"].clone())?),
+                "/v1/staff-access" => self
+                    .store
+                    .staff_access(serde_json::from_value(body["query"].clone())?),
+                "/v1/kitchen-history" => self
+                    .store
+                    .kitchen_history(serde_json::from_value(body["query"].clone())?),
+                "/v1/workspace" => self.store.restaurant_workspace(),
+                "/v1/kitchen-state" => {
+                    let r = serde_json::from_value(body)?;
+                    self.store.hub_kitchen(&device, r, bearer)
+                }
+                "/v1/submit" => {
+                    let r = serde_json::from_value(body)?;
+                    self.store.hub_submit(&device, r, bearer)
+                }
+                "/v1/operation" => self.store.hub_operation(
+                    &device,
+                    body["operationId"]
+                        .as_str()
+                        .ok_or(StoreError::InvalidDraft)?,
+                ),
+                _ => Err(StoreError::Forbidden),
+            }
+        })();
+        self.store.1 = desktop;
+        self.last_activity.set(activity);
+        result
+    }
 }
 
 impl Workspace {
- /// Passive polling must not renew either renderer idle authority or staff tokens.
- pub fn verify_live_scope(&self,scope:&Scope)->Result<(),StoreError>{self.authorize(Permission::View)?;if &identity::scope(&self.store.0)?!=scope{return Err(StoreError::WorkspaceMismatch);}Ok(())}
- pub fn restaurant_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::KitchenView)?;self.store.restaurant_workspace()}
- pub fn hub_live(&self)->Result<crate::hub::Document,StoreError>{self.authorize(Permission::Settings)?;self.store.hub_admin()}
+    /// Passive polling must not renew either renderer idle authority or staff tokens.
+    pub fn verify_live_scope(&self, scope: &Scope) -> Result<(), StoreError> {
+        self.authorize(Permission::View)?;
+        if &identity::scope(&self.store.0)? != scope {
+            return Err(StoreError::WorkspaceMismatch);
+        }
+        Ok(())
+    }
+    pub fn restaurant_live(&self) -> Result<crate::hub::Document, StoreError> {
+        self.authorize(Permission::KitchenView)?;
+        self.store.restaurant_workspace()
+    }
+    pub fn hub_live(&self) -> Result<crate::hub::Document, StoreError> {
+        self.authorize(Permission::Settings)?;
+        self.store.hub_admin()
+    }
 }
 #[cfg(test)]
 mod live_poll_tests {
- use super::*;
- #[test]fn passive_reads_do_not_extend_desktop_idle_authority(){let mut w=Workspace::new(Store::open(std::path::Path::new(":memory:"),"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap());w.setup("Synthetic live polling password").unwrap();let before=w.last_activity.get();let scope=w.local_session().unwrap().scope;w.verify_live_scope(&scope).unwrap();w.restaurant_live().unwrap();w.hub_live().unwrap();assert_eq!(w.last_activity.get(),before);}
- #[test]fn expired_desktop_is_not_revived_by_live_scope_checks(){let mut w=Workspace::new(Store::open(std::path::Path::new(":memory:"),"0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef").unwrap());w.setup("Synthetic live polling password").unwrap();let scope=w.local_session().unwrap().scope;w.last_activity.set(Instant::now()-Duration::from_secs(901));assert!(matches!(w.verify_live_scope(&scope),Err(StoreError::Locked)));assert!(matches!(w.restaurant_live(),Err(StoreError::Locked)));}
+    use super::*;
+    #[test]
+    fn passive_reads_do_not_extend_desktop_idle_authority() {
+        let mut w = Workspace::new(
+            Store::open(
+                std::path::Path::new(":memory:"),
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            )
+            .unwrap(),
+        );
+        w.setup("Synthetic live polling password").unwrap();
+        let before = w.last_activity.get();
+        let scope = w.local_session().unwrap().scope;
+        w.verify_live_scope(&scope).unwrap();
+        w.restaurant_live().unwrap();
+        w.hub_live().unwrap();
+        assert_eq!(w.last_activity.get(), before);
+    }
+    #[test]
+    fn expired_desktop_is_not_revived_by_live_scope_checks() {
+        let mut w = Workspace::new(
+            Store::open(
+                std::path::Path::new(":memory:"),
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            )
+            .unwrap(),
+        );
+        w.setup("Synthetic live polling password").unwrap();
+        let scope = w.local_session().unwrap().scope;
+        w.last_activity
+            .set(Instant::now() - Duration::from_secs(901));
+        assert!(matches!(
+            w.verify_live_scope(&scope),
+            Err(StoreError::Locked)
+        ));
+        assert!(matches!(w.restaurant_live(), Err(StoreError::Locked)));
+    }
 }

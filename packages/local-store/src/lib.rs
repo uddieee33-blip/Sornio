@@ -6,29 +6,31 @@ use std::{path::Path, time::Duration};
 use thiserror::Error;
 
 pub mod access;
+pub mod assignment_recovery;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
 pub mod customers;
-pub mod identity;
 pub mod held_bills;
-pub mod restaurant;
-pub mod restaurant_checkout;
-pub mod restaurant_recovery;
-pub mod kitchen;
-mod kitchen_staff;
-pub mod kitchen_history;
-pub mod staff_access;
-pub mod security_history;
-mod session_signout;
-pub mod assignment_recovery;
-mod responsibility_access;
 pub mod hub;
+pub mod identity;
 pub mod inventory_recovery;
+pub mod kitchen;
+pub mod kitchen_history;
+mod kitchen_staff;
 pub mod lan_authority;
 pub mod payments;
 pub mod recovery;
 pub mod replication;
+mod responsibility_access;
+pub mod restaurant;
+pub mod restaurant_checkout;
+pub mod restaurant_recovery;
+#[cfg(test)]
+mod schema_rollback;
+pub mod security_history;
+mod session_signout;
+pub mod staff_access;
 
 #[cfg(any(windows, target_os = "macos"))]
 pub mod device;
@@ -276,15 +278,33 @@ impl Store {
             if locked_version < 13 {
                 held_bills::migrate(&tx)?;
             }
-            if locked_version < 14 { restaurant::migrate(&tx)?; }
-            if locked_version < 15 { restaurant_checkout::migrate(&tx)?; }
-            if locked_version < 16 { restaurant_recovery::migrate(&tx)?; }
-            if locked_version < 17 { kitchen::migrate(&tx)?; }
-            if locked_version < 18 { hub::migrate(&tx)?; }
-            if locked_version < 19 { kitchen_staff::migrate(&tx)?; }
-            if locked_version < 20 { assignment_recovery::migrate(&tx)?; }
-            if locked_version < 21 { responsibility_access::migrate(&tx)?; }
-            if locked_version < 22 { session_signout::migrate(&tx)?; }
+            if locked_version < 14 {
+                restaurant::migrate(&tx)?;
+            }
+            if locked_version < 15 {
+                restaurant_checkout::migrate(&tx)?;
+            }
+            if locked_version < 16 {
+                restaurant_recovery::migrate(&tx)?;
+            }
+            if locked_version < 17 {
+                kitchen::migrate(&tx)?;
+            }
+            if locked_version < 18 {
+                hub::migrate(&tx)?;
+            }
+            if locked_version < 19 {
+                kitchen_staff::migrate(&tx)?;
+            }
+            if locked_version < 20 {
+                assignment_recovery::migrate(&tx)?;
+            }
+            if locked_version < 21 {
+                responsibility_access::migrate(&tx)?;
+            }
+            if locked_version < 22 {
+                session_signout::migrate(&tx)?;
+            }
             tx.commit()?;
         }
         Ok(Self(db, None))
@@ -552,6 +572,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             crate::lan_authority::remove_fixture_tables(&old.0);
+            crate::schema_rollback::drop_post_v11_tables(&old.0);
             old.0
                 .execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();

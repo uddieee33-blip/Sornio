@@ -4,7 +4,9 @@ on:
     # Include every base in the stacked draft-PR graph so PRs such as #134
     # (based on hardening/...) and #131 (based on integration/...) actually
     # trigger this acceptance workflow instead of silently never running.
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
+    # Stacked Phase 13-18 draft PRs use another `feature/` branch as their base,
+    # so a `[main]`-only filter meant they produced no Windows or browser result.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
   workflow_dispatch:
 permissions:
@@ -12,7 +14,11 @@ permissions:
 jobs:
   local-windows:
     runs-on: windows-latest
-    timeout-minutes: 60
+    # The installed-application acceptance runs the whole installed-app
+    # lifecycle, not just the first assertion. It previously finished early
+    # because a stale assertion stopped it; with that repaired it needs the
+    # time the rest of the job already takes.
+    timeout-minutes: 120
     env:
       CARGO_TERM_COLOR: always
       RUST_TEST_THREADS: '4'
@@ -66,8 +72,18 @@ jobs:
         run: npm ci
       - name: Install desktop dependencies
         run: npm ci --prefix apps/desktop
+      - name: Type check the desktop app
+        # `npm run build --prefix apps/desktop` is `tsc --noEmit && vite build`,
+        # so a type error in the Tauri frontend only surfaced as "Build bundled
+        # frontend failed" with the compiler's one-line diagnostic buried in a
+        # log that expires. Split it out so the failing file and symbol are the
+        # step name, and so a type error never reads as a bundler problem.
+        working-directory: apps/desktop
+        run: ./node_modules/.bin/tsc --noEmit
+
       - name: Build bundled frontend
-        run: npm run build --prefix apps/desktop
+        working-directory: apps/desktop
+        run: ./node_modules/.bin/vite build
       - name: Test encrypted storage, Windows vault and restart behavior
         # Emit each failing test as a workflow ::error:: annotation so the exact
         # failure is visible in the check record even when raw logs expire.
@@ -96,7 +112,7 @@ jobs:
               | sed 's/^/::error::failing tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
               | sed 's/^/::error::compiler errors: /' || true
-            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | cut -c1-400 | head -120 | esc; } \
               | sed 's/^/::error::failure details: /' || true
             { tail -30 "$log.clean" | esc; } | sed 's/^/::error::log tail: /' || true
           fi
@@ -129,7 +145,7 @@ jobs:
               | sed 's/^/::error::failing debug-profile tests: /' || true
             { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
               | sed 's/^/::error::compiler errors (debug): /' || true
-            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
+            { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | cut -c1-400 | head -120 | esc; } \
               | sed 's/^/::error::debug failure details: /' || true
             { tail -30 "$log.clean" | esc; } | sed 's/^/::error::debug log tail: /' || true
           fi

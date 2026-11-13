@@ -278,7 +278,21 @@ try {
   const productionFlag = readFileSync(join(root, 'apps/mobile/app.json'), 'utf8');
   check(productionFlag.includes('"productionSyncEnabled": false'), 'companion production sync stays disabled');
   const schema = readFileSync(join(root, 'packages/local-store/src/lib.rs'), 'utf8');
-  check(/const SCHEMA_VERSION: i64 = 12;/.test(schema), 'financial schema remains 12');
+  // Pin the schema version to the file rather than to a literal. This check is
+  // about the replication contract still matching the store it reads: it must
+  // fail if `migrate` and `SCHEMA_VERSION` disagree, and must *not* fail merely
+  // because the application added another local migration (Phase 11 added
+  // held bills, Phase 13-18J added restaurant, kitchen, hub, staff and
+  // session-signout state, taking 12 → 22). A literal here turned every one of
+  // those into a red replication gate without any replication defect, which is
+  // how a guard stops being read.
+  const declaredVersion = /const SCHEMA_VERSION: i64 = (\d+);/.exec(schema)?.[1];
+  check(declaredVersion !== undefined, 'store declares a numeric schema version');
+  const migrations = [...schema.matchAll(/if locked_version < (\d+)/g)].map((m) => Number(m[1]));
+  check(
+    migrations.length > 0 && Math.max(...migrations) === Number(declaredVersion),
+    `store migrations stay in step with SCHEMA_VERSION (${declaredVersion})`,
+  );
   check(schema.includes('pub mod replication;'), 'sidecar publisher module is declared');
   const rust = readFileSync(join(root, 'packages/local-store/src/replication.rs'), 'utf8');
   check(rust.includes('unpublished_replication'), 'native unpublished outbox reader is wired');

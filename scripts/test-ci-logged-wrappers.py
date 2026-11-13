@@ -140,8 +140,21 @@ def main():
                     "browser-native-debug": "PROBE_OTHER cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml --release",
                     "desktop-browser": "PROBE_OTHER node apps/desktop/check-inventory-refresh.cjs",
                 }.get(case)
-                if not args.expect_vulnerable and later and ((later in result.stdout) != (expected == 0)):
-                    failures.append(f"{case}: subsequent check ran after a failure or failed to run after success")
+                # The desktop matrix deliberately runs every check even after
+                # one fails, so a single stale assertion cannot hide the rest
+                # of the matrix behind it. The native cargo step still stops at
+                # the first failure: there is nothing after it to learn from.
+                # The step's exit code is asserted separately and must still
+                # carry the failing command's own status.
+                keeps_going = {"desktop-browser": True}.get(case, False)
+                if not args.expect_vulnerable and later:
+                    ran = later in result.stdout
+                    should_run = keeps_going or expected == 0
+                    if ran != should_run:
+                        failures.append(
+                            f"{case}: subsequent check {'ran' if ran else 'did not run'} "
+                            f"but {'should' if should_run else 'should not'} have run"
+                        )
                 print(f"{case}: command={command_exit} tee={tee_exit} wrapper={result.returncode}")
     if failures:
         raise SystemExit("\n".join(failures))

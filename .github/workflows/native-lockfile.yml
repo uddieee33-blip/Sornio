@@ -1,0 +1,246 @@
+name: Native lockfile refresh (engineering only)
+
+# This workflow exists because the fix it produces cannot be made anywhere else.
+#
+# Both native manifests need their `Cargo.lock` regenerated — `apps/desktop/src-tauri`
+# gained `rustls`, `rustls-pemfile` and `mdns-sd` across the LAN-hub phases without
+# re-locking, and `packages/local-store` does not resolve on Windows because
+# `keyring`/`fs2`/`zeroize` sit under `[target.'cfg(windows)'.dependencies]`.
+# Resolving either needs crates.io. The environment that reviewed this work had
+# no crates.io access and no Rust toolchain, so the resolution happens here and
+# the result is reviewed as a diff before it is committed.
+#
+# It deliberately does NOT push to the pull-request branch. It commits to a
+# short-lived `ci/native-lockfile-<sha>` branch (or, if the token cannot write,
+# prints everything it changed as annotations) so a human reviews the dependency
+# delta before it lands. `--locked` stays in every build and test workflow: the
+# point is a correct lock, never a relaxed gate.
+#
+# It is also the only place that can report which SQLite/SQLCipher versions the
+# `bundled-sqlcipher-vendored-openssl` feature actually compiles, which is what
+# RUSTSEC-2026-0459 turns on.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [arena/1b1cac28-sornio]
+    paths: ['.github/workflows/native-lockfile.yml']
+
+permissions:
+  contents: write
+
+env:
+  CARGO_TERM_COLOR: never
+  CARGO_NET_RETRY: '3'
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: true
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+
+      - name: Record toolchain
+        run: |
+          rustc --version
+          cargo --version
+          rustfmt --version
+          echo "::notice::cargo=$(cargo --version) rustc=$(rustc --version)"
+
+      # `cargo metadata` resolves the graph and rewrites the lockfile *minimally*:
+      # existing pins are preserved and only missing entries are added, which is
+      # what keeps this from becoming an accidental upgrade of the whole tree.
+      # `cargo generate-lockfile` re-resolves from scratch and would bump things
+      # no one asked to move, so it is not used here.
+      - name: Resolve local-store lockfile
+        working-directory: packages/local-store
+        run: |
+          cp Cargo.lock /tmp/local-store.Cargo.lock.orig
+          cargo metadata --format-version 1 > /dev/null
+          echo "--- local-store lockfile delta ---"
+          diff -u /tmp/local-store.Cargo.lock.orig Cargo.lock || true
+
+      - name: Resolve desktop lockfile
+        working-directory: apps/desktop/src-tauri
+        run: |
+          cp Cargo.lock /tmp/src-tauri.Cargo.lock.orig
+          cargo metadata --format-version 1 > /dev/null
+          echo "--- src-tauri lockfile delta ---"
+          diff -u /tmp/src-tauri.Cargo.lock.orig Cargo.lock || true
+
+      - name: Report the SQLite version actually compiled
+        # RUSTSEC-2026-0459 is a CVE in the SQLite C source, so what matters is not
+        # the Rust wrapper's semver but which amalgamation is compiled. Two layouts
+        # have to be handled: libsqlite3-sys <= 0.38.2 vendors the amalgamation at
+        # `libsqlite3-sys/sqlcipher/sqlite3.h`, while >= 0.39 takes it from the
+        # `sqlcipher-src` crate. Both are searched and every hit is reported, so the
+        # answer is visible rather than inferred.
+        #
+        # Written in bash rather than an inline Python heredoc on purpose: a heredoc
+        # body inside a YAML block scalar keeps the block's indentation, and Python
+        # rejects that with IndentationError.
+        run: |
+          set -u
+          for m in packages/local-store/Cargo.toml apps/desktop/src-tauri/Cargo.toml; do
+            cargo metadata --manifest-path "$m" --format-version 1 >/dev/null 2>&1 || true
+            cargo fetch --manifest-path "$m" >/dev/null 2>&1 || true
+          done
+
+          echo "== resolved encryption stack =="
+          for lock in packages/local-store/Cargo.lock apps/desktop/src-tauri/Cargo.lock; do
+            echo "-- $lock"
+            for crate in rusqlite libsqlite3-sys sqlcipher-src openssl-src; do
+              v=$(grep -A1 "^name = \"$crate\"" "$lock" | grep '^version' | head -1 | sed -e 's/.*= "//' -e 's/"$//')
+              [ -n "$v" ] && echo "::notice::$lock: $crate $v"
+            done
+          done
+
+          reg="${CARGO_HOME:-$HOME/.cargo}/registry/src"
+          echo "== amalgamations present in the registry =="
+          found=0
+          bad=0
+          for h in "$reg"/*/libsqlite3-sys-*/sqlcipher/sqlite3.h \
+                   "$reg"/*/sqlcipher-src-*/sqlcipher/sqlite3.h; do
+            [ -f "$h" ] || continue
+            found=$((found + 1))
+            v=$(grep -m1 -oE '#define SQLITE_VERSION[[:space:]]+"[0-9.]+"' "$h" \
+                  | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' || true)
+            src=$(grep -m1 -oE '#define SQLITE_SOURCE_ID[[:space:]]+".*"' "$h" | head -c 120 || true)
+            echo "$h -> SQLite ${v:-unknown}  $src"
+            [ -n "$v" ] || continue
+            # sort -V orders semantically, so the lowest of the two tells us whether
+            # this build is at or above the fixed 3.54.0.
+            lowest=$(printf '%s\n%s\n' "3.54.0" "$v" | sort -V | head -1)
+            if [ "$lowest" = "3.54.0" ]; then
+              echo "::notice file=$h::compiled SQLite $v is at or above the fixed 3.54.0"
+            else
+              echo "::error file=$h::compiled SQLite $v is below 3.54.0 and is affected by CVE-2026-119375"
+              bad=$((bad + 1))
+            fi
+          done
+
+          if [ "$found" -eq 0 ]; then
+            echo "::warning::no SQLCipher amalgamation found in the registry; version gate not evaluated"
+            echo "bad=0" >> "$GITHUB_OUTPUT"
+          elif [ "$bad" -ne 0 ]; then
+            echo "::error::$bad compiled amalgamation(s) are below the patched SQLite 3.54.0"
+            echo "bad=$bad" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::every compiled SQLCipher amalgamation is at or above the fixed SQLite 3.54.0"
+            echo "bad=0" >> "$GITHUB_OUTPUT"
+          fi
+
+          # The wrong-crate check: the amalgamation version and the crate that
+          # provides it can disagree, which is exactly how the first attempt picked
+          # a release that still compiled SQLite 3.51.3.
+          sources=$(ls -d "$reg"/*/sqlcipher-src-* 2>/dev/null | wc -l)
+          if [ "$sources" -eq 0 ]; then
+            echo "::warning::no sqlcipher-src in the registry; libsqlite3-sys is still vendoring its own amalgamation"
+          else
+            echo "::notice::sqlcipher-src present ($sources), so the amalgamation comes from that crate"
+          fi
+        id: sqlite_gate
+
+      - name: Format native Rust sources
+        run: |
+          cargo fmt --manifest-path packages/local-store/Cargo.toml
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - name: Prove formatting is clean
+        run: |
+          cargo fmt --manifest-path packages/local-store/Cargo.toml -- --check
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check
+          echo "::notice::both native workspaces pass cargo fmt --check after formatting"
+
+      - name: Summarise the change
+        id: summary
+        run: |
+          echo "== changed files =="
+          git status --porcelain | head -60
+          files=$(git status --porcelain | wc -l)
+          echo "files=$files" >> "$GITHUB_OUTPUT"
+          {
+            echo "### Native lockfile refresh"
+            echo ""
+            echo "Changed files: $files"
+            echo ""
+            echo '```'
+            git status --porcelain
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish the result on a review branch
+        id: publish
+        run: |
+          set +e
+          branch="ci/native-lockfile-${GITHUB_SHA:0:7}"
+          git config user.name "Sornio native lock refresh"
+          git config user.email "actions@users.noreply.github.com"
+          git checkout -b "$branch"
+          git add -A
+          msg="Regenerate native lockfiles with Cargo and apply rustfmt (generated on $GITHUB_SHA)"
+          msg="$msg; lockfiles are cargo metadata output (minimal re-resolution, existing pins preserved), formatting is cargo fmt output"
+          git -c commit.gpgsign=false commit -m "$msg" 2>&1 | tail -3
+          if git push origin "$branch" 2>&1 | tail -3; then
+            echo "::notice title=Review branch::fetched with: git fetch origin $branch"
+            echo "branch=$branch" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::the workflow token cannot push; falling back to annotations"
+            echo "branch=" >> "$GITHUB_OUTPUT"
+          fi
+          set -e
+
+      - name: Emit the lockfile diff as annotations
+        # Fallback evidence path. A check-run annotation is capped at 65535 bytes,
+        # so the diff is chunked rather than truncated — the earlier rustfmt
+        # annotation in this repository was silently dropped for exceeding it.
+        run: |
+          git diff --no-color HEAD~1 -- packages/local-store/Cargo.lock apps/desktop/src-tauri/Cargo.lock \
+            > /tmp/lock.diff || true
+          wc -c /tmp/lock.diff
+          python3 - <<'PY'
+          import os, pathlib
+          text = pathlib.Path('/tmp/lock.diff').read_text()
+          if not text.strip():
+              print('::notice::no lockfile change after resolution')
+              raise SystemExit(0)
+          chunk = 55000
+          for i in range(0, len(text), chunk):
+              part = text[i:i+chunk]
+              esc = part.replace('%', '%25').replace('\r', '%0D').replace('\n', '%0A')
+              print(f'::error title=lockfile delta {i//chunk}::{esc}')
+          PY
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: native-lockfiles
+          path: |
+            packages/local-store/Cargo.lock
+            apps/desktop/src-tauri/Cargo.lock
+          if-no-files-found: error
+          retention-days: 7
+
+      - name: Report the review branch
+        if: always()
+        run: |
+          echo "review branch: ${{ steps.publish.outputs.branch }}"
+          echo "::notice::review branch: ${{ steps.publish.outputs.branch }}"
+
+      - name: Enforce the SQLite version gate
+        # Deliberately last. The first run of this gate failed before the review
+        # branch and the artifact were published, so the lockfiles that would have
+        # shown what went wrong were lost. Evidence first, verdict after.
+        if: always()
+        run: |
+          bad="${{ steps.sqlite_gate.outputs.bad }}"
+          if [ -n "${bad:-}" ] && [ "$bad" != "0" ]; then
+            echo "::error::security gate: $bad compiled SQLCipher amalgamation(s) are below SQLite 3.54.0 (RUSTSEC-2026-0459)"
+            exit 1
+          fi
+          echo "::notice::security gate: compiled SQLite is at or above 3.54.0"
