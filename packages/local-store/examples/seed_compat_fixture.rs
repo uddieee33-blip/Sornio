@@ -42,7 +42,7 @@ fn main() {
 
     // A stale file (or a leftover write-ahead log from an earlier run) would make the fixture look
     // like something this build wrote. Start from nothing.
-    for suffix in ["", "-wal", "-shm"]] {
+    for suffix in ["", "-wal", "-shm"] {
         let _ = std::fs::remove_file(format!("{}{}", path.display(), suffix));
     }
 

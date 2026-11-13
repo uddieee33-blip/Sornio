@@ -43,8 +43,18 @@ jobs:
             && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check; then
             exit 0
           fi
-          cargo fmt --manifest-path packages/local-store/Cargo.toml
-          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
+          # A file rustfmt cannot parse makes `cargo fmt` itself fail, and
+          # with `set -e` the step would then die before it could say a word
+          # - leaving only "Process completed with exit code 1" in the check
+          # record, which says nothing about which file and why. Capture the
+          # output first and report it.
+          cargo fmt --manifest-path packages/local-store/Cargo.toml > /tmp/rustfmt-store.log 2>&1 || true
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml > /tmp/rustfmt-desktop.log 2>&1 || true
+          for rustfmt_log in /tmp/rustfmt-store.log /tmp/rustfmt-desktop.log; do
+            if [ -s "$rustfmt_log" ]; then
+              echo "::error::$(basename "$rustfmt_log"): $(sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$rustfmt_log" | tr -d '\n' | head -c 20000)"
+            fi
+          done
           # One annotation carries the whole diff; newlines escaped as %0A so
           # the check-run API returns it in full instead of truncating a
           # per-line annotation list.
@@ -56,12 +66,30 @@ jobs:
           # which case GitHub rejects the annotation and the check record keeps
           # only "Process completed with exit code 1". Truncating keeps the
           # beginning of the diff, which is where the reviewer starts anyway.
-          git diff -- packages apps \
+          rustfmt_diff=$(git diff -- packages apps \
             | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' \
-            | tr -d '\n' | head -c 60000 | sed 's/^/::error::rustfmt diff: /'
+            | tr -d '\n' | head -c 60000 || true)
+          echo "::error::rustfmt diff: ${rustfmt_diff}"
           echo "::error::rustfmt would reformat these files: $(git diff --name-only -- packages apps | tr '\n' ' ')"
+          # The formatted files are published as an artifact so the exact
+          # formatting rustfmt wants can be taken into the tree without a
+          # local Rust toolchain.
+          rm -rf /tmp/rustfmt-result
+          mkdir -p /tmp/rustfmt-result
+          for rustfmt_file in $(git diff --name-only -- packages apps); do
+            mkdir -p "/tmp/rustfmt-result/$(dirname "$rustfmt_file")"
+            cp "$rustfmt_file" "/tmp/rustfmt-result/$rustfmt_file"
+          done
           git checkout -- packages apps
           exit 1
+      - name: Upload the rustfmt result
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-rustfmt-result
+          path: /tmp/rustfmt-result
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Test native billing and inventory in debug and release
         # Emit failing tests / compiler errors as full-text ::error::
         # annotations (newlines as %0A) so failures stay visible in the check
