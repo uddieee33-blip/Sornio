@@ -377,7 +377,7 @@ the real `div#S:0` — was injected into the live document:
 The unchanged product build then passed the **unchanged** acceptance script three
 consecutive times locally, in 37 s, 34 s and 33 s.
 
-### 2.7 Two desktop checks repaired to the product
+### 2.7 Desktop checks repaired to the product
 
 * **`check-receipts`** now confirms with **`Alt+Enter`**, the deliberate key, and
   additionally asserts the property the product cares about: a plain `Enter` must
@@ -390,16 +390,14 @@ consecutive times locally, in 37 s, 34 s and 33 s.
   kilogram of rice at ₹42.50 a kilogram, which is exactly the ₹42.50 the split
   pays — and asserts first that the scan left the quantity empty, so the reason
   for the fill is stated rather than implied.
-* **`check-receipts`' split sale** now waits for the store's answer about the
-  customer before it opens the review. The store's lookup waits 150 ms before it
-  even asks, and the review refuses to open until the credit details have
-  arrived — so a keyboard path that pressed `F4` straight after filling the
-  customer reference could press it *before* the answer was in and be refused
-  with *"Select an existing credit customer and wait for their credit details."*
-  This is the same rule the customer check was repaired to earlier: wait for the
-  store's answer rather than racing it.
+* **`check-receipts`' split sale** now allocates the credit **before** it names
+  the customer, and then waits for the store's answer about that customer before
+  it opens the review. Both halves matter: the field does not exist until there
+  is a credit to attribute (§1.10), and the store's lookup waits 150 ms before
+  it even asks, so the review refuses to open until the credit details have
+  arrived. See §1.10 and §2.9.
 
-All three were validated against the **real product components** with a mocked
+All of these were validated against the **real product components** with a mocked
 transport, because the native bridge cannot be built on the review machine:
 
 | Property | Measured |
@@ -495,6 +493,26 @@ failure. **NOT RUN** — not reached. **NOT APPLICABLE** — does not apply to t
 Every row names the commit it ran against. Runs for the final commit `eb181ce` are
 marked with the run id in brackets.
 
+### 3.0 The final matrix, in one place
+
+Commit `eb181ce` — the whole matrix, every workflow, all green:
+
+| Workflow | Run | Result |
+| --- | --- | --- |
+| CI (lint, typecheck, build, native suites, copy-drift gate, SQLCipher compatibility) | `43491838565` | **PASS** |
+| Windows local workspace (native suites, installer, installed-app lifecycle, evidence) | `43491838545` | **PASS** |
+| macOS desktop workspace (native suites, unsigned bundle, identity and signing state) | `43491838832` | **PASS** |
+| Android review package (APK, contract tests, typecheck, secret scan) | `43491838615` | **PASS** |
+| Mobile companion (iOS prebuild, CocoaPods, simulator compile) | `43491838556` | **PASS** |
+| Replication PostgreSQL (native SQLCipher envelopes over TLS) | `43491838557` | **PASS** |
+| Workspace browser review (browser acceptance **and** all twelve desktop checks) | `43491838574` | **PASS** |
+
+The browser review is the one that carries the desktop matrix: its *Run browser
+acceptance* step and its *Build and review local desktop access UI* step both
+report `success` on this commit, so the twelve desktop checks — including the
+receipt and customer-statement checks repaired here — are green against the
+**real** native bridge.
+
 ### 3.1 Windows
 
 | Area | Platform / runner | Command or workflow | Test | Result | Class |
@@ -553,7 +571,7 @@ marked with the run id in brackets.
 | Native SQLCipher outbox envelopes exported | same | same → *Export native SQLCipher outbox envelopes* | green | **PASS** |
 | **Native SQLCipher envelopes over TLS into PostgreSQL** | same | same → *Native SQLCipher envelopes over TLS into PostgreSQL* | green | **PASS** |
 | HTTPS acks applied to the native sidecar | same | same → *Apply HTTPS acks to the native sidecar* | green | **PASS** |
-| Browser acceptance (8 portals, responsive, modal focus, subscription API) | `ubuntu-latest` | `workspace-browser.yml` → *Run browser acceptance* | green — run `43464943060`, commit `0a5a2fb` | **PASS** |
+| Browser acceptance (8 portals, responsive, modal focus, subscription API) | `ubuntu-latest` | `workspace-browser.yml` → *Run browser acceptance* | green — run `43491838574`, commit `eb181ce` | **PASS** |
 | Local browser acceptance (review machine) | Debian 12, Node v22.22.3, Chromium 153.0.8010.0 | `node scripts/verify-workspace-browser.cjs` | green in **37 s, 34 s and 33 s** — three consecutive runs | **PASS** |
 
 ### 3.6 The two jobs that were failing, after the repairs
@@ -810,7 +828,7 @@ the iOS simulator build are **published as CI artifacts for review only**.
 | # | Blocker | Exact cause | Affected | Status | Class |
 | --- | --- | --- | --- | --- | --- |
 | 1 | No Rust toolchain on the review machine | `rustc`, `cargo`, `rustup` are absent; the Rust hosts and crates.io are unreachable from the sandbox | every native test, the historical fixture, the compatibility test | **resolved in CI** — the historical compatibility job and the native suites are green there | **BLOCKED** locally / **PASS** in CI |
-| 2 | No native bridge binary locally | `packages/local-store/target/debug/examples/cashier_review_bridge` cannot be built without a Rust toolchain | 10 of the 12 desktop checks | **resolved in CI** | **BLOCKED** locally / **PASS** in CI |
+| 2 | No native bridge binary locally | `packages/local-store/target/debug/examples/cashier_review_bridge` cannot be built without a Rust toolchain | 10 of the 12 desktop checks | **resolved in CI**, and **partly resolved locally** by the mock review bridge (§1.11), which can run the receipt and customer-statement checks end to end | **BLOCKED** locally / **PASS** in CI |
 | 3 | Artifact storage and raw job logs are unreadable from the sandbox | both redirect to `*.blob.core.windows.net`, which is not reachable | verification ergonomics | **worked around** — CI facts are taken from check-run annotations, and the gates were changed to emit their findings as annotations | **BLOCKED** (environmental) |
 | 4 | No physical device, emulator or simulator with a UI session | — | Android APK, iOS app, iPadOS | not performed | **NOT RUN** |
 | 5 | No macOS signing identity or notarization credential | — | macOS bundle | not performed | **NOT RUN** |
@@ -869,10 +887,15 @@ the customer ledger and printing.
 
 ### 11.4 Desktop and browser UI — **GO**
 
-All twelve desktop checks and the browser acceptance are green in CI. The three
-assertions that had never run are repaired and now assert stricter properties than
-before. The failure class that produced this whole phase — a stale assertion
-reported as a product failure — has a gate that catches it in a fast job.
+All twelve desktop checks and the browser acceptance are green in CI. The
+assertions that had never run are repaired and now assert stricter properties
+than before — a scanner keypress proves it cannot post money, an interrupted
+read proves the panel cannot show a count it has never read, a weighed scan
+proves it needs a quantity, and a credit split proves it needs a customer
+before the review opens. The failure class that produced this whole phase — a
+stale assertion reported as a product failure — has a gate that catches it in a
+fast job, and the one *stale wait* among them has a mock bridge that makes it
+reproducible locally in eight seconds instead of one CI round trip.
 
 ### 11.5 macOS, Android, iOS/iPadOS — **CONDITIONAL GO**
 
