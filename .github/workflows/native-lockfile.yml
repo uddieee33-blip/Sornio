@@ -127,12 +127,25 @@ jobs:
 
           if [ "$found" -eq 0 ]; then
             echo "::warning::no SQLCipher amalgamation found in the registry; version gate not evaluated"
+            echo "bad=0" >> "$GITHUB_OUTPUT"
           elif [ "$bad" -ne 0 ]; then
             echo "::error::$bad compiled amalgamation(s) are below the patched SQLite 3.54.0"
-            exit 1
+            echo "bad=$bad" >> "$GITHUB_OUTPUT"
           else
             echo "::notice::every compiled SQLCipher amalgamation is at or above the fixed SQLite 3.54.0"
+            echo "bad=0" >> "$GITHUB_OUTPUT"
           fi
+
+          # The wrong-crate check: the amalgamation version and the crate that
+          # provides it can disagree, which is exactly how the first attempt picked
+          # a release that still compiled SQLite 3.51.3.
+          sources=$(ls -d "$reg"/*/sqlcipher-src-* 2>/dev/null | wc -l)
+          if [ "$sources" -eq 0 ]; then
+            echo "::warning::no sqlcipher-src in the registry; libsqlite3-sys is still vendoring its own amalgamation"
+          else
+            echo "::notice::sqlcipher-src present ($sources), so the amalgamation comes from that crate"
+          fi
+        id: sqlite_gate
 
       - name: Format native Rust sources
         run: |
@@ -218,3 +231,16 @@ jobs:
         run: |
           echo "review branch: ${{ steps.publish.outputs.branch }}"
           echo "::notice::review branch: ${{ steps.publish.outputs.branch }}"
+
+      - name: Enforce the SQLite version gate
+        # Deliberately last. The first run of this gate failed before the review
+        # branch and the artifact were published, so the lockfiles that would have
+        # shown what went wrong were lost. Evidence first, verdict after.
+        if: always()
+        run: |
+          bad="${{ steps.sqlite_gate.outputs.bad }}"
+          if [ -n "${bad:-}" ] && [ "$bad" != "0" ]; then
+            echo "::error::security gate: $bad compiled SQLCipher amalgamation(s) are below SQLite 3.54.0 (RUSTSEC-2026-0459)"
+            exit 1
+          fi
+          echo "::notice::security gate: compiled SQLite is at or above 3.54.0"
