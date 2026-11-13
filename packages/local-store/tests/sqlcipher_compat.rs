@@ -64,8 +64,7 @@ fn seeded(path: &Path) {
 /// copy of the historical fixture. That keeps the delivered file untouched, which is what lets the
 /// test compare its bytes before and after.
 fn records_are_intact(path: &Path) {
-    let mut w =
-        Workspace::new(Store::open(path, KEY).expect("the fixture must open with its key"));
+    let mut w = Workspace::new(Store::open(path, KEY).expect("the fixture must open with its key"));
     w.login("owner", PASSWORD)
         .expect("the fixture's owner credentials must still work");
 
@@ -118,8 +117,8 @@ fn encrypted_store_survives_the_upgrade_with_its_financial_balances_intact() {
             // Open only. No login: a login is a deliberate write, and it must not be able to
             // masquerade as the open rewriting the database.
             {
-                let _store = Store::open(&path, KEY)
-                    .expect("the historical fixture must open with its key");
+                let _store =
+                    Store::open(&path, KEY).expect("the historical fixture must open with its key");
                 let after_open = std::fs::read(&path).expect("the fixture must still be readable");
                 assert_eq!(
                     before, after_open,
