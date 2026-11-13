@@ -654,7 +654,7 @@ fn authorised_kitchen_and_restaurant_operations_really_succeed() {
     for action in [
         json!({"kind":"open_order","id":"order-1","table_id":"t1"}),
         json!({"kind":"send_ticket","id":"ticket-1","order_id":"order-1","expected_revision":1,
-               "items":[{"name":"Rice","quantity":1,"note":"","product_id":"rice"}]}),
+               "items":[{"name":"Rice","quantity":1,"note":"","productId":"rice"}]}),
     ] {
         let kind = action["kind"].as_str().unwrap().to_string();
         let r = json!({"operationId":format!("op-table-{kind}"), "action":action});
