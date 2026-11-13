@@ -276,6 +276,75 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             serde_json::to_value(w.read_invoice(&argument::<String>(a, "invoiceId")?)?)?
         }
         "list_local_invoices" => serde_json::to_value(w.list_invoices(argument(a, "after")?)?)?,
+        // Restaurant, kitchen, hub and held-bill surfaces. These arms exist so the security
+        // harness exercises the real Workspace method - and therefore the real permission and
+        // scope checks - instead of erroring on a missing arm, which would prove nothing.
+        "list_local_held_bills" => serde_json::to_value(w.list_held_bills()?)?,
+        "mutate_local_held_bill" => serde_json::to_value(w.mutate_held_bill(argument(a, "r")?)?)?,
+        "prepare_local_held_checkout" => {
+            w.prepare_held_checkout(argument(a, "r")?)?;
+            Value::Null
+        }
+        "read_local_customer" => {
+            serde_json::to_value(w.read_customer(&argument::<String>(a, "customerId")?)?)?
+        }
+        "restaurant_live" => serde_json::to_value(w.restaurant_live()?)?,
+        "restaurant_workspace" => serde_json::to_value(w.restaurant_workspace()?)?,
+        "restaurant_status" => {
+            serde_json::to_value(w.restaurant_status(argument::<String>(a, "order")?)?)?
+        }
+        "restaurant_menu" => serde_json::to_value(w.restaurant_menu()?)?,
+        "edit_restaurant" => serde_json::to_value(w.edit_restaurant(
+            argument::<String>(a, "order")?,
+            argument::<i64>(a, "expected")?,
+        )?)?,
+        "amend_restaurant" => serde_json::to_value(w.amend_restaurant(argument(a, "r")?)?)?,
+        "takeover_restaurant" => serde_json::to_value(w.takeover_restaurant(
+            argument::<String>(a, "order")?,
+            argument::<i64>(a, "expected")?,
+            argument::<String>(a, "target")?,
+        )?)?,
+        "prepare_restaurant" => serde_json::to_value(w.prepare_restaurant(argument(a, "r")?)?)?,
+        "post_restaurant" => serde_json::to_value(w.post_restaurant(
+            argument::<String>(a, "order")?,
+            argument::<String>(a, "attempt")?,
+        )?)?,
+        "read_restaurant" => serde_json::to_value(w.restaurant_view()?)?,
+        "change_restaurant" => {
+            w.restaurant_action(argument(a, "r")?)?;
+            Value::Null
+        }
+        "save_restaurant_menu" => {
+            w.save_restaurant_menu(argument(a, "m")?)?;
+            Value::Null
+        }
+        "kitchen_view" => serde_json::to_value(w.kitchen_view()?)?,
+        "kitchen_action" => serde_json::to_value(w.kitchen_action(argument(a, "a")?)?)?,
+        "hub_live" => serde_json::to_value(w.hub_live()?)?,
+        "hub_admin" => serde_json::to_value(w.hub_admin()?)?,
+        "hub_batches" => serde_json::to_value(w.hub_batches()?)?,
+        "hub_dispatch" => {
+            w.hub_dispatch(
+                &argument::<String>(a, "id")?,
+                argument::<i64>(a, "revision")?,
+            )?;
+            Value::Null
+        }
+        "hub_device" => {
+            w.hub_device(
+                &argument::<String>(a, "id")?,
+                argument::<i64>(a, "revision")?,
+                argument::<Option<String>>(a, "actor")?.as_deref(),
+            )?;
+            Value::Null
+        }
+        // hub_control and hub_import_tls are Native-only: they drive the hub listener and the
+        // OS file dialog, so they have no store-level equivalent. They still must pass the
+        // session requirement that gates every non-public command.
+        "hub_control" | "hub_import_tls" => {
+            w.require(sornio_local_store::identity::Permission::Settings)?;
+            Value::Null
+        }
         _ => return Err(StoreError::InvalidInvoice),
     })
 }

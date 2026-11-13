@@ -16,6 +16,12 @@ const ALL: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
 const MANAGE: &[&str] = &["owner", "manager", "assistant_manager"];
 const REPORTS: &[&str] = &["owner", "manager"];
 const OWNER: &[&str] = &["owner"];
+// Permission-derived role sets. KitchenView, KitchenPrepare and Settings are Owner-only in
+// Role::allows; Sell is held by every role. Using the derived set means a denial here is
+// asserted to be Forbidden at the native boundary, not merely "some error".
+const SELL: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
+const KITCHEN: &[&str] = &["owner"];
+const SETTINGS: &[&str] = &["owner"];
 struct Case {
     command: &'static str,
     args: Value,
@@ -217,6 +223,109 @@ fn cases() -> Vec<Case> {
         json!({"day":"2026-10-29"}),
         REPORTS
     );
+
+    // Restaurant, kitchen, hub and held-bill coverage. Every payload below uses the real
+    // domain shape, because each command reaches its permission gate before its payload is
+    // interpreted - a malformed payload would fail deserialisation and prove nothing.
+    // Field names follow the frontend contract exactly: variant fields are snake_case
+    // (expected_revision) while the surrounding structs are camelCase. create_table is flat.
+    let table = json!({"operationId":"restaurant","action":{"kind":"create_table","id":"t1","name":"Table 1"}});
+    c!("change_restaurant", json!({"r":table}), SELL);
+    c!(
+        "change_restaurant",
+        json!({"r":{"operationId":"restaurant","action":{"kind":"set_ticket_state","id":"ticket","expected_revision":1,"state":"ready"}}}),
+        KITCHEN
+    );
+    c!("read_restaurant", json!({}), KITCHEN);
+    c!("restaurant_workspace", json!({}), KITCHEN);
+    c!("restaurant_live", json!({}), KITCHEN);
+    c!(
+        "restaurant_status",
+        json!({"order":"order-1"}),
+        SELL
+    );
+    c!("restaurant_menu", json!({}), SELL);
+    c!(
+        "edit_restaurant",
+        json!({"order":"order-1","expected":1}),
+        SELL
+    );
+    c!(
+        "amend_restaurant",
+        json!({"r":{"orderId":"order-1","expectedRevision":1,"attemptId":"amend-1","lines":[],"taxBasisPoints":0,"customerId":null,"payments":[],"acceptPrices":false}}),
+        SELL
+    );
+    c!(
+        "takeover_restaurant",
+        json!({"order":"order-1","expected":1,"target":"owner"}),
+        SETTINGS
+    );
+    c!(
+        "prepare_restaurant",
+        json!({"r":{"orderId":"order-1","expectedRevision":1,"operationId":"restaurant-1","taxBasisPoints":0,"customerId":null,"payments":[]}}),
+        SELL
+    );
+    c!(
+        "post_restaurant",
+        json!({"order":"order-1","attempt":"restaurant-1"}),
+        SELL
+    );
+    c!(
+        "save_restaurant_menu",
+        json!({"m":{"id":"m1","productId":"rice","category":"main","label":"Rice","variant":"regular","available":true}}),
+        SETTINGS
+    );
+
+    // Kitchen: viewing tickets is KitchenView; mutating them is KitchenView/KitchenPrepare.
+    // A cashier holds neither, so kitchen staff can never reach a financial permission here.
+    c!("kitchen_view", json!({}), KITCHEN);
+    c!(
+        "kitchen_action",
+        json!({"a":{"kind":"assign","order_id":"order-1","expected_revision":1,"actor_id":"employee-1"}}),
+        KITCHEN
+    );
+
+    // Hub and device administration.
+    c!("hub_live", json!({}), SETTINGS);
+    c!("hub_admin", json!({}), SETTINGS);
+    c!("hub_batches", json!({}), SELL);
+    c!(
+        "hub_dispatch",
+        json!({"id":"batch-1","revision":1}),
+        SELL
+    );
+    c!(
+        "hub_device",
+        json!({"id":"device-1","revision":1,"actor":null}),
+        SETTINGS
+    );
+    c!(
+        "hub_control",
+        json!({"enabled":false,"address":"127.0.0.1:0","origin":null}),
+        SETTINGS
+    );
+    c!("hub_import_tls", json!({}), SETTINGS);
+
+    // Held bills and customer reads.
+    c!("list_local_held_bills", json!({}), SELL);
+    c!(
+        "mutate_local_held_bill",
+        json!({"r":{"id":"held-1","expectedRevision":1,"action":{"kind":"resume"}}}),
+        SELL
+    );
+    c!(
+        "prepare_local_held_checkout",
+        json!({"r":{"id":"held-1","expectedRevision":1,"invoice":{"operationId":"held-sale","lines":[],"taxBasisPoints":0,"tender":"cash","customerId":null},"payments":null}}),
+        SELL
+    );
+    c!(
+        "read_local_customer",
+        json!({"customerId":"customer-1"}),
+        // CustomerRead: every role holds it, so the negative case here is scope and session,
+        // covered by the locked/wrong-workspace tests rather than a role denial.
+        ALL
+    );
+
     out
 }
 fn owner(path: &std::path::Path) -> Workspace {
