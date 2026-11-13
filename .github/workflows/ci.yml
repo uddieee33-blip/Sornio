@@ -288,6 +288,13 @@ jobs:
             echo "fixture bytes: $(stat -c %s /tmp/sornio-compat-fixture.db)"
             echo "fixture user_version: $(grep -o 'user_version=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
           } | tee /tmp/compat-fixture-manifest.txt
+          # The artifact is published, but the review machine cannot read this
+          # repository's artifact storage, so the manifest is also emitted as
+          # annotations: the checksum and the two versions are the evidence, and
+          # the evidence has to be readable.
+          while IFS= read -r manifest_line; do
+            echo "::notice::compat fixture: ${manifest_line}"
+          done < /tmp/compat-fixture-manifest.txt
 
       - name: Upload the historical fixture and its manifest
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

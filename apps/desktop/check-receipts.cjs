@@ -53,9 +53,13 @@ function bridge() {
   await label('Search items for sale').fill('Rice'); await label('Search items for sale').press('Enter'); // Exact SKU wins over two name matches.
   assert.equal(await page.getByRole('list', { name: 'Current sale items' }).getByRole('listitem').count(), 1);
   await label('Search items for sale').fill('RICE'); await label('Search items for sale').press('Enter');
-  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '2');
+  // A weighed item is never sold at a quantity nobody entered: the scan asks
+  // for the quantity, and scanning the same item again asks again instead of
+  // incrementing a number the cashier never typed.
+  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '');
+  await page.getByText('Enter the quantity for this item.', { exact: true }).waitFor();
   await label('Search items for sale').fill('RICE'); await label('Search items for sale').dispatchEvent('keydown', { key: 'Enter', repeat: true });
-  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '2');
+  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '');
   const cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await page.keyboard.press('F3'); await page.keyboard.type('0.125'); await page.keyboard.press('Enter');
   await label('Tax (%)').fill('5'); const started = performance.now();

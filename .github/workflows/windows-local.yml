@@ -14,7 +14,11 @@ permissions:
 jobs:
   local-windows:
     runs-on: windows-latest
-    timeout-minutes: 60
+    # The installed-application acceptance runs the whole installed-app
+    # lifecycle, not just the first assertion. It previously finished early
+    # because a stale assertion stopped it; with that repaired it needs the
+    # time the rest of the job already takes.
+    timeout-minutes: 120
     env:
       CARGO_TERM_COLOR: always
       RUST_TEST_THREADS: '4'
