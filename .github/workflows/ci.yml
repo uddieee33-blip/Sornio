@@ -160,3 +160,139 @@ jobs:
             exit 1
           fi
           echo "Both native lockfiles passed cargo audit."
+
+  historical-sqlcipher:
+    name: Historical SQLCipher compatibility (4.6.1 to 4.20.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 4
+      # The parent of the commit that moved to the fixed SQLCipher: the database an installed
+      # shop actually has on disk. It is built here, not described here.
+      HISTORICAL_COMMIT: 614bd29a565427e5c0588dbe9719f34a37ee403a
+      HISTORICAL_SQLCIPHER: 4.6.1
+      CURRENT_SQLCIPHER: 4.20.0
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The historical tree has to be reachable, so the full history is fetched.
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      # The fixture is written with one key and read with another if these ever drift apart, and
+      # the failure would look like an encryption problem instead of a typo.
+      - name: Check the fixture writer and the compatibility test use one key
+        run: |
+          set -euo pipefail
+          example_key=$(sed -n 's/^const KEY: &str = "\(.*\)";$/\1/p' packages/local-store/examples/seed_compat_fixture.rs)
+          test_key=$(sed -n 's/^const KEY: &str = "\(.*\)";$/\1/p' packages/local-store/tests/sqlcipher_compat.rs)
+          if [ -z "$example_key" ] || [ -z "$test_key" ]; then
+            echo "::error::could not read the test key from the fixture writer or the compatibility test"
+            exit 1
+          fi
+          if [ "$example_key" != "$test_key" ]; then
+            echo "::error::the fixture writer and the compatibility test use different keys"
+            exit 1
+          fi
+          echo "The fixture writer and the compatibility test use the same test-only key."
+
+      # The historical build is compiled from its own tree with its own lockfile, so the fixture
+      # is written by the SQLCipher that shipped, not by the build under test.
+      - name: Build the historical store and write the fixture with it
+        run: |
+          set -euo pipefail
+          work=/tmp/sornio-historical
+          rm -rf "$work"
+          git worktree add --detach "$work" "$HISTORICAL_COMMIT"
+          if ! grep -q 'rusqlite = { version = "0.37"' "$work/packages/local-store/Cargo.toml"; then
+            echo "::error::$HISTORICAL_COMMIT does not pin rusqlite 0.37, so it is not the historical build this job claims to test"
+            exit 1
+          fi
+          mkdir -p "$work/packages/local-store/examples"
+          cp packages/local-store/examples/seed_compat_fixture.rs "$work/packages/local-store/examples/seed_compat_fixture.rs"
+          cd "$work/packages/local-store"
+          if ! cargo build --locked --release --example seed_compat_fixture > /tmp/sornio-historical-build.log 2>&1; then
+            echo "::error::the historical store could not be built"
+            tail -60 /tmp/sornio-historical-build.log
+            exit 1
+          fi
+          ./target/release/examples/seed_compat_fixture /tmp/sornio-compat-fixture.db | tee /tmp/sornio-historical-sqlcipher.txt
+          cd "$GITHUB_WORKSPACE"
+          git worktree remove --force "$work"
+
+      # The version is measured from the compiled library, not read out of a manifest: the
+      # historical build has to be the SQLCipher the release record says it is.
+      - name: Check the fixture was written by SQLCipher 4.6.1
+        run: |
+          set -euo pipefail
+          reported=$(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)
+          echo "the historical build compiled SQLCipher ${reported}"
+          if [ "$reported" != "$HISTORICAL_SQLCIPHER" ]; then
+            echo "::error::the historical build compiled SQLCipher ${reported}, not ${HISTORICAL_SQLCIPHER}"
+            exit 1
+          fi
+          grep -o 'sqlite=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1
+          grep -o 'user_version=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1
+          echo "::notice::the historical fixture was written by SQLCipher ${reported}"
+
+      - name: Build the current store and report its SQLCipher
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/packages/local-store"
+          cargo build --locked --release --example seed_compat_fixture
+          ./target/release/examples/seed_compat_fixture /tmp/sornio-current-fixture.db | tee /tmp/sornio-current-sqlcipher.txt
+          reported=$(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-current-sqlcipher.txt | head -1 | cut -d= -f2)
+          echo "the current build compiled SQLCipher ${reported}"
+          if [ "$reported" != "$CURRENT_SQLCIPHER" ]; then
+            echo "::error::the current build compiled SQLCipher ${reported}, not ${CURRENT_SQLCIPHER}"
+            exit 1
+          fi
+          echo "::notice::the current build compiles SQLCipher ${reported}"
+
+      # The historical fixture is opened by the current build, and its bytes are compared before
+      # and after. The comparison is made here as well as inside the test, so the evidence
+      # survives even if the test itself is changed.
+      - name: Open the historical fixture with the current build
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/packages/local-store"
+          before=$(sha256sum /tmp/sornio-compat-fixture.db | cut -d' ' -f1)
+          echo "the historical fixture hashes to ${before}"
+          SORNIO_COMPAT_FIXTURE=/tmp/sornio-compat-fixture.db cargo test --locked --test sqlcipher_compat -- --nocapture
+          after=$(sha256sum /tmp/sornio-compat-fixture.db | cut -d' ' -f1)
+          echo "the historical fixture hashes to ${after} after the test"
+          if [ "$before" != "$after" ]; then
+            echo "::error::the compatibility test modified the historical fixture (${before} -> ${after})"
+            exit 1
+          fi
+          echo "::notice::the historical fixture opened byte-identically under SQLCipher ${CURRENT_SQLCIPHER}"
+
+      - name: Record the fixture manifest
+        run: |
+          set -euo pipefail
+          {
+            echo "historical commit: $HISTORICAL_COMMIT"
+            echo "historical sqlcipher: $(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "historical sqlite: $(grep -o 'sqlite=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "current sqlcipher: $(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-current-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "current sqlite: $(grep -o 'sqlite=[^ ]*' /tmp/sornio-current-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "fixture sha256: $(sha256sum /tmp/sornio-compat-fixture.db | cut -d' ' -f1)"
+            echo "fixture bytes: $(stat -c %s /tmp/sornio-compat-fixture.db)"
+            echo "fixture user_version: $(grep -o 'user_version=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
+          } | tee /tmp/compat-fixture-manifest.txt
+
+      - name: Upload the historical fixture and its manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-historical-sqlcipher-fixture
+          path: |
+            /tmp/sornio-compat-fixture.db
+            /tmp/compat-fixture-manifest.txt
+            /tmp/sornio-historical-sqlcipher.txt
+            /tmp/sornio-current-sqlcipher.txt
+          if-no-files-found: error
+          retention-days: 7
