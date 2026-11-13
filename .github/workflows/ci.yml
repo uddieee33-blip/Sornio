@@ -217,7 +217,11 @@ jobs:
           cd "$work/packages/local-store"
           if ! cargo build --locked --release --example seed_compat_fixture > /tmp/sornio-historical-build.log 2>&1; then
             echo "::error::the historical store could not be built"
-            tail -60 /tmp/sornio-historical-build.log
+            # Raw job logs live in storage this repository cannot read back, so
+            # the compiler's own words are emitted as an annotation.
+            build_output=$(tail -80 /tmp/sornio-historical-build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' | head -c 20000 || true)
+            echo "::error::historical build output: ${build_output}"
+            echo ""
             exit 1
           fi
           ./target/release/examples/seed_compat_fixture /tmp/sornio-compat-fixture.db | tee /tmp/sornio-historical-sqlcipher.txt
