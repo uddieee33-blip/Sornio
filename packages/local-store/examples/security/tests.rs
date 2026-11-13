@@ -670,19 +670,21 @@ fn authorised_kitchen_and_restaurant_operations_really_succeed() {
 
     // The ticket really exists, so the transition below exercises the authoritative path rather
     // than failing on a missing row - which is what a superficial green would have looked like.
+    // read_restaurant is the view that carries tickets; kitchen_view returns the kitchen
+    // queue document, which does not have a `tickets` array at all.
     let state = invoke(
         &mut w,
         &Case {
-            command: "kitchen_view",
+            command: "read_restaurant",
             args: json!({}),
-            allowed: ALL,
+            allowed: KITCHEN,
         },
         &scope,
     )
     .unwrap();
     assert!(
         state["tickets"].as_array().is_some_and(|t| !t.is_empty()),
-        "the ticket created above must be visible to kitchen staff"
+        "the ticket created above must be visible in the restaurant view"
     );
 
     let r = json!({"operationId":"op-prep","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"preparing"}});
