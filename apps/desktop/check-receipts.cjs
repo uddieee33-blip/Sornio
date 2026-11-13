@@ -143,6 +143,10 @@ function bridge() {
   await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
   await label('Customer reference for a credit split (optional)').fill('customer-split');
   await label('Split cash amount (₹)').fill('600'); await label('Split customer credit amount (₹)').fill('400');
+  // The store's answer about the customer is asynchronous, and the review
+  // refuses to open until it has arrived. Wait for the credit details rather
+  // than racing the lookup.
+  await page.locator('[aria-label="Selected credit customer"]').getByText('Available credit:', { exact: false }).waitFor();
   await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale');
   assert.equal((await native('list_local_invoices', { after: 0 })).length, preSplit.invoices.length);
   assert.ok((await page.getByRole('group', { name: 'Confirm sale', exact: true }).innerText()).includes('Customer credit'));
