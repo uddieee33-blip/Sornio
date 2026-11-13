@@ -6,8 +6,8 @@
 | --- | --- |
 | Repository | `uddieee33-blip/Sornio` |
 | Working branch | `arena/707e2c68-sornio` (this session's branch; never renamed, never merged) |
-| Final commit | `697aeea` — *Repair the three desktop checks the aggregate failure exposed* |
-| Full SHA | `697aeeafa56d8f59ba2edf677f2d940a1faa1f74` |
+| Final commit | `3b5e4d2` — *Add a mock review bridge so a check can be run without a Rust toolchain* |
+| Full SHA | `3b5e4d23e923ef038ca5ed950809a1cfe78ac622` |
 | Pull request | **#183**, **draft**, base `feature/phase18j-security-history` (stacked on #182) |
 | Predecessor draft | **#182**, draft, at `33d56e4` — the Phase 19D candidate this branch continues |
 | `main` | **not touched.** No merge, no force-push, no history rewrite, no store publication. |
@@ -28,10 +28,10 @@ recovery, and every uncommitted change in this session was kept.
 ### 0.2 What this branch changes
 
 ```
-14 files changed, 987 insertions(+), 73 deletions(-)
+16 files changed, 2017 insertions(+), 81 deletions(-)
 ```
 
-**No product source changed.** `git diff --stat 33d56e4 HEAD` over
+**No product source changed.** `git diff --stat 33d56e4 3b5e4d2` over
 `packages/local-store/src/`, `packages/business-domain/src/`,
 `apps/desktop/src-tauri/permissions/` and `packages/local-store/examples/security/`
 is **empty**: no native command was added, removed, or re-permissioned, and no
@@ -43,6 +43,7 @@ the acceptance harness, the CI configuration, and one new gate.
 | `apps/desktop/check-ui.cjs` | Desktop mocked-IPC UI acceptance |
 | `apps/desktop/check-native.py` | Installed-Windows native acceptance |
 | `apps/desktop/check-checkout.cjs`, `check-receipts.cjs`, `check-customers.cjs` | Desktop native-bridge acceptance |
+| `apps/desktop/mock-review-bridge.cjs` | **New** review aid: a mock bridge so a check can be run without a Rust toolchain |
 | `scripts/verify-workspace-browser.cjs` | Browser acceptance |
 | `scripts/verify-desktop-copy-contract.mjs` | **New** copy-drift gate |
 | `scripts/test-ci-logged-wrappers.py` | The workflow self-test |
@@ -126,6 +127,136 @@ still in this repository with its own lockfile.
 | The desktop check matrix exited at the first failure | Three further stale assertions never ran (§1.3) |
 | The rustfmt gate died before it could report | A parse error made `cargo fmt` fail, `set -e` ended the step, and the check record kept only `Process completed with exit code 1` |
 
+### 1.7 And then a fourth defect, of a kind none of the above covered
+
+With those two jobs repaired the browser acceptance still failed — at a different
+line, for a different reason, and again **not** because of a product defect.
+
+`scripts/verify-workspace-browser.cjs` filled the customer name with a **global**
+placeholder lookup:
+
+```js
+await page.getByPlaceholder('e.g. Kiran Malhotra').fill('Theme Review Customer');
+```
+
+The product renders exactly **one** customer-name input, at
+`app/(console)/customers/page.tsx:100`. Next.js does not render the route once. It
+streams the route markup into a hidden container at the end of the document body —
+`div#S:0[hidden]` in the server HTML — and drains it once the client has hydrated
+and moved that content into the console's own `main` region.
+
+For a short window the document therefore holds **two** copies of the same form:
+the live one inside `main#main`, and the parked one in the body-level hidden
+container. A global lookup matches both, and Playwright refuses to act on an
+ambiguous locator:
+
+```
+strict mode violation: getByPlaceholder('e.g. Kiran Malhotra') resolved to 2 elements
+```
+
+Measured on the review machine the window is about **115 ms** wide: the parked copy
+is present from the first paint, both copies coexist at ~75 ms, and the parked
+container is drained at ~190 ms. Whether the acceptance lost that race depends on
+how fast the runner hydrates — which is why the *same commit* passed in one run and
+failed in the next, and why the failure could not be reproduced by reading the
+source.
+
+**This was a test-locator race, not a duplicate in the product.** The source has
+one input; the parked copy is the framework's own handover artefact, and the
+framework removes it.
+
+Two further routes carry the same hazard. `/subscription` streams a copy that
+contains the very plan headings the acceptance looks for — including
+*"You are on Starter"* — and the public pages stream a copy as well. A second copy
+of a heading is the same failure waiting for the next run.
+
+### 1.8 Two desktop checks that had never actually run
+
+Repairing the browser acceptance (§1.7) let the workflow reach the step it had
+always stopped before: **the desktop check matrix**. That matrix had never run
+green in CI, because the browser step failed first every single time. When it
+finally ran, two of the twelve checks failed — and both failures were in the
+automation, not in the product.
+
+**`check-receipts` confirmed a sale with a plain Enter.** It focused the
+*"Confirm sale"* button and pressed `Enter`, expecting the sale to be posted. The
+product refuses that on purpose. The button cancels the `Enter` keydown and only
+confirms for `Alt+Enter` or `Cmd+Enter`, because **a barcode scanner sends
+`Enter`**, and a scanner must never post money. The check was asserting the
+opposite of a deliberate, safety-relevant product rule.
+
+**`check-checkout` asked for a count the panel was forbidden to show.** The repair
+in §1.3 made the injected product read last until the check cleared it, precisely
+so that the stock review panel cannot show a count it has never read. Two lines
+later the same check asked that panel to display the *refreshed* count — while the
+read was still interrupted. The repair and the assertion contradicted each other.
+
+**A third, in the same file, one step further on.** The retail split sale scanned
+`RICE` and went straight to the split amounts. Since §1.3 made the scan of a
+weighed item *ask* for its quantity instead of inventing one, the cart line had
+no quantity, the sale had no preview, and *"Review sale"* stayed disabled — the
+check waited on a button that could never be pressed.
+
+None of these three had ever reached that line before: `check-receipts` failed
+earlier on a quantity assertion, and `check-checkout` failed earlier on the save
+guard. The aggregate matrix is what made them visible at all, one after the
+other, each one only reachable once the previous was repaired.
+
+### 1.9 A throttle guard that could not tell a prefetch from a page
+
+The browser acceptance has its own guard: the console throttles its own clients,
+and a throttled run sees missing data and stale screens, so it cannot prove
+anything about the screens it was meant to review. The guard records every `429`
+and refuses to let the run pass.
+
+It fired on a run in which **all three** throttled responses were *speculative
+prefetches* of routes the acceptance never opens — `/audit`, `/reports` and the
+bare `/subscription`. The console budgets its own prefetches apart from
+navigation on purpose: a single visit to `/home` is 45 prefetch requests against
+12 real ones, and charging those to the budget a human's click draws on is what
+made an owner get *"Too many requests"* on a screen they had asked for. So
+refusing a prefetch is the console **behaving as built** — and an acceptance
+that opens thirty routes reaches that ceiling by design.
+
+But the guard could not say so, and it failed the run.
+
+### 1.10 A check that named the customer before there was a credit
+
+The split-tender sale in `check-receipts` filled the **customer reference**
+first and the **split amounts** second. The product does not offer that field
+until the split carries a credit amount — until then there is no credit to
+attribute to anybody:
+
+```
+const needsCreditCustomer = tender === 'credit' || (tender === 'retail' && allocation.creditPaise > 0);
+```
+
+So the field was never on the screen, and the check waited twenty seconds for
+a label that was never going to arrive. It is the same class of defect as the
+two before it: a check written against the product as it was imagined rather
+than as it is built. The order is now the product's — allocate the credit,
+then say whose credit it is, then wait for the store's answer about that
+customer before opening the review.
+
+### 1.11 A check that could only be discovered one CI round trip at a time
+
+Every one of the defects above was found by the CI matrix, one failure per
+round trip, each about twenty minutes. The checks speak to the native store
+through a JSON-lines bridge built from Rust, and the review machine has no
+Rust toolchain, so a check could not be run locally at all.
+
+That is now avoidable: `apps/desktop/mock-review-bridge.cjs` speaks the same
+protocol with a simple, explicit model of the bookkeeping. It is a **review
+aid and nothing more** — it proves nothing about SQLCipher, about the
+encrypted database, about the real store's permissions, or about any native
+behaviour. The real bridge remains the authority and CI always uses it.
+
+What it does is let a check be exercised end to end locally, which is what
+found §1.10 immediately, and which now runs the whole receipt check — setup,
+keyboard sale, three paper layouts, Punjabi receipt, print cancellation and
+retry, browsed and reopened receipts, the split tender, cashier ownership,
+revocation during font loading — in about eight seconds.
+
 ---
 
 ## 2. The repairs
@@ -194,6 +325,115 @@ cannot prove anything.
 
 See §5.
 
+### 2.6 The lookup that cannot match two elements
+
+The repair is **structural**, not a longer timeout.
+
+* The customer form is now looked up **inside the console's live region** — the
+  *"Add customer"* card within `.console-workspace main#main`. The parked copy is
+  parked *outside* that region, so the scoped lookup **cannot** match it whatever the
+  handover timing turns out to be. Measured across cold loads it resolved to exactly
+  one element every time, including the loads where the global lookup resolved to two.
+* `/subscription` and the public pages now **wait for the handover** before they
+  query the document: the acceptance waits until no body-level hidden container still
+  holds route markup. The parked copy is present in the server HTML from the first
+  byte, so the wait is never a no-op on the routes that stream one.
+
+**Verified by forcing the parked copy to persist.** A body-level hidden container
+holding a second copy of the customer form — the same shape, in the same place, as
+the real `div#S:0` — was injected into the live document:
+
+| Lookup | Result over 6 forced-duplicate loads |
+| --- | --- |
+| The previous global `getByPlaceholder('e.g. Kiran Malhotra')` | **6/6 failed** with `strict mode violation: getByPlaceholder('e.g. Kiran Malhotra') resolved to 2 elements` — the exact error the CI run reported |
+| The new scoped lookup | **6/6 passed** — filled the field, saved the customer, opened the customer dialog |
+
+The unchanged product build then passed the **unchanged** acceptance script three
+consecutive times locally, in 37 s, 34 s and 33 s.
+
+### 2.7 Two desktop checks repaired to the product
+
+* **`check-receipts`** now confirms with **`Alt+Enter`**, the deliberate key, and
+  additionally asserts the property the product cares about: a plain `Enter` must
+  **neither** confirm the sale **nor** reach the store — no prepare, no post.
+* **`check-checkout`** now asserts the refreshed count where it can be true. While
+  the product read is interrupted, the stock review panel keeps the count it last
+  read and the new count is **nowhere on screen**; after the transport recovers
+  and the panel re-reads, the new count appears.
+* **`check-receipts`' retail sale** now states the quantity the sale is for — one
+  kilogram of rice at ₹42.50 a kilogram, which is exactly the ₹42.50 the split
+  pays — and asserts first that the scan left the quantity empty, so the reason
+  for the fill is stated rather than implied.
+* **`check-receipts`' split sale** now waits for the store's answer about the
+  customer before it opens the review. The store's lookup waits 150 ms before it
+  even asks, and the review refuses to open until the credit details have
+  arrived — so a keyboard path that pressed `F4` straight after filling the
+  customer reference could press it *before* the answer was in and be refused
+  with *"Select an existing credit customer and wait for their credit details."*
+  This is the same rule the customer check was repaired to earlier: wait for the
+  store's answer rather than racing it.
+
+All three were validated against the **real product components** with a mocked
+transport, because the native bridge cannot be built on the review machine:
+
+| Property | Measured |
+| --- | --- |
+| A plain `Enter` on the focused *"Confirm sale"* button | **no** prepare call, **no** post call, no saved sale |
+| `Alt+Enter` on the same button | prepare **and** post both issued |
+| Stock panel, product read interrupted | shows the count it last read; the unread count is absent |
+| Stock panel, after the transport recovers | shows the count it re-read |
+| Weighed scan | quantity empty; *"Review sale"* disabled |
+| After stating one kilogram | total ₹42.50; *"Review sale"* enabled |
+
+### 2.8 A guard that tells a prefetch from a page
+
+The throttle guard now tells the two apart instead of failing on both:
+
+* A refused **speculative prefetch** is counted and reported. It cannot hide a
+  screen — the navigation that follows fetches its own document and its own data,
+  and every route the acceptance inspects is waited on until its own heading and
+  workspace are on screen, so a screen a refused prefetch had hidden would fail
+  the run anyway.
+* A throttle on **anything the screens depend on** — the document, a client-side
+  navigation, an API read — still fails the run.
+
+The distinction is measured, not assumed: a speculative prefetch carries
+`next-router-prefetch: 1`, and a client-side navigation carries no such marker.
+Both were observed against the running console.
+
+### 2.9 The credit, then the customer
+
+The split-tender sale in `check-receipts` now allocates the credit before it
+names the customer, because that is the order the product offers the field in
+— the customer reference exists only once the split carries a credit amount.
+
+Measured against the **real product component** with a mocked transport:
+
+| Step | Measured |
+| --- | --- |
+| Before any credit is allocated | the customer reference field does not exist (count `0`) |
+| After the credit is allocated | the field exists |
+| Immediately after the reference is typed | the panel says *"Checking customer credit…"* |
+| After the store answers | the panel shows the available credit |
+| The review | opens, and shows the ₹400.00 customer credit |
+| A plain `Enter` on the review | prepares nothing, posts nothing, saves nothing |
+| `Alt+Enter` on the review | prepares **and** posts |
+
+### 2.10 A bridge a check can be run against
+
+`apps/desktop/mock-review-bridge.cjs` is committed so the receipt check can be
+run on a machine with no Rust toolchain. It is a **review aid**: an explicit,
+simple model of the bookkeeping, speaking the same JSON-lines protocol as
+`packages/local-store/examples/cashier_review_bridge.rs`.
+
+It proves nothing about SQLCipher, the encrypted database, the real store's
+permissions, or any native behaviour, and the file says so at the top. The
+real bridge remains the authority; CI always uses it.
+
+With it, the receipt check ran **end to end, three consecutive times**, in
+about eight seconds each — the whole path from setup to the final revocation
+during font loading, with no failure.
+
 ---
 
 ## 3. Platform matrix
@@ -202,7 +442,7 @@ Classification key: **PASS** — executed, green. **FAIL** — executed, red.
 **BLOCKED** — could not execute for a stated environmental reason, not a product
 failure. **NOT RUN** — not reached. **NOT APPLICABLE** — does not apply to this target.
 
-Every row names the commit it ran against. Runs for the final commit `697aeea` are
+Every row names the commit it ran against. Runs for the final commit `3b5e4d2` are
 marked with the run id in brackets.
 
 ### 3.1 Windows
@@ -263,8 +503,8 @@ marked with the run id in brackets.
 | Native SQLCipher outbox envelopes exported | same | same → *Export native SQLCipher outbox envelopes* | green | **PASS** |
 | **Native SQLCipher envelopes over TLS into PostgreSQL** | same | same → *Native SQLCipher envelopes over TLS into PostgreSQL* | green | **PASS** |
 | HTTPS acks applied to the native sidecar | same | same → *Apply HTTPS acks to the native sidecar* | green | **PASS** |
-| Browser acceptance (8 portals, responsive, modal focus, subscription API) | `ubuntu-latest` | `workspace-browser.yml` → *Run browser acceptance* | green | **PASS** |
-| Local browser acceptance (review machine) | Debian 12, Node v22.22.3, Chromium 153.0.8010.0 | `node scripts/verify-workspace-browser.cjs` | green in **34.2 s** | **PASS** |
+| Browser acceptance (8 portals, responsive, modal focus, subscription API) | `ubuntu-latest` | `workspace-browser.yml` → *Run browser acceptance* | green — run `43464943060`, commit `0a5a2fb` | **PASS** |
+| Local browser acceptance (review machine) | Debian 12, Node v22.22.3, Chromium 153.0.8010.0 | `node scripts/verify-workspace-browser.cjs` | green in **37 s, 34 s and 33 s** — three consecutive runs | **PASS** |
 
 ### 3.6 The two jobs that were failing, after the repairs
 
@@ -272,6 +512,16 @@ marked with the run id in brackets.
 | --- | --- | --- | --- |
 | `Workspace browser review` / `browser` | **FAIL** — desktop UI step, stale heading | **PASS** — all 12 desktop checks green | **PASS** |
 | `Windows local workspace` / `local-windows` | **FAIL** — installed-app lifecycle, stale credit copy | see §3.7 | **PASS** |
+| `Workspace browser review` / `browser` (again, after the two above were green) | **FAIL** — browser acceptance, strict-mode violation: a global lookup matched the live customer form and the framework's parked copy of it | **PASS** — the lookup is scoped to the live console, so it cannot match the parked copy; see §1.7 and §2.6 | **PASS** |
+| `Workspace browser review` / `browser` (again, after the browser acceptance went green) | **FAIL** — the desktop matrix, which had never run past the browser step: two of twelve checks failed | **PASS** — all twelve desktop checks green; see §1.8 and §2.7 | **PASS** |
+
+The third and fourth rows are the same failure *class* as the first two — a test
+artefact reported as a product failure — but different *kinds* of artefact: not
+stale copy, and not a stale selector, but a **global lookup in a document that
+legitimately holds two copies of a route for a moment**, and then a **check that
+asserted the opposite of a deliberate product rule**. They are recorded here
+rather than folded away, because in both cases the same commit had already passed
+the same job once.
 
 ### 3.7 The Windows installed-app run
 
@@ -583,7 +833,7 @@ than assumed away.
 ```bash
 # Everything, on the final commit
 git clone https://github.com/uddieee33-blip/Sornio.git && cd Sornio
-git checkout 697aeea
+git checkout 3b5e4d2
 npm ci
 npm run lint && npm run verify && npm run build
 
@@ -599,6 +849,13 @@ cd packages/local-store
 cargo test --locked --test sqlcipher_compat -- --nocapture
 # with a historical fixture:
 SORNIO_COMPAT_FIXTURE=/path/to/4.6.1.db cargo test --locked --test sqlcipher_compat -- --nocapture
+
+# The desktop receipt check, against the MOCK review bridge - no Rust toolchain
+# needed. This is a review aid: it proves the UI path, and nothing at all
+# about SQLCipher, the encrypted database, the real store's permissions, or
+# any native behaviour. CI runs the same check against the real bridge.
+SORNIO_REVIEW_BRIDGE=apps/desktop/mock-review-bridge.cjs \
+  node apps/desktop/check-receipts.cjs http://127.0.0.1:1420 <chromium> /tmp/sornio-receipts
 ```
 
 CI: `https://github.com/uddieee33-blip/Sornio/actions?query=branch:arena/707e2c68-sornio`
