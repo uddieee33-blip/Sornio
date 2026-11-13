@@ -121,7 +121,13 @@ function bridge() {
   await page.waitForTimeout(100); assert.equal(await page.locator('[data-sornio-print-root] .receipt-reference').textContent(), cashId); assert.equal(await page.evaluate(() => window.__printCalls), newerPrintCount);
   await button('Back to checkout').click();
   // A retail original remains explicitly unverified in its printable snapshot.
-  await label('Search items for sale').fill('RICE'); await label('Search items for sale').press('Enter'); await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
+  // The scan asks for the quantity of a weighed item, so the retail sale has
+  // to say how much: one kilogram of rice at ₹42.50 is the ₹42.50 the split
+  // below pays.
+  await label('Search items for sale').fill('RICE'); await label('Search items for sale').press('Enter');
+  assert.equal(await label('Quantity for Rice (kg)').inputValue(),'');
+  await label('Quantity for Rice (kg)').fill('1');
+  await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
   await label('Split cash amount (₹)').fill('10'); await label('Split UPI amount (₹)').fill('32.50'); await button('Review sale').click(); await button('Confirm sale').click(); await saved().waitFor();
   const retailId = await label('Saved invoice ID').inputValue(); await button('Print saved receipt').click(); await page.getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
   assert.ok((await page.locator('[data-sornio-print-root]').innerText()).includes('UPI/card amounts remain unverified'));
