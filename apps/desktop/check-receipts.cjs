@@ -79,7 +79,12 @@ function bridge() {
   await page.evaluate(() => { window.print = () => { window.__printCalls++; }; });
   const output = process.argv[4] || join(dir, 'review'); mkdirSync(output, { recursive: true });
   for (const layout of ['a4', '58mm', '80mm']) {
+    // The printer is called, not a message waited for: the notice stays on
+    // screen from the previous print, so waiting for the text would accept
+    // the *old* print and race the new one.
+    const printsBefore = await page.evaluate(() => window.__printCalls);
     await label('Paper layout').selectOption(layout); await button('Print saved receipt').click();
+    await page.waitForFunction(count => window.__printCalls > count, printsBefore);
     await page.getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
     const root = page.locator('[data-sornio-print-root]'); assert.equal(await root.locator('.receipt-reference').textContent(), cashId);
     assert.equal(await root.locator('[id]').count(), 0);

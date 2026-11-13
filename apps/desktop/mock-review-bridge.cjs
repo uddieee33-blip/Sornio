@@ -21,10 +21,14 @@ const readline = require('node:readline');
 
 const fail = code => { const error = new Error(code); error.code = code; return error; };
 
+// The session belongs to the connection that opened it, exactly as the real
+// store keeps one session per bridge process. Only the durable records are
+// shared between the two bridges the acceptance spawns.
+const local = { principal: null };
+
 const state = {
   configured: false,
   unlocked: false,
-  principal: null,
   scope: { businessId: 'mock-business', workspaceId: 'mock-workspace' },
   staff: [],
   products: [],
@@ -37,6 +41,7 @@ const state = {
   pendingInventory: null,
   pendingCredit: null,
   prepared: new Map(),
+  creditEntries: [],
   retailPayments: {},
   invoiceOwners: {},
   sequence: 0,
@@ -47,17 +52,22 @@ const state = {
 const statePath = `${process.argv[2] || 'mock'}.state.json`;
 const fs = require('node:fs');
 function loadState() {
-  try {
-    const saved = JSON.parse(fs.readFileSync(statePath, 'utf8'));
-    Object.assign(state, saved);
-    state.prepared = new Map();
-  } catch { /* first process to touch the file */ }
+  let raw;
+  try { raw = fs.readFileSync(statePath, 'utf8'); } catch { return; /* first process to touch the file */ }
+  const saved = JSON.parse(raw);
+  Object.assign(state, saved);
+  state.prepared = new Map();
 }
 function saveState() {
   // The prepared requests are per-process; only the durable bookkeeping is shared.
   const rest = { ...state };
   delete rest.prepared;
-  fs.writeFileSync(statePath, JSON.stringify(rest, null, 2));
+  delete rest.principal;
+  // Written atomically: the two bridges share this file, and a reader must
+  // never see half of it.
+  const temporary = `${statePath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(rest, null, 2));
+  fs.renameSync(temporary, statePath);
 }
 
 function requireUnlocked() {
@@ -66,7 +76,7 @@ function requireUnlocked() {
   // A staff account that is disabled has its session revoked: the native
   // store refuses every scoped call with "locked", and the app returns to
   // the access gate.
-  const staff = state.staff.find(s => s.username === state.principal?.username);
+  const staff = state.staff.find(s => s.username === local.principal?.username);
   if (staff && staff.enabled === false) throw fail('locked');
 }
 
@@ -89,7 +99,7 @@ function buildInvoice(request) {
   const subtotalPaise = lines.reduce((sum, line) => sum + line.totalPaise, 0);
   const taxPaise = roundPaise(subtotalPaise * request.taxBasisPoints / 10000);
   return {
-    id: nextId('inv'),
+    id: request.operationId,
     invoiceNumber: nextId('no'),
     businessId: state.scope.businessId,
     businessName: state.businessName ?? 'Mock shop',
@@ -113,7 +123,7 @@ function postInvoice(request) {
     product.revision += 1;
   }
   state.invoices.push(invoice);
-  state.invoiceOwners[invoice.id] = state.principal?.username ?? 'owner';
+  state.invoiceOwners[invoice.id] = local.principal?.username ?? 'owner';
   state.outbox.push({ operationId: request.operationId, invoiceId: invoice.id, createdAt: invoice.createdAt });
   return invoice;
 }
@@ -140,7 +150,7 @@ function postRetail(request) {
     externallyVerified: false,
   }));
   state.invoices.push(invoice);
-  state.invoiceOwners[invoice.id] = state.principal?.username ?? 'owner';
+  state.invoiceOwners[invoice.id] = local.principal?.username ?? 'owner';
   state.retailPayments[invoice.id] = payments;
   let cash = BigInt(state.balances.cashPaise);
   let credit = BigInt(state.balances.creditPaise);
@@ -158,7 +168,7 @@ function cashierState() {
     activeHeldBill: null,
     products: state.products.map(p => ({ ...p })),
     checkout: null,
-    reportsAllowed: state.principal?.role !== 'cashier',
+    reportsAllowed: local.principal?.role !== 'cashier',
     balances: { ...state.balances },
   };
 }
@@ -168,7 +178,7 @@ function retailView(day, username, invoiceId) {
   const payments = invoice ? (state.retailPayments[invoice.id] ?? []).map(p => ({ ...p })) : [];
   return {
     summary: {
-      day, username, actorId: state.principal?.id ?? 'owner', through: state.invoices.length,
+      day, username, actorId: local.principal?.id ?? 'owner', through: state.invoices.length,
       openingFloatPaise: 0, openingFloatId: null, netCashPaise: '0', expectedCashPaise: '0',
       countedCashPaise: null, variancePaise: null, cashRecordedPaise: '0', digitalRecordedPaise: '0',
       digitalPendingPaise: '0', manuallyMatchedPaise: '0', externallyVerifiedPaise: '0',
@@ -185,27 +195,27 @@ const handlers = {
   workspace_access_status: () => ({ configured: state.configured, unlocked: state.unlocked }),
   read_local_session: () => {
     if (!state.configured) throw fail('not_configured');
-    if (!state.principal) throw fail('locked');
-    return { scope: { ...state.scope }, businessName: state.businessName ?? 'Mock shop', principal: state.principal };
+    if (!local.principal) throw fail('locked');
+    return { scope: { ...state.scope }, businessName: state.businessName ?? 'Mock shop', principal: local.principal };
   },
   setup_local_access: args => {
     if (state.configured) throw fail('already_configured');
     state.configured = true;
     state.unlocked = true;
     state.businessName = args.setup.businessName ?? 'Mock shop';
-    state.principal = { id: 'owner', username: args.setup.username ?? 'owner', displayName: args.setup.displayName ?? 'Owner', role: 'owner', enabled: true, revision: 1 };
+    local.principal = { id: 'owner', username: args.setup.username ?? 'owner', displayName: args.setup.displayName ?? 'Owner', role: 'owner', enabled: true, revision: 1 };
     return { configured: true, unlocked: true };
   },
   unlock_workspace: args => {
     if (!state.configured) throw fail('not_configured');
     const staff = state.staff.find(s => s.username === args.username);
-    if (args.username === 'owner') state.principal = { id: 'owner', username: 'owner', displayName: 'Owner', role: 'owner', enabled: true, revision: 1 };
-    else if (staff) state.principal = { ...staff };
+    if (args.username === 'owner') local.principal = { id: 'owner', username: 'owner', displayName: 'Owner', role: 'owner', enabled: true, revision: 1 };
+    else if (staff) local.principal = { ...staff };
     else throw fail('incorrect_password');
     state.unlocked = true;
     return { configured: true, unlocked: true };
   },
-  lock_workspace: () => { state.unlocked = false; state.principal = null; return null; },
+  lock_workspace: () => { state.unlocked = false; local.principal = null; return null; },
   list_local_staff: () => state.staff.map(s => ({ ...s })),
   create_local_staff: args => {
     const details = args.details;
@@ -270,7 +280,7 @@ const handlers = {
   },
   clear_local_retail: () => null,
   list_local_invoices: args => {
-    if (state.principal?.role === 'cashier') { const error = new Error('This account does not have permission for that action.'); error.code = 'forbidden'; throw error; }
+    if (local.principal?.role === 'cashier') { const error = new Error('This account does not have permission for that action.'); error.code = 'forbidden'; throw error; }
     const after = args.after ?? 0;
     return state.invoices
       .map((invoice, index) => ({ sequence: index + 1, invoice }))
@@ -279,7 +289,7 @@ const handlers = {
   read_local_invoice: args => {
     const invoice = state.invoices.find(i => i.id === args.invoiceId);
     if (!invoice) throw fail('invoice_missing');
-    if (state.principal?.role === 'cashier' && state.invoiceOwners[invoice.id] !== state.principal.username) {
+    if (local.principal?.role === 'cashier' && state.invoiceOwners[invoice.id] !== local.principal.username) {
       const error = new Error('This account does not have permission for that action.');
       error.code = 'forbidden';
       throw error;
@@ -314,11 +324,63 @@ const handlers = {
     return state.customers.filter(c => !search || c.name.toLowerCase().includes(search) || c.id.toLowerCase().includes(search)).map(c => ({ ...c }));
   },
   prepare_local_credit: () => null,
-  post_local_credit: () => { throw fail('invalid_credit'); },
+  post_local_credit: args => {
+    const request = args.r;
+    const customer = state.customers.find(c => c.id === request.customerId);
+    if (!customer) throw fail('customer_missing');
+    const running = BigInt(customer.balancePaise ?? '0') + BigInt(request.amountPaise);
+    customer.balancePaise = String(running);
+    customer.overduePaise = request.dueOn ? String(running) : '0';
+    customer.availableCreditPaise = customer.creditLimitPaise === null ? null : String(customer.creditLimitPaise - Number(running));
+    customer.revision += 1;
+    state.creditEntries.push({
+      sequence: state.creditEntries.length + 1,
+      customerId: customer.id,
+      operationId: request.operationId,
+      kind: request.kind,
+      amountPaise: request.amountPaise,
+      reason: request.reason ?? '',
+      dueOn: request.dueOn ?? null,
+      invoiceId: null,
+      reverseOf: null,
+      createdAt: new Date().toISOString(),
+      runningBalancePaise: String(running),
+    });
+    return { operationId: request.operationId, customerId: customer.id, kind: request.kind, amountPaise: request.amountPaise, balancePaise: String(running), revision: customer.revision, createdAt: new Date().toISOString() };
+  },
   clear_local_credit: () => null,
   link_local_credit: () => { throw fail('invalid_credit'); },
-  read_customer_statement: () => { throw fail('invalid_credit'); },
-  render_customer_statement: () => { throw fail('invalid_credit'); },
+  read_customer_statement: args => {
+    if (process.env.MOCK_DEBUG) require('node:fs').appendFileSync(process.env.MOCK_DEBUG, `statement entries=${state.creditEntries.length} after=${args.after}\n`);
+    const customer = state.customers.find(c => c.id === args.customerId);
+    if (!customer) throw fail('customer_missing');
+    const entries = state.creditEntries.filter(e => e.customerId === customer.id);
+    const after = args.after ?? 0;
+    const page = entries.filter(e => e.sequence > after).slice(0, 50);
+    const nextAfter = page.length ? page[page.length - 1].sequence : after;
+    return {
+      customer: { ...customer },
+      through: entries.length,
+      nextAfter,
+      hasMore: entries.some(e => e.sequence > nextAfter),
+      openingBalancePaise: '0',
+      closingBalancePaise: entries.length ? entries[entries.length - 1].runningBalancePaise : '0',
+      entries: page.map(e => ({ ...e })),
+    };
+  },
+  render_customer_statement: args => {
+    if (process.env.MOCK_DEBUG) require('node:fs').appendFileSync(process.env.MOCK_DEBUG, `render entries=${state.creditEntries.length}\n`);
+    const customer = state.customers.find(c => c.id === args.customerId);
+    if (!customer) throw fail('customer_missing');
+    const entries = state.creditEntries.filter(e => e.customerId === customer.id);
+    const escape = value => String(value ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    let html = `<article><h1>Customer statement</h1><p>${escape(state.businessName ?? 'Mock shop')}</p><h2>${escape(customer.name)}</h2><p>Account: ${escape(customer.id)} · Phone: ${escape(customer.phone ?? '—')}</p><p>Snapshot: ${entries.length} · Outstanding: ${escape(customer.balancePaise)}</p><table><thead><tr><th>Date (IST)</th><th>Entry / reference</th><th>Due</th><th>Change (₹)</th><th>Balance (₹)</th></tr></thead><tbody>`;
+    for (const entry of entries) {
+      html += `<tr><td>${escape(entry.createdAt)}</td><td>${escape(entry.kind)}<br>${escape(entry.operationId)}<br>${escape(entry.reason)}<br>Invoice: — · Reverses: —</td><td>${escape(entry.dueOn ?? '—')}</td><td>${escape(entry.amountPaise)}</td><td>${escape(entry.runningBalancePaise)}</td></tr>`;
+    }
+    html += '</tbody></table><p>Cash repayments only. Credit history is retained; corrections are separate entries.</p></article>';
+    return html;
+  },
 };
 
 const OPEN_COMMANDS = new Set(['workspace_access_status', 'read_local_session', 'setup_local_access', 'unlock_workspace', 'lock_workspace']);
@@ -330,13 +392,19 @@ input.on('line', line => {
   let output;
   try {
     loadState();
+    // Snapshot AFTER the reload, so a read-only command is recognised as one.
+    const before = JSON.stringify({ ...state, prepared: undefined });
     if (!OPEN_COMMANDS.has(call.command)) requireUnlocked();
     const handler = handlers[call.command];
     if (!handler) throw fail('invalid_invoice');
     output = { ok: true, value: handler(call.args ?? {}) };
+    // A read-only command must not rewrite the shared file: the two bridges
+    // would otherwise overwrite each other's records.
+    if (JSON.stringify({ ...state, prepared: undefined }) !== before) saveState();
   } catch (error) {
+    // A refused command changes nothing, exactly as a rolled-back transaction.
+    loadState();
     output = { ok: false, error: { code: error.code ?? 'workspace_error', message: String(error.message ?? error) } };
   }
-  saveState();
   process.stdout.write(JSON.stringify(output) + '\n');
 });
