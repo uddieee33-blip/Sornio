@@ -633,7 +633,7 @@ Windows UI automation stack, against the real SQLCipher store.
 | Limit | Consequence | Class |
 | --- | --- | --- |
 | No Rust toolchain (`rustc`, `cargo`, `rustup` absent) | every native test, the historical fixture, and the compatibility test must run in CI | **BLOCKED** locally |
-| No `cashier_review_bridge` binary | 10 of the 12 desktop checks cannot start the native bridge locally (`ENOENT`) | **BLOCKED** locally — **PASS** in CI |
+| No `cashier_review_bridge` binary | 10 of the 12 desktop checks cannot start the native bridge locally (`ENOENT`); the mock review bridge (§1.11) can run the receipt and customer-statement checks locally | **BLOCKED** locally — **PASS** in CI |
 | Node v22.22.3 locally, repository declares Node 24.x | local runs are not the declared runtime | noted; CI uses Node 24 |
 | Artifact storage and raw job logs are **not readable from this sandbox** (both redirect to `*.blob.core.windows.net`) | every CI fact in this report is taken from **check-run annotations**, which are readable | noted |
 | Playwright CDN, Debian package hosts, Rust hosts, crates.io unreachable from the sandbox | the bundled Chromium at `/home/user/browser-tools/chromium` was used instead of a download | noted |
