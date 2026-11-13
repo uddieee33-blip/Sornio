@@ -6,8 +6,8 @@
 | --- | --- |
 | Repository | `uddieee33-blip/Sornio` |
 | Working branch | `arena/707e2c68-sornio` (this session's branch; never renamed, never merged) |
-| Final commit | `3b5e4d2` — *Add a mock review bridge so a check can be run without a Rust toolchain* |
-| Full SHA | `3b5e4d23e923ef038ca5ed950809a1cfe78ac622` |
+| Final commit | `eb181ce` — *Wait for the printer to be called, not for a notice that never clears* |
+| Full SHA | `eb181ce` |
 | Pull request | **#183**, **draft**, base `feature/phase18j-security-history` (stacked on #182) |
 | Predecessor draft | **#182**, draft, at `33d56e4` — the Phase 19D candidate this branch continues |
 | `main` | **not touched.** No merge, no force-push, no history rewrite, no store publication. |
@@ -28,7 +28,7 @@ recovery, and every uncommitted change in this session was kept.
 ### 0.2 What this branch changes
 
 ```
-16 files changed, 2017 insertions(+), 81 deletions(-)
+17 files changed, 2368 insertions(+), 87 deletions(-)
 ```
 
 **No product source changed.** `git diff --stat 33d56e4 3b5e4d2` over
@@ -42,7 +42,7 @@ the acceptance harness, the CI configuration, and one new gate.
 | --- | --- |
 | `apps/desktop/check-ui.cjs` | Desktop mocked-IPC UI acceptance |
 | `apps/desktop/check-native.py` | Installed-Windows native acceptance |
-| `apps/desktop/check-checkout.cjs`, `check-receipts.cjs`, `check-customers.cjs` | Desktop native-bridge acceptance |
+| `apps/desktop/check-checkout.cjs`, `check-receipts.cjs`, `check-customers.cjs`, `check-statement-print.cjs` | Desktop native-bridge acceptance |
 | `apps/desktop/mock-review-bridge.cjs` | **New** review aid: a mock bridge so a check can be run without a Rust toolchain |
 | `scripts/verify-workspace-browser.cjs` | Browser acceptance |
 | `scripts/verify-desktop-copy-contract.mjs` | **New** copy-drift gate |
@@ -257,6 +257,32 @@ keyboard sale, three paper layouts, Punjabi receipt, print cancellation and
 retry, browsed and reopened receipts, the split tender, cashier ownership,
 revocation during font loading — in about eight seconds.
 
+### 1.12 The one failure that was not a stale assertion, but a stale **wait**
+
+The customer-statement check waited for the notice *"Check the printer or PDF
+output."* after a print. That notice is **never cleared**: it stays on the
+panel until the next message replaces it. So after the *first* print it is
+already on screen, and the wait returns **at once** — before the second print
+has called the printer.
+
+The check then compared the printer-call count against a count captured
+earlier, and the late print call made the numbers differ: **2 against 1**.
+
+```
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+2 !== 1
+    at apps/desktop/check-statement-print.cjs:102:54
+```
+
+This is the only failure in the whole run that was **not** a stale assertion.
+It is an *intermittent* one: the very same commit passed the very next matrix
+run, which is exactly what makes this class so easy to miss — and so easy to
+blame on the platform.
+
+The repair is to wait for the thing that actually happened: **the printer
+being called**, counted from the moment before the click. The receipt check had
+the same pattern across its three paper layouts, and is repaired the same way.
+
 ---
 
 ## 2. The repairs
@@ -434,6 +460,30 @@ With it, the receipt check ran **end to end, three consecutive times**, in
 about eight seconds each — the whole path from setup to the final revocation
 during font loading, with no failure.
 
+### 2.11 A wait that waits for the printer, not for a notice
+
+The print waits now count the printer calls from the moment before the click:
+
+```js
+const printsBefore = await page.evaluate(() => window.__printCalls);
+await button('Print customer statement').click();
+await page.waitForFunction(count => window.__printCalls > count, printsBefore);
+```
+
+Proved **deterministically** against the real product component, with the font
+load held so the printer is not called yet — the same technique the check
+itself uses to test a print in flight:
+
+| Step | Measured |
+| --- | --- |
+| Before the second print | the notice from the first print is **already visible** |
+| The notice-only wait returns | the printer is still at **one** call |
+| The count-based wait returns | the printer has been called — **two** calls |
+
+So the old wait genuinely accepted the *previous* print, and the new wait
+genuinely waits for this one. With the repair, the customer-statement check
+passed **five consecutive local runs**, and the receipt check **three**.
+
 ---
 
 ## 3. Platform matrix
@@ -442,7 +492,7 @@ Classification key: **PASS** — executed, green. **FAIL** — executed, red.
 **BLOCKED** — could not execute for a stated environmental reason, not a product
 failure. **NOT RUN** — not reached. **NOT APPLICABLE** — does not apply to this target.
 
-Every row names the commit it ran against. Runs for the final commit `3b5e4d2` are
+Every row names the commit it ran against. Runs for the final commit `eb181ce` are
 marked with the run id in brackets.
 
 ### 3.1 Windows
@@ -514,6 +564,10 @@ marked with the run id in brackets.
 | `Windows local workspace` / `local-windows` | **FAIL** — installed-app lifecycle, stale credit copy | see §3.7 | **PASS** |
 | `Workspace browser review` / `browser` (again, after the two above were green) | **FAIL** — browser acceptance, strict-mode violation: a global lookup matched the live customer form and the framework's parked copy of it | **PASS** — the lookup is scoped to the live console, so it cannot match the parked copy; see §1.7 and §2.6 | **PASS** |
 | `Workspace browser review` / `browser` (again, after the browser acceptance went green) | **FAIL** — the desktop matrix, which had never run past the browser step: two of twelve checks failed | **PASS** — all twelve desktop checks green; see §1.8 and §2.7 | **PASS** |
+| `Workspace browser review` / `browser` (again, after the desktop matrix went green) | **FAIL** — the desktop matrix, receipt check: the retail sale scanned a weighed item and never stated a quantity, so *"Review sale"* stayed disabled and the check waited on a button that could never be pressed | **PASS** — the sale states one kilogram, which is exactly the ₹42.50 the split pays; see §1.8 and §2.7 | **PASS** |
+| `Workspace browser review` / `browser` (again) | **FAIL** — the desktop matrix, receipt check: the split sale named the customer before there was a credit to attribute, so the field was never on the screen | **PASS** — the credit is allocated first, then the customer, then the store's answer is awaited; see §1.10 and §2.9 | **PASS** |
+| `Workspace browser review` / `browser` (again) | **FAIL** — the browser acceptance, its own throttle guard: three **speculative prefetches** of routes the acceptance never opens came back `429`, and the guard could not tell them from a page | **PASS** — a refused prefetch is counted and reported; a throttle on anything the screens depend on still fails the run; see §1.9 and §2.8 | **PASS** |
+| `Workspace browser review` / `browser` (again, **intermittently**) | **FAIL** — the desktop matrix, customer-statement check: a print wait that watched for a notice which is never cleared, so it accepted the *previous* print and the printer-call count came out as 2 against 1 | **PASS** — the wait is the printer being called, counted from before the click; the same commit passed the next run, which is what makes the class easy to miss; see §1.12 and §2.11 | **PASS** |
 
 The third and fourth rows are the same failure *class* as the first two — a test
 artefact reported as a product failure — but different *kinds* of artefact: not
@@ -522,6 +576,15 @@ legitimately holds two copies of a route for a moment**, and then a **check that
 asserted the opposite of a deliberate product rule**. They are recorded here
 rather than folded away, because in both cases the same commit had already passed
 the same job once.
+
+The last three rows are the same story continued. Each repair made the matrix
+get one step further, and each step exposed the next stale assertion — a sale
+without a quantity, a customer named before there was a credit, a throttle on a
+request the console makes on its own behalf. **Every one of them was in the
+automation.** The product's own rules — a scanner must never post money, a
+weighed item must be weighed, a credit belongs to a customer, and the console
+budgets its own prefetches apart from the ones a person asked for — were
+correct in all three cases, and the checks were written against something else.
 
 ### 3.7 The Windows installed-app run
 
@@ -833,7 +896,7 @@ than assumed away.
 ```bash
 # Everything, on the final commit
 git clone https://github.com/uddieee33-blip/Sornio.git && cd Sornio
-git checkout 3b5e4d2
+git checkout eb181ce
 npm ci
 npm run lint && npm run verify && npm run build
 
