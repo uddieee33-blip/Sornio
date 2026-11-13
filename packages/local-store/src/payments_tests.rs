@@ -2167,7 +2167,10 @@ fn cash_invoice_writes_one_authoritative_cash_payment() {
 fn digital_invoice_records_upi_and_card_without_cash() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("s.db"));
-    perform(&mut s, sale_req(&s, "digital-1", &[("upi", 4000), ("card", 6000)]));
+    perform(
+        &mut s,
+        sale_req(&s, "digital-1", &[("upi", 4000), ("card", 6000)]),
+    );
     assert_eq!(
         payment_rows(&s),
         vec![
@@ -2185,7 +2188,10 @@ fn digital_invoice_records_upi_and_card_without_cash() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(digital, 10000, "the whole invoice is digital, none of it cash");
+    assert_eq!(
+        digital, 10000,
+        "the whole invoice is digital, none of it cash"
+    );
     assert_eq!(audit_count(&s, "sale.posted", "digital-1"), 1);
     journals_balance(&s);
 }
@@ -2194,7 +2200,8 @@ fn digital_invoice_records_upi_and_card_without_cash() {
 fn split_payment_with_credit_part_books_each_tender_once() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("s.db"));
-    s.save_customer(customer_profile("c1", Some(100000))).unwrap();
+    s.save_customer(customer_profile("c1", Some(100000)))
+        .unwrap();
     let mut r = sale_req(&s, "split-1", &[("cash", 4000), ("upi", 3000)]);
     if let Action::Sale { invoice, .. } = &mut r.action {
         invoice.customer_id = Some("c1".into());
@@ -2317,7 +2324,10 @@ fn concurrent_checkout_attempts_post_financially_once() {
     let second = b.post_retail(r);
     let first = t.join().unwrap();
     assert!(first.is_ok(), "first attempt must succeed");
-    assert!(second.is_ok(), "a concurrent retry must return the same receipt");
+    assert!(
+        second.is_ok(),
+        "a concurrent retry must return the same receipt"
+    );
     assert_eq!(first.unwrap(), second.unwrap());
     // Regardless of which thread won, the ledger holds one of everything.
     assert_eq!(payment_rows(&b).len(), 1);
@@ -2397,20 +2407,21 @@ fn invoice_replay_never_double_books_money_or_stock() {
     for _ in 0..3 {
         s.post_invoice(request.clone()).unwrap();
     }
-    let invoices: i64 = s
-        .0
-        .query_row("SELECT count(*) FROM local_invoices", [], |r| r.get(0))
-        .unwrap();
-    let ledger: i64 = s
-        .0
-        .query_row(
+    let invoices: i64 =
+        s.0.query_row("SELECT count(*) FROM local_invoices", [], |r| r.get(0))
+            .unwrap();
+    let ledger: i64 =
+        s.0.query_row(
             "SELECT count(*) FROM local_billing_ledger WHERE account='revenue'",
             [],
             |r| r.get(0),
         )
         .unwrap();
     assert_eq!(invoices, 1);
-    assert_eq!(ledger, 1, "one revenue posting per invoice, not one per call");
+    assert_eq!(
+        ledger, 1,
+        "one revenue posting per invoice, not one per call"
+    );
     assert_eq!(payment_rows(&s).len(), 1);
     assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
     journals_balance(&s);
