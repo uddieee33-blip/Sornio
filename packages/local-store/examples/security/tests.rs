@@ -594,35 +594,46 @@ fn role_denials_use_direct_backend_calls_including_all_financial_action_variants
     }
 }
 /// The coverage cases above prove denials. This proves the other half: an actor who is
-/// genuinely permitted can drive a ticket transition end to end, so a green suite is not just
-/// a suite of refusals. A manager runs the restaurant, so the manager is the actor here.
+/// genuinely permitted can drive a real restaurant flow end to end, so a green suite is not
+/// just a suite of refusals. The owner creates the table (create_table needs Settings, which
+/// Manager does not hold by design), then a manager runs the selling flow.
 #[test]
 fn authorised_kitchen_and_restaurant_operations_really_succeed() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("s.db");
-    let mut admin = owner(&path);
-    let scope = admin.local_session().unwrap().scope;
-    admin
-        .create_staff(
-            StaffDetails {
-                username: "manager".into(),
-                display_name: "Manager".into(),
-                role: Role::Manager,
-            },
-            PASSWORD,
-        )
-        .unwrap();
-    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
-    w.login("manager", PASSWORD).unwrap();
+    let mut w = owner(&path);
+    let scope = w.local_session().unwrap().scope;
+    w.create_staff(
+        StaffDetails {
+            username: "manager".into(),
+            display_name: "Manager".into(),
+            role: Role::Manager,
+        },
+        PASSWORD,
+    )
+    .unwrap();
 
-    // A table, an order on it, and a ticket: all permitted with Sell.
+    // Table setup is an owner responsibility, and the operation id must be a plain id: an id
+    // built from formatted JSON would contain quotes and be rejected before the action runs.
+    let table = json!({"operationId":"op-table","action":{"kind":"create_table","id":"t1","name":"Table 1"}});
+    call(
+        &mut w,
+        Call {
+            command: "change_restaurant".into(),
+            args: json!({"r":table,"scope":scope}),
+        },
+    )
+    .expect("an owner must be able to create a table");
+
+    w.lock();
+    w.login("manager", PASSWORD).unwrap();
     for action in [
-        json!({"kind":"create_table","id":"t1","name":"Table 1"}),
         json!({"kind":"open_order","id":"order-1","table_id":"t1"}),
         json!({"kind":"send_ticket","id":"ticket-1","order_id":"order-1","expected_revision":1,
-               "items":[{"name":"Rice","quantity":1,"unit_price_paise":10000,"note":""}]}),
+               "items":[{"name":"Rice","quantity":1,"note":"","unit_price_paise":10000}]}),
     ] {
-        let r = json!({"operationId":format!("op-{}", action["kind"]), "action":action});
+        let kind = action["kind"].as_str().unwrap().to_string();
+        let r = json!({"operationId":format!("op-table-{kind}"), "action":action});
         call(
             &mut w,
             Call {
@@ -630,11 +641,11 @@ fn authorised_kitchen_and_restaurant_operations_really_succeed() {
                 args: json!({"r":r,"scope":scope}),
             },
         )
-        .unwrap_or_else(|e| panic!("{} must succeed for a manager: {e}", action["kind"]));
+        .unwrap_or_else(|e| panic!("{kind} must succeed for a manager: {e}"));
     }
 
-    // The ticket really exists, so the transition exercises the authoritative path rather than
-    // failing on a missing row - which is what a superficial green would have looked like.
+    // The ticket really exists, so the transition below exercises the authoritative path rather
+    // than failing on a missing row - which is what a superficial green would have looked like.
     let state = invoke(
         &mut w,
         &Case {
@@ -646,13 +657,11 @@ fn authorised_kitchen_and_restaurant_operations_really_succeed() {
     )
     .unwrap();
     assert!(
-        state["tickets"]
-            .as_array()
-            .is_some_and(|t| !t.is_empty()),
+        state["tickets"].as_array().is_some_and(|t| !t.is_empty()),
         "the ticket created above must be visible to kitchen staff"
     );
 
-    let r = json!({"operationId":"prep","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"preparing"}});
+    let r = json!({"operationId":"op-prep","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"preparing"}});
     call(
         &mut w,
         Call {
@@ -661,6 +670,21 @@ fn authorised_kitchen_and_restaurant_operations_really_succeed() {
         },
     )
     .expect("a manager holds KitchenPrepare, so marking a ticket preparing must succeed");
+
+    // A stale revision on the same ticket must be refused, so the success above is not merely
+    // an operation that silently tolerates any input.
+    let stale = json!({"operationId":"op-stale","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"ready"}});
+    assert!(
+        call(
+            &mut w,
+            Call {
+                command: "change_restaurant".into(),
+                args: json!({"r":stale,"scope":scope}),
+            },
+        )
+        .is_err(),
+        "a stale ticket revision must not be accepted after the ticket moved on"
+    );
 }
 /// Kitchen grants must never widen access. A cashier given a kitchen mode is restricted to the
 /// kitchen permissions and gains nothing financial; and no one may grant themselves a mode.
