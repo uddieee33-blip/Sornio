@@ -1329,6 +1329,16 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Authority first, writes after the replay check. `guard` records an audit
+        // row, so calling it before `replay` made a retried retail operation
+        // return the stored receipt while appending a second event for a sale that
+        // happened once. `verify` checks the same permission and session, including
+        // the recovery generation, without writing; the first authoritative posting
+        // is audited below.
+        identity::verify(&tx, &s, r.action.permission())?;
+        if let Some(v) = replay(&tx, &r, &raw)? {
+            return Ok(v);
+        }
         identity::guard(
             &tx,
             &self.1,
@@ -1336,9 +1346,6 @@ impl Store {
             r.action.key(),
             Some(&r.operation_id),
         )?;
-        if let Some(v) = replay(&tx, &r, &raw)? {
-            return Ok(v);
-        }
         available(&tx, &r.operation_id)?;
         let pending: Option<String> = tx
             .query_row(

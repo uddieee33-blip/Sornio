@@ -55,9 +55,18 @@ fn save(id: &str) -> Mutation {
         },
     }
 }
-fn financial_state(s: &Store) -> (i64, i64, i64, i64) {
-    s.0.query_row("SELECT (SELECT count(*) FROM local_invoices), (SELECT count(*) FROM local_credit_entries), (SELECT count(*) FROM local_retail_payments), (SELECT stock_milli FROM local_products WHERE id='rice')", [],
-        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?))).unwrap()
+/// `(invoices, credit entries, payment rows, rice stock, cash recorded on payments)`.
+///
+/// The payment *rows* count is kept, but it is no longer the assertion that
+/// carries financial weight: the ledger contract is that the payments recorded
+/// for an invoice reconcile to one row per tender part, and that the cash they
+/// carry equals the cash the invoice booked. `cash_paise` is what
+/// `payments::day_summary` sums into `cash_recorded_paise` for the cashier's
+/// drawer, so a plain cash sale that wrote no payment row would understate
+/// expected cash by its whole amount.
+fn financial_state(s: &Store) -> (i64, i64, i64, i64, i64) {
+    s.0.query_row("SELECT (SELECT count(*) FROM local_invoices), (SELECT count(*) FROM local_credit_entries), (SELECT count(*) FROM local_retail_payments), (SELECT stock_milli FROM local_products WHERE id='rice'), (SELECT COALESCE(SUM(amount),0) FROM local_retail_payments WHERE method='cash')", [],
+        |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?))).unwrap()
 }
 #[test]
 fn holding_replaying_and_reopening_never_posts_financial_records() {
@@ -97,7 +106,7 @@ fn resumed_bill_fences_stale_mutations_and_detached_checkout() {
         })
         .is_err());
     assert!(guard_checkout(&s.0, &s.1, "unrelated-sale").is_err());
-    assert_eq!(financial_state(&s), (0, 0, 0, 100000));
+    assert_eq!(financial_state(&s), (0, 0, 0, 100000, 0));
 }
 #[test]
 fn held_checkout_and_completion_are_atomic_and_retry_safe() {
@@ -130,15 +139,35 @@ fn held_checkout_and_completion_are_atomic_and_retry_safe() {
     };
     s.prepare_held_checkout(prepared.clone()).unwrap();
     s.prepare_held_checkout(prepared).unwrap();
-    assert_eq!(financial_state(&s), (0, 0, 0, 100000));
+    assert_eq!(financial_state(&s), (0, 0, 0, 100000, 0));
     s.0.execute_batch("CREATE TRIGGER fail_held_completion BEFORE UPDATE ON local_held_bills WHEN NEW.state='completed' BEGIN SELECT RAISE(ABORT,'synthetic failure'); END;").unwrap();
     assert!(s.post_invoice(invoice.clone()).is_err());
-    assert_eq!(financial_state(&s), (0, 0, 0, 100000));
+    assert_eq!(financial_state(&s), (0, 0, 0, 100000, 0));
     s.0.execute_batch("DROP TRIGGER fail_held_completion;")
         .unwrap();
     s.post_invoice(invoice.clone()).unwrap();
     s.post_invoice(invoice).unwrap();
-    assert_eq!(financial_state(&s), (1, 0, 0, 98750));
+    // One invoice, one payment row carrying exactly the cash the invoice booked.
+    // The previous expectation was (1, 0, 0, 98750) - "a cash invoice writes no
+    // payment record" - which predates `invoice_posted` recording one row per
+    // tender part for every invoice. That row is load-bearing: `day_summary`
+    // derives `cash_recorded_paise` for the cashier's drawer by summing
+    // `local_retail_payments` where method='cash', so without it a cash sale
+    // would report zero expected cash against real notes in the till. The
+    // assertion is stronger than the one it replaces, not weaker: it pins the
+    // amount and the tender as well as the count.
+    assert_eq!(financial_state(&s), (1, 0, 1, 98750, 98750));
+    let (invoice_id, method, amount): (String, String, i64) = s
+        .0
+        .query_row(
+            "SELECT invoice_id,method,amount FROM local_retail_payments",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
+        .unwrap();
+    assert_eq!(invoice_id, "held-3");
+    assert_eq!(method, "cash");
+    assert_eq!(amount, 98750);
     assert_eq!(
         row(&s.0, "held-3", &s.1.as_ref().unwrap().actor_id)
             .unwrap()
