@@ -197,11 +197,13 @@ jobs:
           # every check behind it — which is how three separate copy drifts
           # sat unnoticed behind one broken selector.
           failed_checks=()
+          failed_code=0
           run_check() {
             local name="$1"; shift
             local -a statuses
+            local check_log="/tmp/sornio-desktop-check-$name.log"
             set +e
-            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log"
+            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log" "$check_log"
             statuses=("${PIPESTATUS[@]}")
             set -e
             local code=${statuses[0]}
@@ -210,8 +212,11 @@ jobs:
               if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
             fi
             if [ "$code" -ne 0 ]; then
-              echo "::error::desktop UI check $name failed (exit ${code})."
+              echo "::error::Desktop UI check $name or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              tail -40 "$check_log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
+                | sed "s/^/::error::desktop UI check $name failed: /" || true
               failed_checks+=("$name")
+              if [ "$failed_code" -eq 0 ]; then failed_code=$code; fi
             else
               echo "desktop UI check $name passed"
             fi
@@ -234,7 +239,7 @@ jobs:
             echo "::error::full desktop UI check log follows"
             tail -200 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
               | sed 's/^/::error::desktop UI checks: /' || true
-            exit 1
+            exit "$failed_code"
           fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
@@ -244,6 +249,8 @@ jobs:
             /tmp/sornio-screenshots/
             /tmp/sornio-server.log
             /tmp/sornio-desktop-server.log
+            /tmp/sornio-desktop-checks.log
+            /tmp/sornio-desktop-check-*.log
           retention-days: 7
 
 
