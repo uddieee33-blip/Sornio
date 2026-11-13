@@ -2350,7 +2350,9 @@ fn restart_after_uncertain_response_posts_once() {
     let mut s = Store::open(&path, KEY).unwrap();
     s.1 = session;
     let receipt = s.post_retail(r.clone()).unwrap();
-    assert_eq!(receipt.data["operationId"], "restart-1");
+    // `operation_id` is a field of Receipt; `data` is the action payload, which has
+    // no operationId key of its own.
+    assert_eq!(receipt.operation_id, "restart-1");
     assert_eq!(payment_rows(&s).len(), 1);
     assert_eq!(audit_count(&s, "sale.posted", "restart-1"), 1);
     assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
