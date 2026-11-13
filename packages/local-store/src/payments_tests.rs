@@ -2152,7 +2152,8 @@ fn payment_rows(s: &Store) -> Vec<(String, String, i64)> {
 fn cash_invoice_writes_one_authoritative_cash_payment() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("s.db"));
-    perform(&mut s, sale_req(&s, "cash-1", &[("cash", 10000)]));
+    let request = sale_req(&s, "cash-1", &[("cash", 10000)]);
+    perform(&mut s, request);
     assert_eq!(
         payment_rows(&s),
         vec![("cash-1".to_string(), "cash".to_string(), 10000)]
@@ -2167,10 +2168,8 @@ fn cash_invoice_writes_one_authoritative_cash_payment() {
 fn digital_invoice_records_upi_and_card_without_cash() {
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("s.db"));
-    perform(
-        &mut s,
-        sale_req(&s, "digital-1", &[("upi", 4000), ("card", 6000)]),
-    );
+    let request = sale_req(&s, "digital-1", &[("upi", 4000), ("card", 6000)]);
+    perform(&mut s, request);
     assert_eq!(
         payment_rows(&s),
         vec![
@@ -2364,18 +2363,20 @@ fn direct_invoice_posting_is_also_exactly_once() {
     // is where the duplicate `sale.posted` was first observed.
     let d = tempfile::tempdir().unwrap();
     let mut s = seed(&d.path().join("s.db"));
-    let invoice = |tender: Tender| PostInvoice {
+    // Read the revision before the mutable calls, rather than inside a closure, so
+    // the borrow checker is not asked to prove something subtle about captures.
+    let revision = s.list_products().unwrap()[0].revision;
+    let request = PostInvoice {
         operation_id: "held-direct".into(),
         lines: vec![BillLine {
             product_id: "rice".into(),
-            expected_revision: s.list_products().unwrap()[0].revision,
+            expected_revision: revision,
             quantity_milli: 1000,
         }],
         tax_basis_points: 0,
-        tender,
+        tender: Tender::Cash,
         customer_id: None,
     };
-    let request = invoice(Tender::Cash);
     s.post_invoice(request.clone()).unwrap();
     let after = snapshots(&s);
     let again = s.post_invoice(request.clone()).unwrap();
