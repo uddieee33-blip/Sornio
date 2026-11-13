@@ -67,7 +67,8 @@ fn encrypted_store_survives_the_upgrade_with_its_financial_balances_intact() {
     // Opening runs the schema migration path and the encryption checks; it must not rebuild,
     // rekey or replace the file.
     let before = std::fs::read(&path).expect("the fixture must be readable");
-    let mut w = Workspace::new(Store::open(&path, KEY).expect("the fixture must open with its key"));
+    let mut w =
+        Workspace::new(Store::open(&path, KEY).expect("the fixture must open with its key"));
     w.login("owner", PASSWORD)
         .expect("the fixture's owner credentials must still work");
 

@@ -245,11 +245,7 @@ fn cases() -> Vec<Case> {
     c!("read_restaurant", json!({}), KITCHEN);
     c!("restaurant_workspace", json!({}), KITCHEN);
     c!("restaurant_live", json!({}), KITCHEN);
-    c!(
-        "restaurant_status",
-        json!({"order":"order-1"}),
-        SELL
-    );
+    c!("restaurant_status", json!({"order":"order-1"}), SELL);
     c!("restaurant_menu", json!({}), SELL);
     c!(
         "edit_restaurant",
@@ -295,11 +291,7 @@ fn cases() -> Vec<Case> {
     c!("hub_live", json!({}), SETTINGS);
     c!("hub_admin", json!({}), SETTINGS);
     c!("hub_batches", json!({}), SELL);
-    c!(
-        "hub_dispatch",
-        json!({"id":"batch-1","revision":1}),
-        SELL
-    );
+    c!("hub_dispatch", json!({"id":"batch-1","revision":1}), SELL);
     c!(
         "hub_device",
         json!({"id":"device-1","revision":1,"actor":null}),
