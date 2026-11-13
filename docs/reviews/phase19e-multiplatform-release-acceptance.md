@@ -6,8 +6,9 @@
 | --- | --- |
 | Repository | `uddieee33-blip/Sornio` |
 | Working branch | `arena/707e2c68-sornio` (this session's branch; never renamed, never merged) |
-| Final commit | `eb181ce` — *Wait for the printer to be called, not for a notice that never clears* |
-| Full SHA | `eb181ce` |
+| Final **code** commit | `eb181ce` — *Wait for the printer to be called, not for a notice that never clears* — the commit the final matrix ran against |
+| Full SHA | `eb181ce7ae1b98f0abc7ca3e9680ffbf440b7e97` |
+| Report commits | the commits after `eb181ce` touch **this document only** |
 | Pull request | **#183**, **draft**, base `feature/phase18j-security-history` (stacked on #182) |
 | Predecessor draft | **#182**, draft, at `33d56e4` — the Phase 19D candidate this branch continues |
 | `main` | **not touched.** No merge, no force-push, no history rewrite, no store publication. |
@@ -28,10 +29,10 @@ recovery, and every uncommitted change in this session was kept.
 ### 0.2 What this branch changes
 
 ```
-17 files changed, 2368 insertions(+), 87 deletions(-)
+17 files changed, 2455 insertions(+), 87 deletions(-)
 ```
 
-**No product source changed.** `git diff --stat 33d56e4 3b5e4d2` over
+**No product source changed.** `git diff --stat 33d56e4 eb181ce` over
 `packages/local-store/src/`, `packages/business-domain/src/`,
 `apps/desktop/src-tauri/permissions/` and `packages/local-store/examples/security/`
 is **empty**: no native command was added, removed, or re-permissioned, and no
