@@ -2,6 +2,7 @@
 //! Not a Tauri/WebView2 execution test. Registry checks keep coverage explicit.
 use super::*;
 use sornio_local_store::identity::{Role, StaffChange, StaffDetails};
+// `json!` comes from the example root through `use super::*`.
 use std::collections::BTreeSet;
 
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -20,7 +21,12 @@ const OWNER: &[&str] = &["owner"];
 // Role::allows; Sell is held by every role. Using the derived set means a denial here is
 // asserted to be Forbidden at the native boundary, not merely "some error".
 const SELL: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
-const KITCHEN: &[&str] = &["owner"];
+// Kitchen permissions do NOT follow Role::allows. kitchen_staff::allows grants KitchenView and
+// KitchenPrepare to any role that holds Sell, so every role qualifies; only an explicit
+// "revoked" kitchen mode takes it away. Getting this wrong made a case expect a Forbidden that
+// the native layer never returns, which is exactly the false expectation this test exists to
+// prevent - so the sets below are read off the gate, not off intuition.
+const KITCHEN: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
 const SETTINGS: &[&str] = &["owner"];
 struct Case {
     command: &'static str,
@@ -406,6 +412,14 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
             .unwrap()
             .trim();
         if !PUBLIC.contains(&name) && name != "read_local_session" {
+            // Commands that also drive native runtime state (the hub listener, the live
+            // discovery address) cannot use the closing helper, but they must still prove
+            // their own scope check. A blanket name exception would let a future unscoped
+            // command hide here, so each must call verify_scope - or verify_live_scope, which
+            // additionally demands View - explicitly.
+            let self_scoped = part.contains("verify_scope(&scope)")
+                || part.contains("verify_live_scope(&scope)")
+                || part.contains("w.run_scoped(&scope");
             assert!(
                 part.contains("with_scoped_workspace(")
                     || ([
@@ -414,7 +428,8 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
                         "restore_local_backup"
                     ]
                     .contains(&name)
-                        && part.contains("with_recovery_workspace(")),
+                        && part.contains("with_recovery_workspace("))
+                    || self_scoped,
                 "{name} must use native scope enforcement"
             );
         }
@@ -577,6 +592,133 @@ fn role_denials_use_direct_backend_calls_including_all_financial_action_variants
             }
         }
     }
+}
+/// The coverage cases above prove denials. This proves the other half: an actor who is
+/// genuinely permitted can drive a ticket transition end to end, so a green suite is not just
+/// a suite of refusals. A manager runs the restaurant, so the manager is the actor here.
+#[test]
+fn authorised_kitchen_and_restaurant_operations_really_succeed() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut admin = owner(&path);
+    let scope = admin.local_session().unwrap().scope;
+    admin
+        .create_staff(
+            StaffDetails {
+                username: "manager".into(),
+                display_name: "Manager".into(),
+                role: Role::Manager,
+            },
+            PASSWORD,
+        )
+        .unwrap();
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.login("manager", PASSWORD).unwrap();
+
+    // A table, an order on it, and a ticket: all permitted with Sell.
+    for action in [
+        json!({"kind":"create_table","id":"t1","name":"Table 1"}),
+        json!({"kind":"open_order","id":"order-1","table_id":"t1"}),
+        json!({"kind":"send_ticket","id":"ticket-1","order_id":"order-1","expected_revision":1,
+               "items":[{"name":"Rice","quantity":1,"unit_price_paise":10000,"note":""}]}),
+    ] {
+        let r = json!({"operationId":format!("op-{}", action["kind"]), "action":action});
+        call(
+            &mut w,
+            Call {
+                command: "change_restaurant".into(),
+                args: json!({"r":r,"scope":scope}),
+            },
+        )
+        .unwrap_or_else(|e| panic!("{} must succeed for a manager: {e}", action["kind"]));
+    }
+
+    // The ticket really exists, so the transition exercises the authoritative path rather than
+    // failing on a missing row - which is what a superficial green would have looked like.
+    let state = invoke(
+        &mut w,
+        &Case {
+            command: "kitchen_view",
+            args: json!({}),
+            allowed: ALL,
+        },
+        &scope,
+    )
+    .unwrap();
+    assert!(
+        state["tickets"]
+            .as_array()
+            .is_some_and(|t| !t.is_empty()),
+        "the ticket created above must be visible to kitchen staff"
+    );
+
+    let r = json!({"operationId":"prep","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"preparing"}});
+    call(
+        &mut w,
+        Call {
+            command: "change_restaurant".into(),
+            args: json!({"r":r,"scope":scope}),
+        },
+    )
+    .expect("a manager holds KitchenPrepare, so marking a ticket preparing must succeed");
+}
+/// Kitchen grants must never widen access. A cashier given a kitchen mode is restricted to the
+/// kitchen permissions and gains nothing financial; and no one may grant themselves a mode.
+#[test]
+fn kitchen_grants_cannot_escalate_financial_permissions() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = owner(&path);
+    let owner_id = w.local_session().unwrap().principal.id;
+    let cook = w
+        .create_staff(
+            StaffDetails {
+                username: "cook".into(),
+                display_name: "Cook".into(),
+                role: Role::Cashier,
+            },
+            PASSWORD,
+        )
+        .unwrap();
+
+    // An owner may grant a supervisor mode to somebody else.
+    w.kitchen_action(sornio_local_store::kitchen::Action::Staff {
+        operation_id: "grant".into(),
+        actor_id: cook.id.clone(),
+        expected_revision: 1,
+        mode: "supervisor".into(),
+    })
+    .unwrap();
+
+    // But not to themselves - self-escalation is refused outright.
+    assert!(
+        w.kitchen_action(sornio_local_store::kitchen::Action::Staff {
+            operation_id: "self".into(),
+            actor_id: owner_id,
+            expected_revision: 1,
+            mode: "supervisor".into(),
+        })
+        .is_err(),
+        "an actor must not grant themselves a kitchen responsibility"
+    );
+
+    // With a kitchen mode the cook is kitchen-only: the supervisory grant must not carry any
+    // permission that touches money, stock or staff.
+    w.lock();
+    w.login("cook", PASSWORD).unwrap();
+    assert!(
+        w.save_customer(sornio_local_store::customers::SaveCustomer {
+            operation_id: "cust".into(),
+            id: "customer-1".into(),
+            name: "Customer".into(),
+            phone: None,
+            credit_limit_paise: None,
+            credit_days: 30,
+            expected_revision: None,
+        })
+        .is_err(),
+        "a kitchen-only cashier must not gain customer policy rights through a kitchen grant"
+    );
 }
 #[test]
 fn injection_is_data_and_spoofed_authority_is_rejected() {

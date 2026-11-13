@@ -338,10 +338,16 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             )?;
             Value::Null
         }
-        // hub_control and hub_import_tls are Native-only: they drive the hub listener and the
-        // OS file dialog, so they have no store-level equivalent. They still must pass the
-        // session requirement that gates every non-public command.
-        "hub_control" | "hub_import_tls" => {
+        // hub_control and hub_import_tls are native-runtime commands: they drive the hub
+        // listener and the OS file dialog, so there is no store-level equivalent to call.
+        // hub_control's real handler performs verify_scope followed by a Settings require, and
+        // this arm mirrors exactly that pair rather than inventing a weaker check.
+        "hub_control" => {
+            w.verify_scope(&argument::<Scope>(a, "scope")?)?;
+            w.require(sornio_local_store::identity::Permission::Settings)?;
+            Value::Null
+        }
+        "hub_import_tls" => {
             w.require(sornio_local_store::identity::Permission::Settings)?;
             Value::Null
         }
