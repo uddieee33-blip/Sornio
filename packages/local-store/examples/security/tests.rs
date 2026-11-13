@@ -625,12 +625,36 @@ fn authorised_kitchen_and_restaurant_operations_really_succeed() {
     )
     .expect("an owner must be able to create a table");
 
+    // send_ticket re-prices every line from the catalogue, so a real product and a menu entry
+    // mapped to it must exist first. Without these the command fails on the lookup rather than
+    // on anything the test is trying to prove.
+    call(
+        &mut w,
+        Call {
+            command: "add_local_product".into(),
+            args: json!({"request":{"operationId":"rice","name":"Rice","sku":"RICE","unit":"kg",
+                                    "unitPricePaise":10000,"openingStockMilli":10000},
+                        "scope":scope}),
+        },
+    )
+    .expect("an owner holds AddItem and must be able to add a product");
+    call(
+        &mut w,
+        Call {
+            command: "save_restaurant_menu".into(),
+            args: json!({"m":{"id":"m-rice","productId":"rice","category":"main","label":"Rice",
+                              "variant":"","available":true},
+                        "scope":scope}),
+        },
+    )
+    .expect("an owner holds Settings and must be able to save the menu");
+
     w.lock();
     w.login("manager", PASSWORD).unwrap();
     for action in [
         json!({"kind":"open_order","id":"order-1","table_id":"t1"}),
         json!({"kind":"send_ticket","id":"ticket-1","order_id":"order-1","expected_revision":1,
-               "items":[{"name":"Rice","quantity":1,"note":"","unit_price_paise":10000}]}),
+               "items":[{"name":"Rice","quantity":1,"note":"","product_id":"rice"}]}),
     ] {
         let kind = action["kind"].as_str().unwrap().to_string();
         let r = json!({"operationId":format!("op-table-{kind}"), "action":action});
