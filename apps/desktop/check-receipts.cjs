@@ -141,8 +141,11 @@ function bridge() {
   const preSplit = await state();
   await page.keyboard.press('F2'); await label('Search items for sale').fill('ATTA20'); await label('Search items for sale').press('Enter');
   await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
-  await label('Customer reference for a credit split (optional)').fill('customer-split');
+  // The credit allocation comes first: the customer reference field only
+  // exists once the split carries a credit amount, because until then there
+  // is no credit to attribute to anybody.
   await label('Split cash amount (₹)').fill('600'); await label('Split customer credit amount (₹)').fill('400');
+  await label('Customer reference for a credit split (optional)').fill('customer-split');
   // The store's answer about the customer is asynchronous, and the review
   // refuses to open until it has arrived. Wait for the credit details rather
   // than racing the lookup.
