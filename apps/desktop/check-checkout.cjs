@@ -269,13 +269,19 @@ async function stopBridge() {
     const finalId = await label('Saved invoice ID').inputValue();
     await button('Refresh checkout').click();
     await page.getByText('Cash recorded: ₹191.04',{exact:true}).waitFor();
-    await page.getByRole('list',{name:'Saved local items'}).getByText('1.875 pcs',{exact:true}).waitFor();
+    // The product read is still interrupted, so the stock review panel cannot
+    // show a count it has never read: the item still carries the count the
+    // panel last read, and the count it could not read is nowhere on screen.
+    // A fresh number here would mean the panel invented it.
+    await page.getByRole('list',{name:'Saved local items'}).getByText('2 pcs',{exact:true}).waitFor();
+    assert.equal(await page.getByRole('list',{name:'Saved local items'}).getByText('1.875 pcs',{exact:true}).count(),0,'A count the panel could not read must not be shown.');
     assert.equal(await button('Save item on this PC').isDisabled(),true);
     // The transport recovers, the panel re-reads the counts, and only then may
     // a stock change be recorded.
     failInventoryRead = false;
     await button('Reload item counts').click();
     await page.getByText('Reopened the latest item counts from this PC.',{exact:true}).waitFor();
+    await page.getByRole('list',{name:'Saved local items'}).getByText('1.875 pcs',{exact:true}).waitFor();
     assert.equal(await button('Save item on this PC').isDisabled(),false);
     assert.equal(await label('Saved invoice ID').inputValue(),finalId);
     assert.equal((await native('list_local_invoices',{after:0})).length,5);

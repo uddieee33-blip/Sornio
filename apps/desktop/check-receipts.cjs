@@ -63,7 +63,10 @@ function bridge() {
   const cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await page.keyboard.press('F3'); await page.keyboard.type('0.125'); await page.keyboard.press('Enter');
   await label('Tax (%)').fill('5'); const started = performance.now();
-  await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale'); await page.keyboard.press('Enter'); await saved().waitFor();
+  // The deliberate confirmation is Alt+Enter. A plain Enter is a scanner
+  // keypress and the product refuses to treat it as a financial confirmation,
+  // so the keyboard sale has to use the deliberate key.
+  await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale'); await page.keyboard.press('Alt+Enter'); await saved().waitFor();
   const keyboardMs = Math.round(performance.now() - started); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   const cashId = await label('Saved invoice ID').inputValue();
   const original = await native('read_local_invoice', { invoiceId: cashId }); assert.equal(original.totalPaise, 558);
@@ -139,7 +142,13 @@ function bridge() {
   assert.ok((await page.getByRole('group', { name: 'Confirm sale', exact: true }).innerText()).includes('Customer credit'));
   await page.keyboard.press('Escape'); await page.waitForFunction(() => document.activeElement?.id === 'checkout-search');
   await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale');
-  await page.keyboard.press('Enter'); await saved().waitFor();
+  // A plain Enter is a scanner keypress. It must never confirm a sale, and it
+  // must not even reach the store: a scanner that fires Enter while a cashier
+  // is looking at the review must not post money.
+  await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+  assert.equal(await saved().count(),0,'A plain Enter must never confirm a sale.');
+  assert.equal((await native('list_local_invoices',{after:0})).length,preSplit.invoices.length,'A plain Enter must never post a sale.');
+  await page.keyboard.press('Alt+Enter'); await saved().waitFor();
   const splitId = await label('Saved invoice ID').inputValue();
   const postSplit = await state();
   assert.equal(postSplit.invoices.length, preSplit.invoices.length + 1);
