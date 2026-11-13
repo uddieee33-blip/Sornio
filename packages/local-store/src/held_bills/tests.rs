@@ -166,7 +166,9 @@ fn held_checkout_and_completion_are_atomic_and_retry_safe() {
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
         )
         .unwrap();
-    assert_eq!(invoice_id, "held-3");
+    // The column is `invoice_id`, so it references the posted invoice - whose id is
+    // the sale operation id - not the held bill that was resumed to produce it.
+    assert_eq!(invoice_id, "held-sale");
     assert_eq!(method, "cash");
     assert_eq!(amount, 12500);
     assert_eq!(
