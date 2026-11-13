@@ -78,7 +78,7 @@ that named no cause.
 typed reference with a customer the native store has *read back* — so the store knows
 the limit and the balance before it posts the debt — and the sentence became
 **"Select an existing credit customer and wait for their credit details."**
-(`apps/desktop/src/CheckoutPanel.tsx:433`).
+(`apps/desktop/src/CheckoutPanel.tsx:434`).
 
 That change also broke two flows further down the same script that had never been
 reached: the Phase 4 and Phase 5 split-tender flows typed a reference into the

@@ -53,6 +53,27 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     return { context, page };
   }
   /**
+   * Wait for the streamed shell to hand the route over to the client.
+   *
+   * Next.js streams the route markup into a hidden container beside the
+   * application root and drains it once the client has hydrated. While that
+   * handover is in flight the document holds two copies of the same markup, so
+   * an unscoped lookup can match the parked copy and the live one at the same
+   * moment and fail as a strict-mode violation. The parked copy is never
+   * inside the console's own "main" region, so the scoped lookups below
+   * cannot see it; this wait is what keeps the unscoped ones honest.
+   */
+  async function waitForStreamedHandover(page) {
+    await page.waitForFunction(
+      () => {
+        const parked = [...document.body.children].filter(node => node.nodeType === 1 && node.tagName === 'DIV' && node.hasAttribute('hidden'));
+        return parked.every(node => node.children.length === 0);
+      },
+      undefined,
+      { timeout: 60000 },
+    );
+  }
+  /**
    * Navigate and wait for the console to actually be ready.
    *
    * The console polls its own identity and sync endpoints on a timer, so
@@ -73,6 +94,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       { timeout: 60000 },
     );
     await page.locator('.console-workspace').waitFor({ state: 'visible', timeout: 60000 });
+    await waitForStreamedHandover(page);
   }
   async function inspect(page, route, name) {
     await openWorkspace(page, route);
@@ -118,9 +140,15 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     }
     const { context, page } = await contextFor('graphite', 'general', 390);
     await openWorkspace(page, '/customers');
-    await page.getByPlaceholder('e.g. Kiran Malhotra').fill('Theme Review Customer');
-    await page.getByRole('button', { name: 'Save customer', exact: true }).click();
-    await page.getByText('Theme Review Customer', { exact: true }).click();
+    // Scope the customer form to the live console. The streamed copy of the
+    // route is parked in a hidden container outside this region, so these
+    // lookups can never match two elements whatever the handover timing is.
+    const liveConsole = page.locator('.console-workspace main#main');
+    const customerForm = liveConsole.locator('.surface-card')
+      .filter({ has: page.getByRole('heading', { name: 'Add customer', exact: true }) });
+    await customerForm.getByPlaceholder('e.g. Kiran Malhotra').fill('Theme Review Customer');
+    await customerForm.getByRole('button', { name: 'Save customer', exact: true }).click();
+    await liveConsole.getByText('Theme Review Customer', { exact: true }).click();
     const customerDialog = page.getByRole('dialog', { name: 'Theme Review Customer', exact: true });
     await customerDialog.waitFor();
     assert(await customerDialog.evaluate(node => node.matches(':modal')));
@@ -139,6 +167,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     // The subscription page states its own readiness with the plan heading,
     // so the navigation only has to get the document there.
     await billing.page.goto(origin + '/subscription?plan=growth&interval=year', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitForStreamedHandover(billing.page);
     await billing.page.getByRole('heading', { name: 'You are on Growth', exact: true }).waitFor();
     assert.equal(await billing.page.getByRole('button', { name: 'Growth year', exact: true }).getAttribute('aria-pressed'), 'true');
     const paidDate = await billing.page.getByText('Paid access ends', { exact: false }).textContent();
@@ -180,6 +209,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
         // surface stayed separate from the workspace.
         await visitor.page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 60000 });
         await visitor.page.waitForLoadState('load', { timeout: 60000 });
+        await waitForStreamedHandover(visitor.page);
         assert.equal(new URL(visitor.page.url()).pathname, route, 'Marketing and download pages stay separate from the workspace');
         assert(await visitor.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Public pages fit the viewport');
         await visitor.page.screenshot({ path: path.join(out, `public-${route === '/' ? 'landing' : 'install'}-${width}.png`), fullPage: true });
