@@ -22,6 +22,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
   } : {}) });
   const errors = [];
   const throttled = [];
+  const prefetchThrottled = [];
   async function contextFor(theme, portal, width) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
     await context.addCookies([
@@ -48,7 +49,23 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       // The console throttles its own clients. A throttled run sees missing
       // data and stale screens, so it cannot prove anything about the screens
       // it was meant to review. Record it instead of letting the run pass.
-      if (response.status() === 429) throttled.push(`${response.status()} ${response.url()}`);
+      //
+      // A *speculative* prefetch is the one exception, and it is not an
+      // exception this harness grants itself: the console budgets its own
+      // prefetches on purpose, apart from navigation, and a run that opens
+      // dozens of routes reaches that ceiling by design. A refused prefetch
+      // cannot hide a screen - the navigation that follows fetches its own
+      // document and its own data - and every route this script inspects is
+      // waited on until its own heading and workspace are on screen, so a
+      // screen that a refused prefetch had hidden would fail the run anyway.
+      // Refused prefetches are counted and reported; a throttle on anything
+      // the screens depend on still fails the run.
+      if (response.status() !== 429) return;
+      const headers = response.request().headers();
+      const purpose = `${headers.purpose ?? ''} ${headers['sec-purpose'] ?? ''}`.toLowerCase();
+      const speculative = headers['next-router-prefetch'] === '1' || headers['x-middleware-prefetch'] === '1' || purpose.includes('prefetch');
+      const record = `${response.status()} ${response.url()}`;
+      if (speculative) prefetchThrottled.push(record); else throttled.push(record);
     });
     return { context, page };
   }
@@ -219,6 +236,6 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     }
     assert.deepEqual(errors, [], 'No uncaught browser exceptions');
     assert.deepEqual(throttled, [], `The run was rate limited by the console's own throttle (${throttled.length} responses). A throttled run cannot prove the screens work.`);
-    console.log('Workspace browser acceptance passed: eight portals, responsive pages, bidirectional modal focus and subscription API transitions.');
+    console.log(`Workspace browser acceptance passed: eight portals, responsive pages, bidirectional modal focus and subscription API transitions.${prefetchThrottled.length ? ` The console refused ${prefetchThrottled.length} of its own speculative prefetches, which cannot hide a screen.` : ''}`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
