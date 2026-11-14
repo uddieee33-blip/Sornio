@@ -124,7 +124,6 @@ impl Fixture {
             let mut statement = db.prepare(sql).map_err(|e| e.to_string())?;
             let names = statement
                 .column_names()
-                .iter()
                 .map(|s| s.to_string())
                 .collect::<Vec<_>>();
             let result = statement
