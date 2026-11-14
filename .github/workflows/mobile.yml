@@ -295,7 +295,7 @@ jobs:
           xcodebuild \
             -workspace Sornio.xcworkspace \
             -scheme Sornio \
-            -configuration Debug \
+            -configuration Release \
             -sdk iphonesimulator \
             -destination "id=${{ steps.boot.outputs.udid }}" \
             -derivedDataPath /tmp/dd \
@@ -313,6 +313,16 @@ jobs:
             exit 1
           fi
           echo "app bundle: $APP"
+          # A Debug simulator build sets SKIP_BUNDLING=1 and expects Metro, which
+          # CI does not run, so the app would launch with no JavaScript at all.
+          # This job therefore builds Release; assert the bundle is really there
+          # rather than trusting the configuration name.
+          if [ ! -f "$APP/main.jsbundle" ]; then
+            echo '::error::No main.jsbundle inside the app. This build cannot run without Metro.'
+            ls -la "$APP" | head -20
+            exit 1
+          fi
+          echo "embedded bundle bytes: $(wc -c < "$APP/main.jsbundle")"
           BID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
           echo "bundle identifier: $BID"
           if [ "$BID" != "com.sornio.companion" ]; then

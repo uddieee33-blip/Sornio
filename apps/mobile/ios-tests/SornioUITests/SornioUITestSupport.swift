@@ -113,6 +113,12 @@ extension XCTestCase {
                 return String(id.dropFirst(Ids.phasePrefix.count))
             }
         }
+        // The pre-demo screens sit outside the navigation frame that publishes
+        // the phase marker, so they are recognised by their own identifiers.
+        for element in all {
+            if element.identifier == Ids.connect { return "connect" }
+            if element.identifier == Ids.chooser { return "chooser" }
+        }
         return nil
     }
 
@@ -139,6 +145,24 @@ extension XCTestCase {
         XCTFail("The application settled into '\(currentPhase(app) ?? "no phase")' rather than the workspace " +
                 "within \(Int(timeout))s. Visible: \(visibleIdentifiers(app))", file: file, line: line)
         return false
+    }
+
+    /**
+     Dismisses the keyboard.
+
+     A tap meant for the tab bar lands on the keyboard when it is up; one run
+     failed because nav.home was under the emoji keyboard.
+     */
+    func dismissKeyboard(_ app: XCUIApplication) {
+        if app.keyboards.count > 0 {
+            app.typeText("\n")
+        }
+        // A tap on the stage closes the keyboard on iOS without activating
+        // anything, so it is safe even if the field ignored the return key.
+        let stage = el(app, Ids.screen("activity"))
+        if stage.exists && stage.isHittable {
+            stage.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.15)).tap()
+        }
     }
 
     /// The message the app rendered for a bootstrap failure.
