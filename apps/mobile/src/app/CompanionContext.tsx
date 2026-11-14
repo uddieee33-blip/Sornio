@@ -13,7 +13,7 @@ import {
   type SyncStatus,
   screensFor,
 } from '@sornio/mobile-contracts';
-import { createSecureStore } from '../storage/secureStore';
+import { createSecureStore, SECURE_DELETION_UNCONFIRMED } from '../storage/secureStore';
 import { persistSession, readPersistedSession, wipePersistedSession } from '../storage/sessionStore';
 import { readConnectivity } from '../sync/connectivity';
 
@@ -28,6 +28,8 @@ type CompanionValue = {
   booting: boolean;
   /** True when no session exists because the owner signed out or cleared the session. */
   signedOut: boolean;
+  /** Non-null when sign-out locked the session but durable removal is unconfirmed. */
+  storageError: string | null;
   setScreen: (screen: ScreenId) => void;
   refresh: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -51,6 +53,7 @@ export function CompanionProvider({ children }: { children: ReactNode }) {
   const [error, setError] = useState<string | null>(null);
   const [booting, setBooting] = useState(true);
   const [signedOut, setSignedOut] = useState(false);
+  const [storageError, setStorageError] = useState<string | null>(null);
 
   /* Boot and sign-out can overlap: the first render starts bootstrap, and the
      owner can press Sign out before it resolves. One shared guard keeps a
@@ -115,6 +118,7 @@ export function CompanionProvider({ children }: { children: ReactNode }) {
         if (token !== bootToken.current) return;
         engine.signIn(started, copy);
         await persistSession(secure, started);
+        setStorageError(secure.degraded() ? SECURE_DELETION_UNCONFIRMED : null);
         setSignedOut(false);
         publish();
       } finally {
@@ -128,10 +132,13 @@ export function CompanionProvider({ children }: { children: ReactNode }) {
     // Invalidate any in-flight bootstrap before the session keys are cleared.
     bootToken.current += 1;
     await auth.signOut();
-    await wipePersistedSession(secure);
+    let failure: string | null = null;
+    try { await wipePersistedSession(secure); } catch { failure = SECURE_DELETION_UNCONFIRMED; }
+    if (secure.degraded()) failure ??= SECURE_DELETION_UNCONFIRMED;
     engine.signOut();
     setScreen('home');
     setError(null);
+    setStorageError(failure);
     setSignedOut(true);
     setBooting(false);
     publish();
@@ -139,9 +146,12 @@ export function CompanionProvider({ children }: { children: ReactNode }) {
 
   const wipe = useCallback(async () => {
     bootToken.current += 1;
-    await wipePersistedSession(secure);
+    let failure: string | null = null;
+    try { await wipePersistedSession(secure); } catch { failure = SECURE_DELETION_UNCONFIRMED; }
+    if (secure.degraded()) failure ??= SECURE_DELETION_UNCONFIRMED;
     engine.signOut();
     setError(null);
+    setStorageError(failure);
     setSignedOut(true);
     setBooting(false);
     publish();
@@ -181,13 +191,14 @@ export function CompanionProvider({ children }: { children: ReactNode }) {
       error,
       booting,
       signedOut,
+      storageError,
       setScreen,
       refresh,
       signOut,
       wipe,
       startDemo,
     }),
-    [session, snapshot, sync, screen, screens, error, booting, signedOut, refresh, signOut, wipe, startDemo],
+    [session, snapshot, sync, screen, screens, error, booting, signedOut, storageError, refresh, signOut, wipe, startDemo],
   );
   return <Context.Provider value={value}>{children}</Context.Provider>;
 }

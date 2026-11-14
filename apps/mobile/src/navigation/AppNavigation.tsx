@@ -27,7 +27,7 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
   const { width, fontScale } = useWindowDimensions();
   const largeText = fontScale > 1.3;
   const wide = width >= layout.railMin && !largeText;
-  const { screen, screens, setScreen, snapshot, error, booting, signedOut, startDemo } = useCompanion();
+  const { screen, screens, setScreen, snapshot, error, booting, signedOut, storageError, startDemo } = useCompanion();
   const { palette } = useTheme();
   const terms = vocabularyFor(snapshot?.portalId ?? 'general');
   const labels: Record<ScreenId, string> = {
@@ -54,7 +54,8 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
       return (
         <View style={styles.placeholder} testID={ids.signedOut}>
           <Title>Signed out</Title>
-          <Muted>This device no longer holds a Sornio session. Signing out cleared the session keys kept for this account.</Muted>
+          <Muted>{storageError ? 'The session is locked in this app, but encrypted device storage has not confirmed removal.' : 'This device no longer holds a Sornio session. Signing out cleared the session keys kept for this account.'}</Muted>
+          {storageError ? <View accessibilityRole="alert"><Muted>{storageError}</Muted></View> : null}
           <Body>Open the demonstration again to review the companion, or connect to a shop to work with live records.</Body>
           <View style={styles.actions}>
             {startDemo ? (

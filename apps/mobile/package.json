@@ -10,11 +10,13 @@
     "typecheck": "tsc --noEmit",
     "test": "node ../../scripts/verify-mobile-contracts.mjs",
     "test:runtime": "jest --testTimeout=60000",
+    "test:native-hub": "jest --config jest.native-hub.config.js",
     "test:bench": "jest __runtime__/bench.test.tsx --testTimeout=300000"
   },
   "dependencies": {
     "expo": "~58.0.22",
     "expo-crypto": "~58.0.8",
+    "expo-file-system": "~58.0.13",
     "expo-local-authentication": "~58.0.2",
     "expo-network": "~58.0.4",
     "expo-secure-store": "~58.0.2",

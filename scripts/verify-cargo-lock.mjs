@@ -39,7 +39,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const MANIFESTS = ['packages/local-store/Cargo.toml', 'apps/desktop/src-tauri/Cargo.toml'];
+const MANIFESTS = ['packages/local-store/Cargo.toml', 'apps/desktop/src-tauri/Cargo.toml', 'packages/lan-hub/Cargo.toml'];
 
 const DEPENDENCY_SECTIONS = ['dependencies', 'dev-dependencies', 'build-dependencies'];
 

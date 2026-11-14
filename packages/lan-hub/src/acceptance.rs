@@ -2,7 +2,7 @@
 //! the production HTTPS listener, never through this control plane. Commands
 //! here only provision fixtures, operate desktop-owner controls, restart the
 //! process-owned service, and read authoritative SQLCipher records.
-use rusqlite::{types::ValueRef, Connection, OpenFlags};
+use rusqlite::{types::ValueRef, Connection, OpenFlags, OptionalExtension};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 use sornio_lan_hub::hub_server::{self, LocalState, Runtime};
@@ -205,6 +205,37 @@ impl Fixture {
                 *self.workspace()? = Ok(w);
                 self.owner_login()?;
                 self.start(false)
+            }
+            "rotateTls" => {
+                self.workspace()?
+                    .as_mut()
+                    .map_err(|e| e.clone())?
+                    .hub_configure(
+                        true,
+                        Some((
+                            text(p, "certificate")?.into(),
+                            text(p, "privateKey")?.into(),
+                        )),
+                    )
+                    .map_err(|e| e.to_string())?;
+                Ok(json!({"rotated":true}))
+            }
+            "staff" => {
+                let principal = self
+                    .workspace()?
+                    .as_mut()
+                    .map_err(|e| e.clone())?
+                    .create_staff(
+                        StaffDetails {
+                            username: text(p, "username")?.into(),
+                            display_name: "Restricted employee".into(),
+                            role: Role::Cashier,
+                        },
+                        &self.password,
+                    )
+                    .map_err(|e| e.to_string())?;
+                self.actors[principal.username.clone()] = json!(principal.id);
+                Ok(json!({"id":principal.id}))
             }
             "device" => {
                 let actor = p["actorId"].as_str().map(str::to_owned);
@@ -482,7 +513,91 @@ fn initialize(p: &Value) -> Result<Fixture> {
     Ok(fixture)
 }
 
+/// Existing SQLCipher encryption, separate from the authority database. This is
+/// a host test port for the mobile SecureStore interface, not a claim about the
+/// iOS Keychain or Android Keystore. It lets an outbox survive a real Node
+/// process restart without plaintext credentials or a volatile-memory fallback.
+fn client_store() {
+    let stdin = std::io::stdin();
+    let mut stdout = std::io::stdout();
+    let mut db: Option<Connection> = None;
+    for line in stdin.lock().lines() {
+        let Ok(line) = line else { break };
+        let value: Value = match serde_json::from_str(&line) {
+            Ok(v) => v,
+            Err(e) => {
+                let _ = writeln!(stdout, "{}", json!({"ok":false,"error":e.to_string()}));
+                continue;
+            }
+        };
+        let id = value["id"].clone();
+        let command = value["command"].as_str().unwrap_or("");
+        let p = &value["params"];
+        let result = (|| -> Result<Value> {
+            if command == "init" {
+                if db.is_some() {
+                    return Err("already initialized".into());
+                }
+                let connection = Connection::open(
+                    PathBuf::from(text(p, "directory")?).join("client-records.db"),
+                )
+                .map_err(|e| e.to_string())?;
+                connection
+                    .pragma_update(None, "key", text(p, "key")?)
+                    .map_err(|e| e.to_string())?;
+                let cipher: String = connection
+                    .query_row("PRAGMA cipher_version", [], |r| r.get(0))
+                    .map_err(|e| e.to_string())?;
+                if cipher.is_empty() {
+                    return Err("SQLCipher unavailable".into());
+                }
+                connection.execute_batch("PRAGMA journal_mode=WAL; PRAGMA synchronous=FULL; CREATE TABLE IF NOT EXISTS secure_records(key TEXT PRIMARY KEY,value TEXT NOT NULL);").map_err(|e| e.to_string())?;
+                db = Some(connection);
+                return Ok(json!({"cipherVersion":cipher}));
+            }
+            let connection = db.as_ref().ok_or("not initialized")?;
+            match command {
+                "get" => Ok(json!(connection
+                    .query_row(
+                        "SELECT value FROM secure_records WHERE key=?1",
+                        [text(p, "key")?],
+                        |r| r.get::<_, String>(0)
+                    )
+                    .optional()
+                    .map_err(|e| e.to_string())?)),
+                "set" => {
+                    connection.execute("INSERT INTO secure_records VALUES(?1,?2) ON CONFLICT(key) DO UPDATE SET value=excluded.value", rusqlite::params![text(p,"key")?,text(p,"value")?]).map_err(|e| e.to_string())?;
+                    Ok(Value::Null)
+                }
+                "delete" => {
+                    connection
+                        .execute("DELETE FROM secure_records WHERE key=?1", [text(p, "key")?])
+                        .map_err(|e| e.to_string())?;
+                    Ok(Value::Null)
+                }
+                "shutdown" => Ok(Value::Null),
+                _ => Err(format!("unknown client-store command {command}")),
+            }
+        })();
+        let reply = match result {
+            Ok(result) => json!({"id":id,"ok":true,"result":result}),
+            Err(error) => json!({"id":id,"ok":false,"error":error}),
+        };
+        if writeln!(stdout, "{reply}")
+            .and_then(|_| stdout.flush())
+            .is_err()
+            || command == "shutdown"
+        {
+            break;
+        }
+    }
+}
+
 fn main() {
+    if std::env::args().nth(1).as_deref() == Some("client-store") {
+        client_store();
+        return;
+    }
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout();
     let mut fixture: Option<Fixture> = None;

@@ -59,10 +59,23 @@ jobs:
           ip -4 addr
       - name: Verify the service lockfile without changing its pins
         working-directory: packages/lan-hub
-        run: cargo metadata --locked --format-version 1 > /tmp/lan-hub-metadata.json
+        run: |
+          set -o pipefail
+          if ! cargo metadata --locked --format-version 1 > /tmp/lan-hub-metadata.json 2>/tmp/lan-hub-lock.log; then
+            cat /tmp/lan-hub-lock.log
+            while IFS= read -r line; do echo "::error title=native lockfile::$line"; done < /tmp/lan-hub-lock.log
+            exit 1
+          fi
       - name: Build the actual production listener and native fixture control
         working-directory: packages/lan-hub
-        run: cargo build --locked --bin sornio-lan-acceptance
+        run: |
+          set -o pipefail
+          if ! cargo build --locked --bin sornio-lan-acceptance > /tmp/lan-hub-build.log 2>&1; then
+            tail -100 /tmp/lan-hub-build.log
+            grep -E '^error|^warning: unused|--> ' /tmp/lan-hub-build.log | head -30 | while IFS= read -r line; do echo "::error title=native build::$line"; done
+            exit 1
+          fi
+          tail -20 /tmp/lan-hub-build.log
       - name: Install companion dependencies
         working-directory: apps/mobile
         run: npm ci
@@ -80,6 +93,8 @@ jobs:
         run: |
           mkdir -p artifacts/native-hub
           cp /tmp/lan-hub-metadata.json artifacts/native-hub/metadata.json 2>/dev/null || true
+          cp /tmp/lan-hub-lock.log artifacts/native-hub/lock.log 2>/dev/null || true
+          cp /tmp/lan-hub-build.log artifacts/native-hub/build.log 2>/dev/null || true
           cp apps/mobile/native-hub-results.json artifacts/native-hub/results.json 2>/dev/null || true
           {
             echo '# Level 2: controlled host, not a separate-device LAN'
