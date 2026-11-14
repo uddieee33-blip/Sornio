@@ -64,6 +64,12 @@ jobs:
           if ! cargo metadata --locked --format-version 1 > /tmp/lan-hub-metadata.json 2>/tmp/lan-hub-lock.log; then
             cat /tmp/lan-hub-lock.log
             while IFS= read -r line; do echo "::error title=native lockfile::$line"; done < /tmp/lan-hub-lock.log
+            # Diagnostic: let Cargo resolve the exact graph on a networked runner
+            # and publish it as base64 notices so the reviewed lock can be fixed.
+            cargo generate-lockfile
+            base64 -w0 Cargo.lock > /tmp/lan-hub-lock.b64
+            split -b 50000 -d -a 2 /tmp/lan-hub-lock.b64 /tmp/lan-hub-lock.part.
+            for part in /tmp/lan-hub-lock.part.*; do echo "::notice title=generated-lock-$(basename "$part")::$(cat "$part")"; done
             exit 1
           fi
       - name: Build the actual production listener and native fixture control
