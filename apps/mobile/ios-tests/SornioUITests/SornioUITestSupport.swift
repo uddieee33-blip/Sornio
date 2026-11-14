@@ -30,6 +30,13 @@ enum Ids {
     static let restaurantKitchen = "restaurant.kitchen"
     static let restaurantScreen = "screen.restaurant"
 
+    /// Phase markers, so a failure reports where the app actually was.
+    static let phasePrefix = "app.phase."
+    static let phaseBoot = "app.phase.boot"
+    static let phaseDemo = "app.phase.demo"
+    static let phaseSignedOut = "app.phase.signed-out"
+    static let phaseError = "app.phase.error"
+
     static let signOut = "session.signout"
     static let signedOut = "session.signed-out"
     static let reopenDemo = "session.reopen-demo"
@@ -56,7 +63,8 @@ extension XCTestCase {
                  file: StaticString = #filePath, line: UInt = #line) {
         XCTAssertTrue(
             waitFor(app, identifier, timeout),
-            "Expected '\(identifier)' to appear. Visible identifiers: \(visibleIdentifiers(app))",
+            "Expected '\(identifier)' to appear while the app was in phase " +
+            "'\(currentPhase(app) ?? "none")'. Visible identifiers: \(visibleIdentifiers(app))",
             file: file, line: line
         )
     }
@@ -94,6 +102,43 @@ extension XCTestCase {
         )
     }
 
+    /// The state the app settled into, or nil if it never got past mount.
+    func currentPhase(_ app: XCUIApplication) -> String? {
+        let all = app.descendants(matching: .any).allElementsBoundByIndex.prefix(400)
+        for element in all {
+            let id = element.identifier
+            if id.hasPrefix(Ids.phasePrefix) {
+                return String(id.dropFirst(Ids.phasePrefix.count))
+            }
+        }
+        return nil
+    }
+
+    /**
+     Waits for the demonstration workspace, failing with the phase the app
+     actually reached.
+
+     Without this the message is only "screen.home never appeared", which is true
+     and useless: it does not distinguish "still booting" from "bootstrap failed"
+     from "this device is signed out".
+     */
+    func waitForDemoPhase(_ app: XCUIApplication, _ timeout: TimeInterval = 60,
+                          file: StaticString = #filePath, line: UInt = #line) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while Date() < deadline {
+            if let phase = currentPhase(app), phase == "demo" { return true }
+            if let phase = currentPhase(app), phase == "error" {
+                XCTFail("The application reported a bootstrap error instead of opening the workspace. " +
+                        "Visible: \(visibleIdentifiers(app))", file: file, line: line)
+                return false
+            }
+            usleep(250_000)
+        }
+        XCTFail("The application settled into '\(currentPhase(app) ?? "no phase")' rather than the workspace " +
+                "within \(Int(timeout))s. Visible: \(visibleIdentifiers(app))", file: file, line: line)
+        return false
+    }
+
     func visibleIdentifiers(_ app: XCUIApplication) -> String {
         let all = app.descendants(matching: .any).allElementsBoundByIndex
             .prefix(400)
@@ -111,7 +156,10 @@ extension XCTestCase {
     func enterDemo(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         waitForReady(app, file: file, line: line)
 
-        if waitFor(app, Ids.nav("home"), shortTimeout) { return }
+        if waitFor(app, Ids.nav("home"), shortTimeout) {
+            _ = waitForDemoPhase(app)
+            return
+        }
 
         if el(app, Ids.reopenDemo).exists {
             tap(app, Ids.reopenDemo)

@@ -33,6 +33,13 @@ export const ids = {
   restaurantKitchen: 'restaurant.kitchen',
   restaurantScreen: 'screen.restaurant',
 
+  /**
+   * Which state the app settled into. Rendered as a small off-screen marker so a
+   * failing native test can report where the app actually was — phase only, no
+   * business data.
+   */
+  phase: (phase: string) => `app.phase.${phase}`,
+
   signOut: 'session.signout',
   signedOut: 'session.signed-out',
   reopenDemo: 'session.reopen-demo',
