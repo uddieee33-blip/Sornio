@@ -24,7 +24,7 @@ other agent's work was altered.
 ### 0.2 What this phase changes
 
 ```
-apps/mobile/__runtime__/**        new headless runtime acceptance harness (4 suites, 32 tests)
+apps/mobile/__runtime__/**        new headless runtime acceptance harness (5 suites, 59 tests)
 apps/mobile/jest.config.js        new
 apps/mobile/package.json          dev-time test tooling + test:runtime / test:bench scripts
 apps/mobile/src/app/CompanionApp.tsx        startup shell, explicit mode chooser
@@ -61,6 +61,7 @@ report uses one of these levels, and they are not interchangeable:
 | **Implementation** | Source exists and typechecks |
 | **Compiled** | A compiler or bundler accepted it |
 | **Headless execution** | The real React component tree ran in Node and its behaviour was asserted |
+| **Protocol execution** | Real client domain code ran against a contract-faithful reference hub (no TLS, no desktop hub) |
 | **Simulator** | An `.app` was installed and launched in a booted iOS Simulator |
 | **Physical device** | Installed and driven on real hardware |
 | **Production-ready** | Simulator **and** device evidence **and** founder approval |
@@ -84,11 +85,11 @@ runtime evidence obtainable here · **MISSING**.
 | Mode chooser (shop vs demo) | yes | yes | yes | n/a | **HE** |
 | Shop selection (manual IDs) | yes | yes | yes | LAN hub | **IMPL** — needs a live hub |
 | Shop selection (DNS-SD discovery) | yes | yes | yes | native `SornioLan` | **BLOCKED** — needs a real hub on a LAN |
-| Secure pairing / enrolment code | yes | yes | yes | `/v1/enrol` | **BLOCKED** |
+| Secure pairing / enrolment code | yes | yes | yes | `/v1/enrol` | **PROTOCOL** (client side) — real TLS still **BLOCKED** |
 | Certificate pin verification | yes | yes | yes | native TLS | **BLOCKED** — needs a real certificate |
-| Employee sign-in | yes | yes | yes | `/v1/session` | **BLOCKED** |
+| Employee sign-in | yes | yes | yes | `/v1/session` | **PROTOCOL** — refusal/expiry/revocation paths executed |
 | Session restoration (demo) | yes | yes | yes | n/a | **HE** |
-| Session restoration (live/LAN) | n/a | n/a | n/a | LAN hub | **BLOCKED** |
+| Session restoration (live/LAN) | n/a | n/a | n/a | LAN hub | **PROTOCOL** — resume after re-auth executed |
 | Sign-out and session wipe | yes | yes | yes | n/a | **HE** — was **broken**, see §4.1 |
 | Face ID unlock | **MISSING** | **MISSING** | n/a | n/a | see §4.3 |
 | Business dashboard | yes | yes | yes | snapshot | **HE** |
@@ -97,13 +98,13 @@ runtime evidence obtainable here · **MISSING**.
 | Transactions / activity | yes | yes | yes | snapshot | **HE** + measured |
 | Reports | **PART** (summary only) | same | same | snapshot | **IMPL** |
 | Offline stock-count drafts | yes | yes | yes | device secure store | **IMPL** |
-| Restaurant tables & tickets | yes | yes | yes | `/v1/workspace` | **BLOCKED** |
-| Kitchen preparation queue | yes | yes (two panes) | yes | hub | **BLOCKED** |
-| Kitchen transitions + durable recovery | yes | yes | yes | `/v1/operation` | **BLOCKED** |
-| Staff assignment / responsibilities | yes | yes | yes | hub | **BLOCKED** |
+| Restaurant tables & tickets | yes | yes | yes | `/v1/workspace` | **PROTOCOL** — snapshot validated against schema |
+| Kitchen preparation queue | yes | yes (two panes) | yes | hub | **PROTOCOL** — queue projection asserted |
+| Kitchen transitions + durable recovery | yes | yes | yes | `/v1/operation` | **PROTOCOL** — CAS, refusals, lost-response recovery |
+| Staff assignment / responsibilities | yes | yes | yes | hub | **IMPL** — outside this suite |
 | Supervisor reassignment | yes | yes | yes | hub | **BLOCKED** |
-| Security & session history | yes | yes | yes | `/v1/staff-access` | **BLOCKED** |
-| Durable operation recovery | yes | yes | yes | outbox + hub | **BLOCKED** |
+| Security & session history | yes | yes | yes | `/v1/staff-access` | **IMPL** — outside this suite |
+| Durable operation recovery | yes | yes | yes | outbox + hub | **PROTOCOL** — advanced exactly once under every fault |
 | LAN connectivity indicators | yes | yes | yes | hub | **PART** — HE for the disconnected copy |
 | Synchronisation (live snapshot) | **MISSING** | **MISSING** | **MISSING** | none | `ProductionSnapshotAdapter` still throws |
 | Notifications / push | **MISSING** | **MISSING** | **MISSING** | none | — |
@@ -116,6 +117,12 @@ documentation is stale in the *optimistic* direction: it understates what exists
 statements are true — the restaurant stack exists and is substantial, but **none of it
 has been executed against a live hub in this phase**, so its honest verdict is
 `BLOCKED`, not `PASS`.
+
+**Update — protocol execution added after the first draft of this report.** The
+client-side recovery protocol *has* now been executed (§8A). What remains BLOCKED is
+the part that genuinely needs hardware and a network: real TLS with certificate
+pinning, the Rust/Tauri desktop hub, and an end-to-end run between two devices. Those
+are not downgraded by §8A and must not be cited as if they were.
 
 ---
 
@@ -285,6 +292,42 @@ Linux and cannot be validated here. It is a release gate, not a result.
 
 ---
 
+## 8A. LAN protocol execution (added after the initial verdicts)
+
+The LAN stack was BLOCKED for want of a hub. That blocked *verification*, not the
+protocol: every client call is injected through a `HubWire` function, so the real
+client code can be driven against a hub that obeys the documented wire contract.
+
+`apps/mobile/__runtime__/lan/reference-hub.ts` implements `/v1/enrol`, `/v1/session`,
+`/v1/workspace`, `/v1/operation`, `/v1/kitchen-state` and `/v1/submit` in memory, with
+hooks for a dropped request, a response lost *after* commit, a closed order, session
+expiry and device revocation. `apps/mobile/__runtime__/lan.test.ts` then drives the
+**real** `hubOutbox`, `kitchenOutbox`, `hubCommandStore`, `hubWorkspace` and
+`kitchenQueue` code — 27 tests.
+
+| Property under fault | Verdict |
+| --- | --- |
+| Status lookup precedes any resend | **PASS** — `/v1/operation` is the first call on recovery |
+| Committed result adopted after a lost response | **PASS** |
+| Same payload replanted; no new operation id minted | **PASS** |
+| Order advances exactly once under lost response | **PASS** |
+| Order advances exactly once across 3 dropped connections | **PASS** |
+| Durable refusal does not advance revision | **PASS** |
+| One unresolved command per employee; second is refused | **PASS** |
+| No cross-employee or cross-shop command leakage | **PASS** |
+| Survives simulated process restart from device storage | **PASS** |
+| Kitchen revision CAS, illegal jump, closed order | **PASS** |
+| Session expiry keeps the command and blocks the write | **PASS** |
+| Re-authentication resumes the *same* operation | **PASS** |
+| Revoked device cannot obtain a session | **PASS** |
+| Queue projection: counts, filters, ready-first ordering | **PASS** |
+
+**What this is not.** No TLS. No certificate pinning. No Rust/Tauri hub. No SQLCipher.
+No second device. It proves the client honours the contract and it pins that contract
+for both sides; it does not prove the desktop implementation agrees. Real LAN
+acceptance remains **BLOCKED**, and the fixture is labelled as a reference hub
+everywhere it appears so it can never be mistaken for production evidence.
+
 ## 9. iPadOS runtime results
 
 | Check | Verdict |
@@ -360,7 +403,7 @@ Verification commands run in this phase, all green:
 
 1. **No simulator evidence.** Unavoidable here: Linux, no Xcode. Recorded as BLOCKED, never as passed.
 2. **The new simulator job is untested.** It is the correct next action and the first thing to run on macOS.
-3. **The LAN restaurant stack is unverified end to end.** Its code is substantial; its runtime evidence is the gap this phase could not close without a hub.
+3. **The LAN restaurant stack is client-verified but not end-to-end verified.** §8A executes the full client recovery protocol against a reference hub. Real TLS, certificate pinning, the desktop hub and a two-device run remain BLOCKED.
 4. **Face ID is implemented but unused.** `readBiometricUnlock`/`promptSessionUnlock` exist and nothing calls them, so the app never asks for biometric unlock. Wiring it needs a session-unlock design decision (what a failed unlock does to the encrypted outbox), so it was not improvised here.
 5. **`jest-expo` needed two config bridges.** Its stock `transformIgnorePatterns` exempts `expo/` exactly, which leaves `expo-modules-core` and friends untransformed; and building JUnit for a `packages/` file located outside `rootDir` needed `modulePaths`. Both are documented in `jest.config.js`.
 6. **Fixture snapshots** are synthetic and shaped to match `CompanionSnapshot`; they are benchmark input only and never reach product code.
@@ -375,9 +418,11 @@ Verification commands run in this phase, all green:
 - `apps/mobile/__runtime__/android.test.tsx` — 6 shared-code regression tests
 - `apps/mobile/__runtime__/bench.test.tsx` — the measured benchmark behind §7
 - `apps/mobile/__runtime__/fixtures.ts` — deterministic snapshot sizes
+- `apps/mobile/__runtime__/lan/reference-hub.ts` — contract-faithful in-memory hub
+- `apps/mobile/__runtime__/lan.test.ts` — 27 LAN protocol and recovery tests
 - `.github/workflows/mobile.yml` — `runtime` and `simulator` jobs
 
-Run everything: `cd apps/mobile && npm ci && npm run test:runtime` (32 tests, ~13 s).
+Run everything: `cd apps/mobile && npm ci && npm run test:runtime` (59 tests, ~15 s).
 
 ---
 
@@ -388,7 +433,7 @@ Run everything: `cd apps/mobile && npm ci && npm run test:runtime` (32 tests, ~1
 | **iPhone** | internal review and demo demonstration | **CONDITIONAL PASS** — headless-verified; simulator and device acceptance outstanding |
 | **iPad** | internal review of tablet layouts | **CONDITIONAL PASS** — layout branch verified; rotation, Stage Manager and pointer acceptance outstanding |
 | **Android** | internal review | **CONDITIONAL PASS** — shared code verified headlessly; APK compiles |
-| **LAN restaurant client** | supervised pilot only after §8 and §9 pass | **BLOCKED** |
+| **LAN restaurant client** | supervised pilot only after real-hub and device acceptance | **CONDITIONAL PASS** for client protocol · **BLOCKED** for end-to-end |
 | **Production / App Store / TestFlight** | nothing | **NOT READY** — live sync is unimplemented and `productionSyncEnabled` is false |
 
 ---
