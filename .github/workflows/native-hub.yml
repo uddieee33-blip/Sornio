@@ -89,7 +89,13 @@ jobs:
         working-directory: apps/mobile
         env:
           SORNIO_LAN_HUB_BINARY: ${{ github.workspace }}/packages/lan-hub/target/debug/sornio-lan-acceptance
-        run: npm run test:native-hub -- --runInBand
+        run: |
+          if ! npm run test:native-hub -- --runInBand --json --outputFile=/tmp/native-hub-jest.json > /tmp/native-hub-test.log 2>&1; then
+            tail -80 /tmp/native-hub-test.log
+            node -e 'const r=require("/tmp/native-hub-jest.json");let n=0;for(const s of r.testResults||[])for(const t of s.assertionResults||[])if(t.status==="failed"&&n++<10){const m=(t.failureMessages||[]).join(" ").replace(/\u001b\[[0-9;]*m/g,"").split("\n").slice(0,8).join(" | ").slice(0,3500);console.log("::error title=native hub test::"+t.fullName+" :: "+m)}' || true
+            exit 1
+          fi
+          tail -20 /tmp/native-hub-test.log
       - name: Native formatting
         working-directory: packages/lan-hub
         run: cargo fmt --check
@@ -101,6 +107,8 @@ jobs:
           cp /tmp/lan-hub-lock.log artifacts/native-hub/lock.log 2>/dev/null || true
           cp /tmp/lan-hub-build.log artifacts/native-hub/build.log 2>/dev/null || true
           cp apps/mobile/native-hub-results.json artifacts/native-hub/results.json 2>/dev/null || true
+          cp /tmp/native-hub-jest.json artifacts/native-hub/jest.json 2>/dev/null || true
+          cp /tmp/native-hub-test.log artifacts/native-hub/test.log 2>/dev/null || true
           {
             echo '# Level 2: controlled host, not a separate-device LAN'
             echo "commit=$GITHUB_SHA"
