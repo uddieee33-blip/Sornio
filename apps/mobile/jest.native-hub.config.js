@@ -4,6 +4,7 @@ module.exports = {
   testEnvironment: 'node',
   setupFilesAfterEnv: [],
   testMatch: ['<rootDir>/__integration__/**/*.test.ts'],
-  testTimeout: 120000,
+  testTimeout: 30000,
+  forceExit: true,
   collectCoverageFrom: [],
 };
