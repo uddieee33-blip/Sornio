@@ -167,11 +167,14 @@ export function ActionButton({
   onPress,
   disabled,
   danger,
+  testID,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Native automation handle. Additive: does not alter the spoken label. */
+  testID?: string;
 }) {
   const { palette } = useTheme();
   return (
@@ -179,6 +182,7 @@ export function ActionButton({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      testID={testID}
       // An explicit label keeps VoiceOver announcing one phrase. Without it the
       // name is derived from whatever text nodes happen to be children, which
       // reads compound labels such as "Draft additions · revision 7" in

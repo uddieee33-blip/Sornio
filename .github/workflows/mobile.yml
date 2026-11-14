@@ -48,6 +48,11 @@ jobs:
         # Pure logic, so it runs on Linux and fails fast if the simulator matrix
         # would be unable to provision a device.
         run: node scripts/verify-simulator-choice.mjs
+      - name: XCUITest target integration
+        # The native suites can only compile on macOS; this proves the target
+        # the plugin generates is valid pbxproj, compiles the committed sources,
+        # is listed in the scheme and is safe to re-apply on every prebuild.
+        run: node scripts/verify-uitest-target.mjs
       - name: Typecheck contracts
         working-directory: apps/mobile
         run: npx tsc --noEmit -p ../../packages/mobile-contracts/tsconfig.json
@@ -373,6 +378,154 @@ jobs:
         if: always()
         with:
           name: simulator-${{ matrix.family }}
+          path: artifacts/
+          if-no-files-found: warn
+          retention-days: 14
+
+  # Native interactive acceptance (§7 and §8 of Phase 20C).
+  #
+  # Deliberately separate from `simulator`: that job proves the app builds,
+  # installs and survives on a booted device, and its evidence must not become
+  # ambiguous. This job proves the interface can actually be operated, by tapping
+  # real controls through XCUITest and asserting where each tap landed.
+  ui-acceptance:
+    name: ${{ matrix.label }} interactive acceptance
+    needs: ios
+    runs-on: macos-latest
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: iPhone
+            family: iPhone
+            preferred: iPhone 16
+            suite: SornioIPhoneAcceptanceTests
+          - label: iPad
+            family: iPad
+            preferred: iPad Pro 11-inch (M4)
+            suite: SornioIPadAcceptanceTests
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/cache@v4
+        with:
+          path: apps/mobile/node_modules
+          key: ${{ runner.os }}-mobile-node-${{ hashFiles('apps/mobile/package-lock.json') }}
+
+      - name: Environment inventory
+        run: |
+          set +e
+          echo "runner: $(uname -a)"
+          echo "commit: $GITHUB_SHA"
+          xcodebuild -version
+          xcrun simctl list runtimes
+          xcrun simctl list devices available
+
+      - name: Select and boot a ${{ matrix.label }} simulator
+        id: boot
+        run: node scripts/select-ios-simulator.mjs --family ${{ matrix.family }} --preferred "${{ matrix.preferred }}"
+
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+
+      - name: Prebuild iOS
+        working-directory: apps/mobile
+        run: npx expo prebuild --platform ios --non-interactive --no-install
+
+      - name: Verify the UI test target survived prebuild
+        # prebuild regenerates ios/, so the config plugin has to have recreated
+        # the target. Without this the suite would silently not exist.
+        working-directory: apps/mobile
+        run: |
+          set -euo pipefail
+          echo '--- targets in the generated project ---'
+          xcodebuild -list -project ios/Sornio.xcodeproj
+          if ! xcodebuild -list -project ios/Sornio.xcodeproj | grep -q 'SornioUITests'; then
+            echo '::error::SornioUITests is missing from the generated project; the config plugin did not run.'
+            exit 1
+          fi
+          echo '--- generated test sources ---'
+          ls -1 ios/SornioUITests/
+
+      - name: CocoaPods
+        working-directory: apps/mobile/ios
+        run: pod install
+
+      - name: Run native interactive acceptance
+        id: test
+        working-directory: apps/mobile/ios
+        # No `|| true`: a failing UI assertion must fail the job.
+        run: |
+          set -o pipefail
+          rm -rf /tmp/SornioResults.xcresult
+          xcodebuild test \
+            -workspace Sornio.xcworkspace \
+            -scheme Sornio \
+            -configuration Release \
+            -sdk iphonesimulator \
+            -destination "id=${{ steps.boot.outputs.udid }}" \
+            -only-testing SornioUITests/${{ matrix.suite }} \
+            -derivedDataPath /tmp/dd \
+            -resultBundlePath /tmp/SornioResults.xcresult \
+            -test-timeouts-enabled YES \
+            -default-test-execution-time-allowance 300 \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
+            | tee /tmp/xcodebuild-test.log
+
+      - name: Summarise the native results
+        if: always()
+        run: |
+          set +e
+          mkdir -p artifacts
+          RESULT=/tmp/SornioResults.xcresult
+          if [ -d "$RESULT" ]; then
+            xcrun xcresulttool get test-results summary --path "$RESULT" > artifacts/test-summary.json 2>/dev/null
+            xcrun xcresulttool get test-results tests --path "$RESULT" > artifacts/test-tests.json 2>/dev/null
+            cat artifacts/test-summary.json || true
+            cp -R "$RESULT" artifacts/SornioResults.xcresult 2>/dev/null
+          else
+            echo 'No result bundle was produced.'
+          fi
+          # Screenshots the suites attached on failure and at each checkpoint.
+          if [ -d "$RESULT" ]; then
+            xcrun xcresulttool export attachments --path "$RESULT" --output-path artifacts/attachments 2>/dev/null || true
+          fi
+          grep -cE 'Test Case .* passed' /tmp/xcodebuild-test.log 2>/dev/null > artifacts/passed-count.txt
+          grep -cE 'Test Case .* failed' /tmp/xcodebuild-test.log 2>/dev/null > artifacts/failed-count.txt
+          { echo "# ${{ matrix.label }} interactive acceptance"
+            echo "commit: $GITHUB_SHA"
+            echo "simulator: ${{ steps.boot.outputs.name }}"
+            echo "runtime: ${{ steps.boot.outputs.runtime }}"
+            echo "udid: ${{ steps.boot.outputs.udid }}"
+            echo "suite: ${{ matrix.suite }}"
+            echo "xcode: $(xcodebuild -version | head -1)"
+            echo "passed: $(cat artifacts/passed-count.txt 2>/dev/null)"
+            echo "failed: $(cat artifacts/failed-count.txt 2>/dev/null)"
+          } > artifacts/summary.md
+          cat artifacts/summary.md
+
+      - name: Diagnostics
+        if: always()
+        run: |
+          set +e
+          UDID="${{ steps.boot.outputs.udid }}"
+          if [ -n "$UDID" ]; then
+            xcrun simctl spawn "$UDID" log show --last 20m --predicate 'process == "Sornio"' > artifacts/sornio-log.txt 2>&1
+            xcrun simctl io "$UDID" screenshot artifacts/final-state.png 2>/dev/null
+          fi
+          cp /tmp/xcodebuild-test.log artifacts/xcodebuild-test.log 2>/dev/null
+          xcrun simctl list devices > artifacts/simulators.txt 2>&1
+
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: Sornio-${{ matrix.family }}-UI-Acceptance
           path: artifacts/
           if-no-files-found: warn
           retention-days: 14

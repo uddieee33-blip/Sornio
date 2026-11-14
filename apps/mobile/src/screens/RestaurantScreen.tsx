@@ -9,6 +9,7 @@ import { restaurantStorage, restaurantCanDraft } from '../../../../packages/busi
 import type { RestaurantDraft,RestaurantSnapshot } from '../../../../packages/business-domain/src/restaurant-operations';
 import { parseFixedDecimal } from '../../../../packages/business-domain/src/fixed-decimal';
 import { layout } from '@sornio/mobile-design';
+import { ids } from '../testing/identifiers';
 import { formatQuantity, formatInr, parseQuantityMilli, parsePaise } from '@sornio/mobile-contracts';
 export function RestaurantScreen({onBack}:{onBack?:()=>void}){
  const {session}=useCompanion(),{palette}=useTheme(),{width,fontScale}=useWindowDimensions();
@@ -30,7 +31,7 @@ export function RestaurantScreen({onBack}:{onBack?:()=>void}){
  const allowed=restaurantCanDraft(session.role),disabled=!allowed||busy||!ready,wide=width>=layout.railMin&&fontScale<=1.5;
  const order=snapshot?.orders.find(o=>o.id===selected),assignment=snapshot?.assignments.find(a=>a.orderId===selected);
  const field={minHeight:48,padding:12,borderWidth:1,borderColor:palette.line,color:palette.ink};
- return <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,gap:16,paddingBottom:64}}>
+ return <ScrollView testID={ids.restaurantScreen} keyboardShouldPersistTaps="handled" contentContainerStyle={{padding:20,gap:16,paddingBottom:64}}>
  {onBack?<ActionButton label="Back to settings" onPress={onBack}/>:null}<ActionButton label="Connect to authoritative shop hub" onPress={()=>setLan(true)}/><Eyebrow>Restaurant workspace</Eyebrow><Title>{session.business.businessName}</Title><Muted>{session.mode==='demo'?'Demonstration account identity · local drafts only':'Companion account · local drafts only'}</Muted><Body>Financial settlement and sending orders to the shop are unavailable on mobile.</Body><View accessibilityLiveRegion="polite"><Muted>{message}</Muted></View>
  <View style={{flexDirection:wide?'row':'column',gap:24}}><View style={{flex:1,gap:12}}><Eyebrow>Tables & shop copy</Eyebrow><Muted>{snapshot?`Manual snapshot from ${snapshot.generatedAt}. Origin is not authenticated; this copy may be stale.`:'No shop snapshot imported. No tables, menu or confirmed orders are invented.'}</Muted>
  {snapshot?.tables.map(table=>{const current=snapshot.orders.find(o=>o.tableId===table.id);return <View key={table.id} style={{padding:12,borderWidth:1,borderColor:palette.line,gap:8}}><Body>{`${table.name} · ${current?current.state==='pending_bill'?'Bill requested in snapshot':'Occupied in snapshot':'Available in snapshot'}`}</Body>{current?<ActionButton label={`View ${table.name} order`} onPress={()=>setSelected(current.id)}/>:null}<ActionButton label={`Draft for ${table.name}`} disabled={disabled} onPress={()=>start(table.id)}/></View>;})}

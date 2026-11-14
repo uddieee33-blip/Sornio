@@ -13,6 +13,7 @@ import { ErrorState, PermissionDenied } from '../components/states';
 import { Body, Muted, Title } from '../components/primitives';
 import { useTheme } from '../theme/ThemeProvider';
 import { vocabularyFor } from '@sornio/mobile-contracts';
+import { ids } from '../testing/identifiers';
 
 const LABELS: Record<ScreenId, string> = {
   home: copy.home,
@@ -47,7 +48,7 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
     }
     if (signedOut && !snapshot) {
       return (
-        <View style={styles.placeholder}>
+        <View style={styles.placeholder} testID={ids.signedOut}>
           <Title>Signed out</Title>
           <Muted>This device no longer holds a Sornio session. Signing out cleared the session keys kept for this account.</Muted>
           <Body>Open the demonstration again to review the companion, or connect to a shop to work with live records.</Body>
@@ -55,6 +56,7 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
             {startDemo ? (
               <Pressable
                 accessibilityRole="button"
+                testID={ids.reopenDemo}
                 onPress={() => void startDemo()}
                 style={[styles.primary, { backgroundColor: palette.brand }]}
               >
@@ -77,7 +79,11 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
     if (error && !snapshot) {
       return <ErrorState title="Cannot open Sornio" detail={error} />;
     }
-    return renderScreen(screen, screens);
+    return (
+      <View style={{ flex: 1 }} testID={ids.screen(screen)}>
+        {renderScreen(screen, screens)}
+      </View>
+    );
   };
   if (wide) {
     return (
@@ -129,6 +135,7 @@ function TabBar({
   return (
     <View
       accessibilityRole="tablist"
+      testID={ids.tabBar}
       style={[styles.tabs, { paddingBottom: Math.max(insets.bottom, space[8]), backgroundColor: palette.nav, borderTopColor: palette.line }]}
     >
       {screens.map((id) => {
@@ -137,6 +144,7 @@ function TabBar({
           <Pressable
             key={id}
             onPress={() => onChange(id)}
+            testID={ids.nav(id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={labels[id]}
@@ -173,6 +181,7 @@ function Rail({
   return (
     <View
       accessibilityRole="menu"
+      testID={ids.rail}
       style={[
         styles.rail,
         { paddingTop: insets.top + space[24], backgroundColor: palette.nav, borderRightColor: palette.line },
@@ -185,6 +194,7 @@ function Rail({
           <Pressable
             key={id}
             onPress={() => onChange(id)}
+            testID={ids.nav(id)}
             accessibilityRole="menuitem"
             accessibilityState={{ selected: active }}
             style={[styles.railItem, active ? { borderLeftColor: palette.navActive } : { borderLeftColor: 'transparent' }]}

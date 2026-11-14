@@ -59,7 +59,8 @@
           "faceIDPermission": "Sornio can unlock this companion session with Face ID. This is not gym-member attendance."
         }
       ],
-      "./plugins/with-lan-security"
+      "./plugins/with-lan-security",
+    "./plugins/with-uitest-target"
     ],
     "runtimeVersion": {
       "policy": "appVersion"

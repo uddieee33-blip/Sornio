@@ -3,6 +3,7 @@ import { FlatList, ScrollView, StyleSheet, View, useWindowDimensions } from 'rea
 import { filterCustomers, formatInr, vocabularyFor, type CustomerSummary } from '@sornio/mobile-contracts';
 import { layout, space } from '@sornio/mobile-design';
 import { Body, DemoBanner, EmptyState, Hairline, Muted, Row, SearchField, Title } from '../components/primitives';
+import { ids } from '../testing/identifiers';
 import { copy } from '../i18n/en';
 import { useCompanion } from '../app/CompanionContext';
 
@@ -45,6 +46,7 @@ export function CustomersScreen() {
   return (
     <View style={wide ? styles.split : styles.stack}>
       <FlatList
+        testID={ids.list}
         style={styles.pane}
         contentContainerStyle={styles.pad}
         data={rows}
@@ -69,7 +71,7 @@ export function CustomersScreen() {
         }
       />
       {selected ? (
-        <ScrollView style={styles.pane} contentContainerStyle={styles.pad}>
+        <ScrollView testID={ids.detail} style={styles.pane} contentContainerStyle={styles.pad}>
           <View style={styles.block}>
             <Title>{selected.name}</Title>
             <Muted>{selected.phone ?? 'No phone on file'}</Muted>

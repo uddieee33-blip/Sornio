@@ -6,6 +6,7 @@ import { ActionButton, Body, DemoBanner, Eyebrow, Hairline, Muted } from '../com
 import { copy } from '../i18n/en';
 import { useCompanion } from '../app/CompanionContext';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
+import { ids } from '../testing/identifiers';
 
 const APPEARANCES: { id: ThemePreference; label: string }[] = [
   { id: 'system', label: copy.system },
@@ -22,7 +23,7 @@ export function SettingsScreen() {
   return (
     <ScrollView contentContainerStyle={styles.pad}>
       {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
-      <Section title="Restaurant drafts"><ActionButton label="Open restaurant workspace" onPress={()=>setRestaurant(true)}/></Section>
+      <Section title="Restaurant drafts"><ActionButton testID={ids.restaurantOpen} label="Open restaurant workspace" onPress={()=>setRestaurant(true)}/></Section>
       <Section title={copy.account}>
         <Body>{session?.displayName ?? '—'}</Body>
         <Muted>{session?.userId ?? ''}</Muted>
@@ -83,6 +84,7 @@ export function SettingsScreen() {
       </Section>
       <Section title={copy.signOut}>
         <ActionButton
+          testID={ids.signOut}
           label={copy.signOut}
           danger
           onPress={() =>
