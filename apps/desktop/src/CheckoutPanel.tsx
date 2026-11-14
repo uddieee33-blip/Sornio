@@ -8,8 +8,14 @@ import { errorCode, errorMessage } from './access';
 import { formatPaiseInput, money, quantity } from './billing-types';
 import type { CashierState, Invoice, Product } from './billing-types';
 import { CustomerLookup } from './CustomerLookup';
+import type { ResolvedCreditCustomer } from './CustomerLookup';
+import { allocationPreview, paymentMethods, remainingForMethod } from './payment-allocation';
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
+import { findCode, scanNeedsQuantity } from './scan';
+import { cashierNavigationKey, deliberateCheckoutConfirm } from './desktop-shortcuts';
+import { heldDraftInput } from './held-bills';
+import type { HeldBill, HeldMutation, HeldPrepare, ResumedBill } from './held-bills';
 
 type CartLine = { productId: string; typedQuantity: string };
 type FocusTarget =
@@ -36,6 +42,15 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   const retryButton = useRef<HTMLButtonElement>(null);
   const receiptLookupInput = useRef<HTMLInputElement>(null);
   const pendingFocus = useRef<FocusTarget | null>(null);
+  const [heldOpen, setHeldOpen] = useState(false);
+  const [heldBills, setHeldBills] = useState<HeldBill[]>([]);
+  const [heldActive, setHeldActive] = useState<HeldBill | null>(null);
+  const heldActiveRef = useRef<HeldBill | null>(null);
+  const heldPrepareRef = useRef<HeldPrepare | null>(null);
+  const [heldPending, setHeldPending] = useState<HeldMutation | null>(null);
+  const [heldNote, setHeldNote] = useState('');
+  const [heldWarnings, setHeldWarnings] = useState<string[]>([]);
+  const [heldCreditRefresh, setHeldCreditRefresh] = useState(0);
   const [history, setHistory] = useState<{ sequence: number; invoice: Invoice }[]>([]);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [historicInvoice, setHistoricInvoice] = useState<Invoice | null>(null);
@@ -49,6 +64,10 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   const [tax, setTax] = useState('0');
   const [tender, setTender] = useState<'cash' | 'credit' | 'retail'>('cash');
   const [customer, setCustomer] = useState('');
+  const [creditCustomerSnapshot, setCreditCustomer] = useState<ResolvedCreditCustomer | null>(null);
+  const creditRefreshKey = `${customerRefreshToken}:${refreshToken}:${heldCreditRefresh}`;
+  const creditCustomer = creditCustomerSnapshot?.refreshToken === creditRefreshKey && creditCustomerSnapshot.customer.id === customer
+    ? creditCustomerSnapshot.customer : null;
   const [paymentAmounts, setPaymentAmounts] = useState({ cash: '', upi: '', card: '', credit: '' });
   const [paymentReferences, setPaymentReferences] = useState({ upi: '', card: '' });
   const retailRef = useRef<RetailRequest | null>(null);
@@ -111,9 +130,31 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   useEffect(() => { onDirtyChange(cart.length > 0 && pending === null); }, [cart.length, pending, onDirtyChange]);
 
+  const clearHeldContext = useCallback(() => {
+    heldActiveRef.current = null; heldPrepareRef.current = null;
+    setHeldActive(null); setHeldNote(''); setHeldWarnings([]);
+  }, []);
+  const emptyBill = useCallback(() => {
+    setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch('');
+    setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' });
+    setCreditCustomer(null); clearHeldContext();
+  }, [clearHeldContext]);
+  const restoreHeld = useCallback((resumed: ResumedBill) => {
+    const input = resumed.bill.draft.input;
+    heldActiveRef.current = resumed.bill; heldPrepareRef.current = null; setHeldActive(resumed.bill);
+    setHeldNote(input.note); setHeldWarnings(resumed.warnings); setHeldCreditRefresh(value => value + 1);
+    setCart(input.lines.map(l => ({ productId: l.productId, typedQuantity: quantity(l.quantityMilli) })));
+    setTax(formatBasisPointsInput(input.taxBasisPoints)); setTender(input.tender); setCustomer(input.customerId ?? '');
+    setPaymentAmounts(Object.fromEntries(paymentMethods.map(method => [method, formatPaiseInput(input.payments.filter(p => p.method === method).reduce((sum,p) => sum + p.amountPaise, 0))])) as typeof paymentAmounts);
+    setPaymentReferences({ upi: input.payments.find(p => p.method === 'upi')?.reference ?? '', card: input.payments.find(p => p.method === 'card')?.reference ?? '' });
+    setSearch(''); setReview(false); setHistoryOpen(false); setHeldOpen(false);
+    pendingFocus.current = { kind: 'search', select: false };
+  }, []);
+
   const apply = useCallback((state: CashierState) => {
     setReportsAllowed(state.reportsAllowed); setProducts(state.products); setBalances(state.balances); setReady(true); setReview(false);
     if (state.checkout) {
+      clearHeldContext();
       const { request, invoice: saved, retailRequest } = state.checkout;
       retailRef.current = retailRequest ?? null;
       if (retailRequest?.action.kind === 'sale') {
@@ -124,6 +165,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           card: formatPaiseInput(parts.filter(p => p.method === 'card').reduce((a, p) => a + p.amountPaise, 0)),
           credit: formatPaiseInput(parts.filter(p => p.method === 'credit').reduce((a, p) => a + p.amountPaise, 0)),
         });
+        setPaymentReferences({ upi: parts.find(p => p.method === 'upi')?.reference ?? '', card: parts.find(p => p.method === 'card')?.reference ?? '' });
         setInvoicePayments(saved ? parts : []);
       } else {
         setInvoicePayments([]);
@@ -132,14 +174,21 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       setCart(request.lines.map(line => ({ productId: line.productId, typedQuantity: quantity(line.quantityMilli) })));
       setTax(formatBasisPointsInput(request.taxBasisPoints)); setTender(request.tender); setCustomer(request.customerId ?? '');
       setMessage(saved ? 'Recovered the saved invoice from this PC.' : 'This checkout is waiting for confirmation. Retry the same sale to resolve it.');
+    } else if (state.activeHeldBill) {
+      remember(null); setInvoice(null); setInvoicePayments([]); setRefused(false);
+      const active = heldActiveRef.current;
+      if (!active || active.id !== state.activeHeldBill.bill.id || active.revision !== state.activeHeldBill.bill.revision) restoreHeld(state.activeHeldBill);
+      else setHeldWarnings(state.activeHeldBill.warnings);
+      setMessage('Held bill resumed. Review current prices, stock and payment amounts before confirming.');
     } else {
+      if (heldActiveRef.current) emptyBill();
       // Another window may have completed/canceled this checkpoint. Never turn
       // its old uncertain cart into a fresh sale with a new operation ID.
-      if (pendingRef.current) { setCart([]); setTax('0'); setTender('cash'); setCustomer(''); }
+      if (pendingRef.current) { setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); }
       remember(null); setInvoice(null); setInvoicePayments([]);
       setMessage(readyMessage);
     }
-  }, [remember]);
+  }, [remember, restoreHeld, emptyBill, clearHeldContext]);
 
   useEffect(() => {
     let current = true;
@@ -151,6 +200,62 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     });
     return () => { current = false; };
   }, [refreshToken, onLocked, apply]);
+
+  async function listHeld() {
+    if (submitting.current || disabled || pending || heldPending) return;
+    submitting.current = true; setBusy(true); onBusyChange(true);
+    try {
+      const rows = await invoke<HeldBill[]>('list_local_held_bills');
+      if (!mounted.current) return;
+      setHeldBills(rows); setHeldOpen(true); setFailed(false);
+    } catch (error) {
+      if (!mounted.current) return;
+      if (errorCode(error) === 'locked') { onLocked(); return; }
+      setFailed(true); setMessage(errorMessage(error, 'Held bills could not be loaded. Try again.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
+  }
+  async function changeHeld(request: HeldMutation) {
+    if (submitting.current || disabled || pending) return;
+    readGeneration.current += 1;
+    submitting.current = true; setBusy(true); onBusyChange(true); setHeldPending(request);
+    setFailed(false); setMessage('Saving held bill on this PC…');
+    try {
+      const result = await invoke<ResumedBill>('mutate_local_held_bill', { r: request });
+      if (!mounted.current) return;
+      setHeldPending(null);
+      if (request.action.kind === 'save' || heldActiveRef.current?.id === result.bill.id && request.action.kind === 'discard') emptyBill();
+      setHeldBills(rows => request.action.kind === 'discard' ? rows.filter(b => b.id !== result.bill.id)
+        : [result.bill, ...rows.filter(b => b.id !== result.bill.id)]);
+      if (request.action.kind === 'resume') {
+        // Preserve the saved draft if refreshing current stock fails, but block checkout.
+        restoreHeld(result); setReady(false);
+        const state = await invoke<CashierState>('read_cashier_state');
+        if (mounted.current) apply(state);
+      } else {
+        setReview(false);
+        setMessage(request.action.kind === 'save' ? 'Bill held on this PC. You can serve the next customer.' : 'Held bill discarded. No sale or payment was recorded.');
+        pendingFocus.current = { kind: 'search', select: false };
+      }
+    } catch (error) {
+      if (!mounted.current) return;
+      const code = errorCode(error);
+      if (code === 'locked') { onLocked(); return; }
+      // A typed rejection is definite. Unknown/transport errors keep the exact
+      // mutation for retry; never create a second draft ID after a lost reply.
+      if (['held_bill_conflict','invalid_held_bill','held_bill_limit','forbidden','checkout_active','customer_missing','invalid_product','invalid_invoice'].includes(code ?? '')) {
+        setHeldPending(null); setReady(false);
+      }
+      setFailed(true); setMessage(errorMessage(error, 'The held-bill result is uncertain. Retry this same action, or refresh checkout if the save was confirmed.'));
+    } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
+  }
+  function holdBill() {
+    if (blocked || review || !cart.length) return;
+    try {
+      const draft = heldDraftInput(cart, tax, tender, customer, paymentAmounts, paymentReferences, heldNote);
+      const active = heldActiveRef.current;
+      void changeHeld({ id: active?.id ?? crypto.randomUUID(), expectedRevision: active?.revision ?? 0, action: { kind: 'save', draft } });
+    } catch (error) { setFailed(true); setMessage(error instanceof Error ? error.message : 'Check this bill before holding it.'); }
+  }
 
   async function receipts(after = 0) {
     if (submitting.current || disabled || !reportsAllowed) return;
@@ -205,6 +310,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     readGeneration.current += 1;
     submitting.current = true; setBusy(true); onBusyChange(true); remember(request); setReview(false); setRefused(false); setFailed(false);
     setMessage('Confirming sale on this PC…');
+    let heldPreparing = false;
     try {
       // Persist the exact request before invoking posting. Never create a new ID
       // for a timeout/reply loss, including after a window/app restart.
@@ -226,13 +332,22 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
             },
           };
         }
-        await invoke('prepare_local_retail', { r: retailRef.current });
+        if (heldActiveRef.current && !heldPrepareRef.current) {
+          heldPrepareRef.current = { id: heldActiveRef.current.id, expectedRevision: heldActiveRef.current.revision, invoice: request,
+            payments: retailRef.current.action.kind === 'sale' ? retailRef.current.action.payments : null };
+        }
+        if (heldPrepareRef.current) { heldPreparing = true; await invoke('prepare_local_held_checkout', { r: heldPrepareRef.current }); heldPreparing = false; }
+        else await invoke('prepare_local_retail', { r: retailRef.current });
         const receipt = await invoke<RetailReceipt>('post_local_retail', { r: retailRef.current });
         if (!receipt.data.invoice) throw new Error('The saved invoice could not be read. Retry the same sale.');
         saved = receipt.data.invoice;
         savedPayments = receipt.data.payments ?? (retailRef.current.action.kind === 'sale' ? retailRef.current.action.payments : []);
       } else {
-        await invoke('prepare_local_checkout', { request });
+        if (heldActiveRef.current && !heldPrepareRef.current) {
+          heldPrepareRef.current = { id: heldActiveRef.current.id, expectedRevision: heldActiveRef.current.revision, invoice: request, payments: null };
+        }
+        if (heldPrepareRef.current) { heldPreparing = true; await invoke('prepare_local_held_checkout', { r: heldPrepareRef.current }); heldPreparing = false; }
+        else await invoke('prepare_local_checkout', { request });
         saved = await invoke<Invoice>('post_local_invoice', { request });
       }
       if (!mounted.current) return;
@@ -252,7 +367,13 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       if (!mounted.current) return;
       const code = errorCode(error);
       if (code === 'locked') { onLocked(); return; }
-      setRefused(refusedCodes.has(code ?? '')); setFailed(true);
+      if (heldPreparing && (refusedCodes.has(code ?? '') || ['held_bill_conflict','invalid_held_bill','forbidden','checkout_active'].includes(code ?? ''))) {
+        // Preparation was refused before any post. Read native state instead of
+        // attempting to cancel a checkpoint that may never have been created.
+        try { const state = await invoke<CashierState>('read_cashier_state'); if (mounted.current) apply(state); }
+        catch { setReady(false); }
+      }
+      setRefused(!heldPreparing && refusedCodes.has(code ?? '')); setFailed(true);
       setMessage(errorMessage(error, 'The sale result is uncertain. Retry the same sale; do not enter it again.'));
     } finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); } }
   }
@@ -268,7 +389,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       if (!mounted.current) return;
       remember(null); setInvoice(null); setInvoicePayments([]); setReview(false); setRefused(false);
       pendingFocus.current = { kind: 'search', select: false };
-      if (saved) { setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch(''); }
+      if (saved) { clearHeldContext(); setPaymentAmounts({ cash: '', upi: '', card: '', credit: '' }); setPaymentReferences({ upi: '', card: '' }); setCart([]); setTax('0'); setTender('cash'); setCustomer(''); setSearch(''); }
       const state = await invoke<CashierState>('read_cashier_state');
       if (mounted.current) { apply(state); setFailed(false); if (pending.tender === 'retail') onPosted(); }
     } catch (error: unknown) {
@@ -300,23 +421,23 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       }
       const computed = calculateNativeInvoice(lines, taxBasisPoints);
       let nextProblem = '';
-      if (tender === 'retail') {
-        const methods = ['cash', 'upi', 'card', 'credit'] as const;
-        const values = methods.map(method => parseFixedDecimal(paymentAmounts[method] || '0', 2));
-        const invalidIndex = values.findIndex(v => v === null || v < 0);
-        if (invalidIndex >= 0 || values.reduce<number>((n, v) => n + (v ?? 0), 0) !== computed.totalPaise) {
-          nextProblem = 'Split payment amounts must equal the invoice total exactly.';
-          fieldId = `split-${methods[invalidIndex >= 0 ? invalidIndex : 0]}`;
-        }
-        const credit = parseFixedDecimal(paymentAmounts.credit || '0', 2);
-        if (!nextProblem && credit && credit > 0 && (customer.length < 1 || customer.length > 80 || /[^A-Za-z0-9_-]/.test(customer))) {
-          nextProblem = 'Enter a customer reference when part of the split is customer credit.';
-          fieldId = 'sale-customer';
-        }
+      const allocation = allocationPreview(computed.totalPaise, paymentAmounts);
+      if (tender === 'retail' && (allocation.invalidMethod || allocation.remainingPaise !== 0)) {
+        nextProblem = allocation.invalidMethod ? 'Enter payment amounts with up to 2 decimals.'
+          : allocation.remainingPaise > 0 ? `Still to allocate: ${money(allocation.remainingPaise)}`
+          : `Allocated too much: ${money(-allocation.remainingPaise)}. Reduce a payment amount.`;
+        fieldId = `split-${allocation.invalidMethod ?? 'cash'}`;
       }
-      if (tender === 'credit' && (customer.length < 1 || customer.length > 80 || /[^A-Za-z0-9_-]/.test(customer))) {
-        nextProblem = 'Enter a customer reference for credit (letters, numbers, dash or underscore).';
-        fieldId = 'sale-customer';
+      const credit = tender === 'credit' ? computed.totalPaise : tender === 'retail' ? allocation.creditPaise : 0;
+      if (!nextProblem && credit > 0) {
+        if (!customer || creditCustomer?.id !== customer) {
+          nextProblem = 'Select an existing credit customer and wait for their credit details.';
+          fieldId = 'sale-customer';
+        } else if (creditCustomer.creditLimitPaise !== null
+          && (creditCustomer.availableCreditPaise === null || BigInt(credit) > BigInt(creditCustomer.availableCreditPaise))) {
+          nextProblem = 'This amount exceeds the customer’s available credit. Reduce credit or choose another payment method.';
+          fieldId = tender === 'retail' ? 'split-credit' : 'sale-customer';
+        }
       }
       return { preview: computed, problem: nextProblem, problemFieldId: fieldId };
     } catch (error: unknown) {
@@ -329,8 +450,10 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       }
       return { preview: null, problem: detail || 'Check the sale quantities and tax.', problemFieldId: fieldId };
     }
-  }, [cart, productMap, taxBasisPoints, tender, paymentAmounts, customer]);
-  const blocked = disabled || busy || !ready || pending !== null || historyOpen;
+  }, [cart, productMap, taxBasisPoints, tender, paymentAmounts, customer, creditCustomer]);
+  const allocation = allocationPreview(preview?.totalPaise ?? 0, paymentAmounts);
+  const needsCreditCustomer = tender === 'credit' || (tender === 'retail' && allocation.creditPaise > 0);
+  const blocked = disabled || busy || !ready || pending !== null || historyOpen || heldPending !== null;
   const normalizedSearch = search.trim().toLowerCase();
   const matching = useMemo(
     () => products.filter(product => !normalizedSearch || [product.name, product.sku, product.id].some(field => field.toLowerCase().includes(normalizedSearch))),
@@ -342,19 +465,25 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     if (product.stockMilli <= 0) { setFailed(true); setMessage('This item is out of stock.'); return; }
     const existing = cart.findIndex(line => line.productId === product.id);
     if (existing >= 0) {
-      if (scan) {
+      if (scan && scanNeedsQuantity(product)) {
+        pendingFocus.current = { kind: 'quantity', index: existing };
+        setMessage('Enter the quantity for this item.'); setFailed(false);
+      } else if (scan) {
         const current = parseFixedDecimal(cart[existing].typedQuantity, 3);
         if (current === null || current + 1000 > product.stockMilli) { setFailed(true); setMessage('Check quantity against available stock.'); return; }
         setCart(lines => lines.map((line, index) => index === existing ? { ...line, typedQuantity: quantity(current + 1000) } : line));
       } else { document.getElementById(`sale-quantity-${existing}`)?.focus(); }
       setSearch('');
-      if (failed) { setFailed(false); setMessage(readyMessage); }
+      if (failed && !(scan && scanNeedsQuantity(product))) { setFailed(false); setMessage(readyMessage); }
       return;
     }
     if (cart.length >= 100) { setFailed(true); setMessage('A sale supports up to 100 items.'); return; }
-    setCart(lines => [...lines, { productId: product.id, typedQuantity: quantity(Math.min(1000, product.stockMilli)) }]);
+    if (scan && !scanNeedsQuantity(product) && product.stockMilli < 1000) { setFailed(true); setMessage('Not enough stock for one item.'); return; }
+    const needsQuantity = scan && scanNeedsQuantity(product);
+    if (needsQuantity) { pendingFocus.current = { kind: 'quantity', index: cart.length }; setFailed(false); setMessage('Enter the quantity for this item.'); }
+    setCart(lines => [...lines, { productId: product.id, typedQuantity: needsQuantity ? '' : quantity(Math.min(1000, product.stockMilli)) }]);
     setSearch('');
-    if (failed) { setFailed(false); setMessage(readyMessage); }
+    if (failed && !needsQuantity) { setFailed(false); setMessage(readyMessage); }
   }
 
   const startConfirmation = useCallback((fromKeyboard = false) => {
@@ -389,13 +518,16 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
 
   useEffect(() => {
     function handleWindowKeyDown(event: KeyboardEvent) {
-      if (event.defaultPrevented || event.repeat || event.isComposing || event.altKey || event.ctrlKey || event.metaKey || disabled || busy) return;
+      if (event.defaultPrevented || disabled || busy || heldPending) return;
+      // Do not intercept Command shortcuts while another workspace form has focus.
+      if (event.metaKey && !searchInput.current?.closest('#checkout')?.contains(document.activeElement)) return;
+      const key = cashierNavigationKey(event); if (!key) return;
       if (document.querySelector('.lock-prompt, .reopen-prompt')) return;
-      if (event.key === 'F8') {
+      if (key === 'F8') {
         if (pending && !invoice) { event.preventDefault(); void confirm(pending); }
         return;
       }
-      if (event.key === 'F2') {
+      if (key === 'F2') {
         if (pending || invoice || !ready) return;
         event.preventDefault();
         if (review || historyOpen) {
@@ -407,7 +539,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
         }
         return;
       }
-      if (event.key === 'F3') {
+      if (key === 'F3') {
         if (pending || invoice || historyOpen || !ready) return;
         event.preventDefault();
         if (!cart.length) {
@@ -431,14 +563,14 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
         }
         return;
       }
-      if (event.key === 'F4') {
+      if (key === 'F4') {
         if (!pending && !invoice && !historyOpen && !review) {
           event.preventDefault();
           startConfirmation(true);
         }
         return;
       }
-      if (event.key === 'Escape') {
+      if (key === 'Escape') {
         if (review) { event.preventDefault(); cancelReview(); }
         else if (historyOpen && !invoice && !pending) { event.preventDefault(); closeHistory(); }
       }
@@ -474,9 +606,30 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   return <section className="panel checkout-panel" id="checkout" aria-labelledby="checkout-heading">
     <div className="panel-heading"><div><p className="eyebrow">LOCAL CASHIER</p><h2 id="checkout-heading">Checkout</h2></div>
       <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void refresh()}>Refresh checkout</button></div>
-    <p className="muted">F2: find item · F3: edit quantity · Enter: add exact code or single match · F4: review · Enter: confirm · F8: recover pending sale</p>
+    <p className="muted">F2 / Command+F: find item · F3: edit quantity · Enter: add exact code · F4 / Command+B: review · Alt+Enter / Command+Enter: confirm when focused · F8: recover pending sale</p>
     {reportsAllowed ? <div className="checkout-balances" aria-label="Local ledger balances" aria-busy={!ready}><p>{`Cash recorded: ${money(balances.cashPaise)}`}</p><p>{`Credit receivable: ${money(balances.creditPaise)}`}</p>{!ready ? <p>Balances need refresh.</p> : null}</div> : null}
     <p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
+    {!invoice && !pending ? <div className="held-bill-toolbar">
+      <button type="button" className="quiet-button" disabled={busy || disabled || heldPending !== null} onClick={() => { if (heldOpen) setHeldOpen(false); else void listHeld(); }}>{heldOpen ? 'Close held bills' : 'Held bills'}</button>
+      {cart.length > 0 ? <><label htmlFor="held-bill-note">Bill note (optional)</label><input id="held-bill-note" maxLength={80} value={heldNote} disabled={blocked || review} placeholder="Customer name or short note" onChange={e => setHeldNote(e.target.value)}/>
+        <button type="button" disabled={blocked || review} onClick={holdBill}>Hold bill</button></> : null}
+    </div> : null}
+    {heldPending ? <div className="pending-stock"><p>The held-bill result is uncertain. Retry the same action to check whether it was saved.</p><button type="button" disabled={busy || disabled} onClick={() => void changeHeld(heldPending)}>Retry held bill action</button></div> : null}
+    {heldActive && !pending && !invoice ? <p className="held-bill-context">Resumed bill {heldActive.id.slice(0,8)}{heldNote ? ` · ${heldNote}` : ''}. Hold again to save any further edits.</p> : null}
+    {heldWarnings.length && heldActive && !pending && !invoice ? <div className="held-bill-warnings" role="status"><strong>Review this resumed bill</strong><ul>{heldWarnings.map((warning,i) => <li key={i}>{warning}</li>)}</ul></div> : null}
+    {heldOpen && !pending && !invoice ? <section className="held-bills" aria-label="Held bills">
+      <p className="muted">Your bills saved on this PC. Draft amounts are estimates; no stock or payment is reserved.</p>
+      <button type="button" className="quiet-button" disabled={busy || disabled || heldPending !== null} onClick={() => void listHeld()}>Refresh held bills</button>
+      {!heldBills.length ? <p>No held bills.</p> : <ul>{heldBills.map(bill => <li key={bill.id}>
+        <div><strong>Bill {bill.id.slice(0,8)}{bill.state === 'active' ? ' · Open at counter' : ''}</strong>
+          <span><time dateTime={bill.updatedAt}>{new Date(bill.updatedAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })} IST</time></span>
+          <span>{bill.draft.customer?.name ?? bill.draft.input.customerId ?? 'Walk-in customer'} · {bill.draft.input.lines.length} products · {money(bill.draft.totalPaise)}</span>
+          {bill.draft.input.note ? <span>{bill.draft.input.note}</span> : null}</div>
+        <div><button type="button" disabled={busy || disabled || heldPending !== null || cart.length > 0 || !ready} aria-label={`Resume bill ${bill.id}`} onClick={() => void changeHeld({ id:bill.id,expectedRevision:bill.revision,action:{ kind:'resume' } })}>Resume</button>
+          <button type="button" className="quiet-button" disabled={busy || disabled || heldPending !== null || Boolean(heldActive && heldActive.id !== bill.id)} aria-label={`Discard bill ${bill.id}`} onClick={() => void changeHeld({ id:bill.id,expectedRevision:bill.revision,action:{ kind:'discard' } })}>Discard</button></div>
+      </li>)}</ul>}
+      {cart.length > 0 ? <p>Hold or finish the current bill before resuming another.</p> : null}
+    </section> : null}
     {!invoice && !pending ? <button type="button" disabled={busy || disabled} onClick={() => { setHistoryOpen(true); setHistoricInvoice(null); setHistoricPayments([]); setHistory([]); pendingFocus.current = { kind: 'receipt-lookup' }; }}>Find saved receipt</button> : null}
     {historyOpen && !invoice && !pending ? <section aria-label="Saved receipts">
       <button type="button" disabled={busy || disabled} onClick={closeHistory}>Back to checkout</button>
@@ -488,7 +641,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
     </section> : null}
     {invoice ? <><SavedInvoice key={invoice.id} invoice={invoice} payments={invoicePayments} username={username}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it (press F8 to retry).</p>
-        <button ref={retryButton} type="button" disabled={busy || disabled} onClick={() => void confirm(pending)}>Retry same sale</button>
+        <button ref={retryButton} aria-keyshortcuts="Alt+Enter Meta+Enter" type="button" disabled={busy || disabled} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (deliberateCheckoutConfirm({key:event.key,altKey:event.altKey,metaKey:event.metaKey,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,repeat:event.repeat,isComposing:event.nativeEvent.isComposing})) void confirm(pending); } }} onClick={() => void confirm(pending)}>Retry same sale</button>
         {refused ? <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void release(false)}>Edit refused sale</button> : null}
       </div> : null}
       <fieldset disabled={blocked || review}>
@@ -496,11 +649,10 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           if (event.key !== 'Enter' || event.repeat || event.nativeEvent.isComposing || blocked || review) return;
           event.preventDefault();
           if (!normalizedSearch) { setFailed(true); setMessage('Enter an item name or exact code.'); return; }
-          const exactSku = products.filter(product => product.sku && product.sku.toLowerCase() === normalizedSearch);
-          const exact = exactSku.length ? exactSku : products.filter(product => product.id.toLowerCase() === normalizedSearch);
-          const choices = exact.length ? exact : matching;
-          if (choices.length === 1) add(choices[0], exact.length === 1);
-          else { setFailed(true); setMessage('Choose one item. This search or code does not identify one item.'); }
+          const exact = findCode(products, search);
+          if (exact.length === 1) add(exact[0], true);
+          else if (exact.length > 1) { setFailed(true); setMessage('This code matches more than one item. Choose the item manually.'); }
+          else { setFailed(true); setMessage('No exact item code found. Choose a matching item manually.'); }
         }} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Item name or code"/>
         <ul className="checkout-results" aria-label="Items available for sale">{matching.slice(0, 50).map(product => <li key={product.id}>
           <div><strong>{product.name}</strong><span>{product.sku} · {quantity(product.stockMilli)} {product.unit} available · {money(product.unitPricePaise)} / {product.unit}</span></div>
@@ -519,9 +671,26 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
         })}</ul>
         <div className="checkout-options"><div><label htmlFor="sale-tax">Tax (%)</label><input id="sale-tax" inputMode="decimal" maxLength={8} value={tax} onChange={event => setTax(event.target.value)}/></div>
           <div><label htmlFor="sale-tender">Transaction type</label><select id="sale-tender" value={tender} onChange={event => setTender(event.target.value as 'cash' | 'credit' | 'retail')}><option value="cash">Cash</option><option value="retail">UPI / card / split</option><option value="credit">Credit</option></select></div>
-          {tender === 'credit' || tender === 'retail' ? <div><CustomerLookup disabled={blocked || review} refreshToken={customerRefreshToken + refreshToken} onSelect={setCustomer}/><label htmlFor="sale-customer">{tender === 'credit' ? 'Credit customer reference' : 'Customer reference for a credit split (optional)'}</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Use the customer’s stable reference. Required only when part of a split is customer credit.</small></div> : null}
+          {needsCreditCustomer ? <div><CustomerLookup disabled={blocked || review} refreshToken={creditRefreshKey} selectedId={customer} onSelect={setCustomer} onResolved={setCreditCustomer}/><label htmlFor="sale-customer">{tender === 'credit' ? 'Credit customer reference' : 'Customer reference for a credit split (optional)'}</label><input id="sale-customer" maxLength={80} value={customer} onChange={event => setCustomer(event.target.value)}/><small>Choose an existing customer above. Their reference is filled automatically.</small></div> : null}
         </div>
-        {tender === 'retail' ? <fieldset><legend>Record retail payment amounts</legend><p>Cash is recorded as received. UPI and card stay pending and unverified. A reference or screenshot does not verify a transfer. Customer credit stays outstanding on the customer’s account until repaid.</p>{(['cash', 'upi', 'card', 'credit'] as const).map(method => <div key={method}><label htmlFor={`split-${method}`}>Split {method === 'upi' ? 'UPI' : method === 'credit' ? 'customer credit' : method} amount (₹)</label><input id={`split-${method}`} inputMode="decimal" maxLength={24} value={paymentAmounts[method]} onChange={e => setPaymentAmounts({ ...paymentAmounts, [method]: e.target.value })}/>{method === 'upi' || method === 'card' ? <><label htmlFor={`split-ref-${method}`}>{method === 'upi' ? 'UPI' : 'Card terminal'} reference (optional, unverified)</label><input id={`split-ref-${method}`} maxLength={80} value={paymentReferences[method]} onChange={e => setPaymentReferences({ ...paymentReferences, [method]: e.target.value })}/></> : null}</div>)}</fieldset> : null}
+        {tender === 'retail' ? <fieldset className="payment-allocation"><legend>Allocate payment</legend>
+          <div className="allocation-totals" aria-live="polite">
+            <p>Payable<strong>{preview ? money(preview.totalPaise) : '—'}</strong></p>
+            <p>Allocated<strong>{allocation.invalidMethod ? '—' : money(allocation.allocatedPaise)}</strong></p>
+            <p>{allocation.remainingPaise < 0 ? 'Overallocated' : 'Remaining'}<strong>{!preview || allocation.invalidMethod ? '—' : money(Math.abs(allocation.remainingPaise))}</strong></p>
+          </div>
+          <p className="muted">Enter what the customer pays with each method. UPI and card are recorded as unverified until manually reconciled.</p>
+          <div className="allocation-methods">{paymentMethods.map(method => {
+            const remaining = preview ? remainingForMethod(preview.totalPaise, paymentAmounts, method) : null;
+            const label = method === 'upi' ? 'UPI' : method === 'credit' ? 'customer credit' : method;
+            return <div key={method} className="allocation-method">
+              <label htmlFor={`split-${method}`}>Split {label} amount (₹)</label>
+              <div className="allocation-entry"><input id={`split-${method}`} inputMode="decimal" maxLength={24} placeholder="0.00" aria-invalid={allocation.invalidMethod === method} value={paymentAmounts[method]} onChange={e => setPaymentAmounts(previous => ({ ...previous, [method]: e.target.value }))}/>
+                <button type="button" className="quiet-button" aria-label={`Use remaining for ${label}`} disabled={remaining === null || remaining === 0} onClick={() => { if (remaining !== null) setPaymentAmounts(previous => ({ ...previous, [method]: formatPaiseInput(remaining) })); }}>Use remaining</button></div>
+              {method === 'upi' || method === 'card' ? <><label htmlFor={`split-ref-${method}`}>{method === 'upi' ? 'UPI' : 'Card terminal'} reference (optional, unverified)</label><input id={`split-ref-${method}`} maxLength={80} value={paymentReferences[method]} onChange={e => setPaymentReferences(previous => ({ ...previous, [method]: e.target.value }))}/></> : null}
+            </div>;
+          })}</div>
+        </fieldset> : null}
       </fieldset>
       {!pending && cart.length ? <><p className="muted">{problem || 'Preview only. The native store checks prices, stock and totals before saving.'}</p>
         {preview ? <p className="checkout-total">Subtotal: {money(preview.subtotalPaise)} · Tax: {money(preview.taxPaise)}<br/><output aria-live="polite">Total: {money(preview.totalPaise)}</output></p> : null}
@@ -536,14 +705,14 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
               </li>;
             })}</ul>
             {tender === 'cash' ? <p>Payment allocation: Cash · {money(preview.totalPaise)}</p>
-              : tender === 'credit' ? <p>Payment allocation: Customer credit · Customer: {customer} · Credit amount: {money(preview.totalPaise)}</p>
+              : tender === 'credit' ? <p>Payment allocation: Customer credit · Customer: {creditCustomer?.name} ({customer}) · Credit amount: {money(preview.totalPaise)}</p>
               : <>
                 <ul aria-label="Review payment allocation">{splitBreakdown.map(part => <li key={part.method}><span>{part.label}</span><strong>{money(part.amountPaise)}</strong></li>)}</ul>
-                {customer ? <p>Customer reference: {customer}</p> : null}
+                {needsCreditCustomer ? <p>Customer: {creditCustomer?.name} · {customer} · Amount due: {money(allocation.creditPaise)}</p> : null}
               </>}
           </div>
           <p>{tender === 'cash' ? 'Receive cash for this sale.' : tender === 'credit' ? `Record credit for ${customer}.` : 'Record this payment split. Digital amounts remain pending and unverified; any customer-credit amount stays outstanding on the customer’s account.'} Save this sale on this PC?</p>
-          <button type="button" disabled={disabled || busy} ref={confirmButton} onKeyDown={event => { if (event.key === 'Enter' && (event.repeat || event.nativeEvent.isComposing)) event.preventDefault(); }} onClick={postNew}>Confirm sale</button>
+          <button type="button" disabled={disabled || busy || Boolean(problem)} ref={confirmButton} aria-keyshortcuts="Alt+Enter Meta+Enter" onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (deliberateCheckoutConfirm({key:event.key,altKey:event.altKey,metaKey:event.metaKey,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,repeat:event.repeat,isComposing:event.nativeEvent.isComposing})) postNew(); } }} onClick={postNew}>Confirm sale</button>
           <button type="button" className="quiet-button" disabled={disabled || busy} onClick={cancelReview}>Edit sale</button>
         </div>
           : <button type="button" disabled={blocked || !preview || Boolean(problem)} onClick={() => startConfirmation(false)}>Review sale</button>}

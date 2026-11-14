@@ -78,12 +78,15 @@ export function Row({
   meta,
   onPress,
   accessibilityLabel,
+  testID,
 }: {
   title: string;
   detail: string;
   meta?: string;
   onPress?: () => void;
   accessibilityLabel?: string;
+  /** Native automation handle. Additive: does not alter the spoken label. */
+  testID?: string;
 }) {
   const { palette } = useTheme();
   const content = (
@@ -108,6 +111,7 @@ export function Row({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? title}
       style={({ pressed }) => [pressed ? { opacity: 0.7 } : null, { minHeight: touch }]}
     >
@@ -128,9 +132,18 @@ export function EmptyState({ title, detail }: { title: string; detail: string })
 export function ErrorState({ title, detail }: { title: string; detail: string }) {
   const { palette } = useTheme();
   return (
-    <View style={styles.empty} accessibilityRole="alert">
+    <View style={styles.empty} accessibilityRole="alert" testID="app.error">
       <Text style={[styles.title, { color: palette.danger }]}>{title}</Text>
-      <Muted>{detail}</Muted>
+      {/* The detail carries the diagnostic code, so it must be readable by
+          native automation as well as by the customer. */}
+      <Text
+        testID="app.error.detail"
+        accessibilityLabel={detail}
+        style={[styles.caption, { color: palette.muted }]}
+        allowFontScaling
+      >
+        {detail}
+      </Text>
     </View>
   );
 }
@@ -167,11 +180,14 @@ export function ActionButton({
   onPress,
   disabled,
   danger,
+  testID,
 }: {
   label: string;
   onPress: () => void;
   disabled?: boolean;
   danger?: boolean;
+  /** Native automation handle. Additive: does not alter the spoken label. */
+  testID?: string;
 }) {
   const { palette } = useTheme();
   return (
@@ -179,6 +195,12 @@ export function ActionButton({
       onPress={onPress}
       disabled={disabled}
       accessibilityRole="button"
+      testID={testID}
+      // An explicit label keeps VoiceOver announcing one phrase. Without it the
+      // name is derived from whatever text nodes happen to be children, which
+      // reads compound labels such as "Draft additions · revision 7" in
+      // fragments and leaves the control unfindable by name.
+      accessibilityLabel={label}
       accessibilityState={{ disabled: !!disabled }}
       style={({ pressed }) => [
         styles.button,

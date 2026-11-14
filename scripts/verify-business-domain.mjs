@@ -4,6 +4,15 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
+
+// Shared source now imports siblings with explicit `.ts` extensions (desktop and
+// mobile set `allowImportingTsExtensions`, and Vite/Metro both resolve them).
+// These one-off emits must ask for the same treatment, and for
+// `rewriteRelativeImportExtensions`, because TypeScript refuses
+// `allowImportingTsExtensions` unless `noEmit`, `emitDeclarationOnly` or that
+// rewrite is set — and this script needs real JavaScript to load.
+const T_EXT = ['--allowImportingTsExtensions', '--rewriteRelativeImportExtensions'];
+
 const require = createRequire(import.meta.url);
 const out = mkdtempSync(join(tmpdir(), 'sornio-domain-'));
 try {
@@ -12,7 +21,7 @@ try {
     'packages/business-domain/src/daily-workspace.ts',
     'packages/business-domain/src/fixed-decimal.ts',
     '--outDir', out, '--module', 'commonjs', '--target', 'es2022',
-    '--strict', '--skipLibCheck', '--ignoreConfig'], { stdio: 'inherit' });
+    '--strict', '--skipLibCheck', '--ignoreConfig', ...T_EXT], { stdio: 'inherit' });
   const { calculateInvoice } = require(join(out, 'invoice-calculation.js'));
   const { DAILY_WORKSPACES, dailyWorkspace } = require(join(out, 'daily-workspace.js'));
   const { parseFixedDecimal } = require(join(out, 'fixed-decimal.js'));

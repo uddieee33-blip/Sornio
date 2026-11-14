@@ -29,6 +29,7 @@ pub struct CashierState {
     pub checkout: Option<PreparedCheckout>,
     pub balances: LedgerBalances,
     pub reports_allowed: bool,
+    pub active_held_bill: Option<crate::held_bills::Resumed>,
 }
 
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
@@ -47,67 +48,82 @@ pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
     )?;
     Ok(())
 }
+pub(crate) fn prepare_into(
+    tx: &Transaction<'_>,
+    session: &Option<crate::identity::Session>,
+    request: PostInvoice,
+) -> Result<bool, StoreError> {
+    request.validate()?;
+    let raw = serde_json::to_string(&request)?;
+    crate::identity::guard(
+        &tx,
+        session,
+        crate::identity::Permission::Sell,
+        "checkout.prepared",
+        Some(&request.operation_id),
+    )?;
+    crate::identity::checkout_actor(&tx, session)?;
+    crate::payments::old_sale_clear(&tx)?;
+    let canceled: bool = tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
+        [&request.operation_id],
+        |r| r.get(0),
+    )?;
+    if canceled {
+        return Err(StoreError::CheckoutActive);
+    }
+    let posted: Option<String> = tx
+        .query_row(
+            "SELECT request FROM local_invoices WHERE id=?1",
+            [&request.operation_id],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if let Some(posted) = posted {
+        crate::identity::invoice_reader(&tx, session, &request.operation_id)?;
+        return if posted == raw {
+            Ok(false)
+        } else {
+            Err(StoreError::OperationConflict)
+        };
+    }
+    crate::held_bills::guard_checkout(tx, session, &request.operation_id)?;
+    let existing: Option<String> = tx
+        .query_row(
+            "SELECT request FROM local_checkout WHERE singleton=1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if let Some(existing) = existing {
+        return if existing == raw {
+            Ok(false)
+        } else {
+            Err(StoreError::CheckoutActive)
+        };
+    }
+    let inserted = tx.execute(
+        "INSERT INTO local_checkout(singleton,operation_id,request,actor_id) VALUES(1,?1,?2,?3)",
+        params![
+            request.operation_id,
+            raw,
+            session.as_ref().map(|s| s.actor_id.as_str())
+        ],
+    )?;
+    if inserted != 1 {
+        return Err(StoreError::CheckoutActive);
+    }
+    Ok(true)
+}
+
 impl Store {
     pub(crate) fn prepare_checkout(&mut self, request: PostInvoice) -> Result<(), StoreError> {
-        request.validate()?;
-        let raw = serde_json::to_string(&request)?;
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        crate::identity::guard(
-            &tx,
-            &self.1,
-            crate::identity::Permission::Sell,
-            "checkout.prepared",
-            Some(&request.operation_id),
-        )?;
-        crate::identity::checkout_actor(&tx, &self.1)?;
-        crate::payments::old_sale_clear(&tx)?;
-        let canceled: bool = tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1)",
-            [&request.operation_id],
-            |r| r.get(0),
-        )?;
-        if canceled {
-            return Err(StoreError::CheckoutActive);
+        if prepare_into(&tx, &self.1, request)? {
+            tx.commit()?;
         }
-        let posted: Option<String> = tx
-            .query_row(
-                "SELECT request FROM local_invoices WHERE id=?1",
-                [&request.operation_id],
-                |r| r.get(0),
-            )
-            .optional()?;
-        if let Some(posted) = posted {
-            crate::identity::invoice_reader(&tx, &self.1, &request.operation_id)?;
-            return if posted == raw {
-                Ok(())
-            } else {
-                Err(StoreError::OperationConflict)
-            };
-        }
-        let existing: Option<String> = tx
-            .query_row(
-                "SELECT request FROM local_checkout WHERE singleton=1",
-                [],
-                |r| r.get(0),
-            )
-            .optional()?;
-        if let Some(existing) = existing {
-            return if existing == raw {
-                Ok(())
-            } else {
-                Err(StoreError::CheckoutActive)
-            };
-        }
-        let inserted = tx.execute(
-            "INSERT INTO local_checkout(singleton,operation_id,request,actor_id) VALUES(1,?1,?2,?3)",
-            params![request.operation_id, raw, self.1.as_ref().map(|s|s.actor_id.as_str())],
-        )?;
-        if inserted != 1 {
-            return Err(StoreError::CheckoutActive);
-        }
-        tx.commit()?;
         Ok(())
     }
     /// Compare the caller's expected result while holding the same writer lock
@@ -173,6 +189,9 @@ impl Store {
         )? != 1
         {
             return Err(StoreError::CheckoutActive);
+        }
+        if !saved {
+            crate::held_bills::cancel_checkout(&tx, operation_id)?;
         }
         tx.commit()?;
         Ok(())
@@ -261,8 +280,10 @@ impl Store {
         credit = credit
             .checked_sub(crate::payments::pending_digital(&tx)?)
             .ok_or(StoreError::InvalidPayment)?;
+        let active_held_bill = crate::held_bills::active(&tx, &self.1)?;
         tx.commit()?;
         Ok(CashierState {
+            active_held_bill,
             products,
             checkout,
             balances: LedgerBalances {
@@ -429,6 +450,7 @@ mod tests {
         let mut s = seed(&path);
         let invoice = s.post_invoice(request()).unwrap();
         crate::lan_authority::remove_fixture_tables(&s.0);
+        crate::schema_rollback::drop_post_v11_tables(&s.0);
         s.0.execute_batch(
             "DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; PRAGMA user_version=5;",
         )

@@ -87,7 +87,7 @@ export function allocationForTender(
   customerId: string | null,
 ): { cashPaise: bigint; digitalPaise: bigint; customerCreditPaise: bigint; complete: boolean } | null {
   if (tender === 'cash') {
-    if (customerId) throw new ReplicationError('INVALID_ENVELOPE', 'A cash tender cannot carry a customer.');
+    // An identified cash customer is not a customer-credit allocation.
     return { cashPaise: totalPaise, digitalPaise: 0n, customerCreditPaise: 0n, complete: true };
   }
   if (tender === 'credit') {

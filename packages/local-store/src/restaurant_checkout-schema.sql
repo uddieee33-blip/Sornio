@@ -1,0 +1,10 @@
+ALTER TABLE local_restaurant_orders ADD COLUMN settled_invoice TEXT REFERENCES local_invoices(id);
+DROP INDEX local_restaurant_one_open_table;
+CREATE UNIQUE INDEX local_restaurant_one_open_table ON local_restaurant_orders(table_id) WHERE state IN ('open','pending_bill') AND table_id IS NOT NULL AND settled_invoice IS NULL;
+CREATE TABLE local_restaurant_bindings (order_id TEXT PRIMARY KEY NOT NULL REFERENCES local_restaurant_orders(id), invoice_id TEXT NOT NULL UNIQUE, actor_id TEXT NOT NULL REFERENCES local_principals(id), request TEXT NOT NULL);
+CREATE TRIGGER local_restaurant_bindings_no_update BEFORE UPDATE ON local_restaurant_bindings BEGIN SELECT RAISE(ABORT,'Checkout bindings are immutable'); END;
+CREATE TRIGGER local_restaurant_bindings_no_delete BEFORE DELETE ON local_restaurant_bindings BEGIN SELECT RAISE(ABORT,'Checkout bindings are immutable'); END;
+CREATE TRIGGER local_restaurant_settle_guard BEFORE UPDATE OF settled_invoice ON local_restaurant_orders WHEN OLD.settled_invoice IS NOT NULL OR NOT EXISTS(SELECT 1 FROM local_restaurant_bindings b JOIN local_invoices i ON i.id=b.invoice_id WHERE b.order_id=OLD.id AND i.id=NEW.settled_invoice) BEGIN SELECT RAISE(ABORT,'Settlement requires the bound invoice'); END;
+CREATE TABLE local_restaurant_menu (id TEXT PRIMARY KEY NOT NULL, product_id TEXT NOT NULL REFERENCES local_products(id), category TEXT NOT NULL, label TEXT NOT NULL, variant TEXT NOT NULL, available INTEGER NOT NULL CHECK(available IN (0,1)));
+CREATE UNIQUE INDEX local_restaurant_menu_product ON local_restaurant_menu(product_id);
+PRAGMA user_version=15;

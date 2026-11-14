@@ -255,6 +255,7 @@ fn schema_nine_migration_preserves_inventory_and_legacy_operation_ids() {
     let s = seed(&path);
     let products = s.list_products().unwrap();
     crate::lan_authority::remove_fixture_tables(&s.0);
+    crate::schema_rollback::drop_post_v11_tables(&s.0);
     s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; PRAGMA user_version=9;").unwrap();
     drop(s);
     let mut reopened = authenticated(&path);
@@ -351,7 +352,7 @@ fn missing_product_multi_row_guard_and_new_delivery_after_ack() {
         let tx = s.0.transaction_with_behavior(mode).unwrap();
         let setup = "CREATE TEMP TABLE p(v INT);INSERT INTO p VALUES(0),(0);";
         tx.execute_batch(setup).unwrap();
-        let sql = "UPDATE local_products SET stock_milli=99000 WHERE id='rice'";
+        let sql = "UPDATE local_products SET stock_milli=99000 WHERE id='item'";
         super::one(&tx, sql, []).unwrap();
         let multi = super::one(&tx, "UPDATE p SET v=1", []);
         assert!(matches!(

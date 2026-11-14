@@ -10,8 +10,10 @@ import { InventoryScreen } from '../screens/InventoryScreen';
 import { CustomersScreen } from '../screens/CustomersScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ErrorState, PermissionDenied } from '../components/states';
+import { Body, Muted, Title } from '../components/primitives';
 import { useTheme } from '../theme/ThemeProvider';
 import { vocabularyFor } from '@sornio/mobile-contracts';
+import { ids } from '../testing/identifiers';
 
 const LABELS: Record<ScreenId, string> = {
   home: copy.home,
@@ -21,29 +23,83 @@ const LABELS: Record<ScreenId, string> = {
   settings: copy.settings,
 };
 
-export function AppNavigation() {
-  const { width, height } = useWindowDimensions();
-  const landscape = width > height && width >= layout.tabletMin;
-  const wide = width >= layout.tabletMin;
-  const { screen, screens, setScreen, snapshot, error } = useCompanion();
+export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
+  const { width, fontScale } = useWindowDimensions();
+  const largeText = fontScale > 1.3;
+  const wide = width >= layout.railMin && !largeText;
+  const { screen, screens, setScreen, snapshot, error, booting, signedOut, startDemo } = useCompanion();
+  const { palette } = useTheme();
   const terms = vocabularyFor(snapshot?.portalId ?? 'general');
   const labels: Record<ScreenId, string> = {
     ...LABELS,
     inventory: terms.stock,
     customers: terms.customers,
   };
-  const body = error && !snapshot ? <ErrorState title="Cannot open Sornio" detail={error} /> : renderScreen(screen, screens);
+  // `copy` is the single source of tab wording; vocabulary overrides it so the
+  // spoken label always matches the visible one for this portal.
+  // Reported on the stage container, which is always mounted and full size.
+  // A separate 1x1 opacity-0 view was tried first and is not exposed to
+  // XCUITest at all, so the phase arrived as 'none'.
+  const phase = booting ? 'boot' : signedOut && !snapshot ? 'signed-out' : error && !snapshot ? 'error' : 'demo';
+  const body = () => {
+    if (booting) {
+      return (
+        <View style={styles.placeholder}>
+          <Title>Opening Sornio</Title>
+          <Muted>Restoring this device’s authorised session.</Muted>
+        </View>
+      );
+    }
+    if (signedOut && !snapshot) {
+      return (
+        <View style={styles.placeholder} testID={ids.signedOut}>
+          <Title>Signed out</Title>
+          <Muted>This device no longer holds a Sornio session. Signing out cleared the session keys kept for this account.</Muted>
+          <Body>Open the demonstration again to review the companion, or connect to a shop to work with live records.</Body>
+          <View style={styles.actions}>
+            {startDemo ? (
+              <Pressable
+                accessibilityRole="button"
+                testID={ids.reopenDemo}
+                onPress={() => void startDemo()}
+                style={[styles.primary, { backgroundColor: palette.brand }]}
+              >
+                <Text style={[styles.primaryLabel, { color: palette.brandInk }]}>Reopen the demonstration</Text>
+              </Pressable>
+            ) : null}
+            {onLeaveDemo ? (
+              <Pressable
+                accessibilityRole="button"
+                onPress={onLeaveDemo}
+                style={[styles.secondary, { borderColor: palette.line }]}
+              >
+                <Text style={{ color: palette.ink }}>Connect to a shop</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        </View>
+      );
+    }
+    if (error && !snapshot) {
+      return <ErrorState title="Cannot open Sornio" detail={error} />;
+    }
+    return (
+      <View style={{ flex: 1 }} testID={ids.screen(screen)}>
+        {renderScreen(screen, screens)}
+      </View>
+    );
+  };
   if (wide) {
     return (
-      <View style={landscape ? styles.row : styles.row}>
-        <Rail screens={screens} current={screen} onChange={setScreen} labels={labels} />
-        <View style={styles.stage}>{body}</View>
+      <View style={styles.row}>
+        <Rail screens={screens} current={screen} onChange={setScreen} labels={labels} onLeaveDemo={onLeaveDemo} />
+        <View style={styles.stage} testID={ids.phase(phase)}>{body()}</View>
       </View>
     );
   }
   return (
     <View style={styles.column}>
-      <View style={styles.stage}>{body}</View>
+      <View style={styles.stage} testID={ids.phase(phase)}>{body()}</View>
       <TabBar screens={screens} current={screen} onChange={setScreen} labels={labels} />
     </View>
   );
@@ -83,6 +139,7 @@ function TabBar({
   return (
     <View
       accessibilityRole="tablist"
+      testID={ids.tabBar}
       style={[styles.tabs, { paddingBottom: Math.max(insets.bottom, space[8]), backgroundColor: palette.nav, borderTopColor: palette.line }]}
     >
       {screens.map((id) => {
@@ -91,12 +148,16 @@ function TabBar({
           <Pressable
             key={id}
             onPress={() => onChange(id)}
+            testID={ids.nav(id)}
             accessibilityRole="tab"
             accessibilityState={{ selected: active }}
             accessibilityLabel={labels[id]}
             style={styles.tab}
           >
-            <Text style={{ color: active ? palette.navActive : palette.muted, fontWeight: active ? '700' : '500' }}>
+            <Text
+              allowFontScaling
+              style={{ color: active ? palette.navActive : palette.muted, fontWeight: active ? '700' : '500' }}
+            >
               {labels[id]}
             </Text>
           </Pressable>
@@ -111,38 +172,52 @@ function Rail({
   current,
   onChange,
   labels,
+  onLeaveDemo,
 }: {
   screens: ScreenId[];
   current: ScreenId;
   onChange: (screen: ScreenId) => void;
   labels: Record<ScreenId, string>;
+  onLeaveDemo?: () => void;
 }) {
   const insets = useSafeAreaInsets();
   const { palette } = useTheme();
   return (
     <View
+      accessibilityRole="menu"
+      testID={ids.rail}
       style={[
         styles.rail,
         { paddingTop: insets.top + space[24], backgroundColor: palette.nav, borderRightColor: palette.line },
       ]}
     >
-      <Text style={[styles.brand, { color: palette.ink }]}>{copy.appName}</Text>
+      <Text allowFontScaling style={[styles.brand, { color: palette.ink }]}>{copy.appName}</Text>
       {screens.map((id) => {
         const active = id === current;
         return (
           <Pressable
             key={id}
             onPress={() => onChange(id)}
-            accessibilityRole="button"
+            testID={ids.nav(id)}
+            accessibilityRole="menuitem"
             accessibilityState={{ selected: active }}
             style={[styles.railItem, active ? { borderLeftColor: palette.navActive } : { borderLeftColor: 'transparent' }]}
           >
-            <Text style={{ color: active ? palette.navActive : palette.muted, fontWeight: active ? '700' : '500' }}>
+            <Text allowFontScaling style={{ color: active ? palette.navActive : palette.muted, fontWeight: active ? '700' : '500' }}>
               {labels[id]}
             </Text>
           </Pressable>
         );
       })}
+      {onLeaveDemo ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={onLeaveDemo}
+          style={[styles.railItem, { borderLeftColor: 'transparent', marginTop: 'auto' }]}
+        >
+          <Text allowFontScaling style={{ color: palette.muted }}>Connect to a shop</Text>
+        </Pressable>
+      ) : null}
     </View>
   );
 }
@@ -165,4 +240,15 @@ const styles = {
   },
   railItem: { minHeight: touch, justifyContent: 'center' as const, borderLeftWidth: 2, paddingLeft: space[12] },
   brand: { fontSize: 20, fontWeight: '600' as const, marginBottom: space[16] },
+  placeholder: { padding: space[24], gap: space[12] },
+  actions: { gap: space[12], marginTop: space[8] },
+  primary: { minHeight: touch, borderRadius: 4, alignItems: 'center' as const, justifyContent: 'center' as const },
+  primaryLabel: { fontWeight: '600' as const },
+  secondary: {
+    minHeight: touch,
+    borderRadius: 4,
+    borderWidth: StyleSheet.hairlineWidth,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+  },
 };

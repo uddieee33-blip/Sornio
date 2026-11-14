@@ -3,16 +3,21 @@
   "version": "0.3.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "24.x" },
+  "engines": {
+    "node": "24.x"
+  },
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 1420 --strictPort",
     "build": "tsc --noEmit && vite build",
+    "test:split-payments": "node --test test-payment-allocation.mjs test-payment-receipt.cjs test-scan.mjs",
     "tauri": "tauri",
     "desktop:dev": "tauri dev",
-    "desktop:build": "tauri build --bundles nsis"
+    "desktop:build": "tauri build --bundles nsis",
+    "desktop:build:macos": "tauri build --config src-tauri/tauri.macos.conf.json --bundles app,dmg"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.0.0",
+    "qrcode.react": "^4.2.0",
     "react": "19.3.1",
     "react-dom": "19.3.1"
   },
@@ -24,4 +29,3 @@
     "vite": "8.3.5"
   }
 }
-

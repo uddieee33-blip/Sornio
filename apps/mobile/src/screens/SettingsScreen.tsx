@@ -1,3 +1,4 @@
+import { RestaurantScreen } from './RestaurantScreen';
 import { useState, type ReactNode } from 'react';
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { space, touch } from '@sornio/mobile-design';
@@ -5,6 +6,7 @@ import { ActionButton, Body, DemoBanner, Eyebrow, Hairline, Muted } from '../com
 import { copy } from '../i18n/en';
 import { useCompanion } from '../app/CompanionContext';
 import { useTheme, type ThemePreference } from '../theme/ThemeProvider';
+import { ids } from '../testing/identifiers';
 
 const APPEARANCES: { id: ThemePreference; label: string }[] = [
   { id: 'system', label: copy.system },
@@ -15,10 +17,13 @@ const APPEARANCES: { id: ThemePreference; label: string }[] = [
 export function SettingsScreen() {
   const { session, snapshot, sync, refresh, signOut, wipe } = useCompanion();
   const { palette, preference, setPreference } = useTheme();
+  const [restaurant,setRestaurant]=useState(false);
   const [busy, setBusy] = useState(false);
+  if(restaurant)return <RestaurantScreen onBack={()=>setRestaurant(false)}/>;
   return (
     <ScrollView contentContainerStyle={styles.pad}>
       {snapshot?.mode === 'demo' ? <DemoBanner text={copy.demoBanner} /> : null}
+      <Section title="Restaurant drafts"><ActionButton testID={ids.restaurantOpen} label="Open restaurant workspace" onPress={()=>setRestaurant(true)}/></Section>
       <Section title={copy.account}>
         <Body>{session?.displayName ?? '—'}</Body>
         <Muted>{session?.userId ?? ''}</Muted>
@@ -66,7 +71,7 @@ export function SettingsScreen() {
         <Muted>{`${session?.device.platform ?? 'unknown'} · ${session?.device.enrollmentStatus ?? 'unregistered'}`}</Muted>
       </Section>
       <Section title="Local cache">
-        <Muted>Business records stay in memory for this session. They are not written to encrypted disk in Phase 1.</Muted>
+        <Muted>Business snapshots stay in memory. Stock-count drafts are saved separately in device secure storage; remove each saved count from its stock item. This cache action clears the session snapshot.</Muted>
         <ActionButton
           label={copy.wipeCache}
           onPress={() =>
@@ -79,6 +84,7 @@ export function SettingsScreen() {
       </Section>
       <Section title={copy.signOut}>
         <ActionButton
+          testID={ids.signOut}
           label={copy.signOut}
           danger
           onPress={() =>

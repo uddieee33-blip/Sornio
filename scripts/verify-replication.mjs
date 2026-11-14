@@ -278,7 +278,21 @@ try {
   const productionFlag = readFileSync(join(root, 'apps/mobile/app.json'), 'utf8');
   check(productionFlag.includes('"productionSyncEnabled": false'), 'companion production sync stays disabled');
   const schema = readFileSync(join(root, 'packages/local-store/src/lib.rs'), 'utf8');
-  check(/const SCHEMA_VERSION: i64 = 12;/.test(schema), 'financial schema remains 12');
+  // Pin the schema version to the file rather than to a literal. This check is
+  // about the replication contract still matching the store it reads: it must
+  // fail if `migrate` and `SCHEMA_VERSION` disagree, and must *not* fail merely
+  // because the application added another local migration (Phase 11 added
+  // held bills, Phase 13-18J added restaurant, kitchen, hub, staff and
+  // session-signout state, taking 12 → 22). A literal here turned every one of
+  // those into a red replication gate without any replication defect, which is
+  // how a guard stops being read.
+  const declaredVersion = /const SCHEMA_VERSION: i64 = (\d+);/.exec(schema)?.[1];
+  check(declaredVersion !== undefined, 'store declares a numeric schema version');
+  const migrations = [...schema.matchAll(/if locked_version < (\d+)/g)].map((m) => Number(m[1]));
+  check(
+    migrations.length > 0 && Math.max(...migrations) === Number(declaredVersion),
+    `store migrations stay in step with SCHEMA_VERSION (${declaredVersion})`,
+  );
   check(schema.includes('pub mod replication;'), 'sidecar publisher module is declared');
   const rust = readFileSync(join(root, 'packages/local-store/src/replication.rs'), 'utf8');
   check(rust.includes('unpublished_replication'), 'native unpublished outbox reader is wired');
@@ -370,6 +384,20 @@ try {
   check(parsed.overview.todaySales.creditPaise === '0', 'full cash has no customer credit');
   check(parsed.overview.todaySales.digitalPaise === '0', 'full cash has no digital');
   check(parsed.projectionComplete === true, 'cash invoice is complete without retail');
+
+  // A customer may be attached to an ordinary cash invoice without creating
+  // debt. Check the actual ingest and projection, including an exact retry.
+  const cashCustomer = setup('cash-customer');
+  const cashCustomerInvoice = invoiceRow(1, { id: 'bill-customer-cash', tender: 'cash', customerId: 'cust-ravi' });
+  const firstCashCustomerAck = publish(cashCustomer.store, cashCustomer.pub, cashCustomerInvoice);
+  const secondCashCustomerAck = publish(cashCustomer.store, cashCustomer.pub, cashCustomerInvoice);
+  check(firstCashCustomerAck.duplicate === false, 'customer cash invoice accepted');
+  check(secondCashCustomerAck.duplicate === true && secondCashCustomerAck.cursor === firstCashCustomerAck.cursor, 'customer cash retry is idempotent');
+  parsed = snapshotOf(cashCustomer.store, cashCustomer.own);
+  check(parsed.overview.todaySales.cashPaise === '100000', 'customer cash is projected as cash once');
+  check(parsed.overview.todaySales.creditPaise === '0', 'customer cash does not create credit');
+  check(cashCustomer.store.customers.get('biz-kirana-01|cust-ravi').outstandingPaise === 0n, 'customer cash does not change customer debt');
+  check(cashCustomer.store.invoices.get('biz-kirana-01|bill-customer-cash').customerId === 'cust-ravi', 'customer cash preserves invoice customer');
 
   const upiOnly = setup('upi');
   publish(upiOnly.store, upiOnly.pub, invoiceRow(1, { id: 'bill-upi', tender: 'retail', customerId: null, customerName: 'Walk-in' }));
@@ -601,6 +629,21 @@ try {
     postedOk = true;
   }
   check(postedOk, 'posted invoice must have cash+digital+credit = total');
+
+  // Exercise the same cash/customer case through the durable database path,
+  // including its acknowledgement, exact retry and restart hydration.
+  const cashDurablePub = actor('publisher', { businessId: 'biz-cash-customer', deviceId: 'device-cash-customer' });
+  await enrollPrivileged(pg, cashDurablePub);
+  await ingestDurable(pg, cashDurablePub, buildEnvelope(cashDurablePub, customerRow(1), digest), digest, NOW);
+  const cashDurableRow = invoiceRow(1, { id: 'bill-cash-customer-durable', tender: 'cash', customerId: 'cust-ravi', lines: [] });
+  const cashDurableEnvelope = buildEnvelope(cashDurablePub, cashDurableRow, digest);
+  const cashDurableAck = await ingestDurable(pg, cashDurablePub, cashDurableEnvelope, digest, NOW);
+  const cashDurableRetry = await ingestDurable(pg, cashDurablePub, cashDurableEnvelope, digest, NOW);
+  check(!cashDurableAck.duplicate && cashDurableRetry.duplicate && cashDurableAck.cursor === cashDurableRetry.cursor, 'durable customer cash exact retry preserves acknowledgement');
+  const cashDurableRestart = await hydrateFromPostgres(pg, cashDurablePub.businessId);
+  const cashDurableInvoice = cashDurableRestart.invoices.get(`${cashDurablePub.businessId}|bill-cash-customer-durable`);
+  check(cashDurableInvoice?.customerId === 'cust-ravi' && cashDurableInvoice.cashPaise === 100000n && cashDurableInvoice.customerCreditPaise === 0n, 'durable customer cash survives restart without credit');
+  check(cashDurableRestart.customers.get(`${cashDurablePub.businessId}|cust-ravi`)?.outstandingPaise === 0n, 'durable customer cash leaves debt unchanged');
 
   await pg.query(
     `INSERT INTO native_replication.invoices (

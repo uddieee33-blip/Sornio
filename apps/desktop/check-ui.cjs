@@ -74,7 +74,15 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   const button=name=>page.getByRole('button',{name,exact:true});
   const password=()=>page.getByLabel('Local password',{exact:true});
   await page.reload();
-  await page.getByRole('heading',{name:'Make this PC yours.',exact:true}).waitFor();
+  // The access screen is identified by its heading element and by the setup
+  // form it offers, not by one sentence of product copy. Asserting the exact
+  // wording made this check fail as a mystery 30-second timeout the first
+  // time the wording changed: it waited for "Make this PC yours." while the
+  // access screen has said "Make this device yours." since the macOS work
+  // renamed it. A heading element plus the setup fields say the same thing
+  // and survive a copy change.
+  await page.locator('#access-title').waitFor({state:'visible'});
+  await page.getByLabel('Business name for setup',{exact:true}).waitFor({state:'visible'});
   if (process.argv[4]) {
    require('node:fs').mkdirSync(process.argv[4],{recursive:true});
    await page.screenshot({path:require('node:path').join(process.argv[4],'access-light.png')});
@@ -94,7 +102,16 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   await button('Set up local access').click();
   const name=page.getByLabel('Business name',{exact:true}),note=page.getByLabel('Workspace note',{exact:true});
   await page.getByLabel('Business type',{exact:true}).selectOption('gym');
-  await page.getByText('Members, check-ins and upcoming renewals.',{exact:true}).waitFor();
+  // The description paragraph carries the daily-workspace sentence *and* the
+  // business profile's onboarding line, so the gym copy is part of that
+  // paragraph rather than all of it. Assert on the element the select points
+  // at, and wait for it to carry the gym copy, instead of matching one
+  // sentence of a paragraph that no longer contains only that sentence.
+  await page.waitForFunction(
+   () => (document.querySelector('#business-description')?.textContent ?? '').includes('Members, check-ins and upcoming renewals.'),
+   undefined,
+   { timeout: 15000 },
+  );
   await page.getByLabel('Business type',{exact:true}).selectOption('kirana');
   await name.fill('Sample local store');await note.fill('Original committed note');await button('Save local draft').click();
   await page.getByText('Revision 1 · Current draft',{exact:true}).waitFor();

@@ -368,6 +368,26 @@ fn validate(db: &Connection) -> Result<Manifest, StoreError> {
     let expected_schema = if version == SCHEMA_VERSION {
         let reference = Store::open(Path::new(":memory:"), &random_id()?)?;
         schema(&reference.0)?
+    } else if version == 21 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v21-schema.json"))?
+    } else if version == 20 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v20-schema.json"))?
+    } else if version == 19 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v19-schema.json"))?
+    } else if version == 18 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v18-schema.json"))?
+    } else if version == 17 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v17-schema.json"))?
+    } else if version == 16 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v16-schema.json"))?
+    } else if version == 15 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v15-schema.json"))?
+    } else if version == 14 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v14-schema.json"))?
+    } else if version == 13 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v13-schema.json"))?
+    } else if version == 12 {
+        serde_json::from_str(include_str!("../fixtures/recovery-v12-schema.json"))?
     } else if version == 11 {
         serde_json::from_str(include_str!("../fixtures/recovery-v11-schema.json"))?
     } else if matches!(version, 5 | 6) {

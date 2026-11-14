@@ -22,6 +22,9 @@ pub enum Permission {
     CreditPolicy,
     CorrectCredit,
     Sell,
+    KitchenView,
+    KitchenPrepare,
+    KitchenSupervise,
     AddItem,
     CorrectStock,
     Reports,
@@ -208,7 +211,7 @@ pub(crate) fn verify(
     if !p.enabled || p.revision != session.revision {
         return Err(StoreError::Locked);
     }
-    if !p.role.allows(permission) {
+    if !crate::kitchen_staff::allows(db, &p, permission)? {
         return Err(StoreError::Forbidden);
     }
     Ok(p)

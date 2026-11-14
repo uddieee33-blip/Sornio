@@ -22,7 +22,11 @@
         "ITSAppUsesNonExemptEncryption": false,
         "NSAppTransportSecurity": {
           "NSAllowsArbitraryLoads": false
-        }
+        },
+        "NSLocalNetworkUsageDescription": "Connect to the shop\u2019s approved Sornio HTTPS hub to submit restaurant orders on the local network.",
+        "NSBonjourServices": [
+          "_sornio._tcp"
+        ]
       },
       "config": {
         "usesNonExemptEncryption": false
@@ -35,7 +39,9 @@
       },
       "package": "com.sornio.companion",
       "versionCode": 1,
-      "permissions": [],
+      "permissions": [
+        "android.permission.ACCESS_LOCAL_NETWORK"
+      ],
       "blockedPermissions": [
         "android.permission.READ_EXTERNAL_STORAGE",
         "android.permission.WRITE_EXTERNAL_STORAGE",
@@ -52,7 +58,9 @@
         {
           "faceIDPermission": "Sornio can unlock this companion session with Face ID. This is not gym-member attendance."
         }
-      ]
+      ],
+      "./plugins/with-lan-security",
+    "./plugins/with-uitest-target"
     ],
     "runtimeVersion": {
       "policy": "appVersion"
