@@ -9,6 +9,7 @@ import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
 import { RetailPanel } from './RetailPanel';
 import { CustomerPanel } from './CustomerPanel';
+import { SupplierPanel } from './SupplierPanel';
 import { StaffPanel } from './StaffPanel';
 import { BackupPanel } from './BackupPanel';
 import { CredentialsPanel } from './CredentialsPanel';
@@ -63,15 +64,18 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [customerBusy, setCustomerBusy] = useState(false);
   const [customerDirty, setCustomerDirty] = useState(false);
+  const [supplierBusy, setSupplierBusy] = useState(false);
+  const [supplierDirty, setSupplierDirty] = useState(false);
+  const [supplierRefresh, setSupplierRefresh] = useState(0);
   const [retailBusy, setRetailBusy] = useState(false), [retailDirty, setRetailDirty] = useState(false), [retailRefresh, setRetailRefresh] = useState(0);
   const [customerRefresh, setCustomerRefresh] = useState(0);
   const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [checkoutRefresh, setCheckoutRefresh] = useState(0);
-  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
+  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); setRetailRefresh(value => value + 1); setSupplierRefresh(value => value + 1); }, []);
   const refreshCheckout = useCallback(() => { setCheckoutRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
   const retailChanged = useCallback(() => { setCheckoutRefresh(value => value + 1); setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty;
+  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty;
   const dirty = otherDirty || credentialDirty;
 
   useEffect(() => {
@@ -134,7 +138,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
     } finally { saving.current = false; }
   }
 
-  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
+  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || supplierBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -153,7 +157,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
     <aside className="rail">
       <a className="wordmark" href="#main" aria-label="Sornio workspace"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</a>
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
-      <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a><a href="#checkout">Checkout</a><a href="#inventory-heading">Items &amp; stock</a></nav>
+      <nav aria-label="Workspace"><a className="selected" href="#main"><span aria-hidden="true">◈</span> Workspace draft</a><a href="#checkout">Checkout</a><a href="#inventory-heading">Items &amp; stock</a><a href="#suppliers-heading">Suppliers &amp; purchases</a></nav>
       <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.3.0</p></div>
     </aside>
     <main id="main">
@@ -186,10 +190,11 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
         </div>
         {native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}
         {native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}
+        {native && snapshot ? <SupplierPanel role={session.principal.role} disabled={busy} refreshToken={supplierRefresh} onChanged={refreshInventory} onBusyChange={setSupplierBusy} onDirtyChange={setSupplierDirty}/> : null}
         {native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}
         {native && snapshot && owner ? <StaffPanel disabled={busy || credentialDirty} refreshToken={staffRefresh} onBusyChange={setStaffBusy} onDirtyChange={setStaffDirty}/> : null}
         {native && snapshot ? <CredentialsPanel owner={owner} disabled={busy} blockedByDraft={otherDirty} onLocked={onLocked} onBusyChange={setCredentialBusy} onDirtyChange={setCredentialDirty} onStaffChanged={staffChanged}/> : null}
-        {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}
+        {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}
         {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}
       </div>
     </main>

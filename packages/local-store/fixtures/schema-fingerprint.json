@@ -13,7 +13,34 @@
    "customer_credit_history"
   ],
   [
+   "goods_receipts_order"
+  ],
+  [
+   "goods_receipts_supplier"
+  ],
+  [
    "local_products_sku"
+  ],
+  [
+   "purchase_order_lines_product"
+  ],
+  [
+   "purchase_orders_status"
+  ],
+  [
+   "purchase_orders_supplier"
+  ],
+  [
+   "purchase_returns_receipt"
+  ],
+  [
+   "purchase_returns_supplier"
+  ],
+  [
+   "purchase_stock_events_operation"
+  ],
+  [
+   "purchase_stock_events_product"
   ],
   [
    "retail_daily_activity"
@@ -35,6 +62,42 @@
   ],
   [
    "single_local_owner"
+  ],
+  [
+   "supplier_entries_invoice"
+  ],
+  [
+   "supplier_entries_operation"
+  ],
+  [
+   "supplier_entries_receipt"
+  ],
+  [
+   "supplier_entries_supplier"
+  ],
+  [
+   "supplier_gstin"
+  ],
+  [
+   "supplier_invoices_supplier"
+  ],
+  [
+   "supplier_journal_supplier"
+  ],
+  [
+   "supplier_name"
+  ],
+  [
+   "supplier_payments_invoice"
+  ],
+  [
+   "supplier_payments_supplier"
+  ],
+  [
+   "supplier_phone"
+  ],
+  [
+   "supplier_reverse_once"
   ]
  ],
  "tables": {
@@ -106,6 +169,27 @@
    "credit_limit_paise:INTEGER:null:0",
    "credit_days:INTEGER:NOTNULL:0",
    "revision:INTEGER:NOTNULL:0"
+  ],
+  "local_goods_receipt_lines": [
+   "receipt_id:TEXT:NOTNULL:1",
+   "line_index:INTEGER:NOTNULL:2",
+   "product_id:TEXT:NOTNULL:0",
+   "quantity_milli:INTEGER:NOTNULL:0",
+   "damaged_milli:INTEGER:NOTNULL:0",
+   "unit_cost_paise:INTEGER:NOTNULL:0",
+   "line_total_paise:INTEGER:NOTNULL:0",
+   "note:TEXT:NOTNULL:0"
+  ],
+  "local_goods_receipts": [
+   "id:TEXT:NOTNULL:1",
+   "order_id:TEXT:NOTNULL:0",
+   "supplier_id:TEXT:NOTNULL:0",
+   "reference:TEXT:null:0",
+   "note:TEXT:NOTNULL:0",
+   "goods_total_paise:INTEGER:NOTNULL:0",
+   "damaged_total_paise:INTEGER:NOTNULL:0",
+   "created_by:TEXT:null:0",
+   "created_at:TEXT:NOTNULL:0"
   ],
   "local_identity": [
    "singleton:INTEGER:null:1",
@@ -203,6 +287,66 @@
    "unit_price_paise:INTEGER:NOTNULL:0",
    "stock_milli:INTEGER:NOTNULL:0",
    "revision:INTEGER:NOTNULL:0"
+  ],
+  "local_purchase_order_lines": [
+   "order_id:TEXT:NOTNULL:1",
+   "line_index:INTEGER:NOTNULL:2",
+   "product_id:TEXT:NOTNULL:0",
+   "name:TEXT:NOTNULL:0",
+   "sku:TEXT:NOTNULL:0",
+   "unit:TEXT:NOTNULL:0",
+   "quantity_milli:INTEGER:NOTNULL:0",
+   "received_milli:INTEGER:NOTNULL:0",
+   "unit_cost_paise:INTEGER:NOTNULL:0",
+   "tax_bps:INTEGER:NOTNULL:0",
+   "line_subtotal_paise:INTEGER:NOTNULL:0",
+   "tax_paise:INTEGER:NOTNULL:0",
+   "line_total_paise:INTEGER:NOTNULL:0"
+  ],
+  "local_purchase_orders": [
+   "id:TEXT:NOTNULL:1",
+   "number:INTEGER:NOTNULL:0",
+   "supplier_id:TEXT:NOTNULL:0",
+   "status:TEXT:NOTNULL:0",
+   "note:TEXT:NOTNULL:0",
+   "subtotal_paise:INTEGER:NOTNULL:0",
+   "tax_paise:INTEGER:NOTNULL:0",
+   "total_paise:INTEGER:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0",
+   "created_by:TEXT:null:0",
+   "approved_by:TEXT:null:0",
+   "approved_at:TEXT:null:0",
+   "created_at:TEXT:NOTNULL:0",
+   "updated_at:TEXT:NOTNULL:0"
+  ],
+  "local_purchase_return_lines": [
+   "return_id:TEXT:NOTNULL:1",
+   "receipt_line:INTEGER:NOTNULL:2",
+   "product_id:TEXT:NOTNULL:0",
+   "quantity_milli:INTEGER:NOTNULL:0",
+   "unit_cost_paise:INTEGER:NOTNULL:0",
+   "line_total_paise:INTEGER:NOTNULL:0"
+  ],
+  "local_purchase_returns": [
+   "id:TEXT:NOTNULL:1",
+   "supplier_id:TEXT:NOTNULL:0",
+   "receipt_id:TEXT:NOTNULL:0",
+   "disposition:TEXT:NOTNULL:0",
+   "refund_method:TEXT:null:0",
+   "total_paise:INTEGER:NOTNULL:0",
+   "reason:TEXT:NOTNULL:0",
+   "created_by:TEXT:null:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_purchase_stock_events": [
+   "sequence:INTEGER:null:1",
+   "operation_id:TEXT:NOTNULL:0",
+   "product_id:TEXT:NOTNULL:0",
+   "kind:TEXT:NOTNULL:0",
+   "delta_milli:INTEGER:NOTNULL:0",
+   "receipt_id:TEXT:null:0",
+   "return_id:TEXT:null:0",
+   "created_at:TEXT:NOTNULL:0"
   ],
   "local_recovery_audit": [
    "seq:INTEGER:null:1",
@@ -316,6 +460,78 @@
    "reason:TEXT:NOTNULL:0",
    "created_at:TEXT:NOTNULL:0"
   ],
+  "local_supplier_canceled": [
+   "operation_id:TEXT:NOTNULL:1"
+  ],
+  "local_supplier_entries": [
+   "sequence:INTEGER:null:1",
+   "operation_id:TEXT:NOTNULL:0",
+   "supplier_id:TEXT:NOTNULL:0",
+   "kind:TEXT:NOTNULL:0",
+   "amount_paise:INTEGER:NOTNULL:0",
+   "due_on:TEXT:null:0",
+   "reference:TEXT:null:0",
+   "purchase_order_id:TEXT:null:0",
+   "receipt_id:TEXT:null:0",
+   "invoice_id:TEXT:null:0",
+   "reverse_of:TEXT:null:0",
+   "reason:TEXT:NOTNULL:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_supplier_invoices": [
+   "id:TEXT:NOTNULL:1",
+   "supplier_id:TEXT:NOTNULL:0",
+   "receipt_id:TEXT:null:0",
+   "reference:TEXT:NOTNULL:0",
+   "total_paise:INTEGER:NOTNULL:0",
+   "due_on:TEXT:null:0",
+   "created_by:TEXT:null:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_supplier_journal": [
+   "operation_id:TEXT:NOTNULL:1",
+   "supplier_id:TEXT:NOTNULL:2",
+   "account:TEXT:NOTNULL:3",
+   "amount_paise:INTEGER:NOTNULL:0"
+  ],
+  "local_supplier_ops": [
+   "operation_id:TEXT:NOTNULL:1",
+   "kind:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0",
+   "payload:TEXT:NOTNULL:0"
+  ],
+  "local_supplier_outbox": [
+   "sequence:INTEGER:null:1",
+   "operation_id:TEXT:NOTNULL:0",
+   "payload:TEXT:NOTNULL:0"
+  ],
+  "local_supplier_payments": [
+   "id:TEXT:NOTNULL:1",
+   "supplier_id:TEXT:NOTNULL:0",
+   "invoice_id:TEXT:null:0",
+   "method:TEXT:NOTNULL:0",
+   "amount_paise:INTEGER:NOTNULL:0",
+   "reference:TEXT:NOTNULL:0",
+   "paid_on:TEXT:null:0",
+   "created_by:TEXT:null:0",
+   "created_at:TEXT:NOTNULL:0"
+  ],
+  "local_supplier_pending": [
+   "actor_id:TEXT:NOTNULL:1",
+   "operation_id:TEXT:NOTNULL:0",
+   "request:TEXT:NOTNULL:0"
+  ],
+  "local_suppliers": [
+   "id:TEXT:NOTNULL:1",
+   "name:TEXT:NOTNULL:0",
+   "phone:TEXT:null:0",
+   "gstin:TEXT:null:0",
+   "address:TEXT:null:0",
+   "payment_terms_days:INTEGER:NOTNULL:0",
+   "notes:TEXT:NOTNULL:0",
+   "archived:INTEGER:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0"
+  ],
   "workspace_access": [
    "singleton:INTEGER:null:1",
    "password_hash:TEXT:null:0",
@@ -338,6 +554,18 @@
   ],
   [
    "customers_no_delete"
+  ],
+  [
+   "goods_receipt_lines_no_delete"
+  ],
+  [
+   "goods_receipt_lines_no_update"
+  ],
+  [
+   "goods_receipts_no_delete"
+  ],
+  [
+   "goods_receipts_no_update"
   ],
   [
    "identity_audit_no_delete"
@@ -548,6 +776,81 @@
   ],
   [
    "principal_no_delete"
+  ],
+  [
+   "purchase_order_lines_no_delete"
+  ],
+  [
+   "purchase_order_lines_no_update"
+  ],
+  [
+   "purchase_orders_no_delete"
+  ],
+  [
+   "purchase_return_lines_no_delete"
+  ],
+  [
+   "purchase_return_lines_no_update"
+  ],
+  [
+   "purchase_returns_no_delete"
+  ],
+  [
+   "purchase_returns_no_update"
+  ],
+  [
+   "purchase_stock_events_no_delete"
+  ],
+  [
+   "purchase_stock_events_no_update"
+  ],
+  [
+   "supplier_canceled_no_delete"
+  ],
+  [
+   "supplier_canceled_no_update"
+  ],
+  [
+   "supplier_entries_no_delete"
+  ],
+  [
+   "supplier_entries_no_update"
+  ],
+  [
+   "supplier_invoices_no_delete"
+  ],
+  [
+   "supplier_invoices_no_update"
+  ],
+  [
+   "supplier_journal_no_delete"
+  ],
+  [
+   "supplier_journal_no_update"
+  ],
+  [
+   "supplier_ops_no_delete"
+  ],
+  [
+   "supplier_ops_no_update"
+  ],
+  [
+   "supplier_outbox_no_delete"
+  ],
+  [
+   "supplier_outbox_no_update"
+  ],
+  [
+   "supplier_payments_no_delete"
+  ],
+  [
+   "supplier_payments_no_update"
+  ],
+  [
+   "suppliers_id_immutable"
+  ],
+  [
+   "suppliers_no_delete"
   ]
  ]
 }

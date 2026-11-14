@@ -60,6 +60,7 @@ MIGRATION_ORDER = [
     "inventory_recovery",
     "recovery",
     "lan_authority",
+    "purchasing",
 ]
 
 # Schema version each module leaves behind, read off lib.rs's `if version < N`
@@ -75,6 +76,7 @@ MODULE_VERSION = {
     "inventory_recovery": 10,
     "recovery": 11,
     "lan_authority": 12,
+    "purchasing": 13,
 }
 
 failures: list[str] = []
@@ -427,6 +429,65 @@ def seed(db: sqlite3.Connection) -> None:
     db.execute(
         "INSERT INTO local_retail_return_parts VALUES('op-ret-1','pay-upi',2451,0,0)"
     )
+    db.execute(
+        "INSERT INTO local_suppliers(id,name,phone,gstin,address,payment_terms_days,notes,archived,revision)"
+        " VALUES('sup-1','Supplier','  ','22AAAAA0000A1Z5','Market Road',30,'',0,1)"
+    )
+    db.execute(
+        "INSERT INTO local_purchase_orders(id,number,supplier_id,status,note,subtotal_paise,tax_paise,total_paise,revision)"
+        " VALUES('po-1',1,'sup-1','received','',4250,0,4250,2)"
+    )
+    db.execute(
+        "INSERT INTO local_purchase_order_lines(order_id,line_index,product_id,name,sku,unit,quantity_milli,received_milli,unit_cost_paise,tax_bps,line_subtotal_paise,tax_paise,line_total_paise)"
+        " VALUES('po-1',0,'rice','Rice','RICE','kg',1000,1000,4250,0,4250,0,4250)"
+    )
+    db.execute(
+        "INSERT INTO local_goods_receipts(id,order_id,supplier_id,reference,note,goods_total_paise,damaged_total_paise)"
+        " VALUES('rcv-1','po-1','sup-1','CH-1','',4250,0)"
+    )
+    db.execute(
+        "INSERT INTO local_goods_receipt_lines(receipt_id,line_index,product_id,quantity_milli,damaged_milli,unit_cost_paise,line_total_paise,note)"
+        " VALUES('rcv-1',0,'rice',1000,0,4250,4250,'')"
+    )
+    db.execute(
+        "INSERT INTO local_purchase_stock_events(operation_id,product_id,kind,delta_milli,receipt_id)"
+        " VALUES('op-rcv-1','rice','goods_received',1000,'rcv-1')"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_ops VALUES('op-rcv-1','goods_receipt.posted','{}','{}')"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_outbox(operation_id,payload) VALUES('op-rcv-1','{}')"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_entries(operation_id,supplier_id,kind,amount_paise,due_on,reason)"
+        " VALUES('op-rcv-1','sup-1','goods_received',4250,'2026-12-14','Goods received')"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_journal VALUES('op-rcv-1','sup-1','inventory',4250)"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_journal VALUES('op-rcv-1','sup-1','payables',-4250)"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_invoices(id,supplier_id,receipt_id,reference,total_paise,due_on)"
+        " VALUES('inv-1','sup-1','rcv-1','INV-1',4250,'2026-12-14')"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_payments(id,supplier_id,invoice_id,method,amount_paise,reference,paid_on)"
+        " VALUES('pay-1','sup-1','inv-1','cash',1000,'R-1','2026-11-14')"
+    )
+    db.execute(
+        "INSERT INTO local_purchase_returns(id,supplier_id,receipt_id,disposition,total_paise,reason)"
+        " VALUES('ret-1','sup-1','rcv-1','supplier_credit',43,'Damaged bags')"
+    )
+    db.execute(
+        "INSERT INTO local_purchase_return_lines(return_id,receipt_line,product_id,quantity_milli,unit_cost_paise,line_total_paise)"
+        " VALUES('ret-1',0,'rice',10,4250,43)"
+    )
+    db.execute(
+        "INSERT INTO local_supplier_canceled VALUES('op-cx-1')"
+    )
     db.commit()
 
 
@@ -456,6 +517,18 @@ APPEND_ONLY = [
     "local_customer_ops",
     "local_inventory_events",
     "local_identity_audit",
+    "local_supplier_ops",
+    "local_supplier_entries",
+    "local_supplier_journal",
+    "local_supplier_outbox",
+    "local_supplier_canceled",
+    "local_purchase_stock_events",
+    "local_goods_receipts",
+    "local_goods_receipt_lines",
+    "local_supplier_invoices",
+    "local_supplier_payments",
+    "local_purchase_returns",
+    "local_purchase_return_lines",
 ]
 
 
@@ -663,6 +736,102 @@ def attacks(db: sqlite3.Connection) -> None:
         "INSERT INTO local_retail_pending VALUES('p2','op-pending-1','{}')",
     )
 
+    # Purchasing history is append only and money stays bounded.
+    for table, column, value in [
+        ("local_supplier_entries", "amount_paise", 1),
+        ("local_supplier_journal", "amount_paise", 1),
+        ("local_goods_receipts", "goods_total_paise", 1),
+        ("local_supplier_invoices", "total_paise", 1),
+        ("local_supplier_payments", "amount_paise", 1),
+        ("local_purchase_returns", "total_paise", 1),
+        ("local_purchase_stock_events", "delta_milli", 1),
+        ("local_supplier_ops", "payload", "'x'"),
+        ("local_supplier_outbox", "payload", "'x'"),
+    ]:
+        rows = db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0]
+        check(rows > 0, f"{table} was seeded, guard tested")
+        must_fail(db, f"{table} rows cannot be updated", f"UPDATE {table} SET {column}={value}")
+        must_fail(db, f"{table} rows cannot be deleted", f"DELETE FROM {table}")
+    must_fail(
+        db,
+        "an entry with a zero amount is refused",
+        "INSERT INTO local_supplier_entries(operation_id,supplier_id,kind,amount_paise,reason)"
+        " VALUES('op-zero','sup-1','adjustment',0,'x')",
+    )
+    must_fail(
+        db,
+        "an unknown entry kind is refused",
+        "INSERT INTO local_supplier_entries(operation_id,supplier_id,kind,amount_paise,reason)"
+        " VALUES('op-kind','sup-1','bonus',1,'x')",
+    )
+    must_fail(
+        db,
+        "an unknown payable journal account is refused",
+        "INSERT INTO local_supplier_journal VALUES('op-acct','sup-1','dividends',1)",
+    )
+    must_fail(
+        db,
+        "an unknown payment method is refused",
+        "INSERT INTO local_supplier_payments(id,supplier_id,method,amount_paise,reference)"
+        " VALUES('pay-x','sup-1','bitcoin',100,'x')",
+    )
+    must_fail(
+        db,
+        "an unknown return disposition is refused",
+        "INSERT INTO local_purchase_returns(id,supplier_id,receipt_id,disposition,total_paise,reason)"
+        " VALUES('ret-x','sup-1','rcv-1','exchange',1,'x')",
+    )
+    must_fail(
+        db,
+        "a zero-quantity return line is refused",
+        "INSERT INTO local_purchase_return_lines(return_id,receipt_line,product_id,quantity_milli,unit_cost_paise,line_total_paise)"
+        " VALUES('ret-1',1,'rice',0,4250,0)",
+    )
+    must_fail(
+        db,
+        "an order line cannot be repriced after save",
+        "UPDATE local_purchase_order_lines SET unit_cost_paise=1",
+    )
+    must_fail(
+        db,
+        "a line received beyond its quantity is refused",
+        "UPDATE local_purchase_order_lines SET received_milli=1001",
+    )
+    must_fail(
+        db,
+        "a goods receipt for an unknown order is refused",
+        "INSERT INTO local_goods_receipts(id,order_id,supplier_id,goods_total_paise,damaged_total_paise)"
+        " VALUES('rcv-x','po-missing','sup-1',1,0)",
+    )
+    must_fail(
+        db,
+        "a payment for an unknown invoice is refused",
+        "INSERT INTO local_supplier_payments(id,supplier_id,invoice_id,method,amount_paise,reference)"
+        " VALUES('pay-y','sup-1','inv-missing','cash',100,'x')",
+    )
+    must_fail(
+        db,
+        "a second invoice for the same receipt is refused",
+        "INSERT INTO local_supplier_invoices(id,supplier_id,receipt_id,reference,total_paise)"
+        " VALUES('inv-2','sup-1','rcv-1','INV-2',1)",
+    )
+    must_fail(
+        db,
+        "a supplier identifiers cannot be changed",
+        "UPDATE local_suppliers SET id='sup-9'",
+    )
+    must_fail(
+        db,
+        "a supplier with history cannot be deleted",
+        "DELETE FROM local_suppliers",
+    )
+    must_fail(
+        db,
+        "an entry sequence reference to an unknown supplier is refused",
+        "INSERT INTO local_supplier_entries(operation_id,supplier_id,kind,amount_paise,reason)"
+        " VALUES('op-fk','sup-missing','adjustment',1,'x')",
+    )
+
     # Closing values are bounded.
     must_fail(
         db,
@@ -686,6 +855,14 @@ def invariants(db: sqlite3.Connection) -> None:
         )
     )
     check(not unbalanced, f"every retail operation journal balances to zero {unbalanced}")
+
+    unbalanced_supplier = list(
+        db.execute(
+            "SELECT operation_id,SUM(amount_paise) FROM local_supplier_journal"
+            " GROUP BY operation_id HAVING SUM(amount_paise)<>0"
+        )
+    )
+    check(not unbalanced_supplier, f"every supplier operation journal balances to zero {unbalanced_supplier}")
 
     unbalanced_ledger = list(
         db.execute(

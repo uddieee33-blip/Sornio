@@ -103,7 +103,7 @@ export const FEATURE_MATRIX: FeatureRow[] = [
   row('memberships', 'R', 'Gym/salon plan overview. Enrolment writes stay desktop.'),
   row('reminders', 'P', 'Manual SMS drafts remain on web/desktop.'),
   row('customers', 'R', 'Balances and statements. Credit writes stay desktop.'),
-  row('suppliers', 'P', 'Supplier payables are not in Phase 1 screens.'),
+  row('suppliers', 'P', 'Native desktop purchasing ledger exists (Phase 21A). Companion screens and a supplier snapshot projection are planned; there is no independent mobile database.'),
   row('team', 'R', 'Staff overview on Settings. Invites stay desktop.'),
   row('cashflow', 'R', 'Summary tiles. No closing or float correction.'),
   row('profitability', 'R', 'Read-only profitability figures when synchronized.'),

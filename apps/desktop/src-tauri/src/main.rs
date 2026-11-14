@@ -1,10 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use sornio_local_store::customers as crate_types;
-use sornio_local_store::purchasing as purchase_types;
 #[cfg(windows)]
 use sornio_local_store::device::initialize;
 use sornio_local_store::payments as retail;
+use sornio_local_store::purchasing as purchase_types;
 use sornio_local_store::recovery::BackupPreview;
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
@@ -607,7 +607,6 @@ async fn render_customer_statement(
     })
     .await
 }
-
 
 #[tauri::command]
 async fn save_local_supplier(

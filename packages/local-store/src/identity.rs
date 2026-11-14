@@ -64,7 +64,11 @@ impl Role {
             ),
             Self::AssistantManager => matches!(
                 permission,
-                View | Sell | AddItem | CustomerRead | ManageCustomers | CollectCredit
+                View | Sell
+                    | AddItem
+                    | CustomerRead
+                    | ManageCustomers
+                    | CollectCredit
                     | SupplierRead
                     | ManagePurchaseOrders
                     | ReceiveStock

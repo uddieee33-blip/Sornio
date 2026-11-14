@@ -283,9 +283,13 @@ pub struct SupplierReceipt {
 #[serde(rename_all = "camelCase")]
 pub struct AgingSummary {
     pub current_paise: String,
+    #[serde(rename = "days1To30Paise")]
     pub days_1_30_paise: String,
+    #[serde(rename = "days31To60Paise")]
     pub days_31_60_paise: String,
+    #[serde(rename = "days61To90Paise")]
     pub days_61_90_paise: String,
+    #[serde(rename = "days90PlusPaise")]
     pub days_90_plus_paise: String,
 }
 #[derive(Clone, Debug, Serialize)]
@@ -349,13 +353,16 @@ fn valid_date(db: &Connection, value: &str) -> Result<bool, StoreError> {
     {
         return Ok(false);
     }
-    let canonical: Option<String> = db.query_row("SELECT date(?1,'+0 days')", [value], |r| r.get(0))?;
+    let canonical: Option<String> =
+        db.query_row("SELECT date(?1,'+0 days')", [value], |r| r.get(0))?;
     Ok(canonical.as_deref() == Some(value))
 }
 fn plus_days(db: &Connection, date: &str, days: i64) -> Result<String, StoreError> {
-    Ok(db.query_row("SELECT date(?1, printf('+%d days', ?2))", params![date, days], |r| {
-        r.get(0)
-    })?)
+    Ok(db.query_row(
+        "SELECT date(?1, printf('+%d days', ?2))",
+        params![date, days],
+        |r| r.get(0),
+    )?)
 }
 fn phone(value: &Option<String>) -> Result<Option<String>, StoreError> {
     let Some(v) = value else { return Ok(None) };
@@ -398,9 +405,7 @@ fn gstin(value: &Option<String>) -> Result<Option<String>, StoreError> {
     Ok(Some(trimmed))
 }
 fn short_text(value: &str, max: usize) -> bool {
-    value.len() <= max * 4
-        && value.chars().count() <= max
-        && !value.chars().any(char::is_control)
+    value.len() <= max * 4 && value.chars().count() <= max && !value.chars().any(char::is_control)
 }
 fn optional_text(value: &Option<String>, max: usize) -> Result<Option<String>, StoreError> {
     match value {
@@ -522,7 +527,9 @@ fn balances(db: &Connection, ids: &[String]) -> Result<Vec<(String, i128)>, Stor
     let mut q = db.prepare(
         "SELECT supplier_id, COALESCE(SUM(amount_paise),0) FROM local_supplier_entries WHERE supplier_id IN (SELECT value FROM json_each(?1)) GROUP BY supplier_id",
     )?;
-    let rows = q.query_map([json], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+    let rows = q.query_map([json], |r| {
+        Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?))
+    })?;
     let mut out = Vec::new();
     for row in rows {
         let (id, sum) = row?;
@@ -618,7 +625,19 @@ fn payment_account(method: &str) -> Result<&'static str, StoreError> {
         _ => Err(StoreError::InvalidPayable),
     }
 }
-fn supplier_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(String, String, Option<String>, Option<String>, Option<String>, i64, String, bool, i64)> {
+fn supplier_row(
+    row: &rusqlite::Row<'_>,
+) -> rusqlite::Result<(
+    String,
+    String,
+    Option<String>,
+    Option<String>,
+    Option<String>,
+    i64,
+    String,
+    bool,
+    i64,
+)> {
     Ok((
         row.get(0)?,
         row.get(1)?,

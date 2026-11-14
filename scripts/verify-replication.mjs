@@ -278,7 +278,7 @@ try {
   const productionFlag = readFileSync(join(root, 'apps/mobile/app.json'), 'utf8');
   check(productionFlag.includes('"productionSyncEnabled": false'), 'companion production sync stays disabled');
   const schema = readFileSync(join(root, 'packages/local-store/src/lib.rs'), 'utf8');
-  check(/const SCHEMA_VERSION: i64 = 12;/.test(schema), 'financial schema remains 12');
+  check(/const SCHEMA_VERSION: i64 = 13;/.test(schema), 'financial schema is 13 (purchasing)');
   check(schema.includes('pub mod replication;'), 'sidecar publisher module is declared');
   const rust = readFileSync(join(root, 'packages/local-store/src/replication.rs'), 'utf8');
   check(rust.includes('unpublished_replication'), 'native unpublished outbox reader is wired');
