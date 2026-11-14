@@ -753,6 +753,158 @@ impl Workspace {
         self.require(Permission::CustomerRead)?;
         self.store.print_customer_statement(id, through)
     }
+    pub fn save_supplier(
+        &mut self,
+        r: crate::purchasing::SaveSupplier,
+    ) -> Result<crate::purchasing::Supplier, StoreError> {
+        self.require(Permission::ManageSuppliers)?;
+        self.store.save_supplier(r)
+    }
+    pub fn find_suppliers(
+        &self,
+        search: &str,
+        include_archived: bool,
+    ) -> Result<Vec<crate::purchasing::Supplier>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.find_suppliers(search, include_archived)
+    }
+    pub fn supplier_duplicates(
+        &self,
+        name: &str,
+        phone: Option<&str>,
+        gstin: Option<&str>,
+    ) -> Result<Vec<crate::purchasing::Supplier>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.supplier_duplicates(name, phone, gstin)
+    }
+    pub fn supplier_statement(
+        &self,
+        id: &str,
+        after: i64,
+        through: Option<i64>,
+    ) -> Result<crate::purchasing::SupplierStatement, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.supplier_statement(id, after, through)
+    }
+    pub fn list_purchase_returns(
+        &self,
+        supplier_id: &str,
+    ) -> Result<Vec<crate::purchasing::PurchaseReturn>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.list_purchase_returns(supplier_id)
+    }
+    pub fn create_purchase_order(
+        &mut self,
+        r: crate::purchasing::CreatePurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ManagePurchaseOrders)?;
+        self.store.create_purchase_order(r)
+    }
+    pub fn update_purchase_order(
+        &mut self,
+        r: crate::purchasing::UpdatePurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ManagePurchaseOrders)?;
+        self.store.update_purchase_order(r)
+    }
+    pub fn get_purchase_order(
+        &self,
+        id: &str,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.get_purchase_order(id)
+    }
+    pub fn find_purchase_orders(
+        &self,
+        search: &str,
+        status: &str,
+        supplier_id: &str,
+    ) -> Result<Vec<crate::purchasing::PurchaseOrderSummary>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.find_purchase_orders(search, status, supplier_id)
+    }
+    pub fn submit_purchase_order(
+        &mut self,
+        r: crate::purchasing::TransitionPurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ManagePurchaseOrders)?;
+        self.store.submit_purchase_order(r)
+    }
+    pub fn decide_purchase_order(
+        &mut self,
+        r: crate::purchasing::DecidePurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ApprovePurchaseOrder)?;
+        self.store.decide_purchase_order(r)
+    }
+    pub fn cancel_purchase_order(
+        &mut self,
+        r: crate::purchasing::TransitionPurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        let current = self.store.get_purchase_order(&r.id)?;
+        self.require(if current.status == "approved" {
+            Permission::ApprovePurchaseOrder
+        } else {
+            Permission::ManagePurchaseOrders
+        })?;
+        self.store.cancel_purchase_order(r)
+    }
+    pub fn close_purchase_order(
+        &mut self,
+        r: crate::purchasing::TransitionPurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ApprovePurchaseOrder)?;
+        self.store.close_purchase_order(r)
+    }
+    pub fn post_goods_receipt(
+        &mut self,
+        r: crate::purchasing::PostGoodsReceipt,
+    ) -> Result<crate::purchasing::GoodsReceipt, StoreError> {
+        self.require(Permission::ReceiveStock)?;
+        self.store.post_goods_receipt(r)
+    }
+    pub fn list_goods_receipts(
+        &self,
+        order_id: &str,
+    ) -> Result<Vec<crate::purchasing::GoodsReceipt>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.list_goods_receipts(order_id)
+    }
+    pub fn post_supplier_invoice(
+        &mut self,
+        r: crate::purchasing::PostSupplierInvoice,
+    ) -> Result<crate::purchasing::SupplierInvoice, StoreError> {
+        self.require(Permission::PaySuppliers)?;
+        self.store.post_supplier_invoice(r)
+    }
+    pub fn post_supplier_payment(
+        &mut self,
+        r: crate::purchasing::PostSupplierPayment,
+    ) -> Result<crate::purchasing::SupplierPayment, StoreError> {
+        self.require(Permission::PaySuppliers)?;
+        self.store.post_supplier_payment(r)
+    }
+    pub fn post_supplier_opening(
+        &mut self,
+        r: crate::purchasing::PostSupplierOpening,
+    ) -> Result<crate::purchasing::SupplierReceipt, StoreError> {
+        self.require(Permission::CorrectPayables)?;
+        self.store.post_supplier_opening(r)
+    }
+    pub fn reverse_supplier_entry(
+        &mut self,
+        r: crate::purchasing::ReverseSupplierEntry,
+    ) -> Result<crate::purchasing::SupplierReceipt, StoreError> {
+        self.require(Permission::CorrectPayables)?;
+        self.store.reverse_supplier_entry(r)
+    }
+    pub fn post_purchase_return(
+        &mut self,
+        r: crate::purchasing::PostPurchaseReturn,
+    ) -> Result<crate::purchasing::PurchaseReturn, StoreError> {
+        self.require(Permission::Refund)?;
+        self.store.post_purchase_return(r)
+    }
     pub fn prepare_retail(&mut self, r: crate::payments::Request) -> Result<(), StoreError> {
         self.require(r.action.permission())?;
         self.store.prepare_retail(r)

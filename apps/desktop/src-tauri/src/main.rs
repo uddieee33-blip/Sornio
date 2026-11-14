@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use sornio_local_store::customers as crate_types;
+use sornio_local_store::purchasing as purchase_types;
 #[cfg(windows)]
 use sornio_local_store::device::initialize;
 use sornio_local_store::payments as retail;
@@ -82,6 +83,17 @@ impl From<StoreError> for CommandError {
             | StoreError::InvalidStock
             | StoreError::ProductMissing
             | StoreError::CatalogFull => "invalid_product",
+            StoreError::InvalidSupplier => "invalid_supplier",
+            StoreError::SupplierMissing => "supplier_missing",
+            StoreError::SupplierConflict => "supplier_conflict",
+            StoreError::InvalidPurchaseOrder => "invalid_purchase_order",
+            StoreError::PurchaseOrderMissing => "purchase_order_missing",
+            StoreError::PurchaseOrderConflict => "purchase_order_conflict",
+            StoreError::OrderState => "order_state",
+            StoreError::InvalidReceipt => "invalid_receipt",
+            StoreError::InvalidPayable => "invalid_payable",
+            StoreError::InvalidReturn => "invalid_return",
+            StoreError::InvalidPurchase => "invalid_purchase",
             _ => "workspace_error",
         };
         Self {
@@ -596,6 +608,206 @@ async fn render_customer_statement(
     .await
 }
 
+
+#[tauri::command]
+async fn save_local_supplier(
+    scope: Scope,
+    r: purchase_types::SaveSupplier,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::Supplier, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.save_supplier(r)).await
+}
+
+#[tauri::command]
+async fn find_local_suppliers(
+    scope: Scope,
+    search: String,
+    include_archived: bool,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::Supplier>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.find_suppliers(&search, include_archived)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn suspect_local_supplier_duplicates(
+    scope: Scope,
+    name: String,
+    phone: Option<String>,
+    gstin: Option<String>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::Supplier>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.supplier_duplicates(&name, phone.as_deref(), gstin.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn read_supplier_statement(
+    scope: Scope,
+    supplier_id: String,
+    after: i64,
+    through: Option<i64>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierStatement, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.supplier_statement(&supplier_id, after, through)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn list_purchase_returns(
+    scope: Scope,
+    supplier_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::PurchaseReturn>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.list_purchase_returns(&supplier_id)).await
+}
+
+#[tauri::command]
+async fn create_purchase_order(
+    scope: Scope,
+    r: purchase_types::CreatePurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.create_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn update_purchase_order(
+    scope: Scope,
+    r: purchase_types::UpdatePurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.update_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn get_purchase_order(
+    scope: Scope,
+    id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.get_purchase_order(&id)).await
+}
+
+#[tauri::command]
+async fn find_purchase_orders(
+    scope: Scope,
+    search: String,
+    status: String,
+    supplier_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::PurchaseOrderSummary>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.find_purchase_orders(&search, &status, &supplier_id)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn submit_purchase_order(
+    scope: Scope,
+    r: purchase_types::TransitionPurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.submit_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn decide_purchase_order(
+    scope: Scope,
+    r: purchase_types::DecidePurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.decide_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn cancel_purchase_order(
+    scope: Scope,
+    r: purchase_types::TransitionPurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.cancel_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn close_purchase_order(
+    scope: Scope,
+    r: purchase_types::TransitionPurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.close_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn post_goods_receipt(
+    scope: Scope,
+    r: purchase_types::PostGoodsReceipt,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::GoodsReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_goods_receipt(r)).await
+}
+
+#[tauri::command]
+async fn list_goods_receipts(
+    scope: Scope,
+    order_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::GoodsReceipt>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.list_goods_receipts(&order_id)).await
+}
+
+#[tauri::command]
+async fn post_supplier_invoice(
+    scope: Scope,
+    r: purchase_types::PostSupplierInvoice,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierInvoice, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_supplier_invoice(r)).await
+}
+
+#[tauri::command]
+async fn post_supplier_payment(
+    scope: Scope,
+    r: purchase_types::PostSupplierPayment,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierPayment, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_supplier_payment(r)).await
+}
+
+#[tauri::command]
+async fn post_supplier_opening(
+    scope: Scope,
+    r: purchase_types::PostSupplierOpening,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_supplier_opening(r)).await
+}
+
+#[tauri::command]
+async fn reverse_supplier_entry(
+    scope: Scope,
+    r: purchase_types::ReverseSupplierEntry,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.reverse_supplier_entry(r)).await
+}
+
+#[tauri::command]
+async fn post_purchase_return(
+    scope: Scope,
+    r: purchase_types::PostPurchaseReturn,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseReturn, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_purchase_return(r)).await
+}
+
 async fn with_recovery_workspace<T, F>(
     state: tauri::State<'_, LocalState>,
     scope: Option<Scope>,
@@ -805,7 +1017,27 @@ fn main() {
             post_local_invoice,
             read_local_invoice,
             list_local_invoices,
-            read_billing_outbox
+            read_billing_outbox,
+            save_local_supplier,
+            find_local_suppliers,
+            suspect_local_supplier_duplicates,
+            read_supplier_statement,
+            list_purchase_returns,
+            create_purchase_order,
+            update_purchase_order,
+            get_purchase_order,
+            find_purchase_orders,
+            submit_purchase_order,
+            decide_purchase_order,
+            cancel_purchase_order,
+            close_purchase_order,
+            post_goods_receipt,
+            list_goods_receipts,
+            post_supplier_invoice,
+            post_supplier_payment,
+            post_supplier_opening,
+            reverse_supplier_entry,
+            post_purchase_return
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");
