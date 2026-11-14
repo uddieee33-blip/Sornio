@@ -27,12 +27,17 @@ final class SornioIPhoneAcceptanceTests: XCTestCase {
         waitForReady(app)
         attachScreenshot(app, named: "iPhone-01-ready")
 
-        // A usable entry point must exist; a ready flag alone proves nothing.
-        let hasEntry =
-            el(app, Ids.nav("home")).waitForExistence(timeout: shortTimeout) ||
-            el(app, Ids.demoEnter).waitForExistence(timeout: shortTimeout) ||
-            el(app, Ids.reopenDemo).waitForExistence(timeout: shortTimeout)
-        XCTAssertTrue(hasEntry, "No usable entry point. Visible: \(visibleIdentifiers(app))")
+        // `app.ready` proves the React tree mounted; the phase proves it settled
+        // somewhere operable. Checking for a control as well was wrong: the
+        // first run starts on the connection screen, whose back button has no
+        // testID, so the assertion failed on a perfectly healthy launch.
+        let phase = currentPhase(app)
+        XCTAssertNotNil(phase, "The app mounted but published no phase. Visible: \(visibleIdentifiers(app))")
+        XCTAssertTrue(
+            ["connect", "chooser", "demo", "signed-out"].contains(phase ?? ""),
+            "The app mounted into phase '\(phase ?? "none")', which is not operable. " +
+            "Detail: \(errorDetail(app) ?? "none")"
+        )
     }
 
     /// Test B — demonstration entry, ending in a real dashboard with real data.
@@ -101,14 +106,17 @@ final class SornioIPhoneAcceptanceTests: XCTestCase {
 
         // The critical assertion: give any asynchronous bootstrap time to run and
         // fail, then prove the session did not come back.
-        XCTAssertFalse(
-            el(app, Ids.nav("home")).waitForExistence(timeout: 10),
-            "A session reappeared after an explicit sign-out."
-        )
-        XCTAssertFalse(
-            el(app, Ids.tabBar).waitForExistence(timeout: 2),
-            "The tab bar came back after an explicit sign-out, so a session was restored."
-        )
+        //
+        // Checked via the phase, not by the absence of tabs. The signed-out
+        // screen legitimately renders inside the same navigation frame — it can
+        // offer "Reopen the demonstration" — so looking for a missing tab bar was
+        // testing the frame's shape instead of the session's state, and reported
+        // a session restoration that had not happened.
+        XCTAssertEqual(currentPhase(app), "signed-out",
+                       "The app left the signed-out phase without being asked to.")
+        sleep(3)
+        XCTAssertEqual(currentPhase(app), "signed-out",
+                       "The app silently created another session after an explicit sign-out.")
 
         // And across a cold relaunch: the cleared session must stay cleared.
         app.terminate()
@@ -169,11 +177,13 @@ final class SornioIPhoneAcceptanceTests: XCTestCase {
                           "A non-matching filter did not show the empty state. Visible: \(visibleIdentifiers(app))")
             attachScreenshot(app, named: "iPhone-07-empty-state")
 
-            // Recovery: clearing the query brings rows back.
-            if let value = search.value as? String, !value.isEmpty {
-                search.buttons.firstMatch.tap()
-            }
-            search.typeText("\n")
+            // Recovery: clearing the query brings rows back. The field has no
+            // clear button, so the text is deleted the way a person would.
+            let query = String(repeating: XCUIKeyboardKey.delete.rawValue,
+                               count: "zzzz-no-such-activity".count)
+            search.typeText(query)
+            XCTAssertTrue(app.staticTexts["Nothing to show"].waitForExistence(timeout: 2) == false,
+                          "Rows did not come back after clearing the search.")
         }
 
         // Navigation still works afterwards.

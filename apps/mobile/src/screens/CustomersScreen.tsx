@@ -22,6 +22,9 @@ const CustomerRow = memo(function CustomerRow({
         detail={row.phone ?? 'No phone on file'}
         meta={formatInr(row.outstandingPaise)}
         onPress={() => onSelect(row.id)}
+        // The detail panel is chosen by selection, so the test needs a stable
+        // handle per row. The customer name is already the spoken label.
+        testID={ids.customerRow(row.id)}
       />
       <Hairline />
     </View>

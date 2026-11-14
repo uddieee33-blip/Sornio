@@ -39,7 +39,9 @@ function CompanionShell() {
               <AppNavigation onLeaveDemo={()=>choose('chooser')} />
             </CompanionProvider>
           : mode==='connect'
-            ? <LanRestaurantScreen onBack={()=>choose('chooser')} backLabel="Other Sornio modes" />
+            ? <View style={{flex:1}} testID={ids.connect}>
+                <LanRestaurantScreen onBack={()=>choose('chooser')} backLabel="Other Sornio modes" />
+              </View>
             : <ScrollView contentContainerStyle={{padding:24,gap:16}} testID={ids.chooser}>
                 <Title>SORNIO</Title>
                 <Body>Small business, big numbers.</Body>

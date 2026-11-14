@@ -17,6 +17,8 @@ export const ids = {
   /** Set only once the React tree has mounted and the start screen is drawn. */
   ready: 'app.ready',
   chooser: 'app.mode-chooser',
+  /** The LAN connection screen, which is the first thing a cold launch shows. */
+  connect: 'app.connect',
   demoEnter: 'app.demo.enter',
 
   nav: (screen: string) => `nav.${screen}`,
@@ -25,6 +27,8 @@ export const ids = {
   /** Present on a screen while it is the visible destination. */
   screen: (screen: string) => `screen.${screen}`,
 
+  /** Set on the navigation stage so a test can read which frame is in use. */
+  tabletRail: 'tablet.rail',
   list: 'tablet.list',
   detail: 'tablet.detail',
   customerRow: (id: string) => `people.row.${id}`,

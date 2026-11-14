@@ -68,22 +68,29 @@ final class SornioIPadAcceptanceTests: XCTestCase {
         attachScreenshot(app, named: "iPad-04-list-detail")
 
         // Selecting a different row must change the detail panel.
+        let detailText = { () -> String in
+            el(app, Ids.detail).descendants(matching: .any).allElementsBoundByIndex
+                .prefix(30).map(\.label).joined(separator: "|")
+        }
+        let before = detailText()
+
         let rows = app.descendants(matching: .any)
             .matching(NSPredicate(format: "identifier BEGINSWITH 'people.row.'"))
             .allElementsBoundByIndex
         guard rows.count >= 2 else {
-            XCTFail("Expected at least two customer rows to prove selection changes detail; found \(rows.count).")
+            XCTFail("Expected at least two customer rows to prove selection changes detail; " +
+                    "found \(rows.count). Visible: \(visibleIdentifiers(app))")
             return
         }
-        let secondRowId = rows[1].identifier
         rows[1].tap()
 
-        // The detail panel is still present after selection; the row we chose is
-        // the selected one. The panel title carries the customer name.
         require(app, Ids.detail, shortTimeout)
         XCTAssertTrue(el(app, Ids.list).exists, "The list vanished after selecting a row.")
+        // The point of list-detail is that the detail follows the selection, so
+        // both regions existing is not enough on its own.
+        let after = detailText()
+        XCTAssertNotEqual(before, after, "Selecting another customer did not change the detail panel.")
         attachScreenshot(app, named: "iPad-05-list-detail-selected")
-        XCTAssertFalse(secondRowId.isEmpty)
     }
 
     /// Test D — restaurant workspace and its kitchen region on a tablet.
@@ -164,9 +171,13 @@ final class SornioIPadAcceptanceTests: XCTestCase {
 
         require(app, Ids.signedOut)
         attachScreenshot(app, named: "iPad-09-signed-out")
-        XCTAssertFalse(
-            el(app, Ids.rail).waitForExistence(timeout: 10),
-            "The signed-out tablet frame still shows the navigation rail."
-        )
+        // The signed-out screen renders inside the same tablet frame, so the rail
+        // being present is not a defect. What must not happen is the session
+        // coming back, which is what the phase reports.
+        XCTAssertEqual(currentPhase(app), "signed-out",
+                       "The tablet left the signed-out phase without being asked to.")
+        sleep(3)
+        XCTAssertEqual(currentPhase(app), "signed-out",
+                       "The tablet silently created another session after sign-out.")
     }
 }

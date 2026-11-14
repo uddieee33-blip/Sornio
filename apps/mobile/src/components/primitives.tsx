@@ -78,12 +78,15 @@ export function Row({
   meta,
   onPress,
   accessibilityLabel,
+  testID,
 }: {
   title: string;
   detail: string;
   meta?: string;
   onPress?: () => void;
   accessibilityLabel?: string;
+  /** Native automation handle. Additive: does not alter the spoken label. */
+  testID?: string;
 }) {
   const { palette } = useTheme();
   const content = (
@@ -108,6 +111,7 @@ export function Row({
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
+      testID={testID}
       accessibilityLabel={accessibilityLabel ?? title}
       style={({ pressed }) => [pressed ? { opacity: 0.7 } : null, { minHeight: touch }]}
     >

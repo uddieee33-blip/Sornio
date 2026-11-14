@@ -15,6 +15,7 @@ import XCTest
  */
 enum Ids {
     static let ready = "app.ready"
+    static let connect = "app.connect"
     static let chooser = "app.mode-chooser"
     static let demoEnter = "app.demo.enter"
 
@@ -179,17 +180,19 @@ extension XCTestCase {
 
         if el(app, Ids.reopenDemo).exists {
             tap(app, Ids.reopenDemo)
-            require(app, Ids.nav("home"), uiTimeout, file: file, line: line)
+            _ = waitForDemoPhase(app, uiTimeout, file: file, line: line)
             return
         }
 
         if el(app, Ids.demoEnter).exists {
             tap(app, Ids.demoEnter)
-            require(app, Ids.nav("home"), uiTimeout, file: file, line: line)
+            _ = waitForDemoPhase(app, uiTimeout, file: file, line: line)
             return
         }
 
-        // The connection screen sits on top; step back to the mode chooser.
+        // A cold launch opens the LAN connection screen, which is the real first
+        // screen. Its back control leads to the mode chooser and the demo entry.
+        // This path was missing, so every suite failed on a healthy launch.
         let back = app.buttons["Other Sornio modes"]
         if back.waitForExistence(timeout: shortTimeout) {
             back.tap()
@@ -197,7 +200,7 @@ extension XCTestCase {
         if el(app, Ids.demoEnter).waitForExistence(timeout: shortTimeout) {
             tap(app, Ids.demoEnter)
         }
-        require(app, Ids.nav("home"), uiTimeout, file: file, line: line)
+        _ = waitForDemoPhase(app, uiTimeout, file: file, line: line)
     }
 
     func attachScreenshot(_ app: XCUIApplication, named name: String) {
