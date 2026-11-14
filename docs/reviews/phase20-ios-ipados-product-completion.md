@@ -561,7 +561,7 @@ NOT RUN.
 | Start of 20C | `54e50e20e494cf2a520ea16e9cfacf7500c393e1` (verified 20B head) |
 | Recovery | sandbox HEAD had been rewound to `main`; 942 files hash-compared against the remote tip, **all identical**, then `git reset --hard 54e50e2`. Nothing lost, nothing rewritten. |
 | Phase 20C commits | `3a3a481` … `04ecf7f` |
-| **Acceptance run** | **[`43607320774`](https://github.com/uddieee33-blip/Sornio/actions/runs/43607320774) on `04ecf7f` — 8/8 jobs success** |
+| **Acceptance run** | **[`43612498332`](https://github.com/uddieee33-blip/Sornio/actions/runs/43612498332) on `5004aa0` — 8/8 jobs success** (first full green: `43607320774` on `04ecf7f`) |
 | Pull request | #184, **still draft**, not merged |
 | `main` | untouched at `1cc5c79` |
 
@@ -714,6 +714,20 @@ lifetime, not a weaker cipher.
 Headless breakpoint tests and real rotation are different evidence and are not
 substituted for each other. No live kitchen workflow is claimed: the kitchen
 region requires an authenticated shop hub.
+
+### 8C.9a One flake found and removed
+
+`iPhone simulator acceptance` passed on `04ecf7f` and failed on `645c23f`, whose
+only diff was this document. Identical code, opposite result, so the probe was
+at fault rather than the app: it launched, slept exactly 15 seconds, checked
+once, and reported "did not stay running" if the check missed. A cold Release
+launch on a loaded runner can exceed that window.
+
+It now polls for up to 90 seconds and requires the process alive on four
+consecutive checks. A genuine crash still fails — a dead process stays dead —
+while a slow start no longer does. This removed the last fixed-sleep readiness
+check from that job, which §5 rules out as a mechanism. Confirmed green in
+run 43612498332.
 
 ### 8C.10 Regression (§10, §12)
 
