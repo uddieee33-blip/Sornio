@@ -462,9 +462,11 @@ jobs:
         working-directory: apps/mobile/ios
         # No `|| true`: a failing UI assertion must fail the job.
         #
-        # Artifact downloads and raw logs are not always reachable, but check-run
-        # annotations are, so the failure reason is also emitted as an annotation.
-        # Otherwise a red job costs a blind round trip to diagnose.
+        # Artifact and log downloads are not always reachable, but check-run
+        # annotations are, so the failure reason is written there as well. The
+        # extraction uses fixed-string greps: an earlier regex-based version
+        # matched every line containing " TEST" and filled the 50-annotation
+        # budget with environment dumps instead of the error.
         run: |
           set -o pipefail
           rm -rf /tmp/SornioResults.xcresult
@@ -483,22 +485,25 @@ jobs:
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
             > /tmp/xcodebuild-test.log 2>&1
           STATUS=$?
-          tail -120 /tmp/xcodebuild-test.log
-          if [ "$STATUS" -ne 0 ]; then
-            echo "xcodebuild exited $STATUS"
-            # Emit the most useful lines as annotations, which survive even when
-            # logs and artifacts cannot be downloaded.
-            grep -E '(error:|Testing failed|\\*\\* TEST|Test Case .* failed|XCTAssert|failed to build)' /tmp/xcodebuild-test.log \
-              | head -25 \
-              | sed 's/%/%25/g; s/\r//g' \
-              | while IFS= read -r line; do echo "::error title=xcodebuild::$line"; done
-            # If the bundle never compiled, the first error is the whole story.
-            grep -E '(: error:|error: )' /tmp/xcodebuild-test.log | head -15 \
-              | sed 's/%/%25/g; s/\r//g' \
-              | while IFS= read -r line; do echo "::error title=compile::$line"; done
-          fi
+          echo "xcodebuild exited $STATUS"
+          tail -60 /tmp/xcodebuild-test.log
           if [ -d /tmp/SornioResults.xcresult ]; then
-            xcrun xcresulttool get test-results summary --path /tmp/SornioResults.xcresult 2>/dev/null | head -60 || true
+            xcrun xcresulttool get test-results summary --path /tmp/SornioResults.xcresult 2>/dev/null | head -40 || true
+          fi
+          if [ "$STATUS" -ne 0 ]; then
+            {
+              grep -F ': error:' /tmp/xcodebuild-test.log
+              grep -F ' ** TEST' /tmp/xcodebuild-test.log
+              grep -F 'Test Case' /tmp/xcodebuild-test.log | grep -F 'failed'
+              grep -F 'Testing failed' /tmp/xcodebuild-test.log
+              tail -12 /tmp/xcodebuild-test.log
+            } 2>/dev/null \
+              | sed 's/%/%25/g; s/\r//g' \
+              | awk 'NF && !seen[$0]++' \
+              | head -40 \
+              | while IFS= read -r line; do
+                  echo "::error title=native acceptance::$line"
+                done
           fi
           exit "$STATUS"
 
