@@ -48,6 +48,13 @@ jobs:
         # Pure logic, so it runs on Linux and fails fast if the simulator matrix
         # would be unable to provision a device.
         run: node scripts/verify-simulator-choice.mjs
+      - name: iOS production bundle
+        working-directory: apps/mobile
+        # The simulator jobs build Debug, which skips bundling and waits for
+        # Metro. Nothing in CI was producing a real bundle, so a Release-only
+        # bundling failure (unresolvable expo-asset) stayed hidden until native
+        # UI acceptance needed a self-contained app.
+        run: node ../../scripts/verify-ios-bundle.mjs
       - name: XCUITest target integration
         # The native suites can only compile on macOS; this proves the target
         # the plugin generates is valid pbxproj, compiles the committed sources,

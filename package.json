@@ -58,7 +58,8 @@
     "verify:replication": "node scripts/verify-replication.mjs",
     "verify:replication-postgres": "node scripts/verify-replication-postgres.mjs",
     "verify:replication-native-https": "node scripts/verify-replication-native-https.mjs",
-    "verify:uitest-target": "node scripts/verify-uitest-target.mjs"
+    "verify:uitest-target": "node scripts/verify-uitest-target.mjs",
+    "verify:ios-bundle": "node scripts/verify-ios-bundle.mjs"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
