@@ -64,7 +64,8 @@ extension XCTestCase {
         XCTAssertTrue(
             waitFor(app, identifier, timeout),
             "Expected '\(identifier)' to appear while the app was in phase " +
-            "'\(currentPhase(app) ?? "none")'. Visible identifiers: \(visibleIdentifiers(app))",
+            "'\(currentPhase(app) ?? "none")'. Detail: \(errorDetail(app) ?? "none"). " +
+            "Visible identifiers: \(visibleIdentifiers(app))",
             file: file, line: line
         )
     }
@@ -165,8 +166,14 @@ extension XCTestCase {
     func enterDemo(_ app: XCUIApplication, file: StaticString = #filePath, line: UInt = #line) {
         waitForReady(app, file: file, line: line)
 
-        if waitFor(app, Ids.nav("home"), shortTimeout) {
-            _ = waitForDemoPhase(app)
+        // `nav.home` alone is not proof: the fallback screen list also renders
+        // it, so a failed bootstrap looks navigable until a tap does nothing.
+        // The phase is the authority.
+        if currentPhase(app) == "demo" {
+            return
+        }
+        if currentPhase(app) == "error" {
+            waitForDemoPhase(app)
             return
         }
 
