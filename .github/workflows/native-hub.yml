@@ -32,12 +32,10 @@ jobs:
     name: Real Rust hub · TLS · SQLCipher · recovery
     runs-on: ubuntu-latest
     timeout-minutes: 35
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
-          persist-credentials: true
+          persist-credentials: false
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -66,17 +64,6 @@ jobs:
           if ! cargo metadata --locked --format-version 1 > /tmp/lan-hub-metadata.json 2>/tmp/lan-hub-lock.log; then
             cat /tmp/lan-hub-lock.log
             while IFS= read -r line; do echo "::error title=native lockfile::$line"; done < /tmp/lan-hub-lock.log
-            # Let Cargo resolve the exact graph on a networked runner and append
-            # the reviewed lock to this same branch (never a force-push). The
-            # next push run verifies it with --locked and proceeds to the build.
-            cargo generate-lockfile
-            if ! git diff --quiet -- Cargo.lock; then
-              git config user.name "github-actions[bot]"
-              git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-              git add Cargo.lock
-              git commit -m "chore: resolve the native hub lockfile with Cargo"
-              git push origin HEAD:"${GITHUB_REF_NAME}"
-            fi
             exit 1
           fi
       - name: Build the actual production listener and native fixture control
