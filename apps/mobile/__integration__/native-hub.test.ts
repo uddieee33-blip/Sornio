@@ -62,8 +62,9 @@ describe('Level 2 · real TLS and identity', () => {
   }));
   it('rejects malformed TLS-delivered session JSON as unknown, not success', () => withHub(async hub => {
     const server = tls.createServer({ cert: hub.certs.certificate, key: hub.certs.privateKey }, socket => socket.once('data', () => socket.end('HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: 1\r\nConnection: close\r\n\r\n{')));
+    const sockets = new Set<import('node:net').Socket>(); server.on('secureConnection', socket => { sockets.add(socket); socket.once('close', () => sockets.delete(socket)); });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve)); const address = server.address(); if (!address || typeof address === 'string') throw new Error('no TLS test port');
-    try { await expect(hubWire(`https://127.0.0.1:${address.port}`, hub.certs.fingerprint)('/v1/identity', { version: 1 }, '')).rejects.toMatchObject({ code: 'outcome_unknown' }); } finally { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); }
+    try { await expect(hubWire(`https://127.0.0.1:${address.port}`, hub.certs.fingerprint)('/v1/identity', { version: 1 }, '')).rejects.toMatchObject({ code: 'outcome_unknown' }); } finally { for (const socket of sockets) socket.destroy(); await new Promise<void>(resolve => server.close(() => resolve())); }
     assertNoFinancialEffects(await hub.snapshot());
   }));
 });
