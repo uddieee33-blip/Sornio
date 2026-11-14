@@ -69,7 +69,7 @@ export function certificates(directory: string): Certificates {
   const run = (...args: string[]) => execFileSync('openssl', args, { cwd: dir, stdio: ['ignore', 'pipe', 'pipe'] });
   const ca = (name: string) => {
     run('req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', `${name}.key`, '-out', `${name}.pem`, '-days', '30', '-subj', `/CN=Sornio ${name} test CA`);
-    writeFileSync(path.join(dir, `${name}.cnf`), `[ca]\ndefault_ca=CA\n[CA]\ndir=${dir}\ndatabase=${dir}/${name}.index\nnew_certs_dir=${dir}\nserial=${dir}/${name}.serial\ncertificate=${dir}/${name}.pem\nprivate_key=${dir}/${name}.key\ndefault_md=sha256\npolicy=POLICY\nx509_extensions=EXT\n[POICY]\n[POLICY]\ncommonName=supplied\n[EXT]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n`);
+    writeFileSync(path.join(dir, `${name}.cnf`), `[ca]\ndefault_ca=CA\n[CA]\ndir=${dir}\ndatabase=${dir}/${name}.index\nnew_certs_dir=${dir}\nserial=${dir}/${name}.serial\ncertificate=${dir}/${name}.pem\nprivate_key=${dir}/${name}.key\ndefault_md=sha256\ndefault_days=30\nunique_subject=no\npolicy=POLICY\nx509_extensions=EXT\n[POLICY]\ncommonName=supplied\n[EXT]\nsubjectAltName=DNS:localhost,IP:127.0.0.1\nbasicConstraints=CA:FALSE\nkeyUsage=digitalSignature,keyEncipherment\nextendedKeyUsage=serverAuth\n`);
     writeFileSync(path.join(dir, `${name}.index`), ''); writeFileSync(path.join(dir, `${name}.serial`), '01\n');
   };
   const leaf = (name: string, authority: string, san = 'DNS:localhost,IP:127.0.0.1', dates: string[] = []) => {
