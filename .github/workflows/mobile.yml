@@ -337,11 +337,31 @@ jobs:
           set -euo pipefail
           UDID="${{ steps.boot.outputs.udid }}"
           xcrun simctl launch "$UDID" com.sornio.companion | tee /tmp/launch.txt
-          sleep 15
-          if ! xcrun simctl spawn "$UDID" launchctl list | grep -q com.sornio.companion; then
-            echo '::error::com.sornio.companion did not stay running.'
+
+          # A single check after a fixed sleep is a coin toss: a cold Release
+          # launch on a loaded macOS runner sometimes takes longer than the sleep,
+          # and the job failed intermittently for exactly that reason (one run
+          # green, the next on identical code red). Poll for a bounded window and
+          # require the process to be *still* alive at the end, so a real crash is
+          # still caught while a slow start is not mistaken for one.
+          ALIVE=0
+          for attempt in $(seq 1 30); do
+            if xcrun simctl spawn "$UDID" launchctl list | grep -q com.sornio.companion; then
+              ALIVE=$((ALIVE + 1))
+              if [ "$ALIVE" -ge 4 ]; then
+                echo "process observed alive on $ALIVE consecutive checks (~${attempt}0s)"
+                break
+              fi
+            else
+              ALIVE=0
+            fi
+            sleep 3
+          done
+
+          if [ "$ALIVE" -lt 4 ]; then
+            echo '::error::com.sornio.companion did not stay running for a sustained window.'
             echo '--- recent Sornio log ---'
-            xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "Sornio"' | tail -100 || true
+            xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "Sornio"' | tail -120 || true
             exit 1
           fi
           echo "::notice::com.sornio.companion is running on ${{ matrix.label }} simulator $UDID"
