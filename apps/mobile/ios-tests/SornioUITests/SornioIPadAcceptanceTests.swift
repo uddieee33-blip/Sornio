@@ -68,8 +68,9 @@ final class SornioIPadAcceptanceTests: XCTestCase {
         attachScreenshot(app, named: "iPad-04-list-detail")
 
         // Selecting a different row must change the detail panel.
-        let detailText = { () -> String in
-            el(app, Ids.detail).descendants(matching: .any).allElementsBoundByIndex
+        let detailText: () -> String = { [weak self] in
+            guard let self else { return "" }
+            return self.el(app, Ids.detail).descendants(matching: .any).allElementsBoundByIndex
                 .prefix(30).map(\.label).joined(separator: "|")
         }
         let before = detailText()
