@@ -99,6 +99,10 @@ jobs:
       - name: Native formatting
         working-directory: packages/lan-hub
         run: cargo fmt --check
+      - name: Record Level-2 measurements and suite counts
+        if: always()
+        run: |
+          node -e 'const fs=require("fs");try{const r=JSON.parse(fs.readFileSync("/tmp/native-hub-jest.json","utf8"));console.log("::notice title=level2 suite::passed="+r.numPassedTests+" failed="+r.numFailedTests+" total="+r.numTotalTests)}catch{console.log("::notice title=level2 suite::no jest results")}try{const m=JSON.parse(fs.readFileSync("apps/mobile/native-hub-results.json","utf8"));console.log("::notice title=level2 metrics::"+JSON.stringify(m.metrics).slice(0,3500));console.log("::notice title=level2 host::"+JSON.stringify({evidenceLevel:m.evidenceLevel,generatedAt:m.generatedAt,host:m.host,methodology:m.methodology}).slice(0,3500))}catch{console.log("::notice title=level2 metrics::not produced")}'
       - name: Preserve diagnostics, never test databases or private keys
         if: always()
         run: |

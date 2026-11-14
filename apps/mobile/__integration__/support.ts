@@ -203,6 +203,7 @@ export class NativeHub {
   snapshot() { return this.control.command('snapshot'); }
   async restart() { const started = await this.control.command('restart'); this.setStarted(started); const u = new URL(this.origin); this.proxy.retarget({ host: this.bind, port: Number(u.port) }); }
   async rotateTls(certificate: string, privateKey: string) { await this.control.command('rotateTls', { certificate, privateKey }); await this.restart(); }
+  async restore() { const started = await this.control.command<Json>('restore', {}, 120000); this.setStarted(started); const u = new URL(this.origin); this.proxy.retarget({ host: this.bind, port: Number(u.port) }); }
   async connect(username = 'chef', deviceId = randomBytes(16).toString('hex')) {
     const probed = await probeHub(this.clientOrigin);
     const hint = probed.identity as { hubId: string; businessId: string };
