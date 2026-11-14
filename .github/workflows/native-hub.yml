@@ -1,0 +1,98 @@
+name: Native LAN hub acceptance
+
+on:
+  pull_request:
+    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    paths:
+      - 'apps/desktop/src-tauri/src/hub_server.rs'
+      - 'apps/desktop/src-tauri/src/hub_discovery.rs'
+      - 'apps/mobile/**'
+      - 'packages/lan-hub/**'
+      - 'packages/local-store/**'
+      - 'packages/business-domain/**'
+      - '.github/workflows/native-hub.yml'
+  push:
+    branches: [arena/260bdcd2-sornio]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: native-hub-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_BUILD_JOBS: '2'
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  native-hub:
+    name: Real Rust hub · TLS · SQLCipher · recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: apps/mobile/package-lock.json
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+        with:
+          components: rustfmt
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          workspaces: packages/lan-hub
+          cache-on-failure: true
+      - name: Record host and toolchain
+        run: |
+          uname -a
+          cat /etc/os-release
+          rustc --version
+          cargo --version
+          node --version
+          openssl version
+          ip -4 addr
+      - name: Verify the service lockfile without changing its pins
+        working-directory: packages/lan-hub
+        run: cargo metadata --locked --format-version 1 > /tmp/lan-hub-metadata.json
+      - name: Build the actual production listener and native fixture control
+        working-directory: packages/lan-hub
+        run: cargo build --locked --bin sornio-lan-acceptance
+      - name: Install companion dependencies
+        working-directory: apps/mobile
+        run: npm ci
+      - name: Execute Level-2 mobile-client / real-hub acceptance
+        if: hashFiles('apps/mobile/__integration__/native-hub.test.ts') != ''
+        working-directory: apps/mobile
+        env:
+          SORNIO_LAN_HUB_BINARY: ${{ github.workspace }}/packages/lan-hub/target/debug/sornio-lan-acceptance
+        run: npm run test:native-hub -- --runInBand
+      - name: Native formatting
+        working-directory: packages/lan-hub
+        run: cargo fmt --check
+      - name: Preserve diagnostics, never test databases or private keys
+        if: always()
+        run: |
+          mkdir -p artifacts/native-hub
+          cp /tmp/lan-hub-metadata.json artifacts/native-hub/metadata.json 2>/dev/null || true
+          cp apps/mobile/native-hub-results.json artifacts/native-hub/results.json 2>/dev/null || true
+          {
+            echo '# Level 2: controlled host, not a separate-device LAN'
+            echo "commit=$GITHUB_SHA"
+            echo "run=$GITHUB_RUN_ID"
+            uname -a
+            rustc --version
+            node --version
+          } > artifacts/native-hub/environment.txt
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        if: always()
+        with:
+          name: Sornio-native-hub-Level-2
+          path: artifacts/native-hub/
+          if-no-files-found: error
+          retention-days: 14

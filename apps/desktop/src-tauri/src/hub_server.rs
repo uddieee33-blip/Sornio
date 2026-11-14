@@ -1,5 +1,8 @@
 //! Bounded HTTPS-only LAN adapter. Mobile uses the OS TLS trust store and hostname checks.
-use crate::LocalState;
+/// The same locked, genuinely encrypted workspace used by desktop IPC. Keeping
+/// this alias with the listener lets the headless acceptance executable compile
+/// the production listener without linking a GUI or duplicating its routes.
+pub type LocalState = Arc<Mutex<Result<sornio_local_store::access::Workspace, String>>>;
 use rustls::{ServerConfig, ServerConnection, StreamOwned};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
@@ -80,6 +83,23 @@ pub fn start(
     }
     let listener =
         TcpListener::bind(address).map_err(|_| "Could not bind this LAN interface/port.")?;
+    start_listener(listener, tls, workspace, advertise)
+}
+/// Reusable native-service boundary. The caller supplies an already bound private
+/// interface; acceptance uses port zero here, while desktop uses `start` above.
+/// No request, permission, persistence or TLS behaviour is substituted.
+pub fn start_listener(
+    listener: TcpListener,
+    tls: Arc<ServerConfig>,
+    workspace: LocalState,
+    advertise: Option<(String, Value, String)>,
+) -> Result<Runtime, String> {
+    let address = listener
+        .local_addr()
+        .map_err(|_| "Listener address unavailable.")?;
+    if !local(address.ip()) || address.port() < 1024 {
+        return Err("Bind to a private IPv4 interface and a port above 1023.".into());
+    }
     listener
         .set_nonblocking(true)
         .map_err(|_| "Could not configure listener.")?;

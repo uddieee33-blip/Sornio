@@ -26,7 +26,7 @@ type RecoveryState = Arc<Mutex<RecoverySelection>>;
 use tauri::Manager;
 use zeroize::Zeroizing;
 
-type LocalState = Arc<Mutex<Result<Workspace, String>>>;
+use hub_server::LocalState;
 
 #[derive(serde::Serialize)]
 struct CommandError {

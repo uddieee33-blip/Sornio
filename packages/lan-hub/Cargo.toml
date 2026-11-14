@@ -1,0 +1,23 @@
+[package]
+name = "sornio-lan-hub"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "sornio-lan-acceptance"
+path = "src/acceptance.rs"
+
+[dependencies]
+sornio-local-store = { path = "../local-store" }
+serde_json = "1"
+sha2 = "0.10"
+mdns-sd = "0.21.7"
+url = "2"
+httparse = "1.10"
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-pemfile = "2.2"
+rusqlite = { version = "0.42", features = ["bundled-sqlcipher-vendored-openssl"] }
