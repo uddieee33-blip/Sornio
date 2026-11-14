@@ -128,9 +128,18 @@ export function EmptyState({ title, detail }: { title: string; detail: string })
 export function ErrorState({ title, detail }: { title: string; detail: string }) {
   const { palette } = useTheme();
   return (
-    <View style={styles.empty} accessibilityRole="alert">
+    <View style={styles.empty} accessibilityRole="alert" testID="app.error">
       <Text style={[styles.title, { color: palette.danger }]}>{title}</Text>
-      <Muted>{detail}</Muted>
+      {/* The detail carries the diagnostic code, so it must be readable by
+          native automation as well as by the customer. */}
+      <Text
+        testID="app.error.detail"
+        accessibilityLabel={detail}
+        style={[styles.caption, { color: palette.muted }]}
+        allowFontScaling
+      >
+        {detail}
+      </Text>
     </View>
   );
 }

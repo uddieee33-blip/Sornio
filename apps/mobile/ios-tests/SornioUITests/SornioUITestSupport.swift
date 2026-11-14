@@ -139,6 +139,15 @@ extension XCTestCase {
         return false
     }
 
+    /// The message the app rendered for a bootstrap failure.
+    func errorDetail(_ app: XCUIApplication) -> String? {
+        let element = app.descendants(matching: .any).matching(identifier: "app.error.detail").firstMatch
+        guard element.waitForExistence(timeout: 5) else { return nil }
+        if !element.label.isEmpty { return element.label }
+        if let value = element.value as? String, !value.isEmpty { return value }
+        return nil
+    }
+
     func visibleIdentifiers(_ app: XCUIApplication) -> String {
         let all = app.descendants(matching: .any).allElementsBoundByIndex
             .prefix(400)
