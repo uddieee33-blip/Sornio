@@ -461,9 +461,14 @@ jobs:
         id: test
         working-directory: apps/mobile/ios
         # No `|| true`: a failing UI assertion must fail the job.
+        #
+        # Artifact downloads and raw logs are not always reachable, but check-run
+        # annotations are, so the failure reason is also emitted as an annotation.
+        # Otherwise a red job costs a blind round trip to diagnose.
         run: |
           set -o pipefail
           rm -rf /tmp/SornioResults.xcresult
+          set +e
           xcodebuild test \
             -workspace Sornio.xcworkspace \
             -scheme Sornio \
@@ -476,7 +481,26 @@ jobs:
             -test-timeouts-enabled YES \
             -default-test-execution-time-allowance 300 \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
-            | tee /tmp/xcodebuild-test.log
+            > /tmp/xcodebuild-test.log 2>&1
+          STATUS=$?
+          tail -120 /tmp/xcodebuild-test.log
+          if [ "$STATUS" -ne 0 ]; then
+            echo "xcodebuild exited $STATUS"
+            # Emit the most useful lines as annotations, which survive even when
+            # logs and artifacts cannot be downloaded.
+            grep -E '(error:|Testing failed|\\*\\* TEST|Test Case .* failed|XCTAssert|failed to build)' /tmp/xcodebuild-test.log \
+              | head -25 \
+              | sed 's/%/%25/g; s/\r//g' \
+              | while IFS= read -r line; do echo "::error title=xcodebuild::$line"; done
+            # If the bundle never compiled, the first error is the whole story.
+            grep -E '(: error:|error: )' /tmp/xcodebuild-test.log | head -15 \
+              | sed 's/%/%25/g; s/\r//g' \
+              | while IFS= read -r line; do echo "::error title=compile::$line"; done
+          fi
+          if [ -d /tmp/SornioResults.xcresult ]; then
+            xcrun xcresulttool get test-results summary --path /tmp/SornioResults.xcresult 2>/dev/null | head -60 || true
+          fi
+          exit "$STATUS"
 
       - name: Summarise the native results
         if: always()
