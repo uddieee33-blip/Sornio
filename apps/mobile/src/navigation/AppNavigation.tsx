@@ -15,25 +15,6 @@ import { useTheme } from '../theme/ThemeProvider';
 import { vocabularyFor } from '@sornio/mobile-contracts';
 import { ids } from '../testing/identifiers';
 
-/**
- * Reports which state the application settled into.
- *
- * Deliberately phase-only (boot / signed-out / error / demo). A native test that
- * cannot find `screen.activity` otherwise only knows that something is missing;
- * this tells it the demonstration session never opened. No business data and no
- * session detail is exposed.
- */
-function PhaseMarker({ phase }: { phase: 'boot' | 'signed-out' | 'error' | 'demo' }) {
-  return (
-    <View
-      testID={ids.phase(phase)}
-      accessible={false}
-      pointerEvents="none"
-      style={styles.phaseMarker}
-    />
-  );
-}
-
 const LABELS: Record<ScreenId, string> = {
   home: copy.home,
   activity: copy.activity,
@@ -56,8 +37,10 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
   };
   // `copy` is the single source of tab wording; vocabulary overrides it so the
   // spoken label always matches the visible one for this portal.
+  // Reported on the stage container, which is always mounted and full size.
+  // A separate 1x1 opacity-0 view was tried first and is not exposed to
+  // XCUITest at all, so the phase arrived as 'none'.
   const phase = booting ? 'boot' : signedOut && !snapshot ? 'signed-out' : error && !snapshot ? 'error' : 'demo';
-  const marker = <PhaseMarker phase={phase} />;
   const body = () => {
     if (booting) {
       return (
@@ -109,16 +92,14 @@ export function AppNavigation({ onLeaveDemo }: { onLeaveDemo?: () => void }) {
   if (wide) {
     return (
       <View style={styles.row}>
-        {marker}
         <Rail screens={screens} current={screen} onChange={setScreen} labels={labels} onLeaveDemo={onLeaveDemo} />
-        <View style={styles.stage}>{body()}</View>
+        <View style={styles.stage} testID={ids.phase(phase)}>{body()}</View>
       </View>
     );
   }
   return (
     <View style={styles.column}>
-      {marker}
-      <View style={styles.stage}>{body()}</View>
+      <View style={styles.stage} testID={ids.phase(phase)}>{body()}</View>
       <TabBar screens={screens} current={screen} onChange={setScreen} labels={labels} />
     </View>
   );
@@ -259,9 +240,6 @@ const styles = {
   },
   railItem: { minHeight: touch, justifyContent: 'center' as const, borderLeftWidth: 2, paddingLeft: space[12] },
   brand: { fontSize: 20, fontWeight: '600' as const, marginBottom: space[16] },
-  // Zero-size but present in the accessibility tree, so it is queryable without
-  // altering the visible layout.
-  phaseMarker: { width: 1, height: 1, opacity: 0 },
   placeholder: { padding: space[24], gap: space[12] },
   actions: { gap: space[12], marginTop: space[8] },
   primary: { minHeight: touch, borderRadius: 4, alignItems: 'center' as const, justifyContent: 'center' as const },
