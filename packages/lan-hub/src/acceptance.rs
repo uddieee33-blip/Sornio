@@ -484,7 +484,7 @@ fn initialize(p: &Value) -> Result<Fixture> {
         .as_str()
         .ok_or("missing owner token")?
         .to_owned();
-    let actors = json!({"owner":owner,"manager":manager.id,"chef":chef.id,"waiter":waiter.id});
+    let actors = json!({"owner":owner,"manager":manager.id.clone(),"chef":chef.id.clone(),"waiter":waiter.id.clone()});
     let mut fixture = Fixture {
         directory,
         key,
@@ -498,15 +498,15 @@ fn initialize(p: &Value) -> Result<Fixture> {
         owner_token,
     };
     for (operation, target, revision, responsibility) in [
-        ("seed-chef", chef.id, 1, "preparer"),
-        ("seed-waiter", waiter.id, 1, "preparer"),
+        ("seed-chef", chef.id.clone(), 1, "preparer"),
+        ("seed-waiter", waiter.id.clone(), 1, "preparer"),
     ] {
         let result = fixture.command("responsibility", &json!({"operationId":operation,"targetActorId":target,"expectedRevision":revision,"responsibility":responsibility}))?;
         if result["status"] != "accepted" {
             return Err(format!("seed responsibility refused: {result}"));
         }
     }
-    let result = fixture.command("assign", &json!({"operationId":"seed-assignment","ticketId":"ticket-1","expectedRevision":1,"targetActorId":chef.id}))?;
+    let result = fixture.command("assign", &json!({"operationId":"seed-assignment","ticketId":"ticket-1","expectedRevision":1,"targetActorId":chef.id.clone()}))?;
     if result["status"] != "accepted" {
         return Err(format!("seed assignment refused: {result}"));
     }
