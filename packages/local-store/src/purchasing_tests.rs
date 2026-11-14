@@ -1,11 +1,6 @@
 //! Native purchasing, receiving and payable acceptance tests.
 use super::*;
-use crate::{
-    access::Workspace,
-    catalog::AddProduct,
-    identity::StaffDetails,
-    Draft,
-};
+use crate::{access::Workspace, catalog::AddProduct, identity::StaffDetails, Draft};
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const PASSWORD: &str = "Native purchasing password!";
 fn supplier(id: &str) -> SaveSupplier {
@@ -127,7 +122,10 @@ fn supplier_profiles_use_stable_ids_revisions_and_exact_replays() {
     assert_eq!(saved.revision, 2);
     assert_eq!(saved.name, "Supplier One");
     let replayed = s.save_supplier(edit).unwrap();
-    assert_eq!(replayed.revision, 2, "exact retry returns the stored result");
+    assert_eq!(
+        replayed.revision, 2,
+        "exact retry returns the stored result"
+    );
     let mut stale = supplier("s1");
     stale.operation_id = "edit-2".into();
     stale.expected_revision = Some(1);
@@ -201,12 +199,16 @@ fn purchase_order_totals_use_integer_money_and_snapshot_product_data() {
             operation_id: "po-1".into(),
             supplier_id: "s1".into(),
             note: "Weekly stock".into(),
-            lines: order.lines.iter().map(|l| PurchaseOrderLineInput {
-                product_id: l.product_id.clone(),
-                quantity_milli: l.quantity_milli,
-                unit_cost_paise: l.unit_cost_paise,
-                tax_bps: Some(l.tax_bps),
-            }).collect(),
+            lines: order
+                .lines
+                .iter()
+                .map(|l| PurchaseOrderLineInput {
+                    product_id: l.product_id.clone(),
+                    quantity_milli: l.quantity_milli,
+                    unit_cost_paise: l.unit_cost_paise,
+                    tax_bps: Some(l.tax_bps),
+                })
+                .collect(),
         })
         .unwrap();
     assert_eq!(replayed.revision, 1);
@@ -320,13 +322,23 @@ fn receiving_partially_then_completely_reconciles_stock_and_payables() {
     let mut s = store(&d.path().join("s.db"));
     let before = stock(&s, "rice");
     let order = approved(&mut s, "po-4", vec![line("rice", 10_000, 3_000)]);
-    let first = receive(&mut s, "rcv-1", &order, vec![receipt_line(0, "rice", 4_000)]);
+    let first = receive(
+        &mut s,
+        "rcv-1",
+        &order,
+        vec![receipt_line(0, "rice", 4_000)],
+    );
     assert_eq!(first.goods_total_paise, 12_000);
     assert_eq!(stock(&s, "rice"), before + 4_000);
     assert_eq!(first.order_status, "partial");
     let after_first = find_supplier(&s, "s1").balance_paise;
     assert_eq!(after_first, "12000");
-    let second = receive(&mut s, "rcv-2", &first_order(&s, &order), vec![receipt_line(0, "rice", 6_000)]);
+    let second = receive(
+        &mut s,
+        "rcv-2",
+        &first_order(&s, &order),
+        vec![receipt_line(0, "rice", 6_000)],
+    );
     assert_eq!(second.order_status, "received");
     assert_eq!(stock(&s, "rice"), before + 10_000);
     assert_eq!(find_supplier(&s, "s1").balance_paise, "30000");
@@ -355,7 +367,12 @@ fn receiving_is_exactly_once_under_retries_and_reopen() {
         let mut s = store(&path);
         before = stock(&s, "rice");
         let order = approved(&mut s, "po-5", vec![line("rice", 8_000, 5_000)]);
-        let receipt = receive(&mut s, "rcv-5", &order, vec![receipt_line(0, "rice", 5_000)]);
+        let receipt = receive(
+            &mut s,
+            "rcv-5",
+            &order,
+            vec![receipt_line(0, "rice", 5_000)],
+        );
         assert_eq!(receipt.goods_total_paise, 25_000);
         drop(s);
     }
@@ -372,12 +389,19 @@ fn receiving_is_exactly_once_under_retries_and_reopen() {
         })
         .unwrap();
     assert_eq!(replayed.goods_total_paise, 25_000);
-    assert_eq!(stock(&s, "rice"), before + 5_000, "goods were not received twice");
+    assert_eq!(
+        stock(&s, "rice"),
+        before + 5_000,
+        "goods were not received twice"
+    );
     assert_eq!(find_supplier(&s, "s1").balance_paise, "25000");
     // The operation log is queryable and durable.
-    let events: i64 = s
-        .0
-        .query_row("SELECT COUNT(*) FROM local_purchase_stock_events", [], |r| r.get(0))
+    let events: i64 =
+        s.0.query_row(
+            "SELECT COUNT(*) FROM local_purchase_stock_events",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(events, 1);
 }
@@ -416,7 +440,12 @@ fn invoices_post_variance_and_payments_allocate_once() {
     let d = tempfile::tempdir().unwrap();
     let mut s = store(&d.path().join("s.db"));
     let order = approved(&mut s, "po-7", vec![line("rice", 10_000, 3_000)]);
-    let receipt = receive(&mut s, "rcv-7", &order, vec![receipt_line(0, "rice", 10_000)]);
+    let receipt = receive(
+        &mut s,
+        "rcv-7",
+        &order,
+        vec![receipt_line(0, "rice", 10_000)],
+    );
     let invoice = s
         .post_supplier_invoice(PostSupplierInvoice {
             operation_id: "inv-7".into(),
@@ -527,7 +556,12 @@ fn unallocated_payments_are_the_explicit_advance_workflow() {
     assert_eq!(payment.balance_paise, "-5000");
     // A later goods receipt nets the advance off the new liability.
     let order = approved(&mut s, "po-8", vec![line("rice", 2_000, 4_000)]);
-    receive(&mut s, "rcv-8", &order, vec![receipt_line(0, "rice", 2_000)]);
+    receive(
+        &mut s,
+        "rcv-8",
+        &order,
+        vec![receipt_line(0, "rice", 2_000)],
+    );
     assert_eq!(find_supplier(&s, "s1").balance_paise, "3000");
 }
 
@@ -536,7 +570,12 @@ fn reversing_a_payment_restores_the_payable_and_audits_once() {
     let d = tempfile::tempdir().unwrap();
     let mut s = store(&d.path().join("s.db"));
     let order = approved(&mut s, "po-9", vec![line("rice", 4_000, 5_000)]);
-    receive(&mut s, "rcv-9", &order, vec![receipt_line(0, "rice", 4_000)]);
+    receive(
+        &mut s,
+        "rcv-9",
+        &order,
+        vec![receipt_line(0, "rice", 4_000)],
+    );
     s.post_supplier_payment(PostSupplierPayment {
         operation_id: "pay-9".into(),
         supplier_id: "s1".into(),
@@ -583,7 +622,12 @@ fn returns_deduct_stock_and_reduce_the_payable_exactly_once() {
     let mut s = store(&d.path().join("s.db"));
     let before = stock(&s, "rice");
     let order = approved(&mut s, "po-10", vec![line("rice", 6_000, 4_000)]);
-    let receipt = receive(&mut s, "rcv-10", &order, vec![receipt_line(0, "rice", 6_000)]);
+    let receipt = receive(
+        &mut s,
+        "rcv-10",
+        &order,
+        vec![receipt_line(0, "rice", 6_000)],
+    );
     assert_eq!(find_supplier(&s, "s1").balance_paise, "24000");
     let returned = s
         .post_purchase_return(PostPurchaseReturn {
@@ -660,7 +704,12 @@ fn every_operation_journal_balances_and_statements_reconcile() {
     let d = tempfile::tempdir().unwrap();
     let mut s = store(&d.path().join("s.db"));
     let order = approved(&mut s, "po-11", vec![line("rice", 10_000, 3_000)]);
-    let receipt = receive(&mut s, "rcv-11", &order, vec![receipt_line(0, "rice", 10_000)]);
+    let receipt = receive(
+        &mut s,
+        "rcv-11",
+        &order,
+        vec![receipt_line(0, "rice", 10_000)],
+    );
     s.post_supplier_invoice(PostSupplierInvoice {
         operation_id: "inv-11".into(),
         supplier_id: "s1".into(),
@@ -711,11 +760,7 @@ fn every_operation_journal_balances_and_statements_reconcile() {
         .map(|e| e.amount_paise.parse::<i128>().unwrap())
         .sum();
     assert_eq!(summed.to_string(), statement.closing_balance_paise);
-    let aging: i128 = statement
-        .aging
-        .current_paise
-        .parse::<i128>()
-        .unwrap()
+    let aging: i128 = statement.aging.current_paise.parse::<i128>().unwrap()
         + statement.aging.days_1_30_paise.parse::<i128>().unwrap()
         + statement.aging.days_31_60_paise.parse::<i128>().unwrap()
         + statement.aging.days_61_90_paise.parse::<i128>().unwrap()
@@ -755,13 +800,19 @@ fn migration_to_v13_preserves_existing_data_and_enables_purchasing() {
         .unwrap();
     }
     let mut s = Store::open(&path, KEY).unwrap();
-    let version: i64 = s
-        .0
-        .pragma_query_value(None, "user_version", |r| r.get(0))
-        .unwrap();
+    let version: i64 =
+        s.0.pragma_query_value(None, "user_version", |r| r.get(0))
+            .unwrap();
     assert_eq!(version, 13);
-    assert_eq!(s.load().unwrap().draft.unwrap().business_name, "Existing shop");
-    assert!(s.list_products().unwrap().iter().any(|p| p.id == "legacy-stock"));
+    assert_eq!(
+        s.load().unwrap().draft.unwrap().business_name,
+        "Existing shop"
+    );
+    assert!(s
+        .list_products()
+        .unwrap()
+        .iter()
+        .any(|p| p.id == "legacy-stock"));
     // Purchasing works end to end on the migrated database.
     s.save_supplier(supplier("migrated")).unwrap();
     let order = create(&mut s, "po-migrated", vec![line("legacy-stock", 100, 50)]);

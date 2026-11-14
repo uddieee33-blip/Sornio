@@ -1235,7 +1235,9 @@ impl Store {
             "purchase_order.updated",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.updated", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.updated", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -1252,14 +1254,23 @@ impl Store {
             [&r.id],
         )?;
         write_lines(&tx, &r.id, &lines)?;
-        let next = current.revision.checked_add(1).ok_or(StoreError::InvalidPurchaseOrder)?;
+        let next = current
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::InvalidPurchaseOrder)?;
         one(
             &tx,
             "UPDATE local_purchase_orders SET note=?1, subtotal_paise=?2, tax_paise=?3, total_paise=?4, revision=?5, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?6 AND revision=?7",
             params![r.note.trim(), subtotal as i64, tax as i64, total as i64, next, r.id, current.revision],
         )?;
         let result = load_order(&tx, &r.id)?;
-        record(&tx, &r.operation_id, "purchase_order.updated", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_order.updated",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "purchase_order.updated", &result)?;
         tx.commit()?;
         Ok(result)
@@ -1279,10 +1290,23 @@ impl Store {
         status: &str,
         supplier_id: &str,
     ) -> Result<Vec<PurchaseOrderSummary>, StoreError> {
-        if search.len() > 240 || status.len() > 20 || (!supplier_id.is_empty() && !valid_id(supplier_id)) {
+        if search.len() > 240
+            || status.len() > 20
+            || (!supplier_id.is_empty() && !valid_id(supplier_id))
+        {
             return Err(StoreError::InvalidPurchaseOrder);
         }
-        if !matches!(status, "" | "draft" | "submitted" | "approved" | "rejected" | "cancelled" | "partial" | "received" | "closed") {
+        if !matches!(
+            status,
+            "" | "draft"
+                | "submitted"
+                | "approved"
+                | "rejected"
+                | "cancelled"
+                | "partial"
+                | "received"
+                | "closed"
+        ) {
             return Err(StoreError::InvalidPurchaseOrder);
         }
         let tx = self.0.unchecked_transaction()?;
@@ -1315,7 +1339,11 @@ impl Store {
     }
 }
 
-fn transition_guard(status: &str, expected: i64, current: &PurchaseOrder) -> Result<(), StoreError> {
+fn transition_guard(
+    status: &str,
+    expected: i64,
+    current: &PurchaseOrder,
+) -> Result<(), StoreError> {
     if current.status != status {
         return Err(StoreError::OrderState);
     }
@@ -1332,7 +1360,10 @@ impl Store {
         if !valid_id(&r.operation_id)
             || !valid_id(&r.id)
             || r.expected_revision < 1
-            || r.reason.as_ref().map(|t| !short_text(t, 500)).unwrap_or(false)
+            || r.reason
+                .as_ref()
+                .map(|t| !short_text(t, 500))
+                .unwrap_or(false)
         {
             return Err(StoreError::InvalidPurchaseOrder);
         }
@@ -1347,20 +1378,31 @@ impl Store {
             "purchase_order.submitted",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.submitted", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.submitted", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
         let current = load_order(&tx, &r.id)?;
         transition_guard("draft", r.expected_revision, &current)?;
-        let next = current.revision.checked_add(1).ok_or(StoreError::InvalidPurchaseOrder)?;
+        let next = current
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::InvalidPurchaseOrder)?;
         one(
             &tx,
             "UPDATE local_purchase_orders SET status='submitted', revision=?1, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?2 AND revision=?3",
             params![next, r.id, current.revision],
         )?;
         let result = load_order(&tx, &r.id)?;
-        record(&tx, &r.operation_id, "purchase_order.submitted", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_order.submitted",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "purchase_order.submitted", &result)?;
         tx.commit()?;
         Ok(result)
@@ -1373,8 +1415,12 @@ impl Store {
             || !valid_id(&r.id)
             || r.expected_revision < 1
             || !matches!(r.decision.as_str(), "approve" | "reject")
-            || r.reason.as_ref().map(|t| !short_text(t, 500)).unwrap_or(false)
-            || (r.decision == "reject" && r.reason.as_deref().map(str::trim).unwrap_or("").is_empty())
+            || r.reason
+                .as_ref()
+                .map(|t| !short_text(t, 500))
+                .unwrap_or(false)
+            || (r.decision == "reject"
+                && r.reason.as_deref().map(str::trim).unwrap_or("").is_empty())
         {
             return Err(StoreError::InvalidPurchaseOrder);
         }
@@ -1393,13 +1439,18 @@ impl Store {
             },
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.decided", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.decided", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
         let current = load_order(&tx, &r.id)?;
         transition_guard("submitted", r.expected_revision, &current)?;
-        let next = current.revision.checked_add(1).ok_or(StoreError::InvalidPurchaseOrder)?;
+        let next = current
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::InvalidPurchaseOrder)?;
         if r.decision == "approve" {
             let approver = self.1.as_ref().map(|s| s.actor_id.clone());
             one(
@@ -1415,7 +1466,13 @@ impl Store {
             )?;
         }
         let result = load_order(&tx, &r.id)?;
-        record(&tx, &r.operation_id, "purchase_order.decided", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_order.decided",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "purchase_order.decided", &result)?;
         tx.commit()?;
         Ok(result)
@@ -1428,7 +1485,10 @@ impl Store {
             || !valid_id(&r.id)
             || r.expected_revision < 1
             || r.reason.as_deref().map(str::trim).unwrap_or("").is_empty()
-            || r.reason.as_ref().map(|t| !short_text(t, 500)).unwrap_or(true)
+            || r.reason
+                .as_ref()
+                .map(|t| !short_text(t, 500))
+                .unwrap_or(true)
         {
             return Err(StoreError::InvalidPurchaseOrder);
         }
@@ -1451,7 +1511,9 @@ impl Store {
             "purchase_order.cancelled",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.cancelled", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.cancelled", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -1469,14 +1531,23 @@ impl Store {
         if received > 0 {
             return Err(StoreError::OrderState);
         }
-        let next = current.revision.checked_add(1).ok_or(StoreError::InvalidPurchaseOrder)?;
+        let next = current
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::InvalidPurchaseOrder)?;
         one(
             &tx,
             "UPDATE local_purchase_orders SET status='cancelled', revision=?1, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?2 AND revision=?3",
             params![next, r.id, current.revision],
         )?;
         let result = load_order(&tx, &r.id)?;
-        record(&tx, &r.operation_id, "purchase_order.cancelled", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_order.cancelled",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "purchase_order.cancelled", &result)?;
         tx.commit()?;
         Ok(result)
@@ -1488,7 +1559,10 @@ impl Store {
         if !valid_id(&r.operation_id)
             || !valid_id(&r.id)
             || r.expected_revision < 1
-            || r.reason.as_ref().map(|t| !short_text(t, 500)).unwrap_or(false)
+            || r.reason
+                .as_ref()
+                .map(|t| !short_text(t, 500))
+                .unwrap_or(false)
         {
             return Err(StoreError::InvalidPurchaseOrder);
         }
@@ -1503,7 +1577,9 @@ impl Store {
             "purchase_order.closed",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.closed", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.closed", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -1514,7 +1590,10 @@ impl Store {
         if current.revision != r.expected_revision {
             return Err(StoreError::PurchaseOrderConflict);
         }
-        let next = current.revision.checked_add(1).ok_or(StoreError::InvalidPurchaseOrder)?;
+        let next = current
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::InvalidPurchaseOrder)?;
         one(
             &tx,
             "UPDATE local_purchase_orders SET status='closed', revision=?1, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?2 AND revision=?3",
@@ -1539,7 +1618,10 @@ impl Store {
         if !valid_id(&r.operation_id)
             || !valid_id(&r.order_id)
             || !short_text(&r.note, 800)
-            || r.reference.as_ref().map(|v| v.len() > 120 || v.chars().any(char::is_control)).unwrap_or(false)
+            || r.reference
+                .as_ref()
+                .map(|v| v.len() > 120 || v.chars().any(char::is_control))
+                .unwrap_or(false)
             || r.lines.is_empty()
             || r.lines.len() > 500
         {
@@ -1557,7 +1639,9 @@ impl Store {
             "purchase.received",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<GoodsReceipt>(&tx, &r.operation_id, "goods_receipt.posted", &raw)? {
+        if let Some(old) =
+            replay::<GoodsReceipt>(&tx, &r.operation_id, "goods_receipt.posted", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -1580,14 +1664,20 @@ impl Store {
             per_line_remaining.insert(line.line_index, line.quantity_milli - line.received_milli);
         }
         for input in &r.lines {
-            if input.line_index < 0 || input.quantity_milli <= 0 || input.quantity_milli > MAX_VALUE {
+            if input.line_index < 0 || input.quantity_milli <= 0 || input.quantity_milli > MAX_VALUE
+            {
                 return Err(StoreError::InvalidReceipt);
             }
             let damaged = input.damaged_milli.unwrap_or(0);
             if damaged < 0 || damaged > input.quantity_milli {
                 return Err(StoreError::InvalidReceipt);
             }
-            if input.note.as_ref().map(|n| n.len() > 400 || n.chars().any(char::is_control)).unwrap_or(false) {
+            if input
+                .note
+                .as_ref()
+                .map(|n| n.len() > 400 || n.chars().any(char::is_control))
+                .unwrap_or(false)
+            {
                 return Err(StoreError::InvalidReceipt);
             }
             let po_line = order
@@ -1624,7 +1714,11 @@ impl Store {
                     unit_cost_paise: po_line.unit_cost_paise,
                     // The line carries the value that enters inventory and payables:
                     // arrived units less damaged ones, at the purchase-order cost.
-                    line_total_paise: if good > 0 { line_total(good, po_line.unit_cost_paise)? } else { 0 },
+                    line_total_paise: if good > 0 {
+                        line_total(good, po_line.unit_cost_paise)?
+                    } else {
+                        0
+                    },
                     note: input.note.clone().unwrap_or_default(),
                 },
                 good as i128,
@@ -1683,7 +1777,10 @@ impl Store {
         } else {
             "approved"
         };
-        let next = order.revision.checked_add(1).ok_or(StoreError::InvalidReceipt)?;
+        let next = order
+            .revision
+            .checked_add(1)
+            .ok_or(StoreError::InvalidReceipt)?;
         one(
             &tx,
             "UPDATE local_purchase_orders SET status=?1, revision=?2, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?3 AND revision=?4",
@@ -1710,8 +1807,15 @@ impl Store {
                 Some(&r.order_id),
                 Some(&r.operation_id),
                 None,
-                if r.note.trim().is_empty() { "Goods received" } else { r.note.trim() },
-                &[("inventory", goods_total_i64), ("payables", -goods_total_i64)],
+                if r.note.trim().is_empty() {
+                    "Goods received"
+                } else {
+                    r.note.trim()
+                },
+                &[
+                    ("inventory", goods_total_i64),
+                    ("payables", -goods_total_i64),
+                ],
             )?;
             bump_supplier(&tx, &order.supplier_id, supplier.revision)?;
         }
@@ -1733,7 +1837,10 @@ impl Store {
         tx.commit()?;
         Ok(result)
     }
-    pub(crate) fn list_goods_receipts(&self, order_id: &str) -> Result<Vec<GoodsReceipt>, StoreError> {
+    pub(crate) fn list_goods_receipts(
+        &self,
+        order_id: &str,
+    ) -> Result<Vec<GoodsReceipt>, StoreError> {
         if !valid_id(order_id) {
             return Err(StoreError::InvalidReceipt);
         }
@@ -1766,7 +1873,16 @@ impl Store {
             .ok_or(StoreError::PurchaseOrderMissing)?;
         let mut result = Vec::new();
         for row in rows {
-            let (id, order_id, supplier_id, reference, note, goods_total, damaged_total, created_at) = row?;
+            let (
+                id,
+                order_id,
+                supplier_id,
+                reference,
+                note,
+                goods_total,
+                damaged_total,
+                created_at,
+            ) = row?;
             let mut lq = tx.prepare(
                 "SELECT line_index,product_id,quantity_milli,damaged_milli,unit_cost_paise,line_total_paise,note FROM local_goods_receipt_lines WHERE receipt_id = ?1 ORDER BY line_index",
             )?;
@@ -1853,7 +1969,9 @@ impl Store {
             "supplier_invoice.posted",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<SupplierInvoice>(&tx, &r.operation_id, "supplier_invoice.posted", &raw)? {
+        if let Some(old) =
+            replay::<SupplierInvoice>(&tx, &r.operation_id, "supplier_invoice.posted", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -1891,7 +2009,11 @@ impl Store {
                 let due = plus_days(&tx, &receipt_date, supplier.payment_terms_days)?;
                 (Some(order_id), goods_total as i128, due)
             }
-            None => (None, 0, plus_days(&tx, &today_s, supplier.payment_terms_days)?),
+            None => (
+                None,
+                0,
+                plus_days(&tx, &today_s, supplier.payment_terms_days)?,
+            ),
         };
         let due_on = r.due_on.clone().or(Some(receipt_due));
         let variance = r.total_paise as i128 - goods_total;
@@ -1954,7 +2076,13 @@ impl Store {
             due_on: due_on.clone(),
             created_at: now(&tx)?,
         };
-        record(&tx, &r.operation_id, "supplier_invoice.posted", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "supplier_invoice.posted",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "supplier_invoice.posted", &result)?;
         tx.commit()?;
         Ok(result)
@@ -1995,7 +2123,9 @@ impl Store {
             "supplier_payment.posted",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<SupplierPayment>(&tx, &r.operation_id, "supplier_payment.posted", &raw)? {
+        if let Some(old) =
+            replay::<SupplierPayment>(&tx, &r.operation_id, "supplier_payment.posted", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -2050,7 +2180,13 @@ impl Store {
             created_at: now(&tx)?,
         };
         let _ = revision;
-        record(&tx, &r.operation_id, "supplier_payment.posted", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "supplier_payment.posted",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "supplier_payment.posted", &result)?;
         tx.commit()?;
         Ok(result)
@@ -2089,16 +2225,14 @@ impl Store {
                 return Err(StoreError::Forbidden);
             }
         }
-        if let Some(old) = replay::<SupplierReceipt>(&tx, &r.operation_id, "payable.opening", &raw)? {
+        if let Some(old) = replay::<SupplierReceipt>(&tx, &r.operation_id, "payable.opening", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
         let supplier = load_supplier(&tx, &r.supplier_id)?;
         let today_s = today(&tx)?;
-        let due_on = r
-            .due_on
-            .clone()
-            .unwrap_or_else(|| today_s.clone());
+        let due_on = r.due_on.clone().unwrap_or_else(|| today_s.clone());
         let amount = r.amount_paise;
         // Sign convention: positive amount means we owe the supplier.
         add_entry_and_journal(
@@ -2155,7 +2289,9 @@ impl Store {
             "payable.reversed",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<SupplierReceipt>(&tx, &r.operation_id, "payable.reversed", &raw)? {
+        if let Some(old) =
+            replay::<SupplierReceipt>(&tx, &r.operation_id, "payable.reversed", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -2250,7 +2386,9 @@ impl Store {
         let refund_account = match (r.disposition.as_str(), r.refund_method.as_deref()) {
             ("supplier_credit", None) => None,
             ("supplier_credit", Some(_)) => return Err(StoreError::InvalidReturn),
-            ("refund", Some(method)) => Some(payment_account(method).map_err(|_| StoreError::InvalidReturn)?),
+            ("refund", Some(method)) => {
+                Some(payment_account(method).map_err(|_| StoreError::InvalidReturn)?)
+            }
             ("refund", None) => return Err(StoreError::InvalidReturn),
         };
         let raw = serde_json::to_string(&r)?;
@@ -2264,7 +2402,9 @@ impl Store {
             "purchase.returned",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseReturn>(&tx, &r.operation_id, "purchase_return.posted", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseReturn>(&tx, &r.operation_id, "purchase_return.posted", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -2371,14 +2511,18 @@ impl Store {
                     None,
                     None,
                     &r.reason,
-                    &[("payables", goods_total_i64), ("inventory", -goods_total_i64)],
+                    &[
+                        ("payables", goods_total_i64),
+                        ("inventory", -goods_total_i64),
+                    ],
                 )?;
             }
             "refund" => {
                 let account = refund_account.ok_or(StoreError::InvalidReturn)?;
                 // Money comes back; the payable is untouched. The refund is
                 // visible in the journal and the return record.
-                let postings: [(&str, i64); 2] = [(account, goods_total_i64), ("inventory", -goods_total_i64)];
+                let postings: [(&str, i64); 2] =
+                    [(account, goods_total_i64), ("inventory", -goods_total_i64)];
                 let total: i128 = postings.iter().map(|(_, n)| *n as i128).sum();
                 if total != 0 {
                     return Err(StoreError::CreditUnavailable);
@@ -2401,12 +2545,21 @@ impl Store {
             reason: r.reason.trim().to_string(),
             created_at: now(&tx)?,
         };
-        record(&tx, &r.operation_id, "purchase_return.posted", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_return.posted",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "purchase_return.posted", &result)?;
         tx.commit()?;
         Ok(result)
     }
-    pub(crate) fn list_purchase_returns(&self, supplier_id: &str) -> Result<Vec<PurchaseReturn>, StoreError> {
+    pub(crate) fn list_purchase_returns(
+        &self,
+        supplier_id: &str,
+    ) -> Result<Vec<PurchaseReturn>, StoreError> {
         if !valid_id(supplier_id) {
             return Err(StoreError::InvalidSupplier);
         }
@@ -2478,7 +2631,8 @@ fn statement(
     })?;
     let mut entries = Vec::new();
     for row in rows {
-        let (seq, op, kind, amount, date, due, reference, order, receipt, invoice, reverse, reason) = row?;
+        let (seq, op, kind, amount, date, due, reference, order, receipt, invoice, reverse, reason) =
+            row?;
         running = add(running, amount as i128)?;
         entries.push(SupplierStatementLine {
             sequence: seq,
