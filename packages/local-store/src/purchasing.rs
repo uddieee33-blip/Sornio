@@ -651,7 +651,17 @@ fn supplier_row(
     ))
 }
 fn supplier_from_row(
-    row: (String, String, Option<String>, Option<String>, Option<String>, i64, String, bool, i64),
+    row: (
+        String,
+        String,
+        Option<String>,
+        Option<String>,
+        Option<String>,
+        i64,
+        String,
+        bool,
+        i64,
+    ),
     balance_paise: i128,
     overdue_paise: i128,
 ) -> Supplier {
@@ -679,7 +689,10 @@ fn load_supplier(db: &Connection, id: &str) -> Result<Supplier, StoreError> {
     }
     let row = db
         .query_row(
-            &format!("SELECT {} FROM local_suppliers WHERE id=?1", supplier_columns()),
+            &format!(
+                "SELECT {} FROM local_suppliers WHERE id=?1",
+                supplier_columns()
+            ),
             [id],
             supplier_row,
         )
@@ -778,7 +791,10 @@ fn aging(db: &Connection, id: &str) -> Result<AgingBuckets, StoreError> {
         if amount > 0 {
             let allocated = unapplied.min(amount as i128);
             unapplied -= allocated;
-            charges.push((due.clone().unwrap_or_else(|| today.clone()), amount as i128 - allocated));
+            charges.push((
+                due.clone().unwrap_or_else(|| today.clone()),
+                amount as i128 - allocated,
+            ));
         }
     }
     for (due, open) in charges {
@@ -897,7 +913,10 @@ impl Store {
         for id in ids {
             let row = tx
                 .query_row(
-                    &format!("SELECT {} FROM local_suppliers WHERE id=?1", supplier_columns()),
+                    &format!(
+                        "SELECT {} FROM local_suppliers WHERE id=?1",
+                        supplier_columns()
+                    ),
                     [&id],
                     supplier_row,
                 )
@@ -950,7 +969,10 @@ impl Store {
         let mut result = Vec::with_capacity(ids.len());
         for id in ids {
             let row = tx.query_row(
-                &format!("SELECT {} FROM local_suppliers WHERE id=?1", supplier_columns()),
+                &format!(
+                    "SELECT {} FROM local_suppliers WHERE id=?1",
+                    supplier_columns()
+                ),
                 [&id],
                 supplier_row,
             )?;
@@ -1159,7 +1181,9 @@ impl Store {
             "purchase_order.created",
             Some(&r.operation_id),
         )?;
-        if let Some(old) = replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.created", &raw)? {
+        if let Some(old) =
+            replay::<PurchaseOrder>(&tx, &r.operation_id, "purchase_order.created", &raw)?
+        {
             return Ok(old);
         }
         unreserved(&tx, &r.operation_id)?;
@@ -1170,10 +1194,7 @@ impl Store {
             [],
             |r| r.get(0),
         )?;
-        let actor: Option<String> = self
-            .1
-            .as_ref()
-            .map(|s| s.actor_id.clone());
+        let actor: Option<String> = self.1.as_ref().map(|s| s.actor_id.clone());
         one(
             &tx,
             "INSERT INTO local_purchase_orders(id,number,supplier_id,status,note,subtotal_paise,tax_paise,total_paise,revision,created_by) VALUES(?1,?2,?3,'draft',?4,?5,?6,?7,1,?8)",
@@ -1181,7 +1202,13 @@ impl Store {
         )?;
         write_lines(&tx, &r.operation_id, &lines)?;
         let result = load_order(&tx, &r.operation_id)?;
-        record(&tx, &r.operation_id, "purchase_order.created", &raw, &result)?;
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_order.created",
+            &raw,
+            &result,
+        )?;
         outbox(&tx, &r.operation_id, "purchase_order.created", &result)?;
         tx.commit()?;
         Ok(result)
