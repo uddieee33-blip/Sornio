@@ -44,6 +44,10 @@ jobs:
         run: npm ci
       - name: Contract tests
         run: node scripts/verify-mobile-contracts.mjs
+      - name: Simulator selection rules
+        # Pure logic, so it runs on Linux and fails fast if the simulator matrix
+        # would be unable to provision a device.
+        run: node scripts/verify-simulator-choice.mjs
       - name: Typecheck contracts
         working-directory: apps/mobile
         run: npx tsc --noEmit -p ../../packages/mobile-contracts/tsconfig.json
@@ -215,22 +219,24 @@ jobs:
           echo '::notice::Render measurements were printed by the benchmark step above. Compare them with docs/reviews/phase20-ios-ipados-product-completion.md.'
 
   simulator:
-    name: iPhone and iPad simulator launch (${{ matrix.device }})
-    # Compiling proves the project builds. This boots a simulator, installs the
-    # app, launches it and asserts the process stays up, which is the interactive
-    # evidence Phase 19E did not have. It deliberately does not claim workflow
-    # correctness — that needs the headless suite plus a device.
+    name: ${{ matrix.label }} simulator acceptance
+    # Compiling proves the project builds; this proves the app starts and can be
+    # driven. Provisioning is delegated to scripts/select-ios-simulator.mjs, whose
+    # selection rules are unit-tested on Linux by `npm run verify:simulator-choice`
+    # so the choice itself no longer has to be debugged on a paid macOS runner.
     needs: ios
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     strategy:
       fail-fast: false
       matrix:
         include:
-          - device: iPhone 16
-            runtime: iOS Simulator
-          - device: iPad Pro 11-inch (M4)
-            runtime: iOS Simulator
+          - label: iPhone
+            family: iPhone
+            preferred: iPhone 16
+          - label: iPad
+            family: iPad
+            preferred: iPad Pro 11-inch (M4)
     steps:
       - uses: actions/checkout@v4
         with:
@@ -238,47 +244,38 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: apps/mobile/package-lock.json
+
+      - name: Environment inventory
+        # Printed before anything can fail, so a provisioning problem is
+        # diagnosable from the log alone instead of from an exit code.
+        run: |
+          set +e
+          echo "runner: $(uname -a)"
+          echo "xcode-select: $(xcode-select -p)"
+          xcodebuild -version
+          echo '--- runtimes ---'
+          xcrun simctl list runtimes
+          echo '--- device types (count) ---'
+          xcrun simctl list devicetypes | wc -l
+          echo '--- devices ---'
+          xcrun simctl list devices available
+
+      - name: Select and boot a ${{ matrix.label }} simulator
+        id: boot
+        run: node scripts/select-ios-simulator.mjs --family ${{ matrix.family }} --preferred "${{ matrix.preferred }}"
+
       - name: Install companion dependencies
         working-directory: apps/mobile
         run: npm ci
+
       - name: Prebuild iOS
         working-directory: apps/mobile
         run: npx expo prebuild --platform ios --non-interactive --no-install
+
       - name: CocoaPods
         working-directory: apps/mobile/ios
         run: pod install
-      - name: Boot simulator
-        id: boot
-        run: |
-          set -euo pipefail
-          DEVICE="${{ matrix.device }}"
-          # Pick the newest available runtime for the requested device type.
-          UDID=$(xcrun simctl list devices available --json \
-            | node -e '
-              let raw = "";
-              process.stdin.on("data", (d) => (raw += d));
-              process.stdin.on("end", () => {
-                const wanted = process.argv[1];
-                const parsed = JSON.parse(raw);
-                const matches = [];
-                for (const [runtime, devices] of Object.entries(parsed.devices)) {
-                  if (!/iOS/.test(runtime)) continue;
-                  for (const device of devices) {
-                    if (device.name === wanted) matches.push({ runtime, udid: device.udid });
-                  }
-                }
-                if (!matches.length) process.exit(2);
-                matches.sort((a, b) => a.runtime.localeCompare(b.runtime));
-                process.stdout.write(matches[matches.length - 1].udid);
-              });
-            ' "$DEVICE")
-          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
-          xcrun simctl boot "$UDID" || true
-          xcrun simctl bootstatus "$UDID" -b
-          echo "::notice::Booted $DEVICE simulator $UDID"
-          xcrun simctl list runtimes
+
       - name: Build for the booted simulator
         working-directory: apps/mobile/ios
         run: |
@@ -292,35 +289,90 @@ jobs:
             -derivedDataPath /tmp/dd \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY= \
             build
-      - name: Install and launch
+
+      - name: Install and verify the bundle identity
         run: |
           set -euo pipefail
           UDID="${{ steps.boot.outputs.udid }}"
-          APP=$(find /tmp/dd/Build/Products -name 'Sornio.app' -maxdepth 3 | head -1)
-          test -d "$APP"
-          xcrun simctl install "$UDID" "$APP"
-          xcrun simctl launch "$UDID" com.sornio.companion | tee /tmp/launch.txt
-          sleep 12
-          PID=$(awk '{print $2}' /tmp/launch.txt)
-          if ! xcrun simctl spawn "$UDID" launchctl list | grep -q com.sornio.companion; then
-            echo '::error::The companion did not stay running after launch.'
-            xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "Sornio"' | tail -80 || true
+          APP=$(find /tmp/dd/Build/Products -maxdepth 3 -name 'Sornio.app' -type d | head -1)
+          if [ -z "$APP" ]; then
+            echo '::error::No Sornio.app was produced by the build.'
+            find /tmp/dd/Build/Products -maxdepth 3 -name '*.app' -type d || true
             exit 1
           fi
-          echo "::notice::com.sornio.companion is running on ${{ matrix.device }} (pid $PID)"
-      - name: Screenshot
-        if: always()
+          echo "app bundle: $APP"
+          BID=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$APP/Info.plist")
+          echo "bundle identifier: $BID"
+          if [ "$BID" != "com.sornio.companion" ]; then
+            echo "::error::Unexpected bundle identifier '$BID'."
+            exit 1
+          fi
+          xcrun simctl install "$UDID" "$APP"
+
+      - name: Launch and assert the process survives
+        id: launch
         run: |
+          set -euo pipefail
+          UDID="${{ steps.boot.outputs.udid }}"
+          xcrun simctl launch "$UDID" com.sornio.companion | tee /tmp/launch.txt
+          sleep 15
+          if ! xcrun simctl spawn "$UDID" launchctl list | grep -q com.sornio.companion; then
+            echo '::error::com.sornio.companion did not stay running.'
+            echo '--- recent Sornio log ---'
+            xcrun simctl spawn "$UDID" log show --last 3m --predicate 'process == "Sornio"' | tail -100 || true
+            exit 1
+          fi
+          echo "::notice::com.sornio.companion is running on ${{ matrix.label }} simulator $UDID"
+
+          # A live process can still be a broken app: a React render error leaves
+          # the process running behind a red box. Fail on a fatal JS signature so
+          # "launched" is not mistaken for "working".
+          xcrun simctl spawn "$UDID" log show --last 2m --predicate 'process == "Sornio"' > /tmp/sornio-launch.log 2>&1 || true
+          if grep -qiE 'RCTFatal|Unhandled JS Exception|Invariant Violation|Application is not registered|No bundle URL present' /tmp/sornio-launch.log; then
+            echo '::error::The application launched but reported a fatal JavaScript error.'
+            grep -iE -A3 'RCTFatal|Unhandled JS Exception|Invariant Violation|Application is not registered|No bundle URL present' /tmp/sornio-launch.log | head -40
+            exit 1
+          fi
+          echo 'No fatal JavaScript error signature in the launch log.'
+
+          # Settle so the first screen is fully drawn before the screenshot.
+          sleep 5
+
+      - name: Screenshot of the running application
+        if: always() && steps.boot.outputs.udid != ''
+        run: |
+          set -euo pipefail
           mkdir -p artifacts
-          xcrun simctl io "${{ steps.boot.outputs.udid }}" screenshot "artifacts/${{ strategy.job-index }}-${{ matrix.device }}.png" || true
+          UDID="${{ steps.boot.outputs.udid }}"
+          OUT="artifacts/${{ matrix.label }}-launch.png"
+          xcrun simctl io "$UDID" screenshot "$OUT"
+          # A screenshot that is not a real image is not evidence.
+          SIZE=$(wc -c < "$OUT")
+          echo "screenshot bytes: $SIZE"
+          if [ "$SIZE" -lt 10000 ]; then
+            echo '::error::Screenshot is implausibly small; treating it as not captured.'
+            rm -f "$OUT"
+            exit 1
+          fi
+
       - name: Diagnostics
         if: always()
         run: |
-          xcrun simctl spawn "${{ steps.boot.outputs.udid }}" log show --last 5m --predicate 'process == "Sornio"' > artifacts/sornio-log.txt 2>&1 || true
+          set +e
+          mkdir -p artifacts
+          UDID="${{ steps.boot.outputs.udid }}"
+          if [ -n "$UDID" ]; then
+            xcrun simctl spawn "$UDID" log show --last 10m --predicate 'process == "Sornio"' > artifacts/sornio-log.txt 2>&1
+            xcrun simctl list devices > artifacts/simulators.txt 2>&1
+            xcrun simctl list runtimes > artifacts/runtimes.txt 2>&1
+            xcrun simctl io "$UDID" screenshot artifacts/final-state.png 2>/dev/null
+          fi
+          { echo "# ${{ matrix.label }} simulator job"; echo "udid=$UDID"; echo "runtime=${{ steps.boot.outputs.runtime }}"; } > artifacts/summary.md
+
       - uses: actions/upload-artifact@v7.0.2
         if: always()
         with:
-          name: simulator-${{ strategy.job-index }}
+          name: simulator-${{ matrix.family }}
           path: artifacts/
           if-no-files-found: warn
-          retention-days: 7
+          retention-days: 14

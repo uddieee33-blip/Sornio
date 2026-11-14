@@ -54,6 +54,7 @@
     "verify:money": "node scripts/verify-native-money.mjs",
     "verify:windows-release": "node scripts/verify-windows-release.mjs",
     "verify:mobile-contracts": "node scripts/verify-mobile-contracts.mjs",
+    "verify:simulator-choice": "node scripts/verify-simulator-choice.mjs",
     "verify:replication": "node scripts/verify-replication.mjs",
     "verify:replication-postgres": "node scripts/verify-replication-postgres.mjs",
     "verify:replication-native-https": "node scripts/verify-replication-native-https.mjs"
