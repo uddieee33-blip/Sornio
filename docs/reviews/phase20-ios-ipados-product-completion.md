@@ -9,7 +9,8 @@
 | Base | `main` at `1cc5c798d1eada9a16463213b0776c01e99d36f9` |
 | Phase 19E baseline recovered | `5064a879d9ff966b8dd00a092151047e2007e7b2` (`origin/arena/707e2c68-sornio`, also `refs/pull/183/head`) |
 | Recovery method | `git merge --ff-only 5064a87` — fast-forward only, 0 commits rewritten, nothing reset or discarded |
-| Phase 20 code commits | `42a823c` (harness, repairs, performance), `d021361` (iPad kitchen panes, Android suite) |
+| Phase 20 code commits | `42a823c` (harness, repairs, performance), `d021361` (iPad kitchen panes, Android suite), `db4ee5a` (LAN reference-hub suite), `e9f0a5f` (report §8A) |
+| Phase 20B commits | `a8b7262` (simulator provisioning repair + §8B) — head of this report |
 | Pull request | opened as a **draft** from `arena/729c232c-sornio` |
 | `main` | **not touched.** No merge, no force-push, no history rewrite, no store or TestFlight publication |
 
@@ -290,6 +291,10 @@ asserts via `launchctl list` that the process survives 12 seconds, and uploads a
 screenshot plus an `os_log` capture. **It has not been run yet** — it was written on
 Linux and cannot be validated here. It is a release gate, not a result.
 
+> **Superseded by §8B.** This job has since been repaired, executed and passed for both
+> an iPhone and an iPad simulator (run 43570715290). The rows above are kept as the
+> record of what was known before that run. Interactive acceptance remains outstanding.
+
 ---
 
 ## 8A. LAN protocol execution (added after the initial verdicts)
@@ -328,6 +333,203 @@ for both sides; it does not prove the desktop implementation agrees. Real LAN
 acceptance remains **BLOCKED**, and the fixture is labelled as a reference hub
 everywhere it appears so it can never be mistaken for production evidence.
 
+---
+
+## 8B. Phase 20B — simulator infrastructure repair and first real runtime execution
+
+**Historical record preserved.** §8 and §9 above are retained verbatim as the state of
+knowledge *before* this work. Several of their rows were BLOCKED and are now closed by
+execution, not by editing.
+
+### 8B.1 Exact identity
+
+| | |
+| --- | --- |
+| Branch | `arena/729c232c-sornio` |
+| HEAD at start of 20B | `e9f0a5f954bb9eb13410257f0bbd1ca09884cc3c` |
+| Pull request | #184, **still a draft**, not merged |
+| Original failing run | [`43544918392`](https://github.com/uddieee33-blip/Sornio/actions/runs/43544918392) on `e9f0a5f` |
+| Repair commit + run | HEAD `a8b7262` → run [`43570715290`](https://github.com/uddieee33-blip/Sornio/actions/runs/43570715290) |
+| `main` | untouched at `1cc5c79`; no merge, no force-push, no store submission |
+
+### 8B.2 The defect was in provisioning, not in the app
+
+Run 43544918392: 4 jobs succeeded (contracts, Android compile, headless runtime, iOS
+simulator compile); both `iPhone and iPad simulator launch (...)` jobs **failed in the
+first step, `Boot simulator`, with exit code 2**, and `Build for the booted simulator`,
+`Install and launch` and even `Post Run actions/setup-node@v4` were **skipped**.
+
+The step ran an inline `node -e` snippet that looked for an exact marketing model name
+(`iPhone 16`, `iPad Pro 11-inch (M4)`) in `xcrun simctl list devices available --json`
+and called `process.exit(2)` when it was absent — with no message. The runner's inventory
+did not contain those names.
+
+**This established nothing about app health.** No product code was touched to fix it, per
+the assignment's rule. The real weakness was that the decision "can we verify at all, and
+with which device" lived inside YAML, so the only way to test it was a paid macOS run —
+precisely the thing that was broken.
+
+### 8B.3 Repair
+
+- `scripts/simulator-choice.mjs` — pure selection rules: newest installed iOS runtime by
+  **numeric** comparison (a string compare ranks iOS 9 above iOS 18); an iPhone request
+  is satisfiable only by an iPhone and an iPad request only by an iPad, never substituted;
+  a preferred model is a hint that falls back to the newest model of the right family;
+  empty inventory fails as `no_runtime` / `no_device_type` and names what *was* available;
+  an existing device of the right type is reused so runs do not accumulate simulators.
+- `scripts/select-ios-simulator.mjs` — prints runner, Xcode version and path, runtimes,
+  device types and devices **before** the first fallible action; provisions from an
+  installed device type when none exists; boots and then confirms `Booted` **from the
+  device registry**, not from the tool's own exit code; exports `udid`/`name`/`runtime`
+  and writes a step summary. On this Linux sandbox it now says
+  `xcodebuild is not available on this runner` instead of exiting 2 silently.
+- `scripts/verify-simulator-choice.mjs` — **32 checks, runnable without macOS**, wired
+  into the `shared` CI job. It caught a genuine bug in the first draft: the reuse
+  predicate matched on simulator *name* prefix, which rejected the devices the script
+  creates itself, so every run would have provisioned a new one.
+- `.github/workflows/mobile.yml` — family-based matrix; inventory printed first;
+  bundle identity verified from the built `Info.plist`; launch asserts the process
+  survives **and** fails on fatal JS signatures (`RCTFatal`,
+  `Unhandled JS Exception`, `No bundle URL present`) so "live process" is not mistaken
+  for "working app"; screenshots under 10 KB are treated as *not captured* rather than
+  uploaded as proof; diagnostics and artifacts collected under `if: always()`.
+
+Code signing stays disabled for simulator builds (`CODE_SIGNING_ALLOWED=NO`). **This is
+not a signed physical-device build and is not reported as one.**
+
+### 8B.4 Execution — run 43570715290 on `a8b7262`
+
+| Job | Result | Started → finished |
+| --- | --- | --- |
+| Contracts, types, security | **success** | 07:21:27 → 07:46:31 |
+| Android debug compile | **success** | 07:21:56 → 07:46:31 |
+| Headless runtime acceptance | **success** | 07:21:56 → 07:46:31 |
+| iOS simulator compile | **success** | 07:21:56 → 07:46:31 |
+| iPhone simulator acceptance | **success** | 07:30:01 → 07:46:31 |
+| iPad simulator acceptance | **success** | 07:30:02 → 07:46:31 |
+
+Both Apple jobs executed **all 14 steps with nothing skipped**: environment inventory,
+select and boot, install dependencies, prebuild, CocoaPods, build for the booted
+simulator, install + bundle-identity verification, launch + process-survival assertion,
+screenshot, diagnostics, artifact upload. Compare with the prior run where steps 6–13
+were skipped.
+
+Artifacts published and confirmed present via the API:
+
+| Artifact | Size |
+| --- | --- |
+| `simulator-iPhone` | 177,284 bytes |
+| `simulator-iPad` | 279,984 bytes |
+| `Sornio-companion-android-debug` | 50,107,878 bytes |
+
+### 8B.5 What this does and does not prove
+
+**Proved:** a compatible iOS runtime and device type existed on the runner; a simulator
+was selected by family (an iPhone for the iPhone job, an iPad for the iPad job),
+provisioned where necessary, booted to a confirmed `Booted` state; the app compiled
+against that exact destination; `com.sornio.companion` was installed and its bundle
+identity verified; the app was launched and its process survived; no fatal-JS signature
+appeared; a non-empty screenshot was captured.
+
+**Not proved, and explicitly not claimed:** which model/runtime was chosen (see 8B.6),
+that any screen was *interacted with*, that the sign-out flow was exercised on a
+simulator, or any real-device behaviour.
+
+### 8B.6 Evidence retrieval limitation
+
+This sandbox cannot read CI logs or download artifacts: both
+`gh run view --log*` and artifact download fail with `EOF` against
+`productionresultssa*.blob.core.windows.net` and
+`results-receiver.actions.githubusercontent.com`. Job status, step graphs, timings and
+artifact names/sizes are available through the REST API and are what the table above
+rests on. The **selected device model, runtime version and UDID are printed by the
+inventory step and its step summary, and are not readable from here** — they must be read
+from the run page or from the artifact ZIP on a machine with normal egress. No claim in
+this report depends on a value that could not be retrieved.
+
+### 8B.7 Interactive acceptance (§7) — **NOT RUN**, still an outstanding gate
+
+The assignment distinguishes a launch smoke test from interactive acceptance. Only the
+former was achieved.
+
+- `apps/mobile` contains **no accessibility identifiers and no `testID`s** (0 occurrences
+  across `src/` and `app/`); interaction targets are exposed only as accessibility labels
+  on the shared primitives.
+- `apps/mobile/ios/Sornio.xcodeproj` contains a **single application target** — no UI test
+  target, no `PBXContainerItemProxy`, no test scheme.
+- This sandbox has no Xcode, so a hand-authored `project.pbxproj` test target **cannot be
+  validated here**.
+
+Adding a UI-test target that has never been opened in Xcode risks breaking the
+`iOS simulator compile` and both simulator jobs that were just proven green — a real
+regression traded for unverifiable code. It was therefore **not** added blind. The
+navigation, sign-out, iPad-rail, list/detail and re-entry assertions that a UI test would
+make are covered headlessly by `__runtime__/iphone.test.tsx` (10),
+`__runtime__/ipad.test.tsx` (10) and `__runtime__/android.test.tsx` (6) — that is
+**headless JS evidence, not simulator interaction**, and is not offered as a substitute.
+
+**Note for the next attempt:** the workflow's `Prebuild iOS` step runs `expo prebuild`,
+which regenerates `apps/mobile/ios/`. A test target added to the committed project would
+be **erased on every run** unless it is supplied by a config plugin or `--no-clean`
+prebuild is used. This ordering hazard must be solved together with the test target.
+
+### 8B.8 Session and recovery regression (§8) — PASS (headless)
+
+Re-verified on `a8b7262`: 5 suites / 59 tests green, including explicit sign-out,
+`signOut` invalidating an in-flight bootstrap before keys are cleared, re-entry only
+through the deliberate `startDemo`, restart after sign-out, repeated tab navigation and
+return to Home, and "never presents the kirana dashboard as a restaurant workspace".
+A cleared session does not reappear. Encrypted operation-recovery state was not cleared
+to make anything pass. These are React Native Testing Library assertions — **not**
+simulator interactions.
+
+### 8B.9 Regression matrix (§10)
+
+| Check | Verdict | Evidence |
+| --- | --- | --- |
+| Mobile contracts (63) | **PASS** | executed locally on `a8b7262` |
+| Simulator selection rules (32) | **PASS** | new, executed locally |
+| Mobile runtime suites (59) | **PASS** | executed locally |
+| LAN reference-hub protocol (27) | **PASS** | executed locally |
+| `verify:business-domain`, `verify:security`, `verify:lock` | **PASS** | executed locally |
+| Headless runtime acceptance job | **PASS** | run 43570715290 |
+| Android debug compile | **PASS** | run 43570715290 |
+| iOS simulator compile | **PASS** | run 43570715290 |
+| iPhone simulator runtime job | **PASS** (launch smoke) | run 43570715290 |
+| iPad simulator runtime job | **PASS** (launch smoke) | run 43570715290 |
+| Interactive XCUITest acceptance | **NOT RUN** | 8B.7 |
+| Physical iPhone / iPad | **NOT RUN** | no hardware |
+| Real LAN hub, TLS, pairing, SQLCipher on device | **BLOCKED** | 8A / §11 |
+
+No job was removed, no expectation weakened, and no skipped job is presented as a pass.
+
+### 8B.10 Security and financial boundaries (§11)
+
+Unchanged. `appMode: "demo"`, `productionSyncEnabled: false`. No TLS or pinning code,
+no permission boundary, no idempotency, no integer-paise accounting, no atomic checkout
+and no native posting path was modified. No production credentials or signing secrets
+were added; simulator signing is disabled, not bypassed. Desktop SQLCipher remains the
+authoritative financial store.
+
+### 8B.11 Verdict
+
+| Platform | After Phase 20B |
+| --- | --- |
+| **iPhone** | **PASS** for build → install → launch on a booted iPhone simulator; **NOT RUN** for interaction (8B.7) |
+| **iPad** | **PASS** for build → install → launch on a booted **iPad** simulator (not substituted); **NOT RUN** for interaction, rail, list/detail and rotation (8B.7) |
+| **Android** | **PASS** — debug APK compiles |
+| **LAN restaurant** | **PASS** for client protocol against the reference hub; **BLOCKED** end-to-end |
+| **Production / store** | **NOT READY** — unchanged |
+
+### 8B.12 Smallest next executable action
+
+1. Open the run page for 43570715290 (or the `simulator-*` ZIPs) and transcribe the
+   confirmed model / runtime / UDID into 8B.4. Nothing else is blocked on it.
+2. Add the XCUITest target **through an Expo config plugin** (so prebuild regenerates it)
+   with the §7 assertions, plus a small set of `testID`s on the shared primitives; open
+   the project once in Xcode to validate before committing.
+3. Only then consider a supervised physical-device pilot.
+
 ## 9. iPadOS runtime results
 
 | Check | Verdict |
@@ -343,6 +545,11 @@ everywhere it appears so it can never be mistaken for production evidence.
 
 iPad runtime acceptance is explicitly **not** claimed. A green iPhone result was never
 treated as iPad acceptance, and neither is claimed here.
+
+> **Superseded in part by §8B.** iPad **boot, build, install and launch** on a real iPad
+> simulator have since been executed and passed (run 43570715290). Rotation, Stage
+> Manager, pointer, keyboard and list/detail **interaction** remain NOT RUN. The mobile
+> layout rows above are headless evidence and are unaffected.
 
 ---
 
@@ -401,8 +608,8 @@ Verification commands run in this phase, all green:
 
 ## 13. Outstanding limitations
 
-1. **No simulator evidence.** Unavoidable here: Linux, no Xcode. Recorded as BLOCKED, never as passed.
-2. **The new simulator job is untested.** It is the correct next action and the first thing to run on macOS.
+1. ~~**No simulator evidence.**~~ **CLOSED in §8B** — both jobs executed and passed in run 43570715290. **Interactive** simulator acceptance remains NOT RUN (§8B.7).
+2. ~~**The new simulator job is untested.**~~ **CLOSED in §8B** — the provisioning defect was diagnosed and repaired; the job is green. Still missing: a UI-test target that survives `expo prebuild`.
 3. **The LAN restaurant stack is client-verified but not end-to-end verified.** §8A executes the full client recovery protocol against a reference hub. Real TLS, certificate pinning, the desktop hub and a two-device run remain BLOCKED.
 4. **Face ID is implemented but unused.** `readBiometricUnlock`/`promptSessionUnlock` exist and nothing calls them, so the app never asks for biometric unlock. Wiring it needs a session-unlock design decision (what a failed unlock does to the encrypted outbox), so it was not improvised here.
 5. **`jest-expo` needed two config bridges.** Its stock `transformIgnorePatterns` exempts `expo/` exactly, which leaves `expo-modules-core` and friends untransformed; and building JUnit for a `packages/` file located outside `rootDir` needed `modulePaths`. Both are documented in `jest.config.js`.
@@ -421,6 +628,10 @@ Verification commands run in this phase, all green:
 - `apps/mobile/__runtime__/lan/reference-hub.ts` — contract-faithful in-memory hub
 - `apps/mobile/__runtime__/lan.test.ts` — 27 LAN protocol and recovery tests
 - `.github/workflows/mobile.yml` — `runtime` and `simulator` jobs
+- `scripts/simulator-choice.mjs` — pure simulator selection rules (Phase 20B)
+- `scripts/select-ios-simulator.mjs` — inventory → select/create → boot → confirm → export (Phase 20B)
+- `scripts/verify-simulator-choice.mjs` — 32 Linux-runnable selection checks (Phase 20B)
+- CI artifacts from run 43570715290: `simulator-iPhone` (177,284 B), `simulator-iPad` (279,984 B), `Sornio-companion-android-debug` (50.1 MB). **Not downloaded here** — egress to the artifact host is blocked (§8B.6). They expire 2026-11-28.
 
 Run everything: `cd apps/mobile && npm ci && npm run test:runtime` (59 tests, ~15 s).
 
@@ -430,8 +641,8 @@ Run everything: `cd apps/mobile && npm ci && npm run test:runtime` (59 tests, ~1
 
 | Platform | Ready for | Verdict |
 | --- | --- | --- |
-| **iPhone** | internal review and demo demonstration | **CONDITIONAL PASS** — headless-verified; simulator and device acceptance outstanding |
-| **iPad** | internal review of tablet layouts | **CONDITIONAL PASS** — layout branch verified; rotation, Stage Manager and pointer acceptance outstanding |
+| **iPhone** | internal review and demo demonstration | **PASS** build/install/launch on a booted iPhone simulator (§8B); **CONDITIONAL** — interactive and device acceptance outstanding |
+| **iPad** | internal review of tablet layouts | **PASS** build/install/launch on a booted **iPad** simulator, not substituted (§8B); **CONDITIONAL** — interaction, rotation, Stage Manager and pointer acceptance outstanding |
 | **Android** | internal review | **CONDITIONAL PASS** — shared code verified headlessly; APK compiles |
 | **LAN restaurant client** | supervised pilot only after real-hub and device acceptance | **CONDITIONAL PASS** for client protocol · **BLOCKED** for end-to-end |
 | **Production / App Store / TestFlight** | nothing | **NOT READY** — live sync is unimplemented and `productionSyncEnabled` is false |
@@ -440,10 +651,13 @@ Run everything: `cd apps/mobile && npm ci && npm run test:runtime` (59 tests, ~1
 
 ## 16. Recommended next phase
 
-1. **Run the `simulator` job on macOS**, fix it until it is green, and attach its
-   screenshot and log artifacts to this report. This is the single highest-value action.
-2. Extend the simulator job to drive one real interaction (demo entry → every tab →
-   sign-out) so it produces behavioural, not merely liveness, evidence.
+1. ~~**Run the `simulator` job on macOS**, fix it until it is green.~~ **DONE in §8B**
+   (run 43570715290). Residue: transcribe the confirmed model/runtime/UDID and attach the
+   artifacts from a machine with unrestricted egress (§8B.6).
+2. ~~Extend the simulator job to drive one real interaction.~~ **PARTIAL.** The job now
+   distinguishes a live process from a working app (fatal-JS assertion, bundle identity,
+   screenshot size guard), but no interaction is driven. Next: add a UI-test target via an
+   Expo config plugin so `expo prebuild` regenerates it — see §8B.7 and §8B.12.
 3. Stand up a desktop hub on a test network and produce the first end-to-end LAN
    evidence for pairing, sign-in, workspace read, one kitchen transition and recovery
    after a forced disconnect.
