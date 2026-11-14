@@ -79,6 +79,11 @@ jobs:
       - name: Install companion dependencies
         working-directory: apps/mobile
         run: npm ci
+      - name: Companion typecheck and runtime security matrix
+        working-directory: apps/mobile
+        run: |
+          npm run typecheck
+          npm run test:runtime -- --runInBand
       - name: Execute Level-2 mobile-client / real-hub acceptance
         if: hashFiles('apps/mobile/__integration__/native-hub.test.ts') != ''
         working-directory: apps/mobile

@@ -15,6 +15,22 @@ jest.mock('react-native-safe-area-context', () => {
   return typeof actual === 'object' && 'default' in actual ? actual.default : actual;
 });
 
+// Headless native boundary for the non-secret session intent marker. jest-expo
+// already mocks this module (without documentDirectory); mutate that mock so a
+// deliberate module reset models an app restart without erasing durable files.
+// Security fault-injection tests exercise denied/corrupt journals separately.
+{
+  const files = new Map<string, string>();
+  const fs = jest.requireMock('expo-file-system/legacy') as Record<string, unknown> & {
+    documentDirectory?: string;
+    getInfoAsync: jest.Mock; readAsStringAsync: jest.Mock; writeAsStringAsync: jest.Mock;
+  };
+  fs.documentDirectory = 'file:///sornio-headless-documents/';
+  fs.getInfoAsync.mockImplementation(async (uri: string) => ({ exists: files.has(uri), isDirectory: false }));
+  fs.readAsStringAsync.mockImplementation(async (uri: string) => { const value = files.get(uri); if (value === undefined) throw new Error('missing file'); return value; });
+  fs.writeAsStringAsync.mockImplementation(async (uri: string, value: string) => { files.set(uri, value); });
+}
+
 // Silence the noisy deprecation banner for react-test-renderer; the renderer
 // itself is only used through @testing-library/react-native.
 const originalWarn = console.warn;
