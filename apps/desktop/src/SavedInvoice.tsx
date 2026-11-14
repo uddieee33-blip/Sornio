@@ -7,6 +7,7 @@ import type { Invoice } from './billing-types';
 import { indianDay } from './retail-types';
 import type { RetailView } from './retail-types';
 import punjabi from './locales/pa.json';
+import { originalCreditDue } from './payment-allocation';
 
 export type ReceiptPayment = { id: string; method: string; amountPaise: number; reference: string };
 
@@ -25,6 +26,7 @@ function paymentSnapshot(payments: readonly ReceiptPayment[]) {
 export function SavedInvoice({ invoice, payments, username }: {
   invoice: Invoice; payments?: readonly ReceiptPayment[]; username?: string;
 }) {
+  const creditDue = originalCreditDue(invoice.tender, invoice.totalPaise, invoice.customerId, payments);
   const paper = useRef<HTMLElement>(null), heading = useRef<HTMLHeadingElement>(null), printing = useRef(false);
   const [layout, setLayout] = useState<ReceiptLayout>('80mm');
   const [language, setLanguage] = useState<'en' | 'pa'>('en');
@@ -38,7 +40,7 @@ export function SavedInvoice({ invoice, payments, username }: {
   }, [invoice.id]);
   async function print() {
     const source = paper.current;
-    if (!source || printing.current) return;
+    if (!source || printing.current || creditDue === null || (invoice.tender === 'retail' && !username)) return;
     printing.current = true; setBusy(true);
     try {
       await printReceipt(source, layout, async () => {
@@ -62,7 +64,7 @@ export function SavedInvoice({ invoice, payments, username }: {
     <div className="receipt-controls">
       <label>Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ <select aria-label="Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ" disabled={busy} value={language} onChange={e => { clearPrintReceipt(paper.current); setLanguage(e.target.value as 'en' | 'pa'); }}><option value="en">English</option><option value="pa">ਪੰਜਾਬੀ</option></select></label>
       <label>{translate('Paper layout')} <select aria-label="Paper layout" disabled={busy} value={layout} onChange={e => { clearPrintReceipt(paper.current); setLayout(e.target.value as ReceiptLayout); }}><option value="a4">A4</option><option value="58mm">58 mm</option><option value="80mm">80 mm</option></select></label>
-      <button type="button" disabled={busy} onClick={() => void print()}>{busy ? translate('Opening print…') : translate('Print saved receipt')}</button>
+      <button type="button" disabled={busy || creditDue === null || (invoice.tender === 'retail' && !username)} onClick={() => void print()}>{busy ? translate('Opening print…') : translate('Print saved receipt')}</button>
       <p role="status">{translate(notice)}</p><p>{translate('Choose matching paper in the Windows printer dialog. Margins and roll length depend on the driver.')}</p>
     </div>
     <article ref={paper} lang={language === 'pa' ? 'pa-IN' : 'en-IN'} className="receipt-paper">
@@ -87,6 +89,7 @@ export function SavedInvoice({ invoice, payments, username }: {
       <p>{translate('Discounts: not recorded in this invoice.')}</p>
       <p>{translate('Subtotal:')} {money(invoice.subtotalPaise)} {translate('· Tax:')} {money(invoice.taxPaise)} ({invoice.taxBasisPoints / 100}%)</p>
       <p className="checkout-total">{translate('Saved total:')} {money(invoice.totalPaise)}</p>
+      {creditDue === null ? <p role="alert">{translate('Payment breakdown unavailable. Reopen this receipt before printing.')}</p> : <p className="receipt-amount-due"><strong>{translate('Amount due at sale:')} {money(creditDue)}</strong></p>}
       <p>{translate('Original sale record. Later collections, returns and refunds appear in the customer and payment records.')}</p>
       <p>{translate('Local sales receipt. GST tax-invoice compliance is not claimed.')}</p>
     </article>

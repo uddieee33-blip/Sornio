@@ -22,12 +22,12 @@ commands.allow = ["read_local_session", "list_local_staff", "create_local_staff"
 [[permission]]
 identifier = "local-customers"
 description = "Native scoped customer profiles, ledger, statements and authorized cash collection/corrections. No SQL, paths, keys or digital settlement."
-commands.allow = ["save_local_customer", "find_local_customers", "prepare_local_credit", "post_local_credit", "pending_local_credit", "clear_local_credit", "link_local_credit", "read_customer_statement", "render_customer_statement"]
+commands.allow = ["save_local_customer", "find_local_customers", "read_local_customer", "prepare_local_credit", "post_local_credit", "pending_local_credit", "clear_local_credit", "link_local_credit", "read_customer_statement", "render_customer_statement"]
 
 [[permission]]
 identifier = "local-retail"
 description = "Scoped native payment intents, manual matching, authorized returns and cashier closing. No gateway or external verification."
-commands.allow = ["prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
+commands.allow = ["restaurant_live", "hub_live", "hub_admin", "hub_control", "hub_import_tls", "hub_device", "hub_batches", "hub_dispatch", "kitchen_view", "kitchen_action", "restaurant_workspace", "restaurant_status", "edit_restaurant", "amend_restaurant", "takeover_restaurant", "restaurant_menu", "save_restaurant_menu", "prepare_restaurant", "post_restaurant", "read_restaurant", "change_restaurant", "list_local_held_bills", "mutate_local_held_bill", "prepare_local_held_checkout", "prepare_local_retail", "post_local_retail", "clear_local_retail", "read_local_retail", "quote_local_return", "take_over_local_payment", "export_local_settlements"]
 
 
 [[permission]]

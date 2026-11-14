@@ -56,7 +56,17 @@ function bridge() {
       await button('Open customer statement-account').click(); await button('Prepare full customer statement').waitFor();
     }
     async function prepare() { await button('Prepare full customer statement').click(); await button('Print customer statement').waitFor(); }
-    async function printed() { await panel.getByText(/Check the printer or PDF output/).waitFor(); }
+    // The notice stays on screen after a print, so waiting for the text alone
+    // accepts the PREVIOUS print and races the new one. Wait for the printer
+    // to actually be called, from the count taken before the click.
+    async function printed(before) {
+      await page.waitForFunction(count => window.__printCalls > count, before);
+      await panel.getByText(/Check the printer or PDF output/).waitFor();
+    }
+    async function receiptPrinted(before) {
+      await page.waitForFunction(count => window.__printCalls > count, before);
+      await page.locator('.saved-invoice').getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
+    }
     async function state() {
       let after = 0, entries = [];
       for (;;) { const s = await native('read_customer_statement', { customerId: customer.id, after, through: null }); entries.push(...s.entries); if (!s.hasMore) return { entries, closing: s.closingBalancePaise, invoices: await native('list_local_invoices', { after: 0 }), products: await native('list_local_products'), balances: (await native('read_cashier_state')).balances, outbox: await native('read_billing_outbox', { after: 0 }) }; after = s.nextAfter; }
@@ -75,7 +85,8 @@ function bridge() {
     await page.evaluate(() => { window.print = () => { throw new Error('Synthetic printer refusal'); }; });
     await button('Print customer statement').click(); await alert('Statement printing could not open.').waitFor(); assert.equal(await printRoot.count(), 0);
     await page.evaluate(() => { window.print = () => { window.__printCalls++; }; });
-    await button('Print customer statement').click(); await printed(); assert.equal(await printRoot.count(), 1);
+    const printsBefore = await page.evaluate(() => window.__printCalls);
+    await button('Print customer statement').click(); await printed(printsBefore); assert.equal(await printRoot.count(), 1);
     assert.equal(await printRoot.getAttribute('data-sornio-print-kind'), 'statement'); assert.equal(await printRoot.locator('tbody tr').count(), 105);
     assert.equal(await printRoot.locator('[id]').count(), 0);
     await page.emulateMedia({ media: 'print' }); assert.equal(await printRoot.isVisible(), true); assert.equal(await page.locator('#root').isVisible(), false);
@@ -90,7 +101,8 @@ function bridge() {
     const capture = await page.screenshot({ path: join(output, 'customer-statement-browser.png') });
     writeFileSync('docs/reviews/windows-customer-statement-browser.png', capture);
     await page.evaluate(() => window.dispatchEvent(new Event('afterprint'))); assert.equal(await printRoot.count(), 0);
-    await button('Print customer statement').click(); await printed(); await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
+    const secondPrintsBefore = await page.evaluate(() => window.__printCalls);
+    await button('Print customer statement').click(); await printed(secondPrintsBefore); await page.evaluate(() => window.dispatchEvent(new Event('afterprint')));
     assert.deepEqual(await state(), before); assert.equal(financialPosts(), posts);
     // A profile change before preparation must refuse the old rendered HTML.
     async function rename(name, operationId) {
@@ -115,10 +127,13 @@ function bridge() {
     await native('prepare_local_checkout', { request: r }); await native('post_local_invoice', { request: r }); await native('clear_local_checkout', { operationId: r.operationId, saved: true });
     const afterSale = await state();
     await button('Find saved receipt').click(); await label('Receipt ID to reopen').fill(r.operationId); await button('Open saved receipt').click();
-    await button('Print saved receipt').click(); await page.locator('.saved-invoice').getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
+    const receiptPrintsBefore = await page.evaluate(() => window.__printCalls);
+    await button('Print saved receipt').click(); await receiptPrinted(receiptPrintsBefore);
     assert.equal(await printRoot.getAttribute('data-sornio-print-kind'), 'receipt');
-    await button('Print customer statement').click(); await printed(); assert.equal(await printRoot.count(), 1); assert.equal(await printRoot.getAttribute('data-sornio-print-kind'), 'statement');
-    await button('Print saved receipt').click(); await page.locator('.saved-invoice').getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
+    const statementPrintsBefore = await page.evaluate(() => window.__printCalls);
+    await button('Print customer statement').click(); await printed(statementPrintsBefore); assert.equal(await printRoot.count(), 1); assert.equal(await printRoot.getAttribute('data-sornio-print-kind'), 'statement');
+    const secondReceiptPrintsBefore = await page.evaluate(() => window.__printCalls);
+    await button('Print saved receipt').click(); await receiptPrinted(secondReceiptPrintsBefore);
     assert.equal(await printRoot.count(), 1); assert.equal(await printRoot.getAttribute('data-sornio-print-kind'), 'receipt');
     await page.evaluate(() => window.dispatchEvent(new Event('afterprint'))); assert.deepEqual(await state(), afterSale); assert.equal(financialPosts(), posts);
     // Cashier preparation requires a still-enabled human at the final native read.

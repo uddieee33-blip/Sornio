@@ -2,6 +2,7 @@
 //! Not a Tauri/WebView2 execution test. Registry checks keep coverage explicit.
 use super::*;
 use sornio_local_store::identity::{Role, StaffChange, StaffDetails};
+// `json!` comes from the example root through `use super::*`.
 use std::collections::BTreeSet;
 
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
@@ -16,6 +17,17 @@ const ALL: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
 const MANAGE: &[&str] = &["owner", "manager", "assistant_manager"];
 const REPORTS: &[&str] = &["owner", "manager"];
 const OWNER: &[&str] = &["owner"];
+// Permission-derived role sets. KitchenView, KitchenPrepare and Settings are Owner-only in
+// Role::allows; Sell is held by every role. Using the derived set means a denial here is
+// asserted to be Forbidden at the native boundary, not merely "some error".
+const SELL: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
+// Kitchen permissions do NOT follow Role::allows. kitchen_staff::allows grants KitchenView and
+// KitchenPrepare to any role that holds Sell, so every role qualifies; only an explicit
+// "revoked" kitchen mode takes it away. Getting this wrong made a case expect a Forbidden that
+// the native layer never returns, which is exactly the false expectation this test exists to
+// prevent - so the sets below are read off the gate, not off intuition.
+const KITCHEN: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
+const SETTINGS: &[&str] = &["owner"];
 struct Case {
     command: &'static str,
     args: Value,
@@ -217,6 +229,101 @@ fn cases() -> Vec<Case> {
         json!({"day":"2026-10-29"}),
         REPORTS
     );
+
+    // Restaurant, kitchen, hub and held-bill coverage. Every payload below uses the real
+    // domain shape, because each command reaches its permission gate before its payload is
+    // interpreted - a malformed payload would fail deserialisation and prove nothing.
+    // Field names follow the frontend contract exactly: variant fields are snake_case
+    // (expected_revision) while the surrounding structs are camelCase. create_table is flat.
+    let table = json!({"operationId":"restaurant","action":{"kind":"create_table","id":"t1","name":"Table 1"}});
+    c!("change_restaurant", json!({"r":table}), SELL);
+    c!(
+        "change_restaurant",
+        json!({"r":{"operationId":"restaurant","action":{"kind":"set_ticket_state","id":"ticket","expected_revision":1,"state":"ready"}}}),
+        KITCHEN
+    );
+    c!("read_restaurant", json!({}), KITCHEN);
+    c!("restaurant_workspace", json!({}), KITCHEN);
+    c!("restaurant_live", json!({}), KITCHEN);
+    c!("restaurant_status", json!({"order":"order-1"}), SELL);
+    c!("restaurant_menu", json!({}), SELL);
+    c!(
+        "edit_restaurant",
+        json!({"order":"order-1","expected":1}),
+        SELL
+    );
+    c!(
+        "amend_restaurant",
+        json!({"r":{"orderId":"order-1","expectedRevision":1,"attemptId":"amend-1","lines":[],"taxBasisPoints":0,"customerId":null,"payments":[],"acceptPrices":false}}),
+        SELL
+    );
+    c!(
+        "takeover_restaurant",
+        json!({"order":"order-1","expected":1,"target":"owner"}),
+        SETTINGS
+    );
+    c!(
+        "prepare_restaurant",
+        json!({"r":{"orderId":"order-1","expectedRevision":1,"operationId":"restaurant-1","taxBasisPoints":0,"customerId":null,"payments":[]}}),
+        SELL
+    );
+    c!(
+        "post_restaurant",
+        json!({"order":"order-1","attempt":"restaurant-1"}),
+        SELL
+    );
+    c!(
+        "save_restaurant_menu",
+        json!({"m":{"id":"m1","productId":"rice","category":"main","label":"Rice","variant":"regular","available":true}}),
+        SETTINGS
+    );
+
+    // Kitchen: viewing tickets is KitchenView; mutating them is KitchenView/KitchenPrepare.
+    // A cashier holds neither, so kitchen staff can never reach a financial permission here.
+    c!("kitchen_view", json!({}), KITCHEN);
+    c!(
+        "kitchen_action",
+        json!({"a":{"kind":"assign","order_id":"order-1","expected_revision":1,"actor_id":"employee-1"}}),
+        KITCHEN
+    );
+
+    // Hub and device administration.
+    c!("hub_live", json!({}), SETTINGS);
+    c!("hub_admin", json!({}), SETTINGS);
+    c!("hub_batches", json!({}), SELL);
+    c!("hub_dispatch", json!({"id":"batch-1","revision":1}), SELL);
+    c!(
+        "hub_device",
+        json!({"id":"device-1","revision":1,"actor":null}),
+        SETTINGS
+    );
+    c!(
+        "hub_control",
+        json!({"enabled":false,"address":"127.0.0.1:0","origin":null}),
+        SETTINGS
+    );
+    c!("hub_import_tls", json!({}), SETTINGS);
+
+    // Held bills and customer reads.
+    c!("list_local_held_bills", json!({}), SELL);
+    c!(
+        "mutate_local_held_bill",
+        json!({"r":{"id":"held-1","expectedRevision":1,"action":{"kind":"resume"}}}),
+        SELL
+    );
+    c!(
+        "prepare_local_held_checkout",
+        json!({"r":{"id":"held-1","expectedRevision":1,"invoice":{"operationId":"held-sale","lines":[],"taxBasisPoints":0,"tender":"cash","customerId":null},"payments":null}}),
+        SELL
+    );
+    c!(
+        "read_local_customer",
+        json!({"customerId":"customer-1"}),
+        // CustomerRead: every role holds it, so the negative case here is scope and session,
+        // covered by the locked/wrong-workspace tests rather than a role denial.
+        ALL
+    );
+
     out
 }
 fn owner(path: &std::path::Path) -> Workspace {
@@ -297,6 +404,14 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
             .unwrap()
             .trim();
         if !PUBLIC.contains(&name) && name != "read_local_session" {
+            // Commands that also drive native runtime state (the hub listener, the live
+            // discovery address) cannot use the closing helper, but they must still prove
+            // their own scope check. A blanket name exception would let a future unscoped
+            // command hide here, so each must call verify_scope - or verify_live_scope, which
+            // additionally demands View - explicitly.
+            let self_scoped = part.contains("verify_scope(&scope)")
+                || part.contains("verify_live_scope(&scope)")
+                || part.contains("w.run_scoped(&scope");
             assert!(
                 part.contains("with_scoped_workspace(")
                     || ([
@@ -305,7 +420,8 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
                         "restore_local_backup"
                     ]
                     .contains(&name)
-                        && part.contains("with_recovery_workspace(")),
+                        && part.contains("with_recovery_workspace("))
+                    || self_scoped,
                 "{name} must use native scope enforcement"
             );
         }
@@ -468,6 +584,183 @@ fn role_denials_use_direct_backend_calls_including_all_financial_action_variants
             }
         }
     }
+}
+/// The coverage cases above prove denials. This proves the other half: an actor who is
+/// genuinely permitted can drive a real restaurant flow end to end, so a green suite is not
+/// just a suite of refusals. The owner creates the table (create_table needs Settings, which
+/// Manager does not hold by design), then a manager runs the selling flow.
+#[test]
+fn authorised_kitchen_and_restaurant_operations_really_succeed() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = owner(&path);
+    let scope = w.local_session().unwrap().scope;
+    w.create_staff(
+        StaffDetails {
+            username: "manager".into(),
+            display_name: "Manager".into(),
+            role: Role::Manager,
+        },
+        PASSWORD,
+    )
+    .unwrap();
+
+    // Table setup is an owner responsibility, and the operation id must be a plain id: an id
+    // built from formatted JSON would contain quotes and be rejected before the action runs.
+    let table = json!({"operationId":"op-table","action":{"kind":"create_table","id":"t1","name":"Table 1"}});
+    call(
+        &mut w,
+        Call {
+            command: "change_restaurant".into(),
+            args: json!({"r":table,"scope":scope}),
+        },
+    )
+    .expect("an owner must be able to create a table");
+
+    // send_ticket re-prices every line from the catalogue, so a real product and a menu entry
+    // mapped to it must exist first. Without these the command fails on the lookup rather than
+    // on anything the test is trying to prove.
+    call(
+        &mut w,
+        Call {
+            command: "add_local_product".into(),
+            args: json!({"request":{"operationId":"rice","name":"Rice","sku":"RICE","unit":"kg",
+                                    "unitPricePaise":10000,"openingStockMilli":10000},
+                        "scope":scope}),
+        },
+    )
+    .expect("an owner holds AddItem and must be able to add a product");
+    call(
+        &mut w,
+        Call {
+            command: "save_restaurant_menu".into(),
+            args: json!({"m":{"id":"m-rice","productId":"rice","category":"main","label":"Rice",
+                              "variant":"","available":true},
+                        "scope":scope}),
+        },
+    )
+    .expect("an owner holds Settings and must be able to save the menu");
+
+    w.lock();
+    w.login("manager", PASSWORD).unwrap();
+    for action in [
+        json!({"kind":"open_order","id":"order-1","table_id":"t1"}),
+        json!({"kind":"send_ticket","id":"ticket-1","order_id":"order-1","expected_revision":1,
+               "items":[{"name":"Rice","quantity":1,"note":"","productId":"rice"}]}),
+    ] {
+        let kind = action["kind"].as_str().unwrap().to_string();
+        let r = json!({"operationId":format!("op-table-{kind}"), "action":action});
+        call(
+            &mut w,
+            Call {
+                command: "change_restaurant".into(),
+                args: json!({"r":r,"scope":scope}),
+            },
+        )
+        .unwrap_or_else(|e| panic!("{kind} must succeed for a manager: {e}"));
+    }
+
+    // The ticket really exists, so the transition below exercises the authoritative path rather
+    // than failing on a missing row - which is what a superficial green would have looked like.
+    // read_restaurant is the view that carries tickets; kitchen_view returns the kitchen
+    // queue document, which does not have a `tickets` array at all.
+    let state = invoke(
+        &mut w,
+        &Case {
+            command: "read_restaurant",
+            args: json!({}),
+            allowed: KITCHEN,
+        },
+        &scope,
+    )
+    .unwrap();
+    assert!(
+        state["tickets"].as_array().is_some_and(|t| !t.is_empty()),
+        "the ticket created above must be visible in the restaurant view"
+    );
+
+    let r = json!({"operationId":"op-prep","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"preparing"}});
+    call(
+        &mut w,
+        Call {
+            command: "change_restaurant".into(),
+            args: json!({"r":r,"scope":scope}),
+        },
+    )
+    .expect("a manager holds KitchenPrepare, so marking a ticket preparing must succeed");
+
+    // A stale revision on the same ticket must be refused, so the success above is not merely
+    // an operation that silently tolerates any input.
+    let stale = json!({"operationId":"op-stale","action":{"kind":"set_ticket_state","id":"ticket-1","expected_revision":1,"state":"ready"}});
+    assert!(
+        call(
+            &mut w,
+            Call {
+                command: "change_restaurant".into(),
+                args: json!({"r":stale,"scope":scope}),
+            },
+        )
+        .is_err(),
+        "a stale ticket revision must not be accepted after the ticket moved on"
+    );
+}
+/// Kitchen grants must never widen access. A cashier given a kitchen mode is restricted to the
+/// kitchen permissions and gains nothing financial; and no one may grant themselves a mode.
+#[test]
+fn kitchen_grants_cannot_escalate_financial_permissions() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut w = owner(&path);
+    let owner_id = w.local_session().unwrap().principal.id;
+    let cook = w
+        .create_staff(
+            StaffDetails {
+                username: "cook".into(),
+                display_name: "Cook".into(),
+                role: Role::Cashier,
+            },
+            PASSWORD,
+        )
+        .unwrap();
+
+    // An owner may grant a supervisor mode to somebody else.
+    w.kitchen_action(sornio_local_store::kitchen::Action::Staff {
+        operation_id: "grant".into(),
+        actor_id: cook.id.clone(),
+        expected_revision: 1,
+        mode: "supervisor".into(),
+    })
+    .unwrap();
+
+    // But not to themselves - self-escalation is refused outright.
+    assert!(
+        w.kitchen_action(sornio_local_store::kitchen::Action::Staff {
+            operation_id: "self".into(),
+            actor_id: owner_id,
+            expected_revision: 1,
+            mode: "supervisor".into(),
+        })
+        .is_err(),
+        "an actor must not grant themselves a kitchen responsibility"
+    );
+
+    // With a kitchen mode the cook is kitchen-only: the supervisory grant must not carry any
+    // permission that touches money, stock or staff.
+    w.lock();
+    w.login("cook", PASSWORD).unwrap();
+    assert!(
+        w.save_customer(sornio_local_store::customers::SaveCustomer {
+            operation_id: "cust".into(),
+            id: "customer-1".into(),
+            name: "Customer".into(),
+            phone: None,
+            credit_limit_paise: None,
+            credit_days: 30,
+            expected_revision: None,
+        })
+        .is_err(),
+        "a kitchen-only cashier must not gain customer policy rights through a kitchen grant"
+    );
 }
 #[test]
 fn injection_is_data_and_spoofed_authority_is_rejected() {

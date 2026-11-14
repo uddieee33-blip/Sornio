@@ -53,13 +53,20 @@ function bridge() {
   await label('Search items for sale').fill('Rice'); await label('Search items for sale').press('Enter'); // Exact SKU wins over two name matches.
   assert.equal(await page.getByRole('list', { name: 'Current sale items' }).getByRole('listitem').count(), 1);
   await label('Search items for sale').fill('RICE'); await label('Search items for sale').press('Enter');
-  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '2');
+  // A weighed item is never sold at a quantity nobody entered: the scan asks
+  // for the quantity, and scanning the same item again asks again instead of
+  // incrementing a number the cashier never typed.
+  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '');
+  await page.getByText('Enter the quantity for this item.', { exact: true }).waitFor();
   await label('Search items for sale').fill('RICE'); await label('Search items for sale').dispatchEvent('keydown', { key: 'Enter', repeat: true });
-  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '2');
+  assert.equal(await label('Quantity for Rice (kg)').inputValue(), '');
   const cdp = await page.context().newCDPSession(page); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
   await page.keyboard.press('F3'); await page.keyboard.type('0.125'); await page.keyboard.press('Enter');
   await label('Tax (%)').fill('5'); const started = performance.now();
-  await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale'); await page.keyboard.press('Enter'); await saved().waitFor();
+  // The deliberate confirmation is Alt+Enter. A plain Enter is a scanner
+  // keypress and the product refuses to treat it as a financial confirmation,
+  // so the keyboard sale has to use the deliberate key.
+  await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale'); await page.keyboard.press('Alt+Enter'); await saved().waitFor();
   const keyboardMs = Math.round(performance.now() - started); await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
   const cashId = await label('Saved invoice ID').inputValue();
   const original = await native('read_local_invoice', { invoiceId: cashId }); assert.equal(original.totalPaise, 558);
@@ -72,7 +79,12 @@ function bridge() {
   await page.evaluate(() => { window.print = () => { window.__printCalls++; }; });
   const output = process.argv[4] || join(dir, 'review'); mkdirSync(output, { recursive: true });
   for (const layout of ['a4', '58mm', '80mm']) {
+    // The printer is called, not a message waited for: the notice stays on
+    // screen from the previous print, so waiting for the text would accept
+    // the *old* print and race the new one.
+    const printsBefore = await page.evaluate(() => window.__printCalls);
     await label('Paper layout').selectOption(layout); await button('Print saved receipt').click();
+    await page.waitForFunction(count => window.__printCalls > count, printsBefore);
     await page.getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
     const root = page.locator('[data-sornio-print-root]'); assert.equal(await root.locator('.receipt-reference').textContent(), cashId);
     assert.equal(await root.locator('[id]').count(), 0);
@@ -114,7 +126,13 @@ function bridge() {
   await page.waitForTimeout(100); assert.equal(await page.locator('[data-sornio-print-root] .receipt-reference').textContent(), cashId); assert.equal(await page.evaluate(() => window.__printCalls), newerPrintCount);
   await button('Back to checkout').click();
   // A retail original remains explicitly unverified in its printable snapshot.
-  await label('Search items for sale').fill('RICE'); await label('Search items for sale').press('Enter'); await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
+  // The scan asks for the quantity of a weighed item, so the retail sale has
+  // to say how much: one kilogram of rice at ₹42.50 is the ₹42.50 the split
+  // below pays.
+  await label('Search items for sale').fill('RICE'); await label('Search items for sale').press('Enter');
+  assert.equal(await label('Quantity for Rice (kg)').inputValue(),'');
+  await label('Quantity for Rice (kg)').fill('1');
+  await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
   await label('Split cash amount (₹)').fill('10'); await label('Split UPI amount (₹)').fill('32.50'); await button('Review sale').click(); await button('Confirm sale').click(); await saved().waitFor();
   const retailId = await label('Saved invoice ID').inputValue(); await button('Print saved receipt').click(); await page.getByRole('status').filter({ hasText: 'Check the printer or PDF output.' }).waitFor();
   assert.ok((await page.locator('[data-sornio-print-root]').innerText()).includes('UPI/card amounts remain unverified'));
@@ -128,14 +146,27 @@ function bridge() {
   const preSplit = await state();
   await page.keyboard.press('F2'); await label('Search items for sale').fill('ATTA20'); await label('Search items for sale').press('Enter');
   await label('Tax (%)').fill('0'); await label('Transaction type').selectOption('retail');
-  await label('Customer reference for a credit split (optional)').fill('customer-split');
+  // The credit allocation comes first: the customer reference field only
+  // exists once the split carries a credit amount, because until then there
+  // is no credit to attribute to anybody.
   await label('Split cash amount (₹)').fill('600'); await label('Split customer credit amount (₹)').fill('400');
+  await label('Customer reference for a credit split (optional)').fill('customer-split');
+  // The store's answer about the customer is asynchronous, and the review
+  // refuses to open until it has arrived. Wait for the credit details rather
+  // than racing the lookup.
+  await page.locator('[aria-label="Selected credit customer"]').getByText('Available credit:', { exact: false }).waitFor();
   await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale');
   assert.equal((await native('list_local_invoices', { after: 0 })).length, preSplit.invoices.length);
   assert.ok((await page.getByRole('group', { name: 'Confirm sale', exact: true }).innerText()).includes('Customer credit'));
   await page.keyboard.press('Escape'); await page.waitForFunction(() => document.activeElement?.id === 'checkout-search');
   await page.keyboard.press('F4'); await page.waitForFunction(() => document.activeElement?.textContent === 'Confirm sale');
-  await page.keyboard.press('Enter'); await saved().waitFor();
+  // A plain Enter is a scanner keypress. It must never confirm a sale, and it
+  // must not even reach the store: a scanner that fires Enter while a cashier
+  // is looking at the review must not post money.
+  await page.keyboard.press('Enter'); await page.waitForTimeout(500);
+  assert.equal(await saved().count(),0,'A plain Enter must never confirm a sale.');
+  assert.equal((await native('list_local_invoices',{after:0})).length,preSplit.invoices.length,'A plain Enter must never post a sale.');
+  await page.keyboard.press('Alt+Enter'); await saved().waitFor();
   const splitId = await label('Saved invoice ID').inputValue();
   const postSplit = await state();
   assert.equal(postSplit.invoices.length, preSplit.invoices.length + 1);

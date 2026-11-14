@@ -1,0 +1,27 @@
+{
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Sornio \u00b7 Business workspace",
+        "width": 1240,
+        "height": 820,
+        "minWidth": 760,
+        "minHeight": 580,
+        "devtools": false,
+        "titleBarStyle": "Visible",
+        "hiddenTitle": true
+      }
+    ]
+  },
+  "bundle": {
+    "targets": [
+      "app",
+      "dmg"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": true
+    }
+  }
+}

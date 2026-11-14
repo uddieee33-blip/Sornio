@@ -152,10 +152,18 @@ async function stopBridge() {
     assert.ok((await printable.textContent()).includes(invoice));
     // Limits reject the whole original invoice, including stock and native ledger.
     await button('Add Rice to sale').click(); await label('Quantity for Rice (kg)').fill('3'); await label('Transaction type').selectOption('credit');
-    await button('Use customer customer-1').click(); await button('Review sale').click(); await button('Confirm sale').click(); await button('Edit refused sale').waitFor();
+    await button('Use customer customer-1').click();
+    // The store reads the customer back before a credit sale may be reviewed,
+    // and that read is asynchronous. Wait for the store's answer instead of
+    // racing it.
+    await page.locator('.selected-credit-customer').getByText('Outstanding:', { exact: false }).first().waitFor();
+    // The limit is enforced before the sale can be reviewed at all, so nothing
+    // is prepared, no invoice is written and no stock moves.
+    await page.getByText('This amount exceeds the customer’s available credit. Reduce credit or choose another payment method.', { exact: true }).waitFor();
+    assert.equal(await button('Review sale').isDisabled(),true);
     assert.equal((await native('list_local_invoices', { after: 0 })).length, 1);
     assert.equal((await native('list_local_products'))[0].stockMilli, 9000);
-    await button('Edit refused sale').click(); await button('Remove Rice from sale').click();
+    await button('Remove Rice from sale').click();
     // Link a previously posted credit sale without rewriting its invoice, even
     // if the first transfer reply is lost and account revisions advance.
     for (const id of ['legacy-ref', 'named-account']) await native('save_local_customer', { r: { operationId: `profile-${id}`, id, name: id, phone: null, creditLimitPaise: null, creditDays: 30, expectedRevision: null } });

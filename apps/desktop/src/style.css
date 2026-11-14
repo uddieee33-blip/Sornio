@@ -37,3 +37,26 @@
 .receipt-controls{font-family:"Sornio Gurmukhi","Nirmala UI","Raavi","Segoe UI",sans-serif;display:flex;gap:12px;flex-wrap:wrap;align-items:end}.receipt-controls p{flex-basis:100%;font-size:12px}.receipt-controls label{max-width:100%}.receipt-paper{overflow-wrap:anywhere;font-family:"Sornio Gurmukhi","Nirmala UI","Raavi","Segoe UI",sans-serif}.receipt-paper input{max-width:100%}.checkout-review-summary{border:1px solid var(--line);border-radius:12px;padding:16px;margin-top:12px;font-size:12px;line-height:1.7}.checkout-review-summary ul{list-style:none;margin:0 0 10px;padding:0}.checkout-review-summary li{display:flex;justify-content:space-between;align-items:baseline;gap:14px;padding:6px 0;border-bottom:1px solid var(--line)}.checkout-review-summary li>span{min-width:0;overflow-wrap:anywhere}.checkout-review-summary li>strong{white-space:nowrap;flex-shrink:0}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;animation:none!important;transition:none!important}}
 @media print{#root{display:none!important}}
+
+/* Keep payment figures together and allocation controls close to their amounts. */
+.payment-allocation{margin-top:22px;padding:20px;border:1px solid var(--line);border-radius:16px;background:#f7f9fc;box-shadow:0 5px 18px #304d7008}
+.payment-allocation legend{font-size:14px;font-weight:600;padding:0 8px}
+.allocation-totals{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;font-size:12px}
+.allocation-totals p{margin:4px 0 16px;color:var(--muted)}.allocation-totals strong{display:block;color:var(--text);font-size:18px;margin-top:8px;overflow-wrap:anywhere}
+.allocation-methods{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 20px}
+.allocation-entry{display:flex;gap:8px;align-items:center}.allocation-entry input{min-width:0}.allocation-entry button{padding:12px}
+.credit-customer-lookup ul{list-style:none;padding:0;max-height:200px;overflow:auto}.credit-customer-lookup li{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12px}.credit-customer-lookup li span{min-width:0;overflow-wrap:anywhere}
+.selected-credit-customer{border-left:3px solid var(--accent);padding:8px 12px;font-size:12px}.selected-credit-customer p{margin:8px 0}.receipt-amount-due{border-top:1px solid var(--line);padding-top:8px}
+@media(max-width:680px){.allocation-methods{grid-template-columns:1fr}.allocation-totals{gap:8px}.allocation-totals strong{font-size:15px}.payment-allocation{padding:14px}.allocation-entry{flex-wrap:wrap}}
+
+.held-bill-toolbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:16px 0}.held-bill-toolbar label{margin:0;font-weight:500}.held-bill-toolbar input{width:240px;max-width:100%}
+.held-bills{border:1px solid var(--line);border-radius:16px;padding:18px;margin:16px 0}.held-bills ul{list-style:none;padding:0;margin:12px 0;max-height:360px;overflow:auto}.held-bills li{display:flex;justify-content:space-between;align-items:center;gap:16px;padding:14px 0;border-bottom:1px solid var(--line)}.held-bills li>div{min-width:0}.held-bills strong,.held-bills span{display:block;font-size:12px;line-height:1.8;overflow-wrap:anywhere}.held-bills li button{margin:4px}.held-bill-context{font-size:12px;color:var(--muted)}.held-bill-warnings{border-left:3px solid #a47d2c;background:#faf7ee;padding:14px 18px;margin:14px 0;font-size:12px;line-height:1.7}
+@media(max-width:680px){.held-bills li{align-items:start;flex-direction:column}.held-bill-toolbar input{flex:1;min-width:160px}}
+
+[id^="area-"] { scroll-margin-top: 20px; outline-offset: 6px; }
+@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+
+.grocery-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; margin: 20px 0; }
+.grocery-filters label { flex: 1 1 160px; }
+
+.restaurant-grid {display:flex;flex-wrap:wrap;gap:12px;margin:16px 0}.restaurant-table,.restaurant-ticket {border:1px solid #d7dfd6;border-radius:12px;padding:16px;display:flex;flex-direction:column;gap:10px}.restaurant-panel input,.restaurant-panel select {max-width:360px}.restaurant-panel h3 {margin-top:24px}.restaurant-panel button {min-height:44px}

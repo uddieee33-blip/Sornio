@@ -65,7 +65,13 @@ fn customer(id: &str, limit: Option<i64>) -> SaveCustomer {
 fn rice(store: &Store, milli: i64) -> BillLine {
     BillLine {
         product_id: "rice".into(),
-        expected_revision: store.list_products().unwrap()[0].revision,
+        expected_revision: store
+            .list_products()
+            .unwrap()
+            .into_iter()
+            .find(|product| product.id == "rice")
+            .unwrap()
+            .revision,
         quantity_milli: milli,
     }
 }
@@ -749,6 +755,17 @@ fn concurrent_credit_limit_never_exceeds_customer_cap() {
     let path = d.path().join("s.db");
     let mut a = seed(&path);
     a.save_customer(customer("c1", Some(50000))).unwrap();
+    a.acknowledge_inventory("rice").unwrap();
+    a.add_product(AddProduct {
+        operation_id: "flour".into(),
+        name: "Flour".into(),
+        sku: "FLOUR".into(),
+        unit: "kg".into(),
+        unit_price_paise: 10000,
+        opening_stock_milli: 100000,
+    })
+    .unwrap();
+    a.acknowledge_inventory("flour").unwrap();
     let mut b = authenticated(&path);
     let left = cash_or_credit(&a, "credit-a", Tender::Credit, Some("c1"));
     let right = cash_or_credit(&b, "credit-b", Tender::Credit, Some("c1"));
@@ -756,6 +773,14 @@ fn concurrent_credit_limit_never_exceeds_customer_cap() {
     let mut right = right;
     left.lines[0].quantity_milli = 4000;
     right.lines[0].quantity_milli = 4000;
+    right.lines[0].product_id = "flour".into();
+    right.lines[0].expected_revision = b
+        .list_products()
+        .unwrap()
+        .into_iter()
+        .find(|p| p.id == "flour")
+        .unwrap()
+        .revision;
     let barrier = std::sync::Arc::new(std::sync::Barrier::new(2));
     let other = barrier.clone();
     let worker = std::thread::spawn(move || {
@@ -777,7 +802,72 @@ fn concurrent_credit_limit_never_exceeds_customer_cap() {
     assert!(debt <= 50000, "customer debt {debt} exceeded ₹500 cap");
     assert_eq!(debt, 40000);
     assert_eq!(b.list_invoices(0).unwrap().len(), 1);
-    assert_eq!(b.list_products().unwrap()[0].stock_milli, 96000);
+    assert_eq!(
+        b.list_products()
+            .unwrap()
+            .iter()
+            .map(|p| p.stock_milli)
+            .sum::<i64>(),
+        196000
+    );
+}
+
+#[test]
+fn cash_sale_with_customer_replays_without_creating_credit() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    s.save_customer(customer("c1", Some(50000))).unwrap();
+    let mut request = cash_or_credit(&s, "customer-cash", Tender::Cash, Some("c1"));
+    request.lines[0].quantity_milli = 1000;
+    let invoice = s.post_invoice(request.clone()).unwrap();
+    assert_eq!(invoice.total_paise, 10000);
+    assert_eq!(invoice.customer_id.as_deref(), Some("c1"));
+    assert_eq!(s.post_invoice(request.clone()).unwrap(), invoice);
+    assert_eq!(count(&s, "SELECT COUNT(*) FROM local_credit_entries"), 0);
+    assert_eq!(s.find_customers("c1", false).unwrap()[0].balance_paise, "0");
+    assert_eq!(s.list_products().unwrap()[0].stock_milli, 99000);
+    drop(s);
+    let mut reopened = authenticated(&path);
+    assert_eq!(reopened.post_invoice(request).unwrap(), invoice);
+    assert_eq!(count(&reopened, "SELECT COUNT(*) FROM local_invoices"), 1);
+    assert_eq!(
+        count(&reopened, "SELECT COUNT(*) FROM local_credit_entries"),
+        0
+    );
+    assert_eq!(reopened.list_products().unwrap()[0].stock_milli, 99000);
+}
+
+#[test]
+fn cash_sale_with_missing_customer_rolls_back_and_can_retry() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = seed(&path);
+    let mut request = cash_or_credit(&s, "missing-customer-cash", Tender::Cash, Some("c1"));
+    request.lines[0].quantity_milli = 1000;
+    let before = snapshots(&s);
+    assert!(matches!(
+        s.post_invoice(request.clone()),
+        Err(StoreError::CustomerMissing)
+    ));
+    assert_eq!(snapshots(&s), before);
+    drop(s);
+    let mut reopened = authenticated(&path);
+    assert_eq!(snapshots(&reopened), before);
+    reopened.save_customer(customer("c1", Some(50000))).unwrap();
+    let invoice = reopened.post_invoice(request.clone()).unwrap();
+    assert_eq!(invoice.total_paise, 10000);
+    assert_eq!(reopened.post_invoice(request).unwrap(), invoice);
+    assert_eq!(count(&reopened, "SELECT COUNT(*) FROM local_invoices"), 1);
+    assert_eq!(
+        count(&reopened, "SELECT COUNT(*) FROM local_credit_entries"),
+        0
+    );
+    assert_eq!(
+        reopened.find_customers("c1", false).unwrap()[0].balance_paise,
+        "0"
+    );
+    assert_eq!(reopened.list_products().unwrap()[0].stock_milli, 99000);
 }
 
 #[test]
