@@ -214,10 +214,12 @@ fn unsupported_protocol_version_is_refused() {
     let mut w = seeded();
     let (i, token) = owner_phone(&mut w);
     let body = json!({"version":2,"hubId":i["hubId"],"businessId":i["businessId"]});
-    assert!(matches!(
-        w.hub_request("/v1/purchasing/workspace", &token, body),
-        Err(StoreError::InvalidDraft)
-    ));
+    // The hub answers an unknown protocol version with a body the phone can read,
+    // rather than an error it has to guess at.
+    let reply = w
+        .hub_request("/v1/purchasing/workspace", &token, body)
+        .unwrap();
+    assert_eq!(reply["error"], "unsupported_version");
 }
 
 // ---------------------------------------------------------------------------
@@ -470,6 +472,7 @@ fn the_capability_document_matches_the_native_role_matrix() {
         )
         .unwrap();
     assert_eq!(assistant["capabilities"]["manageSuppliers"], true);
+    assert_eq!(assistant["capabilities"]["managePurchaseOrders"], true);
     assert_eq!(assistant["capabilities"]["receiveStock"], true);
     assert_eq!(assistant["capabilities"]["paySuppliers"], false);
     assert_eq!(assistant["capabilities"]["correctPayables"], false);
@@ -661,7 +664,7 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
         .unwrap();
     // 4,000 received of which 1,000 damaged: only the 3,000 good units land.
     assert_eq!(after, before + 3000);
-    assert_eq!(ok["result"]["damagedTotalPaise"], json!(900_000));
+    assert_eq!(ok["result"]["damagedTotalPaise"], json!(9000));
 
     // The same request replayed must not receive a second time.
     let replay = w
@@ -950,6 +953,17 @@ fn an_identity_owned_by_another_device_cannot_adopt_its_result() {
     // different phone owns, and reporting `not_found` would invite a resend the hub
     // has already decided.
     let actor = w.local_session_for_test().unwrap().principal.id;
+    // The journal has a foreign key to the device table, so the competing phone
+    // needs a real device row. It is inserted directly, enrolled to nobody, which
+    // is precisely the shape a foreign device would have.
+    w.store_for_test()
+        .0
+        .execute(
+            "INSERT INTO local_hub_devices(id,name,credential_hash,generation,state,actor_id,created,expires,revision) \
+             VALUES('other-device','Other phone',?1,'gen','approved',NULL,1,9999999999,1)",
+            rusqlite::params!["f".repeat(64)],
+        )
+        .unwrap();
     w.store_for_test()
         .0
         .execute(

@@ -402,8 +402,13 @@ def main() -> int:
     check("digest(&digest_source)" in status_fn,
           "a status lookup whose payload differs from the recorded one conflicts")
     access_src = (SRC / "access.rs").read_text()
-    check("purchasing_hub::operation_status(&self.store, &device, body)" in access_src,
+    check("purchasing_hub::operation_status(&self.store, &device, &body)" in access_src,
           "the status route hands the whole body to the digest check")
+    # The replay path must compare the digest too, not just the identity: an id
+    # reused for a different body has to conflict instead of replaying.
+    lookup_fn = HUB.split("fn journal_lookup")[1].split("\n}")[0]
+    check('stored["digest"].as_str() != Some(digest)' in lookup_fn,
+          "a replay whose payload differs raises a conflict")
     check("Permission::SupplierRead" in HUB,
           "the workspace read requires SupplierRead at the native boundary")
     check("deny_unknown_fields" not in HUB.split("fn envelope")[1][:400],
