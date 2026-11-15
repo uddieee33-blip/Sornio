@@ -805,7 +805,8 @@ fn experimental_v13_purchasing_database_is_adopted_on_upgrade() {
     let db = rusqlite::Connection::open(&path).unwrap();
     db.pragma_update(None, "key", KEY).unwrap();
     assert_eq!(
-        db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0)).unwrap(),
+        db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+            .unwrap(),
         23
     );
     assert_eq!(
@@ -838,7 +839,8 @@ fn experimental_database_with_drifted_purchasing_fails_closed() {
         )
         .unwrap();
         // A local modification by hand: the append-only guard is gone.
-        db.execute_batch("DROP TRIGGER suppliers_no_delete").unwrap();
+        db.execute_batch("DROP TRIGGER suppliers_no_delete")
+            .unwrap();
     }
     match Store::open(&path, KEY) {
         Ok(_) => panic!("a drifted experimental database must not open"),
@@ -849,12 +851,16 @@ fn experimental_database_with_drifted_purchasing_fails_closed() {
     let db = rusqlite::Connection::open(&path).unwrap();
     db.pragma_update(None, "key", KEY).unwrap();
     assert_eq!(
-        db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0)).unwrap(),
+        db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+            .unwrap(),
         13
     );
     assert_eq!(
-        db.query_row("SELECT name FROM local_suppliers WHERE id='sup-exp'", (), |r| r
-            .get::<_, String>(0))
+        db.query_row(
+            "SELECT name FROM local_suppliers WHERE id='sup-exp'",
+            (),
+            |r| r.get::<_, String>(0)
+        )
         .unwrap(),
         "Experimental Supplier"
     );
@@ -894,8 +900,8 @@ fn migration_to_v23_preserves_existing_data_and_enables_purchasing() {
         })
         .unwrap();
         // Simulate a genuine v22 database (current Phase 20 head): every phase-13..22
-    // table was created by its own phase and stays; only the v23 purchasing
-    // tables are removed and the version rolled back.
+        // table was created by its own phase and stays; only the v23 purchasing
+        // tables are removed and the version rolled back.
         s.0.execute_batch(
             "DROP TABLE local_purchase_return_lines; DROP TABLE local_purchase_returns; DROP TABLE local_supplier_payments; DROP TABLE local_supplier_invoices; DROP TABLE local_purchase_stock_events; DROP TABLE local_goods_receipt_lines; DROP TABLE local_goods_receipts; DROP TABLE local_purchase_order_lines; DROP TABLE local_purchase_orders; DROP TABLE local_supplier_journal; DROP TABLE local_supplier_entries; DROP TABLE local_supplier_outbox; DROP TABLE local_supplier_pending; DROP TABLE local_supplier_canceled; DROP TABLE local_supplier_ops; DROP TABLE local_suppliers; PRAGMA user_version = 22;",
         )

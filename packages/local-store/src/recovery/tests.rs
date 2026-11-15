@@ -87,7 +87,10 @@ fn legacy_v22_archive_remains_verifiable_and_restorable_after_purchasing_migrati
     drop(db);
     let p = preview(&mut source, &archive, SECRET, LOGIN).unwrap();
     assert_eq!(p.schema_version, 22);
-    assert_eq!(p.business_id, crate::identity::scope(&source.0).unwrap().business_id);
+    assert_eq!(
+        p.business_id,
+        crate::identity::scope(&source.0).unwrap().business_id
+    );
     restore(
         &mut source,
         &archive,

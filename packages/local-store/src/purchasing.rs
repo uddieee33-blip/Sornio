@@ -11,9 +11,9 @@ use crate::{
     identity::{self, Permission, Role},
     Store, StoreError,
 };
-use std::path::Path;
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use std::path::Path;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -2721,12 +2721,11 @@ impl Store {
 /// matches a fresh v23 reference byte-for-byte; any other state fails closed
 /// and leaves the file untouched.
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
-    let has_purchased: bool = tx
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_suppliers'",
-            (),
-            |row| row.get::<_, i64>(0),
-        )? == 1;
+    let has_purchased: bool = tx.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_suppliers'",
+        (),
+        |row| row.get::<_, i64>(0),
+    )? == 1;
     if has_purchased {
         return adopt_experimental_v13(tx);
     }
@@ -2755,12 +2754,11 @@ fn live_schema(connection: &Connection) -> Result<Vec<(String, String, String)>,
 /// in-memory v23 reference built by running the real open path; a single
 /// divergent object aborts the upgrade with `ExperimentalSchema`.
 fn adopt_experimental_v13(tx: &Transaction<'_>) -> Result<(), StoreError> {
-    let has_held_bills: bool = tx
-        .query_row(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_held_bills'",
-            (),
-            |row| row.get::<_, i64>(0),
-        )? == 1;
+    let has_held_bills: bool = tx.query_row(
+        "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_held_bills'",
+        (),
+        |row| row.get::<_, i64>(0),
+    )? == 1;
     if !has_held_bills {
         let held_bills = include_str!("held_bills_schema.sql");
         let ddl = held_bills
