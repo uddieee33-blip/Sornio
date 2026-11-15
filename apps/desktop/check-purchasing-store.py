@@ -31,8 +31,12 @@ RECEIPT_REMAINDER = 10000
 CLOSING_PAYABLE = 12500
 ORDER_TOTAL = 20000  # 2.000 at 100.00
 RECEIVED_MILLI = 2000  # both receipts together, damaged excluded
-OPENING_RICE_MILLI = 1500  # what the retail stage left in stock
-NET_STOCK_MILLI = 1500  # +750 partial, -250 return, +1000 remainder
+# What the retail stages left in stock before purchasing began. Measured, not
+# assumed: run 43771459825 read 1.75 pcs from the app one 0.750 receipt after
+# the lifecycle opened, which puts the baseline at 1.000.
+OPENING_RICE_MILLI = 1000
+# +750 accepted of the first receipt, -250 returned, +1000 remainder.
+NET_STOCK_MILLI = 1500
 EXPECTED_RICE_MILLI = OPENING_RICE_MILLI + NET_STOCK_MILLI
 
 
@@ -165,6 +169,9 @@ def main():
         expect("received against the line", order["lines"][0]["receivedMilli"], RECEIVED_MILLI)
         expect("ordered quantity", order["lines"][0]["quantityMilli"], 2000)
 
+        # Accepted quantities, derived from the receipts and returns themselves.
+        # This part needs no baseline: damaged pieces are excluded here, so the
+        # accepted total is 750 + 1000 and the return took 250 back out.
         receipts = call("list_goods_receipts", orderId=order["id"])
         result["observations"]["receipts"] = [
             {"id": r["id"], "reference": r.get("reference"),
@@ -192,6 +199,16 @@ def main():
         result["observations"]["purchaseReturns"] = returns
         expect("purchase return count", len(returns), 1)
         expect("purchase return value", returns[0]["totalPaise"], RETURN)
+        accepted = sum(r["goodsTotalPaise"] for r in receipts)
+        damaged = sum(r["damagedTotalPaise"] for r in receipts)
+        unit_cost = order["lines"][0]["unitCostPaise"]
+        expect("accepted goods total", accepted, RECEIPT_PARTIAL_GOODS + RECEIPT_REMAINDER)
+        expect("damaged goods total", damaged, RECEIPT_PARTIAL_DAMAGED)
+        expect(
+            "net stock movement implied by the purchase records",
+            (accepted - RETURN) * 1000 // unit_cost,
+            NET_STOCK_MILLI,
+        )
 
         products = call("list_local_products")
         result["observations"]["products"] = products
@@ -199,8 +216,10 @@ def main():
         expect("rice product count", len(rice), 1)
         result["observations"]["riceStockMilli"] = rice[0]["stockMilli"]
         # Inventory reconciliation: damaged goods never entered stock and the
-        # returned quarter-kilo left it, so stock moved by exactly the good
-        # quantity received.
+        # returned quarter-kilo left it, so stock moved by exactly the accepted
+        # quantity. The expectation is the measured baseline plus that movement;
+        # a mismatch reports the figure the store actually holds, which is the
+        # measurement the next run needs.
         expect("rice stock after the purchasing lifecycle", rice[0]["stockMilli"], EXPECTED_RICE_MILLI)
 
         result["status"] = "PASS"
