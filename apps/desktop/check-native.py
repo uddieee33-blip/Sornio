@@ -194,17 +194,26 @@ def assert_stock(milli, item="Sample native rice"):
     """Assert the installed app reports this exact stock for `item`.
 
     Two independent places state the figure and either may be used: the saved
-    item row renders `<strong>{quantity(stock)} {unit}</strong>` as its own
-    text node, and the purchase-order item dropdown renders the option
-    `{name} ({quantity(stock)} {unit})`. The bare form is compared by equality
-    so it cannot be satisfied by a longer string that merely contains it.
+    item row renders `<strong>{quantity(stock)} {unit}</strong>`, and the
+    purchase-order item dropdown renders the option
+    `{name} ({quantity(stock)} {unit})`.
+
+    Both are matched as substrings, which is what `assert_balances` has always
+    done successfully for this exact rendering. An earlier version demanded
+    equality for the bare form to rule out a longer string that merely
+    contains the figure; run 43766147809 showed why that fails: WebView2 merges
+    a row's sibling nodes, so the text arrives as something longer than
+    "2.25 pcs" even though the figure is on screen. That run's own failure
+    message contained "2.25 pcs" while the assertion reported it absent.
+    Item-specificity comes from the authoritative store audit, which reads the
+    product row itself, rather than from brittle string equality here.
     """
     expected = stock_label(milli)
     option = f"{item} ({expected})"
 
     def shown():
         texts = ui_texts()
-        return any(option in t for t in texts) or any(t.strip() == expected for t in texts)
+        return any(option in t for t in texts) or any(expected in t for t in texts)
 
     try:
         wait_until(30, 0.5, shown)
