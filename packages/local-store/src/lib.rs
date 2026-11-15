@@ -21,6 +21,7 @@ mod kitchen_staff;
 pub mod lan_authority;
 pub mod payments;
 pub mod purchasing;
+mod purchasing_hub;
 pub mod recovery;
 pub mod replication;
 mod responsibility_access;

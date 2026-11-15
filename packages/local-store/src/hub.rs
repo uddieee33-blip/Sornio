@@ -70,7 +70,7 @@ impl Store {
     pub(crate) fn hub_identity(&self) -> Result<Value, StoreError> {
         let (id,name,business):(String,String,String)=self.0.query_row("SELECT h.id,i.business_name,i.business_id FROM local_hub_config h CROSS JOIN local_identity i WHERE i.singleton=1",[],|q|Ok((q.get(0)?,q.get(1)?,q.get(2)?)))?;
         Ok(
-            json!({"version":1,"hubId":id,"businessId":business,"businessName":name,"capabilities":["kitchen.transitions.v1","kitchen.paid.v1","kitchen.assignments.v1","staff.responsibility.v1","staff.access.v1","staff.signout.v1","staff.security-history.v1"]}),
+            json!({"version":1,"hubId":id,"businessId":business,"businessName":name,"capabilities":["kitchen.transitions.v1","kitchen.paid.v1","kitchen.assignments.v1","staff.responsibility.v1","staff.access.v1","staff.signout.v1","staff.security-history.v1",crate::purchasing_hub::CAPABILITY]}),
         )
     }
     pub(crate) fn hub_configure(
