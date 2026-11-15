@@ -38,7 +38,7 @@ export function SupplierPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const [reversalTarget, setReversalTarget] = useState(''), [reversalReason, setReversalReason] = useState('');
   const [busy, setBusy] = useState(false), [failed, setFailed] = useState(false), [message, setMessage] = useState(canRead ? 'Opening suppliers…' : 'Suppliers are managed on this PC by owners, managers and assistant managers.');
   const [ready, setReady] = useState(false);
-  const mounted = useRef(false), submitting = useRef(false), readVersion = useRef(0);
+  const mounted = useRef(false), submitting = useRef(false), readVersion = useRef(0), announced = useRef(false);
   const operation = useRef<{ fingerprint: string; id: string } | null>(null);
   const operationId = (fingerprint: string) => {
     if (operation.current?.fingerprint !== fingerprint) operation.current = { fingerprint, id: crypto.randomUUID() };
@@ -54,7 +54,9 @@ export function SupplierPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const loadProducts = useCallback(async () => { const rows = await invoke<Product[]>('list_local_products'); if (mounted.current) setProducts(rows); }, []);
   useEffect(() => { if (!canRead) return; void loadProducts().catch(() => { /* Products are only needed for new purchase orders. */ }); }, [canRead, loadProducts]);
 
-  const load = useCallback(async () => {
+  // quiet keeps an action's own result message ("Goods received…") on screen;
+  // the trailing refresh must not stomp it with the generic line.
+  const load = useCallback(async (quiet = false) => {
     if (!canRead) return;
     const generation = ++readVersion.current;
     const rows = await invoke<Supplier[]>('find_local_suppliers', { search, includeArchived: showArchived });
@@ -76,16 +78,17 @@ export function SupplierPanel({ role, disabled, refreshToken, onChanged, onBusyC
       setReturns(supplied);
     }
     setReady(true); setFailed(false);
-    setMessage('Suppliers are up to date.');
+    if (!quiet) setMessage('Suppliers are up to date.');
   }, [canRead, search, showArchived, selectedId, status, openOrder?.id]);
-  useEffect(() => { if (!canRead) return; const timer = setTimeout(() => { void load().catch(error => { if (mounted.current) { setReady(false); setFailed(true); setMessage(errorMessage(error, 'Suppliers could not be opened.')); } }); }, 150); return () => { clearTimeout(timer); readVersion.current += 1; }; }, [load, refreshToken]);
+  // Only the first load announces the generic line; every later reload stays quiet so an action's own result stays visible. Failures always announce.
+  useEffect(() => { if (!canRead) return; const timer = setTimeout(() => { const quiet = announced.current; announced.current = true; void load(quiet).catch(error => { if (mounted.current) { setReady(false); setFailed(true); setMessage(errorMessage(error, 'Suppliers could not be opened.')); } }); }, 150); return () => { clearTimeout(timer); readVersion.current += 1; }; }, [load, refreshToken]);
 
   async function run(operationFn: () => Promise<void>) {
     if (submitting.current || disabled || !canRead) return;
     readVersion.current += 1; submitting.current = true; setBusy(true); onBusyChange(true); setFailed(false);
     try { await operationFn(); }
     catch (error: unknown) { if (mounted.current) { setReady(false); setFailed(true); setMessage(errorMessage(error, 'The result is uncertain. Refresh before starting another entry.')); } }
-    finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); readVersion.current += 1; void load().catch(() => { /* The action reported its own outcome. */ }); } }
+    finally { submitting.current = false; if (mounted.current) { setBusy(false); onBusyChange(false); readVersion.current += 1; void load(true).catch(() => { /* The action reported its own outcome. */ }); } }
   }
   async function choose(id: string) {
     if (busy || disabled || !canRead) return;
@@ -156,6 +159,20 @@ export function SupplierPanel({ role, disabled, refreshToken, onChanged, onBusyC
       onChanged(); setMessage('Order updated.');
       const detail = await invoke<PurchaseOrder>('get_purchase_order', { id: openOrder.id });
       if (mounted.current) setOpenOrder(detail);
+    });
+  }
+  async function toggleArchive() {
+    if (!selectedSupplier || editing !== null) return;
+    const targetId = selectedSupplier.id;
+    await run(async () => {
+      // Read right before writing so the archive never conflicts with a just-saved edit.
+      const fresh = await invoke<SupplierStatement>('read_supplier_statement', { supplierId: targetId, after: 0, through: null });
+      const current = fresh.supplier;
+      const fingerprint = `archive:${current.id}:${current.revision}:${current.archived}`;
+      await invoke<Supplier>('save_local_supplier', { r: { operationId: operationId(fingerprint), id: current.id, name: current.name, phone: current.phone || null, gstin: current.gstin || null, address: current.address || null, paymentTermsDays: current.paymentTermsDays, notes: current.notes, archived: !current.archived, expectedRevision: current.revision } });
+      clearOperation();
+      if (!mounted.current) return;
+      onChanged(); setMessage(current.archived ? 'Supplier restored.' : 'Supplier archived. Tick “Show archived suppliers” to see it again.');
     });
   }
   async function openDetail(id: string) {
@@ -271,12 +288,12 @@ export function SupplierPanel({ role, disabled, refreshToken, onChanged, onBusyC
   const selectedSupplier = statement?.supplier ?? suppliers.find(s => s.id === selectedId) ?? null;
   return <section className="panel supplier-panel" aria-labelledby="suppliers-heading" aria-busy={busy}>
     <h2 id="suppliers-heading">Suppliers & purchases</h2><p role={failed ? 'alert' : 'status'} aria-live="polite">{message}</p>
-    <button type="button" disabled={busy || disabled} onClick={() => void run(load)}>Refresh suppliers</button>
+    <button type="button" disabled={busy || disabled} onClick={() => void run(() => load())}>Refresh suppliers</button>
     <fieldset disabled={blocked}><label htmlFor="supplier-search">Search suppliers</label><input id="supplier-search" type="search" value={search} onChange={e => setSearch(e.target.value)}/><label><input type="checkbox" checked={showArchived} onChange={e => setShowArchived(e.target.checked)}/>Show archived suppliers</label>
-      <ul aria-label="Suppliers">{suppliers.slice(0, 100).map(s => <li key={s.id}><span>{s.name} · {s.id} · {s.phone ?? 'No phone'} · Outstanding {money(s.balancePaise)} · Overdue {money(s.overduePaise)}</span><button type="button" aria-label={`Open supplier ${s.id}`} onClick={() => void choose(s.id)}>Open</button></li>)}</ul>{suppliers.length > 100 ? <p>More than 100 matches. Refine your search.</p> : null}
+      <ul aria-label="Suppliers">{suppliers.slice(0, 100).map(s => <li key={s.id}><span>{s.name} · {s.id} · {s.phone ?? 'No phone'} · Outstanding {money(s.balancePaise)} · Overdue {money(s.overduePaise)}{s.archived ? ' · Archived' : ''}</span><button type="button" aria-label={`Open supplier ${s.id}`} onClick={() => void choose(s.id)}>Open</button></li>)}</ul>{suppliers.length > 100 ? <p>More than 100 matches. Refine your search.</p> : null}
     </fieldset>
     {manageSupplier ? <form onSubmit={saveSupplier}><fieldset disabled={blocked}><legend>{editing === null ? 'Create supplier' : 'Edit supplier'}</legend>
-      <label htmlFor="supplier-id">Supplier ID</label><input id="supplier-id" required maxLength={80} pattern="[A-Za-z0-9_\-]+" readOnly={editing !== null} value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}/>
+      <label htmlFor="supplier-id">Supplier ID</label><input id="supplier-id" required maxLength={80} pattern={'[A-Za-z0-9_\\-]+'} readOnly={editing !== null} value={form.id} onChange={e => setForm({ ...form, id: e.target.value })}/>
       <label htmlFor="supplier-name">Supplier name</label><input id="supplier-name" required maxLength={160} value={form.name} onChange={e => setForm({ ...form, name: e.target.value })}/>
       <label htmlFor="supplier-phone">Phone</label><input id="supplier-phone" type="tel" maxLength={40} value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}/>
       <label htmlFor="supplier-gstin">GSTIN</label><input id="supplier-gstin" maxLength={15} value={form.gstin} onChange={e => setForm({ ...form, gstin: e.target.value })}/>
@@ -286,6 +303,7 @@ export function SupplierPanel({ role, disabled, refreshToken, onChanged, onBusyC
       <button type="submit">Save supplier</button>{editing !== null ? <button type="button" onClick={() => { setForm(emptyProfile); setEditing(null); }}>Cancel supplier edit</button> : null}
     </fieldset></form> : null}
     {selectedSupplier ? <section aria-labelledby="selected-supplier-heading"><h3 id="selected-supplier-heading">{selectedSupplier.name} · {selectedSupplier.id}</h3><p>Outstanding: {money(selectedSupplier.balancePaise)} · Overdue: {money(selectedSupplier.overduePaise)} · Terms: {selectedSupplier.paymentTermsDays} days</p>
+      {manageSupplier ? <button type="button" disabled={blocked} onClick={() => void toggleArchive()}>{selectedSupplier.archived ? 'Restore supplier' : 'Archive supplier'}</button> : null}
       {manageSupplier ? <button type="button" disabled={blocked} onClick={() => { setForm({ id: selectedSupplier.id, name: selectedSupplier.name, phone: selectedSupplier.phone ?? '', gstin: selectedSupplier.gstin ?? '', address: selectedSupplier.address ?? '', days: String(selectedSupplier.paymentTermsDays), notes: selectedSupplier.notes }); setEditing(selectedSupplier.revision); }}>Edit supplier profile</button> : null}
       {statement ? <><h4>Aging</h4><ul><li>Not yet due: {money(statement.aging.currentPaise)}</li><li>1–30 days: {money(statement.aging.days1To30Paise)}</li><li>31–60 days: {money(statement.aging.days31To60Paise)}</li><li>61–90 days: {money(statement.aging.days61To90Paise)}</li><li>Over 90 days: {money(statement.aging.days90PlusPaise)}</li></ul>
         <h4>Supplier statement · closing balance {money(statement.closingBalancePaise)}</h4><table><thead><tr><th>Date</th><th>Entry</th><th>Change</th><th>Balance</th></tr></thead><tbody>{statement.entries.map(e => <tr key={e.sequence}><td>{new Date(e.createdAt).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' })}</td><td>{e.kind} · {e.operationId}<br/>{e.reference ? `Ref ${e.reference}` : null}<br/>{e.reason}</td><td>{money(e.amountPaise)}</td><td>{money(e.runningBalancePaise)}</td></tr>)}</tbody></table>{statement.hasMore ? <p>Showing the latest 100 entries.</p> : null}</> : null}

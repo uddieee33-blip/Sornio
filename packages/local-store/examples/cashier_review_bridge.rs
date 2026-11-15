@@ -338,6 +338,90 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             )?;
             Value::Null
         }
+        "save_local_supplier" => serde_json::to_value(w.save_supplier(argument::<
+            sornio_local_store::purchasing::SaveSupplier,
+        >(a, "r")?)?)?,
+        "find_local_suppliers" => serde_json::to_value(w.find_suppliers(
+            &argument::<String>(a, "search")?,
+            argument(a, "includeArchived")?,
+        )?)?,
+        "read_supplier_statement" => serde_json::to_value(w.supplier_statement(
+            &argument::<String>(a, "supplierId")?,
+            argument(a, "after")?,
+            argument(a, "through")?,
+        )?)?,
+        "list_purchase_returns" => {
+            serde_json::to_value(w.list_purchase_returns(&argument::<String>(a, "supplierId")?)?)?
+        }
+        "create_purchase_order" => {
+            serde_json::to_value(w.create_purchase_order(argument::<
+                sornio_local_store::purchasing::CreatePurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "update_purchase_order" => {
+            serde_json::to_value(w.update_purchase_order(argument::<
+                sornio_local_store::purchasing::UpdatePurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "get_purchase_order" => {
+            serde_json::to_value(w.get_purchase_order(&argument::<String>(a, "id")?)?)?
+        }
+        "find_purchase_orders" => serde_json::to_value(w.find_purchase_orders(
+            &argument::<String>(a, "search")?,
+            &argument::<String>(a, "status")?,
+            &argument::<String>(a, "supplierId")?,
+        )?)?,
+        "submit_purchase_order" => {
+            serde_json::to_value(w.submit_purchase_order(argument::<
+                sornio_local_store::purchasing::TransitionPurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "decide_purchase_order" => {
+            serde_json::to_value(w.decide_purchase_order(argument::<
+                sornio_local_store::purchasing::DecidePurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "cancel_purchase_order" => {
+            serde_json::to_value(w.cancel_purchase_order(argument::<
+                sornio_local_store::purchasing::TransitionPurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "close_purchase_order" => {
+            serde_json::to_value(w.close_purchase_order(argument::<
+                sornio_local_store::purchasing::TransitionPurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "post_goods_receipt" => serde_json::to_value(w.post_goods_receipt(argument::<
+            sornio_local_store::purchasing::PostGoodsReceipt,
+        >(a, "r")?)?)?,
+        "list_goods_receipts" => {
+            serde_json::to_value(w.list_goods_receipts(&argument::<String>(a, "orderId")?)?)?
+        }
+        "post_supplier_invoice" => {
+            serde_json::to_value(w.post_supplier_invoice(argument::<
+                sornio_local_store::purchasing::PostSupplierInvoice,
+            >(a, "r")?)?)?
+        }
+        "post_supplier_payment" => {
+            serde_json::to_value(w.post_supplier_payment(argument::<
+                sornio_local_store::purchasing::PostSupplierPayment,
+            >(a, "r")?)?)?
+        }
+        "post_supplier_opening" => {
+            serde_json::to_value(w.post_supplier_opening(argument::<
+                sornio_local_store::purchasing::PostSupplierOpening,
+            >(a, "r")?)?)?
+        }
+        "reverse_supplier_entry" => {
+            serde_json::to_value(w.reverse_supplier_entry(argument::<
+                sornio_local_store::purchasing::ReverseSupplierEntry,
+            >(a, "r")?)?)?
+        }
+        "post_purchase_return" => {
+            serde_json::to_value(w.post_purchase_return(argument::<
+                sornio_local_store::purchasing::PostPurchaseReturn,
+            >(a, "r")?)?)?
+        }
         // hub_control and hub_import_tls are native-runtime commands: they drive the hub
         // listener and the OS file dialog, so there is no store-level equivalent to call.
         // hub_control's real handler performs verify_scope followed by a Settings require, and
@@ -410,6 +494,17 @@ fn main() {
                     | StoreError::InvalidStock
                     | StoreError::ProductMissing
                     | StoreError::CatalogFull => "invalid_product",
+                    StoreError::InvalidSupplier => "invalid_supplier",
+                    StoreError::SupplierMissing => "supplier_missing",
+                    StoreError::SupplierConflict => "supplier_conflict",
+                    StoreError::InvalidPurchaseOrder => "invalid_purchase_order",
+                    StoreError::PurchaseOrderMissing => "purchase_order_missing",
+                    StoreError::PurchaseOrderConflict => "purchase_order_conflict",
+                    StoreError::InvalidPurchase => "invalid_purchase",
+                    StoreError::OrderState => "order_state",
+                    StoreError::InvalidReceipt => "invalid_receipt",
+                    StoreError::InvalidPayable => "invalid_payable",
+                    StoreError::InvalidReturn => "invalid_return",
                     StoreError::OperationConflict => "operation_conflict",
                     _ => "workspace_error",
                 };
