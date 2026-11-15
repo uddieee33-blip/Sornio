@@ -32,6 +32,39 @@ impl Workspace {
     pub(crate) fn store_for_test(&self) -> &Store {
         &self.store
     }
+    /// Test-only aliases so the Phase 21B purchasing protocol suite can drive the
+    /// same public surfaces the desktop IPC and the hub router do, without
+    /// widening production visibility for any of them.
+    #[cfg(test)]
+    pub(crate) fn hub_configure_for_test(
+        &mut self,
+        enabled: bool,
+        tls: Option<(String, String)>,
+    ) -> Result<(), StoreError> {
+        self.hub_configure(enabled, tls)
+    }
+    #[cfg(test)]
+    pub(crate) fn hub_admin_for_test(&self) -> Result<serde_json::Value, StoreError> {
+        self.hub_admin()
+    }
+    #[cfg(test)]
+    pub(crate) fn hub_device_for_test(
+        &mut self,
+        id: &str,
+        revision: i64,
+        actor: Option<&str>,
+    ) -> Result<(), StoreError> {
+        self.hub_device(id, revision, actor)
+    }
+    #[cfg(test)]
+    pub(crate) fn local_session_for_test(&self) -> Option<crate::identity::LocalSession> {
+        self.local_session().ok()
+    }
+    /// Reads the desktop idle clock without making the field itself reachable.
+    #[cfg(test)]
+    pub(crate) fn idle_clock_for_test(&self) -> std::time::Instant {
+        self.last_activity.get()
+    }
     /// Native enrollment only; no renderer or listener command is registered yet.
     pub fn enroll_lan_device(
         &mut self,
@@ -1392,6 +1425,60 @@ impl Workspace {
                         .as_str()
                         .ok_or(StoreError::InvalidDraft)?,
                 ),
+                // --- Phase 21B: mobile purchasing ---------------------------------
+                // Every route below is authenticated by the same device session
+                // the restaurant routes use. `purchasing_workspace` additionally
+                // requires `SupplierRead`, and each write re-runs the native
+                // `guard` on the Phase 21A method it delegates to, so a role that
+                // lost its permission between the read and the write is refused
+                // at the boundary rather than by a hidden button.
+                "/v1/purchasing/workspace" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    // A workspace read must never carry an authority the caller
+                    // claims for itself. Two independent checks are needed and both
+                    // are here: the request must not name an actor (that would let a
+                    // phone assert an identity), and the supplier read is verified
+                    // against the session the hub itself authenticated.
+                    if body.get("actorId").is_some() || body.get("role").is_some() {
+                        return Err(StoreError::Forbidden);
+                    }
+                    self.store.purchasing_workspace()
+                }
+                "/v1/purchasing/order" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    self.store
+                        .purchasing_order(body["orderId"].as_str().ok_or(StoreError::InvalidDraft)?)
+                }
+                "/v1/purchasing/statement" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    self.store.purchasing_statement(
+                        body["supplierId"]
+                            .as_str()
+                            .ok_or(StoreError::InvalidDraft)?,
+                        body["after"].as_i64().unwrap_or(0),
+                        body["through"].as_i64(),
+                    )
+                }
+                "/v1/purchasing/submit" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    self.store.purchasing_submit(
+                        &device,
+                        body["operationId"]
+                            .as_str()
+                            .ok_or(StoreError::InvalidIdentity)?,
+                        &body,
+                    )
+                }
+                "/v1/purchasing/operation" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    // This is authorised by the device session that the rest of the
+                    // hub already authenticated above, exactly like `/v1/operation`.
+                    // A lost-acknowledgement recovery read is the one moment the
+                    // phone must not be told "unknown"; the journal row is scoped to
+                    // that device and employee, so revoking either still refuses it,
+                    // and a `not_found` answer never authorises a write on its own.
+                    crate::purchasing_hub::operation_status(&self.store, &device, &body)
+                }
                 _ => Err(StoreError::Forbidden),
             }
         })();

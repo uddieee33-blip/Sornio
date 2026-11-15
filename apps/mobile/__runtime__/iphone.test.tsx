@@ -20,7 +20,7 @@ async function enterDemo() {
   await mount(<App />);
   await pressLabel('Other Sornio modes');
   await pressLabel('Explore the companion demonstration');
-  await waitFor(() => expect(screen.queryAllByRole('tab').length).toBe(5), { timeout: 4000 });
+  await waitFor(() => expect(screen.queryAllByRole('tab').length).toBe(6), { timeout: 4000 });
 }
 
 async function confirmSignOut() {
@@ -59,7 +59,7 @@ describe('iPhone · startup and navigation', () => {
   it('keeps the phone tab bar on a 375pt iPhone SE', async () => {
     useDevice(device('iPhone SE (3rd generation) portrait'));
     await enterDemo();
-    expect(screen.queryAllByRole('tab').length).toBe(5);
+    expect(screen.queryAllByRole('tab').length).toBe(6);
     expect(screen.queryAllByRole('menuitem').length).toBe(0);
   });
 });
@@ -85,8 +85,9 @@ describe('iPhone · demonstration workspace', () => {
     await enterDemo();
     const tabs = screen.getAllByRole('tab').map((node) => node.props.accessibilityLabel as string);
     // Spoken labels must match the visible wording for this portal's vocabulary.
-    expect(tabs).toEqual(['Home', 'Activity', 'Inventory', 'Khata', 'More']);
-    for (const tab of ['Activity', terms.stock, terms.customers, 'More']) {
+    // Phase 21B adds Purchasing between People and More for stock portals.
+    expect(tabs).toEqual(['Home', 'Activity', 'Inventory', 'Khata', 'Purchasing', 'More']);
+    for (const tab of ['Activity', terms.stock, terms.customers, 'Purchasing', 'More']) {
       await pressTab(tab);
       expect(screen.getByRole('tab', { name: tab }).props.accessibilityState.selected).toBe(true);
     }
@@ -120,13 +121,13 @@ describe('iPhone · demonstration workspace', () => {
   it('never presents the kirana dashboard as a restaurant workspace', async () => {
     await enterDemo();
     expect(visibleText(screen)).not.toContain('Connect to the shop hub');
-    expect(screen.queryAllByRole('tab').length).toBe(5);
+    expect(screen.queryAllByRole('tab').length).toBe(6);
   });
 
   it('keeps the tab bar when accessibility text is very large', async () => {
     useDevice(device('iPhone 16 with accessibility text'));
     await enterDemo();
-    expect(screen.queryAllByRole('tab').length).toBe(5);
+    expect(screen.queryAllByRole('tab').length).toBe(6);
     expect(screen.queryAllByRole('menuitem').length).toBe(0);
   });
 });

@@ -17,7 +17,7 @@ async function enterDemo() {
   await mount(<App />);
   await pressLabel('Other Sornio modes');
   await pressLabel('Explore the companion demonstration');
-  await waitFor(() => expect(screen.queryAllByRole('tab').length).toBe(5), { timeout: 4000 });
+  await waitFor(() => expect(screen.queryAllByRole('tab').length).toBe(6), { timeout: 4000 });
 }
 
 describe('Android · shared-code regression', () => {
@@ -38,13 +38,13 @@ describe('Android · shared-code regression', () => {
 
   it('keeps the phone tab bar rather than a tablet rail', async () => {
     await enterDemo();
-    expect(screen.queryAllByRole('tab').length).toBe(5);
+    expect(screen.queryAllByRole('tab').length).toBe(6);
     expect(screen.queryAllByRole('menuitem').length).toBe(0);
   });
 
   it('navigates every tab using the same accessible names', async () => {
     await enterDemo();
-    for (const tab of ['Activity', 'Inventory', 'Khata', 'More', 'Home']) {
+    for (const tab of ['Activity', 'Inventory', 'Khata', 'Purchasing', 'More', 'Home']) {
       await pressTab(tab);
       expect(screen.getByRole('tab', { name: tab }).props.accessibilityState.selected).toBe(true);
     }
@@ -67,7 +67,7 @@ describe('Android · shared-code regression', () => {
   it('renders a virtualised Activity list without unmounting the tab bar', async () => {
     await enterDemo();
     await pressTab('Activity');
-    expect(screen.queryAllByRole('tab').length).toBe(5);
+    expect(screen.queryAllByRole('tab').length).toBe(6);
     expect(visibleText(screen)).toContain('All');
   });
 });
