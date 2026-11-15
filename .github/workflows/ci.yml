@@ -170,27 +170,24 @@ jobs:
           persist-credentials: false
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
       - name: Capture the compiler error
+        shell: bash
         run: |
-          cargo test --all-targets --locked --no-run --manifest-path packages/local-store/Cargo.toml 2>&1 | tee /tmp/build.log || true
-          python3 - <<'EOF'
-          import re,pathlib
-          raw=pathlib.Path('/tmp/build.log').read_text()
-          clean=re.sub(r'\x1b\[[0-9;]*m','',raw)
-          errs=[i for i,l in enumerate(clean.splitlines()) if re.search(r'^(error\[|error:)',l)]
-          lines=clean.splitlines()
-          out=[]
-          for i in errs[:12]:
-              out.extend(lines[i:i+14]); out.append('---')
-          msg='\n'.join(out)
-          for chunk in [msg[j:j+8000] for j in range(0,len(msg),8000)] or ['no error lines']:
-              print('::error::'+chunk.replace('%','%25').replace('\r','%0D').replace('\n','%0A'))
-          EOF
-      - name: Also upload the log
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
-        with:
-          name: build-log
-          path: /tmp/build.log
+          cargo test --all-targets --locked --no-run --manifest-path packages/local-store/Cargo.toml > /tmp/build.log 2>&1 || true
+          cargo test --all-targets --locked --release --no-run --manifest-path packages/local-store/Cargo.toml > /tmp/build-release.log 2>&1 || true
+          echo "debug exit: $?" >> /tmp/summary.txt
+          for f in /tmp/build.log /tmp/build-release.log; do
+            echo "=== $f ===" >> /tmp/summary.txt
+            sed -e 's/\x1b\[[0-9;]*m//g' "$f" | grep -E '^error' -A 12 | head -c 4000 >> /tmp/summary.txt || true
+          done
+          # Fail so the annotations are always published.
+          python3 -c "
+          import pathlib
+          raw=pathlib.Path('/tmp/summary.txt').read_text()
+          for i in range(0,max(1,len(raw)),7000):
+              chunk=raw[i:i+7000].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
+              print('::error::'+chunk)
+          "
+          exit 1
 
   historical-sqlcipher:
     name: Historical SQLCipher compatibility (4.6.1 to 4.20.0)
