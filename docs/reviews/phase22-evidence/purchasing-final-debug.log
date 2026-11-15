@@ -1,0 +1,64 @@
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/c4af9d6a6718/Sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.16s
+     Running unittests src/lib.rs (packages/local-store/target/debug/build/sornio-local-store/dea834e010448577/out/sornio_local_store-dea834e010448577)
+
+running 51 tests
+test purchasing::tests::invoices_post_variance_and_payments_allocate_once ... ok
+test purchasing::tests::purchase_order_lifecycle_enforces_the_state_machine ... ok
+test purchasing::tests::every_operation_journal_balances_and_statements_reconcile ... ok
+test purchasing::tests::migration_to_v23_preserves_existing_data_and_enables_purchasing ... ok
+test purchasing::tests::damaged_goods_do_not_enter_stock_or_the_payable ... ok
+test purchasing::tests::phase22_reversed_allocated_payment_can_be_replaced_without_overpayment ... ok
+test purchasing::tests::purchase_order_totals_use_integer_money_and_snapshot_product_data ... ok
+test purchasing::tests::receiving_partially_then_completely_reconciles_stock_and_payables ... ok
+test purchasing::tests::reversing_a_payment_restores_the_payable_and_audits_once ... ok
+test purchasing::tests::receiving_is_exactly_once_under_retries_and_reopen ... ok
+test purchasing::tests::unallocated_payments_are_the_explicit_advance_workflow ... ok
+test purchasing::tests::returns_deduct_stock_and_reduce_the_payable_exactly_once ... ok
+test purchasing::tests::supplier_profiles_use_stable_ids_revisions_and_exact_replays ... ok
+test purchasing::tests::native_roles_gate_every_purchasing_capability ... ok
+test purchasing::tests::experimental_database_with_drifted_purchasing_fails_closed ... ok
+test purchasing::tests::experimental_v13_purchasing_database_is_adopted_on_upgrade ... ok
+test purchasing_hub::integration::a_cashier_cannot_read_the_supplier_workspace ... ok
+test purchasing_hub::integration::a_hub_disable_blocks_every_purchasing_route ... ok
+test purchasing_hub::integration::a_draft_or_receipt_never_moves_stock_or_money ... ok
+test purchasing_hub::integration::a_return_is_refused_without_a_receipt_and_refusals_are_durable ... ok
+test purchasing_hub::integration::a_revoked_device_stops_reading_immediately ... ok
+test purchasing_hub::integration::a_partial_receipt_leaves_the_order_partial_and_accepts_the_remainder ... ok
+test purchasing_hub::integration::a_replayed_operation_returns_the_same_result_and_posts_once ... ok
+test purchasing_hub::integration::a_lost_acknowledgement_is_recovered_by_operation_identity ... ok
+test purchasing_hub::integration::a_session_expiry_during_recovery_does_not_lose_the_committed_result ... ok
+test purchasing_hub::integration::a_supplier_payment_posts_once_and_a_replay_is_identical ... ok
+test purchasing_hub::integration::a_stale_revision_is_refused_and_reported_without_overwriting ... ok
+test purchasing_hub::integration::a_storage_failure_is_retryable_and_never_journalled_as_a_business_refusal ... ok
+test purchasing_hub::integration::a_statement_read_is_bounded_and_scoped_to_one_supplier ... ok
+test purchasing_hub::integration::an_assistant_manager_cannot_record_a_supplier_payment_through_mobile ... ok
+test purchasing_hub::integration::an_unknown_operation_reports_not_found_rather_than_inventing_a_result ... ok
+test purchasing_hub::integration::an_identity_owned_by_another_device_cannot_adopt_its_result ... ok
+test purchasing_hub::integration::an_operation_audit_row_is_written_for_every_committed_mobile_write ... ok
+test purchasing_hub::integration::phase22_crash_worker ... ignored, Subprocess-only crash worker; invoked by committed_payment_survives_process_exit_before_hub_journal
+test purchasing_hub::integration::an_order_operation_identity_cannot_be_replayed_as_a_purchasing_one ... ok
+test purchasing_hub::integration::an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one ... ok
+
+running 1 test
+test purchasing_hub::integration::an_unknown_purchasing_kind_is_refused_before_the_store_runs ... ok
+test purchasing_hub::integration::envelope_identity_must_match_the_authoritative_request_before_posting ... ok
+test purchasing_hub::integration::mobile_invoice_outstanding_excludes_reversed_allocations ... ok
+test purchasing_hub::integration::reusing_an_operation_identity_for_different_content_is_a_conflict ... ok
+test purchasing_hub::integration::reusing_an_operation_identity_for_another_kind_is_a_conflict ... ok
+test purchasing_hub::integration::journal_rows_are_immutable_and_survive_delete_attempts ... ok
+test purchasing_hub::integration::the_owner_actor_is_reported_so_the_phone_never_trusts_its_own_claim ... ok
+test purchasing_hub::integration::the_capability_document_matches_the_native_role_matrix ... ok
+test purchasing_hub::integration::workspace_read_requires_an_approved_device_session ... ok
+test purchasing_hub::integration::unsupported_protocol_version_is_refused ... ok
+test purchasing_hub::integration::wrong_workspace_is_refused_before_any_data_is_read ... ok
+test purchasing_hub::integration::workspace_read_returns_suppliers_orders_and_capabilities ... ok
+test purchasing_hub::integration::committed_payment_survives_process_exit_before_hub_journal ... ok
+2026-11-16 02:02:17.730: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-11-16 02:02:17.730: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-11-16 02:02:17.730: ERROR CORE sqlcipher_codec_ctx_set_error: 1 lock=0
+test recovery::tests::legacy_v22_archive_remains_verifiable_and_restorable_after_purchasing_migration ... ok
+test purchasing_hub::integration::disk_hub_restart_recovers_receipt_payment_and_return_without_reposting ... ok
+
+test result: ok. 50 passed; 0 failed; 1 ignored; 0 measured; 271 filtered out; finished in 24.06s
+

@@ -10,7 +10,7 @@ use crate::{
     access::Workspace,
     catalog::AddProduct,
     identity::{Role, StaffDetails},
-    purchasing::{CreatePurchaseOrder, PurchaseOrderLineInput},
+    purchasing::PurchaseOrderLineInput,
 };
 use serde_json::json;
 use std::time::{Duration, Instant};
@@ -19,7 +19,11 @@ const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc
 const PASSWORD: &str = "Mobile purchasing password 2026";
 
 fn seeded() -> Workspace {
-    let mut w = Workspace::new(Store::open(std::path::Path::new(":memory:"), KEY).unwrap());
+    seeded_at(std::path::Path::new(":memory:"))
+}
+
+fn seeded_at(path: &std::path::Path) -> Workspace {
+    let mut w = Workspace::new(Store::open(path, KEY).unwrap());
     w.setup(PASSWORD).unwrap();
     w.add_product(AddProduct {
         operation_id: "rice".into(),
@@ -45,6 +49,392 @@ fn seeded() -> Workspace {
     .unwrap();
     w.hub_configure_for_test(true, None).unwrap();
     w
+}
+
+#[test]
+fn envelope_identity_must_match_the_authoritative_request_before_posting() {
+    let mut w = seeded();
+    let (i, token) = owner_phone(&mut w);
+    let body = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "outer-payment",
+        json!({
+            "operationId":"inner-payment", "supplierId":"sup-1", "invoiceId":null,
+            "method":"bank", "amountPaise":500, "reference":"identity mismatch", "paidOn":null
+        }),
+    );
+    assert!(matches!(
+        w.hub_request("/v1/purchasing/submit", &token, body),
+        Err(StoreError::InvalidDraft)
+    ));
+    let posted: i64 = w
+        .store_for_test()
+        .0
+        .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    assert_eq!(
+        posted, 0,
+        "mismatched recovery identities must never post money"
+    );
+}
+
+#[test]
+fn a_storage_failure_is_retryable_and_never_journalled_as_a_business_refusal() {
+    let mut w = seeded();
+    let (i, token) = owner_phone(&mut w);
+    w.store_for_test().0.execute_batch("CREATE TEMP TRIGGER phase22_fault BEFORE INSERT ON local_supplier_payments BEGIN SELECT RAISE(ABORT, 'phase22 injected storage failure'); END;").unwrap();
+    let body = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "retry-storage",
+        json!({
+            "operationId":"retry-storage", "supplierId":"sup-1", "invoiceId":null,
+            "method":"bank", "amountPaise":500, "reference":"retry", "paidOn":null
+        }),
+    );
+    let failed = w.hub_request("/v1/purchasing/submit", &token, body.clone());
+    assert!(
+        matches!(failed, Err(StoreError::Database(_))),
+        "storage error must remain retryable: {failed:?}"
+    );
+    let count: i64 = w
+        .store_for_test()
+        .0
+        .query_row(
+            "SELECT COUNT(*) FROM local_hub_operations WHERE id='retry-storage'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(count, 0);
+    assert_eq!(
+        w.supplier_statement("sup-1", 0, None)
+            .unwrap()
+            .supplier
+            .balance_paise,
+        "0"
+    );
+    w.store_for_test()
+        .0
+        .execute_batch("DROP TRIGGER phase22_fault;")
+        .unwrap();
+    let accepted = w
+        .hub_request("/v1/purchasing/submit", &token, body.clone())
+        .unwrap();
+    assert_eq!(accepted["status"], "accepted");
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, body)
+            .unwrap(),
+        accepted
+    );
+    assert_eq!(
+        w.supplier_statement("sup-1", 0, None)
+            .unwrap()
+            .supplier
+            .balance_paise,
+        "-500"
+    );
+}
+
+#[test]
+fn mobile_invoice_outstanding_excludes_reversed_allocations() {
+    let mut w = seeded();
+    let (i, token) = owner_phone(&mut w);
+    w.post_supplier_invoice(crate::purchasing::PostSupplierInvoice {
+        operation_id: "reversed-invoice".into(),
+        supplier_id: "sup-1".into(),
+        receipt_id: None,
+        reference: "reversal".into(),
+        total_paise: 10000,
+        due_on: None,
+    })
+    .unwrap();
+    let body = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "bounced-payment",
+        json!({
+            "operationId":"bounced-payment","supplierId":"sup-1","invoiceId":"reversed-invoice",
+            "method":"bank","amountPaise":10000,"reference":"bounced","paidOn":null
+        }),
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, body)
+            .unwrap()["status"],
+        "accepted"
+    );
+    w.reverse_supplier_entry(crate::purchasing::ReverseSupplierEntry {
+        operation_id: "reverse-bounced".into(),
+        target_operation_id: "bounced-payment".into(),
+        reason: "bounced transfer".into(),
+    })
+    .unwrap();
+    let snapshot = w
+        .hub_request(
+            "/v1/purchasing/workspace",
+            &token,
+            json!({
+                "version":1,"hubId":i["hubId"],"businessId":i["businessId"]
+            }),
+        )
+        .unwrap();
+    assert_eq!(snapshot["invoices"][0]["outstandingPaise"], 10000);
+    assert_eq!(
+        w.supplier_statement("sup-1", 0, None)
+            .unwrap()
+            .supplier
+            .balance_paise,
+        "10000"
+    );
+}
+
+#[test]
+fn disk_hub_restart_recovers_receipt_payment_and_return_without_reposting() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("phase22-encrypted.db");
+    let mut w = seeded_at(&path);
+    let (i, token) = owner_phone(&mut w);
+    let (order, _) = approved_order(&mut w, &i, &token, "restart");
+    let receipt = submit_body(
+        &i,
+        "purchasing.goods_received",
+        "restart-receipt",
+        json!({
+            "operationId":"restart-receipt", "orderId":order, "reference":"partial", "note":"",
+            "lines":[{"lineIndex":0,"productId":"rice","quantityMilli":4000,"damagedMilli":1000,"note":null}]
+        }),
+    );
+    let received = w
+        .hub_request("/v1/purchasing/submit", &token, receipt.clone())
+        .unwrap();
+    assert_eq!(received["status"], "accepted");
+    assert_eq!(received["result"]["goodsTotalPaise"], 27000);
+    assert_eq!(received["result"]["damagedTotalPaise"], 9000);
+    w.post_supplier_invoice(crate::purchasing::PostSupplierInvoice {
+        operation_id: "restart-invoice".into(),
+        supplier_id: "sup-1".into(),
+        receipt_id: Some("restart-receipt".into()),
+        reference: "restart-invoice".into(),
+        total_paise: 28000,
+        due_on: None,
+    })
+    .unwrap();
+    let payment = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "restart-payment",
+        json!({
+            "operationId":"restart-payment", "supplierId":"sup-1", "invoiceId":"restart-invoice",
+            "method":"bank", "amountPaise":5000, "reference":"partial", "paidOn":null
+        }),
+    );
+    let paid = w
+        .hub_request("/v1/purchasing/submit", &token, payment.clone())
+        .unwrap();
+    assert_eq!(paid["status"], "accepted");
+    drop(w); // close the actual SQLCipher store, then recover a lost reply
+    let bytes = std::fs::read(&path).unwrap();
+    assert!(!bytes.starts_with(b"SQLite format 3"));
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.login("owner", PASSWORD).unwrap();
+    assert_eq!(
+        w.hub_request("/v1/purchasing/operation", &token, payment.clone())
+            .unwrap(),
+        paid
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, payment)
+            .unwrap(),
+        paid
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, receipt)
+            .unwrap(),
+        received
+    );
+    let returned = submit_body(
+        &i,
+        "purchasing.purchase_return",
+        "restart-return",
+        json!({
+            "operationId":"restart-return", "receiptId":"restart-receipt", "disposition":"supplier_credit",
+            "refundMethod":null,"reason":"return good stock",
+            "lines":[{"receiptLine":0,"productId":"rice","quantityMilli":1000}]
+        }),
+    );
+    let result = w
+        .hub_request("/v1/purchasing/submit", &token, returned.clone())
+        .unwrap();
+    assert_eq!(result["status"], "accepted");
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, returned)
+            .unwrap(),
+        result
+    );
+    assert_eq!(
+        w.supplier_statement("sup-1", 0, None)
+            .unwrap()
+            .supplier
+            .balance_paise,
+        "14000"
+    );
+    let stock: i64 = w
+        .store_for_test()
+        .0
+        .query_row(
+            "SELECT stock_milli FROM local_products WHERE id='rice'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(stock, 102000);
+    let unbalanced: i64 = w.store_for_test().0.query_row("SELECT COUNT(*) FROM (SELECT operation_id FROM local_supplier_journal GROUP BY operation_id HAVING SUM(amount_paise)<>0)", [], |r| r.get(0)).unwrap();
+    assert_eq!(unbalanced, 0);
+    let counts: (i64,i64,i64) = w.store_for_test().0.query_row("SELECT (SELECT COUNT(*) FROM local_goods_receipts), (SELECT COUNT(*) FROM local_supplier_payments), (SELECT COUNT(*) FROM local_purchase_returns)", [], |r| Ok((r.get(0)?,r.get(1)?,r.get(2)?))).unwrap();
+    assert_eq!(counts, (1, 1, 1));
+    let backup = dir.path().join("purchasing.sorniobackup");
+    let recovery = "Separate purchasing recovery password";
+    w.export_backup(&backup, PASSWORD, recovery).unwrap();
+    assert!(w
+        .preview_backup(
+            &backup,
+            PASSWORD,
+            "Wrong purchasing recovery phrase",
+            PASSWORD
+        )
+        .is_err());
+    let preview = w
+        .preview_backup(&backup, PASSWORD, recovery, PASSWORD)
+        .unwrap();
+    w.restore_backup(
+        &backup,
+        dir.path(),
+        PASSWORD,
+        recovery,
+        PASSWORD,
+        &preview,
+        &preview.confirmation,
+    )
+    .unwrap();
+    w.login("owner", PASSWORD).unwrap();
+    assert_eq!(
+        w.supplier_statement("sup-1", 0, None)
+            .unwrap()
+            .supplier
+            .balance_paise,
+        "14000"
+    );
+    assert_eq!(
+        w.store_for_test()
+            .0
+            .query_row(
+                "SELECT stock_milli FROM local_products WHERE id='rice'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+        102000
+    );
+    assert_eq!(
+        w.store_for_test()
+            .0
+            .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+}
+
+#[test]
+#[ignore = "Subprocess-only crash worker; invoked by committed_payment_survives_process_exit_before_hub_journal"]
+fn phase22_crash_worker() {
+    let path = std::env::var_os("SORNIO_PHASE22_CRASH_PATH").expect("subprocess fixture path");
+    let mut w = Workspace::new(Store::open(std::path::Path::new(&path), KEY).unwrap());
+    w.login("owner", PASSWORD).unwrap();
+    let (i, token) = owner_phone(&mut w);
+    // Abort the journal transaction after the authoritative payment committed.
+    // This is the precise lost-ack window, not a mocked frontend timeout.
+    w.store_for_test().0.execute_batch("CREATE TEMP TRIGGER phase22_journal_fault BEFORE INSERT ON local_hub_operations BEGIN SELECT RAISE(ABORT, 'phase22 journal fault'); END;").unwrap();
+    let outcome = w.hub_request("/v1/purchasing/submit", &token, crash_payment(&i));
+    assert!(matches!(outcome, Err(StoreError::Database(_))));
+    std::process::exit(77); // no Store/SQLite destructors or graceful checkpoint
+}
+
+fn crash_payment(i: &Value) -> Value {
+    submit_body(
+        i,
+        "purchasing.supplier_payment",
+        "crash-payment",
+        json!({
+            "operationId":"crash-payment", "supplierId":"sup-1", "invoiceId":null,
+            "method":"bank", "amountPaise":500, "reference":"crash", "paidOn":null
+        }),
+    )
+}
+
+#[test]
+fn committed_payment_survives_process_exit_before_hub_journal() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("crash.db");
+    drop(seeded_at(&path));
+    let status = std::process::Command::new(std::env::current_exe().unwrap())
+        .args([
+            "--exact",
+            "purchasing_hub::integration::phase22_crash_worker",
+            "--ignored",
+            "--nocapture",
+        ])
+        .env("SORNIO_PHASE22_CRASH_PATH", &path)
+        .status()
+        .unwrap();
+    assert_eq!(status.code(), Some(77));
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.login("owner", PASSWORD).unwrap();
+    let i = w.hub_admin_for_test().unwrap()["identity"].clone();
+    let credential = "a".repeat(64);
+    let session = w
+        .hub_request(
+            "/v1/session",
+            &credential,
+            json!({
+                "version":1,"hubId":i["hubId"],"businessId":i["businessId"],"deviceId":"phone",
+                "username":"owner","password":PASSWORD
+            }),
+        )
+        .unwrap();
+    let token = session["token"].as_str().unwrap();
+    let body = crash_payment(&i);
+    let recovered = w
+        .hub_request("/v1/purchasing/submit", token, body.clone())
+        .unwrap();
+    assert_eq!(recovered["status"], "accepted");
+    assert_eq!(
+        w.hub_request("/v1/purchasing/operation", token, body.clone())
+            .unwrap(),
+        recovered
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", token, body).unwrap(),
+        recovered
+    );
+    assert_eq!(
+        w.store_for_test()
+            .0
+            .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        w.supplier_statement("sup-1", 0, None)
+            .unwrap()
+            .supplier
+            .balance_paise,
+        "-500"
+    );
 }
 
 /// Enrol one device and sign it in as the named staff account on the supplied

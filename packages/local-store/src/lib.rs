@@ -34,6 +34,9 @@ pub mod security_history;
 mod session_signout;
 pub mod staff_access;
 
+#[cfg(test)]
+mod phase22_reliability_tests;
+
 #[cfg(any(windows, target_os = "macos"))]
 pub mod device;
 

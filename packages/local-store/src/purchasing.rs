@@ -1941,7 +1941,9 @@ fn outstanding_for_invoice(db: &Connection, invoice_id: &str) -> Result<i64, Sto
         .optional()?;
     let total = total.ok_or(StoreError::InvalidPayable)?;
     let allocated: i64 = db.query_row(
-        "SELECT COALESCE(SUM(amount_paise), 0) FROM local_supplier_payments WHERE invoice_id = ?1",
+        "SELECT COALESCE(SUM(p.amount_paise), 0) FROM local_supplier_payments p
+         WHERE p.invoice_id = ?1 AND NOT EXISTS
+           (SELECT 1 FROM local_supplier_entries e WHERE e.reverse_of = p.id)",
         [invoice_id],
         |r| r.get(0),
     )?;

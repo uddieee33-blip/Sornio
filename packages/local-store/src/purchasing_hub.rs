@@ -33,7 +33,7 @@ use crate::{
     },
     Store, StoreError,
 };
-use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
+use rusqlite::{params, OptionalExtension, TransactionBehavior};
 use serde_json::{json, Value};
 use sha2::{Digest, Sha256};
 
@@ -153,7 +153,7 @@ impl Store {
         let invoices = {
             let mut q = self.0.prepare(
                 "SELECT i.id,i.supplier_id,i.receipt_id,i.reference,i.total_paise,i.due_on,i.created_at,
-                        COALESCE((SELECT SUM(p.amount_paise) FROM local_supplier_payments p WHERE p.invoice_id=i.id),0)
+                        COALESCE((SELECT SUM(p.amount_paise) FROM local_supplier_payments p WHERE p.invoice_id=i.id AND NOT EXISTS (SELECT 1 FROM local_supplier_entries e WHERE e.reverse_of=p.id)),0)
                  FROM local_supplier_invoices i
                  ORDER BY i.created_at DESC, i.rowid DESC LIMIT ?1",
             )?;
@@ -335,6 +335,11 @@ impl Store {
             .get("request")
             .cloned()
             .ok_or(StoreError::InvalidDraft)?;
+        // The journal and the authoritative financial write must share one ID.
+        // Reject before either store is touched, including the replay path.
+        if request_value.get("operationId").and_then(Value::as_str) != Some(operation_id) {
+            return Err(StoreError::InvalidDraft);
+        }
         // The digest covers the business request and the kind only: the envelope
         // fields are validated separately, so rewording the wrapper cannot
         // "change" a request and a replay stays a replay.
@@ -441,14 +446,14 @@ impl Store {
                 let r: SaveSupplier = serde_json::from_value(request.clone())?;
                 match self.save_supplier(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(supplier_refusal(&e)),
+                    Err(e) => Err(supplier_refusal(e)?),
                 }
             }
             KIND_PO_CREATED => {
                 let r: CreatePurchaseOrder = serde_json::from_value(request.clone())?;
                 match self.create_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, None)),
+                    Err(e) => Err(order_refusal(&self.0, e, None)?),
                 }
             }
             KIND_PO_UPDATED => {
@@ -456,7 +461,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.update_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, e, Some(&id))?),
                 }
             }
             KIND_PO_SUBMITTED => {
@@ -464,7 +469,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.submit_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, e, Some(&id))?),
                 }
             }
             KIND_PO_DECIDED => {
@@ -472,7 +477,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.decide_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, e, Some(&id))?),
                 }
             }
             KIND_PO_CANCELLED => {
@@ -480,7 +485,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.cancel_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, e, Some(&id))?),
                 }
             }
             KIND_PO_CLOSED => {
@@ -488,28 +493,28 @@ impl Store {
                 let id = r.id.clone();
                 match self.close_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, e, Some(&id))?),
                 }
             }
             KIND_RECEIPT => {
                 let r: PostGoodsReceipt = serde_json::from_value(request.clone())?;
                 match self.post_goods_receipt(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, None)),
+                    Err(e) => Err(order_refusal(&self.0, e, None)?),
                 }
             }
             KIND_PAYMENT => {
                 let r: PostSupplierPayment = serde_json::from_value(request.clone())?;
                 match self.post_supplier_payment(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(payable_refusal(&e)),
+                    Err(e) => Err(payable_refusal(e)?),
                 }
             }
             KIND_RETURN => {
                 let r: PostPurchaseReturn = serde_json::from_value(request.clone())?;
                 match self.post_purchase_return(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(return_refusal(&e)),
+                    Err(e) => Err(return_refusal(e)?),
                 }
             }
             _ => return Err(StoreError::InvalidDraft),
@@ -521,9 +526,9 @@ impl Store {
 /// phone can show exactly what changed instead of retrying blind.
 fn order_refusal(
     db: &rusqlite::Connection,
-    e: &StoreError,
+    e: StoreError,
     order_id: Option<&str>,
-) -> (&'static str, Option<i64>) {
+) -> Result<(&'static str, Option<i64>), StoreError> {
     let revision = order_id.and_then(|id| {
         db.query_row(
             "SELECT revision FROM local_purchase_orders WHERE id=?1",
@@ -534,7 +539,7 @@ fn order_refusal(
         .ok()
         .flatten()
     });
-    match e {
+    Ok(match e {
         StoreError::OrderState => ("order_state_refused", revision),
         StoreError::PurchaseOrderConflict => ("revision_conflict", revision),
         StoreError::PurchaseOrderMissing => ("order_missing", None),
@@ -547,40 +552,40 @@ fn order_refusal(
         StoreError::Forbidden => ("not_permitted", None),
         StoreError::WorkspaceMismatch => ("wrong_shop", None),
         StoreError::OperationConflict => ("operation_identity_conflict", None),
-        _ => ("unknown_refusal", None),
-    }
+        _ => return Err(e),
+    })
 }
 
-fn supplier_refusal(e: &StoreError) -> (&'static str, Option<i64>) {
-    match e {
+fn supplier_refusal(e: StoreError) -> Result<(&'static str, Option<i64>), StoreError> {
+    Ok(match e {
         StoreError::InvalidSupplier => ("invalid_supplier", None),
         StoreError::SupplierMissing => ("supplier_missing", None),
         StoreError::SupplierConflict => ("supplier_revision_conflict", None),
         StoreError::Forbidden => ("not_permitted", None),
         StoreError::OperationConflict => ("operation_identity_conflict", None),
-        _ => ("unknown_refusal", None),
-    }
+        _ => return Err(e),
+    })
 }
 
-fn payable_refusal(e: &StoreError) -> (&'static str, Option<i64>) {
-    match e {
+fn payable_refusal(e: StoreError) -> Result<(&'static str, Option<i64>), StoreError> {
+    Ok(match e {
         StoreError::InvalidPayable => ("invalid_payable", None),
         StoreError::Overpayment => ("overpayment", None),
         StoreError::SupplierMissing => ("supplier_missing", None),
         StoreError::SupplierConflict => ("supplier_revision_conflict", None),
         StoreError::Forbidden => ("not_permitted", None),
         StoreError::OperationConflict => ("operation_identity_conflict", None),
-        _ => ("unknown_refusal", None),
-    }
+        _ => return Err(e),
+    })
 }
 
-fn return_refusal(e: &StoreError) -> (&'static str, Option<i64>) {
-    match e {
+fn return_refusal(e: StoreError) -> Result<(&'static str, Option<i64>), StoreError> {
+    Ok(match e {
         StoreError::InvalidReturn => ("invalid_return", None),
         StoreError::Forbidden => ("not_permitted", None),
         StoreError::OperationConflict => ("operation_identity_conflict", None),
-        _ => ("unknown_refusal", None),
-    }
+        _ => return Err(e),
+    })
 }
 
 /// Parsed view of one `local_hub_operations` row that a purchasing request wrote.

@@ -1,0 +1,50 @@
+{
+  "result": "PASS",
+  "started_at_utc": "2026-11-15T20:19:27.982117+00:00",
+  "host": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "executable": "/workspace/scratch/c4af9d6a6718/Sornio/packages/local-store/target/debug/build/sornio-local-store/dea834e010448577/out/sornio_local_store-dea834e010448577",
+  "source_commit": "3bc8d86cb0c3148a4078c1956acca5da453d9fc8",
+  "working_tree": " M .github/workflows/workspace-browser.yml\n M apps/desktop/check-native.py\n M packages/local-store/src/lib.rs\n M packages/local-store/src/purchasing_hub.rs\n M packages/local-store/src/purchasing_hub_tests.rs\n?? apps/desktop/check-purchasing-soak.py\n?? docs/reviews/phase22-evidence/\n?? packages/local-store/src/phase22_reliability_tests.rs\n?? scripts/run-phase22-workload.py\n",
+  "exit_code": 0,
+  "timed_out": false,
+  "wall_seconds": 395.097817103,
+  "peak_process_tree_rss_bytes": 140333056,
+  "sampled_cpu_seconds": 255.76,
+  "average_cpu_percent_of_one_core": 64.73333663934788,
+  "sampling_interval_seconds": 0.25,
+  "native_metrics": [
+    {
+      "backup_bytes": 179638272,
+      "backup_seconds": 34.363710066,
+      "counts": {
+        "customers": 10000,
+        "invoices": 50000,
+        "products": 5000,
+        "purchaseOrders": 5000,
+        "suppliers": 1000
+      },
+      "elapsed_seconds": 394.708299701,
+      "encrypted_database_bytes": 181522432,
+      "financial_reconciliation": "PASS: cash, stock, balanced invoice journals, no draft-order debt; repeated after reopen and restore",
+      "limitations": "native Workspace/SQLCipher workload; no installed GUI performance or physical power-loss claim",
+      "native_postings_per_second": 212.0096855210132,
+      "query_bundle_ms": {
+        "maximum": 490.100194,
+        "median": 321.32549900000004,
+        "samples": 30
+      },
+      "reopen_with_unlock_ms": 1203.885158,
+      "result": "PASS",
+      "schema": 23,
+      "stages": {
+        "customers_seconds": 10.865563378000001,
+        "invoices_seconds": 235.838281997,
+        "orders_seconds": 12.164318289,
+        "products_seconds": 6.883873866,
+        "suppliers_seconds": 1.7403650449999999
+      },
+      "startup_with_setup_ms": 782.016721
+    }
+  ],
+  "log": "docs/reviews/phase22-evidence/native-workload.log"
+}

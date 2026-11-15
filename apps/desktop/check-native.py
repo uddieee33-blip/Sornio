@@ -4,6 +4,7 @@ CI blocks outbound traffic for this app and its WebView runtime. This script
 uses verified native keyboard focus, not debugging, injected JS or mocked IPC.
 """
 from pathlib import Path
+import json
 import os
 import re
 import subprocess
@@ -298,6 +299,12 @@ try:
         assert saved_invoice_id(), 'Preserved sale receipt missing after reinstall'
         assert_saved_total('1,000.00')
         window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
+        activate_link('Suppliers & purchases')
+        activate('Open supplier native-supplier-1')
+        wait_until(30, 0.5, lambda: message_visible('Supplier statement · closing balance ₹125.00'))
+        activate('Open order PO-1')
+        wait_until(30, 0.5, lambda: message_visible('PO-1 · Closed'))
+        window.capture_as_image().save(OUTPUT / 'windows-purchasing-reinstalled.png')
         print('Installed-app reopen preserved original credentials, draft/history, stock, balances and the ₹1,000.00 saved closing receipt.')
         sys.exit(0)
     launch(setup=True)
@@ -841,12 +848,8 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-thousand-split-reopened.png")
     print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-2, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
     print("Native retail release: real cash/UPI split, pending/unverified separation, explicit manual statement match, forced match receipt recovery, authorized return, cash refund, pending digital refund, atomic stock restoration, saved CA CSV and exact cashier variance passed.")
-    # Phase 21A installed-UI smoke: the purchasing surface opens in the packaged app.
-    # Full PO/receiving/invoice/payment/return coverage stays on the bridge-level
-    # acceptance (check-suppliers.cjs); this proves the installed UI can create a
-    # supplier and archive/restore it against the real native store. Tab wraps
-    # around the end of the document in this WebView, so the rail link is in
-    # reach from wherever the flow ended.
+    # Phase 22: operate the full lifecycle through the installed release app.
+    purchasing_started = time.monotonic()
     activate_link("Suppliers & purchases")
     wait_until(30, 0.2, lambda: message_visible("Suppliers are up to date."))
     fill("Supplier ID", "native-supplier-1")
@@ -861,7 +864,107 @@ try:
     activate("Restore supplier")
     wait_until(30, 0.5, lambda: message_visible("Supplier restored."))
     window.capture_as_image().save(OUTPUT / "windows-suppliers.png")
-    print("Phase 21A installed-UI smoke: the packaged app opened the purchasing work area, created native-supplier-1 through the real native store, archived it and restored it, entirely through the installed UI. The purchase order, receiving, invoice, payment and return lifecycle is covered by the bridge-level acceptance, not claimed here.")
+    focus_control("Item", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Quantity", "2")
+    fill("Unit cost (₹)", "100")
+    activate("Create draft order")
+    wait_until(30, 0.5, lambda: message_visible("Draft order created."))
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Draft"))
+    activate("Submit for approval")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Awaiting approval"))
+    activate("Approve order")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Approved"))
+    fill("Good quantity received", "1")
+    fill("Damaged within that quantity", "0.25")
+    fill("Delivery challan / note reference", "NATIVE-PARTIAL")
+    activate("Receive goods")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Partially received"))
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹75.00"))
+    fill("Invoice reference", "NATIVE-INVOICE-1")
+    fill("Invoice total (₹)", "80")
+    activate("Record invoice")
+    wait_until(30, 0.5, lambda: message_visible("Supplier invoice recorded."))
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹80.00"))
+    fill("Amount (₹)", "30")
+    fill("Payment reference", "NATIVE-BANK-PARTIAL")
+    activate("Record payment")
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹50.00"))
+    focus_control("Goods receipt", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Quantity to return", "0.25")
+    fill("Reason for the return", "Native accepted-stock return")
+    activate("Record return")
+    wait_until(30, 0.5, lambda: message_visible("Return recorded for ₹25.00"))
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹25.00"))
+    fill("Good quantity received", "1")
+    fill("Delivery challan / note reference", "NATIVE-REMAINDER")
+    activate("Receive goods")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Received"))
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹125.00"))
+    activate("Close order")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Closed"))
+    window.capture_as_image().save(OUTPUT / "windows-purchasing-lifecycle.png")
+    stop()
+    launch()
+    activate_link("Suppliers & purchases")
+    activate("Open supplier native-supplier-1")
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹125.00"))
+    activate("Open order PO-1")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Closed"))
+    window.capture_as_image().save(OUTPUT / "windows-purchasing-reopened.png")
+    # Export and restore the actual purchasing records through the OS pickers.
+    if window.child_window(title="Open backup controls", control_type="Button", visible_only=False).exists(timeout=0.1):
+        activate("Open backup controls")
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Confirm recovery passphrase for export", recovery_secret)
+    activate("Export encrypted backup…")
+    pick_native_file("Export encrypted Sornio backup", Path(os.environ["TEMP"]) / ("purchasing-" + str(uuid4()) + ".sorniobackup"))
+    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
+    purchasing_path = re.search(r"Saved to: (.+?)\. Backup ID ", message_text("Encrypted backup saved and verified.") or "")
+    assert purchasing_path, "Purchasing backup did not report its actual path"
+    purchasing_backup = Path(purchasing_path.group(1))
+    assert purchasing_backup.exists() and purchasing_backup.stat().st_size >= 4096
+    assert not purchasing_backup.read_bytes().startswith(b"SQLite format 3")
+    fill("Amount (₹)", "20")
+    fill("Payment reference", "NATIVE-AFTER-BACKUP")
+    activate("Record payment")
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹105.00"))
+    activate("Choose encrypted backup…")
+    pick_native_file("Choose encrypted Sornio backup", purchasing_backup)
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Original Owner password from backup", PASSWORD)
+    activate("Verify and preview backup")
+    wait_until(60, 0.5, lambda: message_visible("Backup verified. Re-enter the passwords"))
+    phrase_titles = [control.window_text() for control in ui_descendants(control_type="Edit")
+                     if re.match(r"^Type RESTORE [a-f0-9]{12} to restore$", control.window_text())]
+    assert len(phrase_titles) == 1
+    phrase_title = phrase_titles[0]
+    phrase = re.match(r"^Type (RESTORE [a-f0-9]{12}) to restore$", phrase_title).group(1)
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Original Owner password from backup", PASSWORD)
+    fill(phrase_title, phrase)
+    activate("Create safety backup and restore")
+    assert_locked()
+    enter_password()
+    activate_link("Suppliers & purchases")
+    activate("Open supplier native-supplier-1")
+    wait_until(30, 0.5, lambda: message_visible("Supplier statement · closing balance ₹125.00"))
+    activate("Open order PO-1")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Closed"))
+    window.capture_as_image().save(OUTPUT / "windows-purchasing-restored.png")
+    (OUTPUT / "purchasing-installed-result.json").write_text(json.dumps({
+        "result": "PASS", "source_commit": os.environ.get("GITHUB_SHA"),
+        "executable": str(EXE), "environment": "installed Windows release application; UIA keyboard; outbound blocked",
+        "duration_seconds": time.monotonic() - purchasing_started,
+        "dataset": {"suppliers": 1, "purchase_orders": 1, "receipts": 2, "invoices": 1, "payments": 1, "returns": 1},
+        "financial_reconciliation": "7500 receipt + 500 invoice variance - 3000 bank payment - 2500 return + 10000 receipt = 12500 paise; preserved after forced restart and restored after a later 2000-paise payment",
+        "limitations": "unsigned engineering installer; same-version reinstall checked by the separate preserved-data stage"
+    }, indent=2) + "\n", encoding="utf-8")
+    print("Phase 22 installed purchasing lifecycle passed, with a 12500-paise payable preserved across forced restart.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()
