@@ -153,7 +153,7 @@ impl Store {
         let invoices = {
             let mut q = self.0.prepare(
                 "SELECT i.id,i.supplier_id,i.receipt_id,i.reference,i.total_paise,i.due_on,i.created_at,
-                        COALESCE((SELECT SUM(p.amount_paise) FROM local_supplier_payments p WHERE p.invoice_id=i.id),0)
+                        COALESCE((SELECT SUM(p.amount_paise) FROM local_supplier_payments p WHERE p.invoice_id=i.id AND NOT EXISTS (SELECT 1 FROM local_supplier_entries e WHERE e.reverse_of=p.id)),0)
                  FROM local_supplier_invoices i
                  ORDER BY i.created_at DESC, i.rowid DESC LIMIT ?1",
             )?;
@@ -335,6 +335,11 @@ impl Store {
             .get("request")
             .cloned()
             .ok_or(StoreError::InvalidDraft)?;
+        // The envelope journal and the authoritative financial write must name
+        // the same operation, including when the caller bypasses our client.
+        if request_value["operationId"].as_str() != Some(operation_id) {
+            return Err(StoreError::OperationConflict);
+        }
         // The digest covers the business request and the kind only: the envelope
         // fields are validated separately, so rewording the wrapper cannot
         // "change" a request and a replay stays a replay.
@@ -441,14 +446,14 @@ impl Store {
                 let r: SaveSupplier = serde_json::from_value(request.clone())?;
                 match self.save_supplier(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(supplier_refusal(&e)),
+                    Err(e) => Err(supplier_refusal(&business_error(e)?)),
                 }
             }
             KIND_PO_CREATED => {
                 let r: CreatePurchaseOrder = serde_json::from_value(request.clone())?;
                 match self.create_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, None)),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, None)),
                 }
             }
             KIND_PO_UPDATED => {
@@ -456,7 +461,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.update_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, Some(&id))),
                 }
             }
             KIND_PO_SUBMITTED => {
@@ -464,7 +469,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.submit_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, Some(&id))),
                 }
             }
             KIND_PO_DECIDED => {
@@ -472,7 +477,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.decide_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, Some(&id))),
                 }
             }
             KIND_PO_CANCELLED => {
@@ -480,7 +485,7 @@ impl Store {
                 let id = r.id.clone();
                 match self.cancel_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, Some(&id))),
                 }
             }
             KIND_PO_CLOSED => {
@@ -488,32 +493,57 @@ impl Store {
                 let id = r.id.clone();
                 match self.close_purchase_order(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, Some(&id))),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, Some(&id))),
                 }
             }
             KIND_RECEIPT => {
                 let r: PostGoodsReceipt = serde_json::from_value(request.clone())?;
                 match self.post_goods_receipt(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(order_refusal(&self.0, &e, None)),
+                    Err(e) => Err(order_refusal(&self.0, &business_error(e)?, None)),
                 }
             }
             KIND_PAYMENT => {
                 let r: PostSupplierPayment = serde_json::from_value(request.clone())?;
                 match self.post_supplier_payment(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(payable_refusal(&e)),
+                    Err(e) => Err(payable_refusal(&business_error(e)?)),
                 }
             }
             KIND_RETURN => {
                 let r: PostPurchaseReturn = serde_json::from_value(request.clone())?;
                 match self.post_purchase_return(r) {
                     Ok(v) => ok(serde_json::to_value(v)?),
-                    Err(e) => Err(return_refusal(&e)),
+                    Err(e) => Err(return_refusal(&business_error(e)?)),
                 }
             }
             _ => return Err(StoreError::InvalidDraft),
         })
+    }
+}
+
+// Only known business rejections may become immutable journal answers. SQLite,
+// storage, decoding and access-infrastructure failures remain retryable errors;
+// otherwise a temporary fault permanently poisons the caller's operation id.
+fn business_error(error: StoreError) -> Result<StoreError, StoreError> {
+    match error {
+        StoreError::OrderState
+        | StoreError::PurchaseOrderConflict
+        | StoreError::PurchaseOrderMissing
+        | StoreError::SupplierMissing
+        | StoreError::SupplierConflict
+        | StoreError::InvalidPurchaseOrder
+        | StoreError::InvalidReceipt
+        | StoreError::InvalidReturn
+        | StoreError::InvalidProduct
+        | StoreError::ProductMissing
+        | StoreError::InvalidSupplier
+        | StoreError::InvalidPayable
+        | StoreError::Overpayment
+        | StoreError::Forbidden
+        | StoreError::WorkspaceMismatch
+        | StoreError::OperationConflict => Ok(error),
+        _ => Err(error),
     }
 }
 

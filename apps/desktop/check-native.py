@@ -5,6 +5,7 @@ uses verified native keyboard focus, not debugging, injected JS or mocked IPC.
 """
 from pathlib import Path
 import os
+import json
 import re
 import subprocess
 import sys
@@ -73,6 +74,16 @@ def activate_link(title):
         send_keys("{ENTER}" if control_type == "Hyperlink" else "{SPACE}", pause=0.1)
         return
     raise AssertionError(f"Navigation link not found as Hyperlink or Button: {title}")
+
+
+def assert_purchasing_preserved():
+    activate_link("Suppliers & purchases")
+    wait_enabled("Open supplier native-supplier-1")
+    activate("Open supplier native-supplier-1")
+    wait_until(30, 0.5, lambda: message_visible("Outstanding: ₹60.00"))
+    wait_until(30, 0.5, lambda: message_visible("INV-P22"))
+    activate("Open order PO-1")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Received"))
 
 
 def ui_descendants(control_type=None):
@@ -298,6 +309,12 @@ try:
         assert saved_invoice_id(), 'Preserved sale receipt missing after reinstall'
         assert_saved_total('1,000.00')
         window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
+        assert_purchasing_preserved()
+        window.capture_as_image().save(OUTPUT / 'windows-purchasing-reinstalled.png')
+        purchasing_record = OUTPUT / 'purchasing-installed-result.json'
+        verified = json.loads(purchasing_record.read_text(encoding='utf-8'))
+        verified['reinstall'] = 'PASS'
+        purchasing_record.write_text(json.dumps(verified, indent=2), encoding='utf-8')
         print('Installed-app reopen preserved original credentials, draft/history, stock, balances and the ₹1,000.00 saved closing receipt.')
         sys.exit(0)
     launch(setup=True)
@@ -841,12 +858,15 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-thousand-split-reopened.png")
     print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-2, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
     print("Native retail release: real cash/UPI split, pending/unverified separation, explicit manual statement match, forced match receipt recovery, authorized return, cash refund, pending digital refund, atomic stock restoration, saved CA CSV and exact cashier variance passed.")
-    # Phase 21A installed-UI smoke: the purchasing surface opens in the packaged app.
-    # Full PO/receiving/invoice/payment/return coverage stays on the bridge-level
-    # acceptance (check-suppliers.cjs); this proves the installed UI can create a
-    # supplier and archive/restore it against the real native store. Tab wraps
-    # around the end of the document in this WebView, so the rail link is in
-    # reach from wherever the flow ended.
+    purchasing_started = time.monotonic()
+    # A separate item preserves the earlier retail fixture's stock invariant.
+    fill("Item name", "AAA Phase22 stock")
+    fill("Item code (optional)", "P22-INSTALLED")
+    fill("Unit price (₹)", "100")
+    fill("Opening stock", "0")
+    activate("Save item on this PC")
+    wait_until(30, 0.5, lambda: message_visible("Saved item changes to this PC."))
+    activate("Acknowledge item save")
     activate_link("Suppliers & purchases")
     wait_until(30, 0.2, lambda: message_visible("Suppliers are up to date."))
     fill("Supplier ID", "native-supplier-1")
@@ -861,7 +881,98 @@ try:
     activate("Restore supplier")
     wait_until(30, 0.5, lambda: message_visible("Supplier restored."))
     window.capture_as_image().save(OUTPUT / "windows-suppliers.png")
-    print("Phase 21A installed-UI smoke: the packaged app opened the purchasing work area, created native-supplier-1 through the real native store, archived it and restored it, entirely through the installed UI. The purchase order, receiving, invoice, payment and return lifecycle is covered by the bridge-level acceptance, not claimed here.")
+    # Full purchasing lifecycle through the installed WebView and native IPC.
+    # First catalogue option is the alphabetically-first synthetic item above.
+    focus_control("Item", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    fill("Quantity", "2")
+    fill("Unit cost (₹)", "100")
+    activate("Create draft order")
+    wait_until(30, 0.5, lambda: message_visible("Draft order created."))
+    activate("Submit for approval")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Awaiting approval"))
+    activate("Approve order")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Approved"))
+    fill("Good quantity received", "1")
+    fill("Damaged within that quantity", "0.25")
+    fill("Delivery challan / note reference", "P22-PARTIAL")
+    activate("Receive goods")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Partially received"))
+    wait_until(30, 0.5, lambda: message_visible("Outstanding: ₹75.00"))
+    fill("Good quantity received", "1")
+    fill("Damaged within that quantity", "0")
+    fill("Delivery challan / note reference", "P22-REMAINDER")
+    activate("Receive goods")
+    wait_until(30, 0.5, lambda: message_visible("PO-1 · Received"))
+    wait_until(30, 0.5, lambda: message_visible("Outstanding: ₹175.00"))
+    fill("Invoice reference", "INV-P22")
+    fill("Invoice total (₹)", "110")
+    activate("Record invoice")
+    wait_until(30, 0.5, lambda: message_visible("Supplier invoice recorded."))
+    wait_until(30, 0.5, lambda: message_visible("Outstanding: ₹185.00"))
+    focus_control("Method", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)  # bank; retail cash ledger remains unchanged
+    fill("Amount (₹)", "100")
+    fill("Payment reference", "PAY-P22")
+    activate("Record payment")
+    wait_until(30, 0.5, lambda: message_visible("Outstanding: ₹85.00"))
+    focus_control("Goods receipt", "ComboBox")
+    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)  # latest (1 good unit) receipt
+    fill("Quantity to return", "0.25")
+    fill("Reason for the return", "Synthetic supplier credit")
+    activate("Record return")
+    wait_until(30, 0.5, lambda: message_visible("Return recorded for ₹25.00"))
+    wait_until(30, 0.5, lambda: message_visible("Outstanding: ₹60.00"))
+    window.capture_as_image().save(OUTPUT / "windows-purchasing-lifecycle.png")
+    stop()
+    launch()
+    assert_purchasing_preserved()
+    window.capture_as_image().save(OUTPUT / "windows-purchasing-restarted.png")
+    # Purchasing records must also survive a real encrypted backup/restore.
+    stop()
+    launch()
+    purchasing_backup = Path(os.environ["TEMP"]) / ("sornio-p22-" + str(uuid4()) + ".sorniobackup")
+    activate("Open backup controls")
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    activate("Export encrypted backup…")
+    pick_native_file("Export encrypted Sornio backup", purchasing_backup)
+    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
+    saved_text = message_text("Encrypted backup saved and verified.") or ""
+    stated_path = re.search(r"Encrypted backup saved and verified\.\s*(.+?\.sorniobackup)", saved_text)
+    assert stated_path, "Purchasing backup did not report its saved path"
+    purchasing_backup = Path(stated_path.group(1))
+    assert purchasing_backup.exists() and purchasing_backup.read_bytes()[:16] != b"SQLite format 3\0"
+    activate("Choose encrypted backup…")
+    pick_native_file("Choose encrypted Sornio backup", purchasing_backup)
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Original Owner password from backup", PASSWORD)
+    activate("Verify and preview backup")
+    wait_until(60, 0.5, lambda: message_visible("Backup verified. Re-enter the passwords"))
+    phrase_title = next(t for t in ui_texts() if re.match(r"^Type RESTORE [a-f0-9]{12} to restore$", t))
+    phrase = re.match(r"^Type (RESTORE [a-f0-9]{12}) to restore$", phrase_title).group(1)
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Original Owner password from backup", PASSWORD)
+    fill(phrase_title, phrase)
+    activate("Create safety backup and restore")
+    assert_locked()
+    enter_password()
+    assert_purchasing_preserved()
+    window.capture_as_image().save(OUTPUT / "windows-purchasing-restored.png")
+    # Leave the page at the usual retail fixture for the reinstall coordinator.
+    stop()
+    launch()
+    (OUTPUT / "purchasing-installed-result.json").write_text(json.dumps({
+        "status": "PASS", "sourceSha": os.environ.get("GITHUB_SHA"), "executable": str(EXE),
+        "elapsedSeconds": time.monotonic() - purchasing_started,
+        "dataset": {"suppliers": 1, "orders": 1, "receipts": 2, "supplierInvoices": 1, "payments": 1, "returns": 1},
+        "reconciliation": {"receiptAccrualPaise": 17500, "invoiceVariancePaise": 1000,
+                           "paymentPaise": 10000, "returnCreditPaise": 2500, "outstandingPaise": 6000},
+        "restart": "PASS", "encryptedBackupRestore": "PASS", "reinstall": "NOT RUN"
+    }, indent=2), encoding="utf-8")
+    print("Phase22 installed purchasing lifecycle passed: supplier, PO submit/approve, partial/damaged receipt, remainder, invoice variance, partial bank payment, supplier return, ₹60 payable, forced restart and encrypted backup/restore. Reinstall is asserted separately by --verify-preserved.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()

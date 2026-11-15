@@ -3,6 +3,71 @@ use super::*;
 use crate::{access::Workspace, catalog::AddProduct, identity::StaffDetails, Draft};
 const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
 const PASSWORD: &str = "Native purchasing password!";
+
+#[test]
+fn phase22_reversed_allocated_payment_can_be_replaced_without_overpayment() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let mut s = store(&path);
+    let invoice = s
+        .post_supplier_invoice(PostSupplierInvoice {
+            operation_id: "replacement-invoice".into(),
+            supplier_id: "s1".into(),
+            receipt_id: None,
+            reference: "SYNTHETIC-REPLACEMENT".into(),
+            total_paise: 10000,
+            due_on: None,
+        })
+        .unwrap();
+    let payment = PostSupplierPayment {
+        operation_id: "bounced-payment".into(),
+        supplier_id: "s1".into(),
+        invoice_id: Some(invoice.id.clone()),
+        method: "bank".into(),
+        amount_paise: 10000,
+        reference: "BOUNCED".into(),
+        paid_on: None,
+    };
+    s.post_supplier_payment(payment).unwrap();
+    s.reverse_supplier_entry(ReverseSupplierEntry {
+        operation_id: "bounce-reversal".into(),
+        target_operation_id: "bounced-payment".into(),
+        reason: "Synthetic bounced transfer".into(),
+    })
+    .unwrap();
+    assert_eq!(find_supplier(&s, "s1").balance_paise, "10000");
+    drop(s);
+    let mut s = Store::open(&path, KEY).unwrap();
+    let replacement = PostSupplierPayment {
+        operation_id: "replacement-payment".into(),
+        supplier_id: "s1".into(),
+        invoice_id: Some(invoice.id.clone()),
+        method: "bank".into(),
+        amount_paise: 10000,
+        reference: "REPLACEMENT".into(),
+        paid_on: None,
+    };
+    assert_eq!(
+        s.post_supplier_payment(replacement.clone())
+            .unwrap()
+            .balance_paise,
+        "0"
+    );
+    assert_eq!(
+        s.post_supplier_payment(replacement).unwrap().balance_paise,
+        "0"
+    );
+    assert_eq!(outstanding_for_invoice(&s.0, &invoice.id).unwrap(), 0);
+    assert_eq!(
+        s.0.query_row(
+            "SELECT SUM(amount_paise) FROM local_supplier_journal",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        0
+    );
+}
 fn supplier(id: &str) -> SaveSupplier {
     SaveSupplier {
         operation_id: format!("save-{id}"),
