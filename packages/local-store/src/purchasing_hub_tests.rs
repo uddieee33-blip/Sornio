@@ -249,11 +249,9 @@ fn a_replayed_operation_returns_the_same_result_and_posts_once() {
     let count: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT COUNT(*) FROM local_purchase_orders",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM local_purchase_orders", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(count, 1, "a replay must not create a second order");
 }
@@ -442,11 +440,9 @@ fn an_assistant_manager_cannot_record_a_supplier_payment_through_mobile() {
     let payments: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT COUNT(*) FROM local_supplier_payments",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(payments, 0, "no payment row may exist after a refusal");
 }
@@ -459,11 +455,7 @@ fn the_capability_document_matches_the_native_role_matrix() {
     let (i, owner_token) = owner_phone(&mut w);
     let envelope = json!({"version":1,"hubId":i["hubId"],"businessId":i["businessId"]});
     let owner = w
-        .hub_request(
-            "/v1/purchasing/workspace",
-            &owner_token,
-            envelope.clone(),
-        )
+        .hub_request("/v1/purchasing/workspace", &owner_token, envelope.clone())
         .unwrap();
     assert_eq!(owner["capabilities"]["approvePurchaseOrders"], true);
     assert_eq!(owner["capabilities"]["paySuppliers"], true);
@@ -614,11 +606,9 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let before: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT stock_milli FROM local_products WHERE id='rice'",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     let too_much = w
         .hub_request(
@@ -637,11 +627,9 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let unchanged: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT stock_milli FROM local_products WHERE id='rice'",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(unchanged, before);
 
@@ -661,11 +649,9 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let after: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT stock_milli FROM local_products WHERE id='rice'",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     // 4,000 received of which 1,000 damaged: only the 3,000 good units land.
     assert_eq!(after, before + 3000);
@@ -688,11 +674,9 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let after_replay: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT stock_milli FROM local_products WHERE id='rice'",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(
         after_replay, after,
@@ -759,7 +743,12 @@ fn a_supplier_payment_posts_once_and_a_replay_is_identical() {
         .hub_request(
             "/v1/purchasing/submit",
             &token,
-            submit_body(&i, "purchasing.supplier_payment", "pay-1", payment_body.clone()),
+            submit_body(
+                &i,
+                "purchasing.supplier_payment",
+                "pay-1",
+                payment_body.clone(),
+            ),
         )
         .unwrap();
     assert_eq!(first["status"], "accepted", "{first}");
@@ -767,11 +756,9 @@ fn a_supplier_payment_posts_once_and_a_replay_is_identical() {
     let rows: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT COUNT(*) FROM local_supplier_payments",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(rows, 2);
     let replay = w
@@ -785,11 +772,9 @@ fn a_supplier_payment_posts_once_and_a_replay_is_identical() {
     let rows_after: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT COUNT(*) FROM local_supplier_payments",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(rows_after, 2);
     // The journal and the ledger agree: one entry per committed payment.
@@ -857,11 +842,9 @@ fn a_return_is_refused_without_a_receipt_and_refusals_are_durable() {
     let returns: i64 = w
         .store_for_test()
         .0
-        .query_row(
-            "SELECT COUNT(*) FROM local_purchase_returns",
-            [],
-            |r| r.get(0),
-        )
+        .query_row("SELECT COUNT(*) FROM local_purchase_returns", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(returns, 0);
 }
