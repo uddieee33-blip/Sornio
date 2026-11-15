@@ -160,6 +160,7 @@ def main():
                 'paymentTermsDays': 30, 'notes': '', 'archived': False, 'expectedRevision': None})
 
         def sale(i):
+            nonlocal native
             op = f'p22-sale-{i}'
             request = {'operationId': op, 'lines': [{'productId': f'p22-product-{i % args.products}',
                 'expectedRevision': 1 + i // args.products, 'quantityMilli': 1000}],
@@ -171,8 +172,7 @@ def main():
                 # Lose the application process immediately after commit, before
                 # clearing the checkpoint. Reopen and resend the SAME identity.
                 native.close()
-                replacement = start(True)
-                native.__dict__.update(replacement.__dict__)
+                native = start(True)
                 check(native.call('post_local_invoice', request=request) == saved, 'lost-ack replay')
             native.call('clear_local_checkout', operationId=op, saved=True)
 

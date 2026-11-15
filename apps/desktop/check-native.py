@@ -311,6 +311,10 @@ try:
         window.capture_as_image().save(OUTPUT / 'windows-installed-preserved.png')
         assert_purchasing_preserved()
         window.capture_as_image().save(OUTPUT / 'windows-purchasing-reinstalled.png')
+        purchasing_record = OUTPUT / 'purchasing-installed-result.json'
+        verified = json.loads(purchasing_record.read_text(encoding='utf-8'))
+        verified['reinstall'] = 'PASS'
+        purchasing_record.write_text(json.dumps(verified, indent=2), encoding='utf-8')
         print('Installed-app reopen preserved original credentials, draft/history, stock, balances and the ₹1,000.00 saved closing receipt.')
         sys.exit(0)
     launch(setup=True)
