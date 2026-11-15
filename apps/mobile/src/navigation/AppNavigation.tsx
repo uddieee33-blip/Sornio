@@ -8,6 +8,7 @@ import { HomeScreen } from '../screens/HomeScreen';
 import { ActivityScreen } from '../screens/ActivityScreen';
 import { InventoryScreen } from '../screens/InventoryScreen';
 import { CustomersScreen } from '../screens/CustomersScreen';
+import { PurchasingScreen } from '../screens/PurchasingScreen';
 import { SettingsScreen } from '../screens/SettingsScreen';
 import { ErrorState, PermissionDenied } from '../components/states';
 import { Body, Muted, Title } from '../components/primitives';
@@ -20,6 +21,7 @@ const LABELS: Record<ScreenId, string> = {
   activity: copy.activity,
   inventory: copy.inventory,
   customers: copy.customers,
+  purchasing: 'Purchasing',
   settings: copy.settings,
 };
 
@@ -118,6 +120,8 @@ function renderScreen(screen: ScreenId, allowed: ScreenId[]) {
       return <InventoryScreen />;
     case 'customers':
       return <CustomersScreen />;
+    case 'purchasing':
+      return <PurchasingScreen />;
     case 'settings':
       return <SettingsScreen />;
   }

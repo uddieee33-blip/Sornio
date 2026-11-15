@@ -44,6 +44,36 @@ export const ids = {
    */
   phase: (phase: string) => `app.phase.${phase}`,
 
+  /**
+   * Purchasing (Phase 21B). Named for structure, never for a supplier id or an
+   * amount, so a shop's data cannot leak into a test artifact.
+   */
+  purchaseTab: 'nav.purchasing',
+  purchaseSuppliers: 'purchasing.suppliers',
+  purchaseSupplierRow: (id: string) => `purchasing.supplier.row.${id}`,
+  purchaseSupplierDetail: 'purchasing.supplier.detail',
+  purchaseSupplierFilter: 'purchasing.supplier.filter',
+  purchaseSupplierAdd: 'purchasing.supplier.add',
+  purchaseSupplierEdit: 'purchasing.supplier.edit',
+  purchaseSupplierNewOrder: 'purchasing.supplier.new-order',
+  purchaseSupplierStatement: 'purchasing.supplier.statement',
+  purchaseOrders: 'purchasing.orders',
+  purchaseOrderRow: (id: string) => `purchasing.order.row.${id}`,
+  purchaseOrderEditor: 'purchasing.order.editor',
+  purchaseOrderSubmit: 'purchasing.order.submit',
+  purchaseOrderSaveDraft: 'purchasing.order.save-draft',
+  purchaseOrderPreview: 'purchasing.order.preview',
+  purchaseReceiving: 'purchasing.receiving',
+  purchaseReceiveSubmit: 'purchasing.receiving.submit',
+  purchaseReceiveReview: 'purchasing.receiving.review',
+  purchasePayments: 'purchasing.payments',
+  purchasePaySubmit: 'purchasing.payments.submit',
+  purchaseStatement: 'purchasing.statement',
+  purchaseReturns: 'purchasing.returns',
+  purchaseReturnSubmit: 'purchasing.returns.submit',
+  /** The offline/queued banner, so a native test can prove a state is shown. */
+  purchaseState: 'purchasing.state',
+
   signOut: 'session.signout',
   signedOut: 'session.signed-out',
   reopenDemo: 'session.reopen-demo',
