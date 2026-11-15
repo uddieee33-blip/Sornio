@@ -161,34 +161,6 @@ jobs:
           fi
           echo "Both native lockfiles passed cargo audit."
 
-  debug-compile:
-    name: TEMPORARY debug compile
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
-        with:
-          persist-credentials: false
-      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
-      - name: Capture the compiler error
-        shell: bash
-        run: |
-          cargo test --all-targets --locked --no-run --manifest-path packages/local-store/Cargo.toml > /tmp/build.log 2>&1 || true
-          cargo test --all-targets --locked --release --no-run --manifest-path packages/local-store/Cargo.toml > /tmp/build-release.log 2>&1 || true
-          echo "debug exit: $?" >> /tmp/summary.txt
-          for f in /tmp/build.log /tmp/build-release.log; do
-            echo "=== $f ===" >> /tmp/summary.txt
-            sed -e 's/\x1b\[[0-9;]*m//g' "$f" | grep -E '^error' -A 12 | head -c 4000 >> /tmp/summary.txt || true
-          done
-          # Fail so the annotations are always published.
-          python3 -c "
-          import pathlib
-          raw=pathlib.Path('/tmp/summary.txt').read_text()
-          for i in range(0,max(1,len(raw)),7000):
-              chunk=raw[i:i+7000].replace('%','%25').replace('\r','%0D').replace('\n','%0A')
-              print('::error::'+chunk)
-          "
-          exit 1
-
   historical-sqlcipher:
     name: Historical SQLCipher compatibility (4.6.1 to 4.20.0)
     runs-on: ubuntu-latest
