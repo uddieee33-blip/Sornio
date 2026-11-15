@@ -375,7 +375,9 @@ impl Store {
         // must converge on one journal row. If the other submission won, its stored
         // answer is the answer, and the store method above already replayed rather
         // than re-posted.
-        if let Some(stored) = journal_lookup(&tx, device, operation_id, &actor, kind, &digest_source)? {
+        if let Some(stored) =
+            journal_lookup(&tx, device, operation_id, &actor, kind, &digest_source)?
+        {
             tx.commit()?;
             return Ok(stored);
         }
