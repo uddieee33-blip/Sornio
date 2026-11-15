@@ -249,7 +249,9 @@ fn a_replayed_operation_returns_the_same_result_and_posts_once() {
     let count: i64 = w
         .store_for_test()
         .0
-        .query_row("SELECT COUNT(*) FROM local_purchase_orders", [], |r| r.get(0))
+        .query_row("SELECT COUNT(*) FROM local_purchase_orders", [], |r| {
+            r.get(0)
+        })
         .unwrap();
     assert_eq!(count, 1, "a replay must not create a second order");
 }
@@ -338,7 +340,8 @@ fn reusing_an_operation_identity_for_another_kind_is_a_conflict() {
             "lines":[{"productId":"rice","quantityMilli":1000,"unitCostPaise":9000,"taxBps":0}],
         }),
     );
-    w.hub_request("/v1/purchasing/submit", &token, body).unwrap();
+    w.hub_request("/v1/purchasing/submit", &token, body)
+        .unwrap();
     let other = submit_body(
         &i,
         "purchasing.supplier_payment",
@@ -381,12 +384,18 @@ fn journal_rows_are_immutable_and_survive_delete_attempts() {
     assert!(w
         .store_for_test()
         .0
-        .execute("UPDATE local_hub_operations SET result='{}' WHERE id='po-immutable'", [])
+        .execute(
+            "UPDATE local_hub_operations SET result='{}' WHERE id='po-immutable'",
+            []
+        )
         .is_err());
     assert!(w
         .store_for_test()
         .0
-        .execute("DELETE FROM local_hub_operations WHERE id='po-immutable'", [])
+        .execute(
+            "DELETE FROM local_hub_operations WHERE id='po-immutable'",
+            []
+        )
         .is_err());
 }
 

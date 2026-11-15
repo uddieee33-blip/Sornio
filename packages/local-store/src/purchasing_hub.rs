@@ -594,12 +594,14 @@ fn journal_row(
             |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)),
         )
         .optional()?;
-    Ok(row.map(|(device_id, actor_id, request, result)| JournalRow {
-        device_id,
-        actor_id,
-        request,
-        result,
-    }))
+    Ok(
+        row.map(|(device_id, actor_id, request, result)| JournalRow {
+            device_id,
+            actor_id,
+            request,
+            result,
+        }),
+    )
 }
 
 /// Decides whether an existing journal row answers this request. `Ok(Some(_))` is
@@ -661,7 +663,10 @@ pub(crate) fn operation_status(
         return Err(StoreError::OperationConflict);
     }
     let stored: Value = serde_json::from_str(&row.request)?;
-    let Some(kind) = stored["kind"].as_str().filter(|k| k.starts_with("purchasing.")) else {
+    let Some(kind) = stored["kind"]
+        .as_str()
+        .filter(|k| k.starts_with("purchasing."))
+    else {
         return Err(StoreError::OperationConflict);
     };
     if let Some(claimed_kind) = body.get("kind").and_then(Value::as_str) {

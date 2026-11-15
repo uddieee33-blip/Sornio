@@ -1441,9 +1441,8 @@ impl Workspace {
                 }
                 "/v1/purchasing/order" => {
                     crate::purchasing_hub::envelope(&body)?;
-                    self.store.purchasing_order(
-                        body["orderId"].as_str().ok_or(StoreError::InvalidDraft)?,
-                    )
+                    self.store
+                        .purchasing_order(body["orderId"].as_str().ok_or(StoreError::InvalidDraft)?)
                 }
                 "/v1/purchasing/statement" => {
                     crate::purchasing_hub::envelope(&body)?;
