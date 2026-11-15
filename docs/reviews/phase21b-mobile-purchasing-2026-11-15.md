@@ -71,7 +71,7 @@ Design decisions that matter:
 | `scripts/extract-i18n.mjs --check` | 2749 phrases agree |
 | `browser` job (desktop + SQLCipher integration) | pass |
 | `macos`, `Real PostgreSQL concurrency`, `Historical SQLCipher`, `Dependency audit` | pass |
-| `local-windows` | still running at the time of writing; not claimed |
+| `local-windows` (type check, ciphertext, debug profile, installer, offline install, native screenshots) | pass |
 | `iOS simulator compile` | pass |
 | `iPhone simulator` + `iPad simulator` (build, install, sustained launch) | pass |
 | `iPhone` + `iPad` interactive acceptance (XCUITest taps) | pass — but see §4 |
@@ -92,7 +92,9 @@ sides of the wire:
 ## 3. Defects found and fixed during this phase
 
 These are the reason the phase is worth reporting honestly; each was found by
-running something, not by reading it.
+running something, not by reading it. Four of the five failing acceptance tests
+in the first real `cargo test` run were *test* errors, and one was this
+protocol bug.
 
 1. **Replay ignored the payload.** The fast path compared device, actor and kind
    but never the digest, so an operation id reused for a *different* body was
