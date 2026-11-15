@@ -151,6 +151,7 @@ fn supplier_profiles_use_stable_ids_revisions_and_exact_replays() {
     let mut archived = supplier("s1");
     archived.operation_id = "archive-1".into();
     archived.archived = true;
+    archived.name = "Supplier One".into();
     archived.expected_revision = Some(2);
     s.save_supplier(archived).unwrap();
     assert!(s.find_suppliers("Supplier One", false).unwrap().is_empty());
