@@ -68,7 +68,7 @@ pub struct UpdatePurchaseOrder {
     pub note: String,
     pub lines: Vec<PurchaseOrderLineInput>,
 }
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PurchaseOrderLine {
     pub line_index: i64,
@@ -84,7 +84,7 @@ pub struct PurchaseOrderLine {
     pub tax_paise: i64,
     pub line_total_paise: i64,
 }
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct PurchaseOrder {
     pub id: String,
@@ -150,7 +150,7 @@ pub struct PostGoodsReceipt {
     pub note: String,
     pub lines: Vec<GoodsReceiptLineInput>,
 }
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GoodsReceiptLine {
     pub line_index: i64,
@@ -161,7 +161,7 @@ pub struct GoodsReceiptLine {
     pub line_total_paise: i64,
     pub note: String,
 }
-#[derive(Clone, Debug, Serialize, PartialEq)]
+#[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct GoodsReceipt {
     pub id: String,
@@ -186,7 +186,7 @@ pub struct PostSupplierInvoice {
     pub total_paise: i64,
     pub due_on: Option<String>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierInvoice {
     pub id: String,
@@ -210,7 +210,7 @@ pub struct PostSupplierPayment {
     pub reference: String,
     pub paid_on: Option<String>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierPayment {
     pub id: String,
@@ -240,7 +240,7 @@ pub struct PostPurchaseReturn {
     pub reason: String,
     pub lines: Vec<PostPurchaseReturnLine>,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PurchaseReturn {
     pub id: String,
@@ -268,7 +268,7 @@ pub struct ReverseSupplierEntry {
     pub target_operation_id: String,
     pub reason: String,
 }
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SupplierReceipt {
     pub operation_id: String,
@@ -928,6 +928,7 @@ impl Store {
                 break;
             }
         }
+        drop(q);
         tx.commit()?;
         Ok(result)
     }
@@ -979,6 +980,7 @@ impl Store {
             let amount = balance_map.get(&id).copied().unwrap_or(0);
             result.push(supplier_from_row(row, amount, 0));
         }
+        drop(q);
         tx.commit()?;
         Ok(result)
     }
@@ -1334,6 +1336,7 @@ impl Store {
         for row in rows {
             result.push(row?);
         }
+        drop(q);
         tx.commit()?;
         Ok(result)
     }
@@ -1786,6 +1789,21 @@ impl Store {
             "UPDATE local_purchase_orders SET status=?1, revision=?2, updated_at=strftime('%Y-%m-%dT%H:%M:%fZ','now') WHERE id=?3 AND revision=?4",
             params![next_status, next, r.order_id, order.revision],
         )?;
+        let result = GoodsReceipt {
+            id: r.operation_id.clone(),
+            order_id: r.order_id.clone(),
+            order_number: order.number,
+            supplier_id: order.supplier_id.clone(),
+            reference: reference.clone(),
+            note: r.note.trim().to_string(),
+            lines: prepared.into_iter().map(|(line, _, _)| line).collect(),
+            goods_total_paise: goods_total_i64,
+            damaged_total_paise: damaged_total_i64,
+            order_status: next_status.to_string(),
+            created_at: now(&tx)?,
+        };
+        // The journal references this operation; the operations row must exist first.
+        record(&tx, &r.operation_id, "goods_receipt.posted", &raw, &result)?;
         // Post the goods accrual: inventory in, payables up, at purchase-order cost.
         if goods_total > 0 {
             let today = today(&tx)?;
@@ -1807,6 +1825,7 @@ impl Store {
                 Some(&r.order_id),
                 Some(&r.operation_id),
                 None,
+                None,
                 if r.note.trim().is_empty() {
                     "Goods received"
                 } else {
@@ -1819,20 +1838,6 @@ impl Store {
             )?;
             bump_supplier(&tx, &order.supplier_id, supplier.revision)?;
         }
-        let result = GoodsReceipt {
-            id: r.operation_id.clone(),
-            order_id: r.order_id.clone(),
-            order_number: order.number,
-            supplier_id: order.supplier_id.clone(),
-            reference: reference.clone(),
-            note: r.note.trim().to_string(),
-            lines: prepared.into_iter().map(|(line, _, _)| line).collect(),
-            goods_total_paise: goods_total_i64,
-            damaged_total_paise: damaged_total_i64,
-            order_status: next_status.to_string(),
-            created_at: now(&tx)?,
-        };
-        record(&tx, &r.operation_id, "goods_receipt.posted", &raw, &result)?;
         outbox(&tx, &r.operation_id, "goods_receipt.posted", &result)?;
         tx.commit()?;
         Ok(result)
@@ -1913,6 +1918,7 @@ impl Store {
                 created_at,
             });
         }
+        drop(q);
         tx.commit()?;
         Ok(result)
     }
@@ -2021,6 +2027,25 @@ impl Store {
             return Err(StoreError::InvalidPayable);
         }
         let variance_i64 = variance as i64;
+        let result = SupplierInvoice {
+            id: r.operation_id.clone(),
+            supplier_id: r.supplier_id.clone(),
+            receipt_id: r.receipt_id.clone(),
+            purchase_order_id: purchase_order_id.clone(),
+            reference: reference.clone(),
+            total_paise: r.total_paise,
+            variance_paise: variance_i64,
+            due_on: due_on.clone(),
+            created_at: now(&tx)?,
+        };
+        // The journal references this operation; the operations row must exist first.
+        record(
+            &tx,
+            &r.operation_id,
+            "supplier_invoice.posted",
+            &raw,
+            &result,
+        )?;
         if let Some(receipt_id) = &r.receipt_id {
             if variance != 0 {
                 add_entry_and_journal(
@@ -2065,24 +2090,6 @@ impl Store {
             params![r.operation_id, r.supplier_id, r.receipt_id.as_deref(), reference, r.total_paise, due_on, actor],
         )?;
         bump_supplier(&tx, &r.supplier_id, supplier.revision)?;
-        let result = SupplierInvoice {
-            id: r.operation_id.clone(),
-            supplier_id: r.supplier_id.clone(),
-            receipt_id: r.receipt_id.clone(),
-            purchase_order_id,
-            reference,
-            total_paise: r.total_paise,
-            variance_paise: variance_i64,
-            due_on: due_on.clone(),
-            created_at: now(&tx)?,
-        };
-        record(
-            &tx,
-            &r.operation_id,
-            "supplier_invoice.posted",
-            &raw,
-            &result,
-        )?;
         outbox(&tx, &r.operation_id, "supplier_invoice.posted", &result)?;
         tx.commit()?;
         Ok(result)
@@ -2130,6 +2137,7 @@ impl Store {
         }
         unreserved(&tx, &r.operation_id)?;
         let supplier = load_supplier(&tx, &r.supplier_id)?;
+        let balance_before = balance(&tx, &r.supplier_id, i64::MAX)?;
         if let Some(invoice_id) = &r.invoice_id {
             let owner: Option<String> = tx
                 .query_row(
@@ -2145,6 +2153,29 @@ impl Store {
                 return Err(StoreError::Overpayment);
             }
         }
+        let revision = bump_supplier(&tx, &r.supplier_id, supplier.revision)?;
+        let result = SupplierPayment {
+            id: r.operation_id.clone(),
+            supplier_id: r.supplier_id.clone(),
+            invoice_id: r.invoice_id.clone(),
+            method: r.method.clone(),
+            amount_paise: r.amount_paise,
+            reference: reference.clone(),
+            paid_on: paid_on.clone(),
+            // The posted entry carries -amount_paise; derive the balance from the
+            // pre-transaction read instead of reading again mid-flight.
+            balance_paise: (balance_before - r.amount_paise as i128).to_string(),
+            created_at: now(&tx)?,
+        };
+        let _ = revision;
+        // The journal references this operation; the operations row must exist first.
+        record(
+            &tx,
+            &r.operation_id,
+            "supplier_payment.posted",
+            &raw,
+            &result,
+        )?;
         add_entry_and_journal(
             &tx,
             &r.operation_id,
@@ -2165,27 +2196,6 @@ impl Store {
             &tx,
             "INSERT INTO local_supplier_payments(id,supplier_id,invoice_id,method,amount_paise,reference,paid_on,created_by) VALUES(?1,?2,?3,?4,?5,?6,?7,?8)",
             params![r.operation_id, r.supplier_id, r.invoice_id.as_deref(), r.method, r.amount_paise, reference, paid_on, actor],
-        )?;
-        let revision = bump_supplier(&tx, &r.supplier_id, supplier.revision)?;
-        let balance_after = balance(&tx, &r.supplier_id, i64::MAX)?;
-        let result = SupplierPayment {
-            id: r.operation_id.clone(),
-            supplier_id: r.supplier_id.clone(),
-            invoice_id: r.invoice_id.clone(),
-            method: r.method.clone(),
-            amount_paise: r.amount_paise,
-            reference,
-            paid_on: paid_on.clone(),
-            balance_paise: balance_after.to_string(),
-            created_at: now(&tx)?,
-        };
-        let _ = revision;
-        record(
-            &tx,
-            &r.operation_id,
-            "supplier_payment.posted",
-            &raw,
-            &result,
         )?;
         outbox(&tx, &r.operation_id, "supplier_payment.posted", &result)?;
         tx.commit()?;
@@ -2231,9 +2241,22 @@ impl Store {
         }
         unreserved(&tx, &r.operation_id)?;
         let supplier = load_supplier(&tx, &r.supplier_id)?;
+        let balance_before = balance(&tx, &r.supplier_id, i64::MAX)?;
         let today_s = today(&tx)?;
         let due_on = r.due_on.clone().unwrap_or_else(|| today_s.clone());
         let amount = r.amount_paise;
+        let revision = bump_supplier(&tx, &r.supplier_id, supplier.revision)?;
+        let result = SupplierReceipt {
+            operation_id: r.operation_id.clone(),
+            supplier_id: r.supplier_id.clone(),
+            kind: "opening_due".into(),
+            amount_paise: amount,
+            balance_paise: (balance_before + amount as i128).to_string(),
+            revision,
+            created_at: now(&tx)?,
+        };
+        // The journal references this operation; the operations row must exist first.
+        record(&tx, &r.operation_id, "payable.opening", &raw, &result)?;
         // Sign convention: positive amount means we owe the supplier.
         add_entry_and_journal(
             &tx,
@@ -2250,17 +2273,6 @@ impl Store {
             &r.reason,
             &[("opening_equity", amount), ("payables", -amount)],
         )?;
-        let revision = bump_supplier(&tx, &r.supplier_id, supplier.revision)?;
-        let result = SupplierReceipt {
-            operation_id: r.operation_id.clone(),
-            supplier_id: r.supplier_id.clone(),
-            kind: "opening_due".into(),
-            amount_paise: amount,
-            balance_paise: balance(&tx, &r.supplier_id, i64::MAX)?.to_string(),
-            revision,
-            created_at: now(&tx)?,
-        };
-        record(&tx, &r.operation_id, "payable.opening", &raw, &result)?;
         outbox(&tx, &r.operation_id, "payable.opening", &result)?;
         tx.commit()?;
         Ok(result)
@@ -2333,6 +2345,21 @@ impl Store {
             .iter()
             .map(|(account, value)| (account.as_str(), *value))
             .collect();
+        let balance_before = balance(&tx, &supplier_id, i64::MAX)?;
+        let supplier = load_supplier(&tx, &supplier_id)?;
+        let revision = bump_supplier(&tx, &supplier_id, supplier.revision)?;
+        let result = SupplierReceipt {
+            operation_id: r.operation_id.clone(),
+            supplier_id: supplier_id.clone(),
+            kind: "reversal".into(),
+            amount_paise: -amount,
+            // The posted entry carries -amount; derive from the pre-transaction read.
+            balance_paise: (balance_before - amount as i128).to_string(),
+            revision,
+            created_at: now(&tx)?,
+        };
+        // The journal references this operation; the operations row must exist first.
+        record(&tx, &r.operation_id, "payable.reversed", &raw, &result)?;
         add_entry_and_journal(
             &tx,
             &r.operation_id,
@@ -2348,19 +2375,8 @@ impl Store {
             &r.reason,
             &postings,
         )?;
-        let supplier = load_supplier(&tx, &supplier_id)?;
-        let revision = bump_supplier(&tx, &supplier_id, supplier.revision)?;
-        let result = SupplierReceipt {
-            operation_id: r.operation_id.clone(),
-            supplier_id: supplier_id.clone(),
-            kind: "reversal".into(),
-            amount_paise: -amount,
-            balance_paise: balance(&tx, &supplier_id, i64::MAX)?.to_string(),
-            revision,
-            created_at: now(&tx)?,
-        };
-        record(&tx, &r.operation_id, "payable.reversed", &raw, &result)?;
         outbox(&tx, &r.operation_id, "payable.reversed", &result)?;
+        drop(q);
         tx.commit()?;
         Ok(result)
     }
@@ -2390,6 +2406,7 @@ impl Store {
                 Some(payment_account(method).map_err(|_| StoreError::InvalidReturn)?)
             }
             ("refund", None) => return Err(StoreError::InvalidReturn),
+            _ => return Err(StoreError::InvalidReturn),
         };
         let raw = serde_json::to_string(&r)?;
         let tx = self
@@ -2496,6 +2513,26 @@ impl Store {
                 params![r.operation_id, line.product_id, -line.quantity_milli, receipt_id, r.operation_id],
             )?;
         }
+        let revision = bump_supplier(&tx, &supplier_id, supplier.revision)?;
+        let _ = revision;
+        let result = PurchaseReturn {
+            id: r.operation_id.clone(),
+            supplier_id: supplier_id.clone(),
+            receipt_id: receipt_id.clone(),
+            disposition: r.disposition.clone(),
+            refund_method: r.refund_method.clone(),
+            total_paise: goods_total_i64,
+            reason: r.reason.trim().to_string(),
+            created_at: now(&tx)?,
+        };
+        // The journal references this operation; the operations row must exist first.
+        record(
+            &tx,
+            &r.operation_id,
+            "purchase_return.posted",
+            &raw,
+            &result,
+        )?;
         match r.disposition.as_str() {
             "supplier_credit" => {
                 add_entry_and_journal(
@@ -2533,25 +2570,6 @@ impl Store {
             }
             _ => return Err(StoreError::InvalidReturn),
         }
-        let revision = bump_supplier(&tx, &supplier_id, supplier.revision)?;
-        let _ = revision;
-        let result = PurchaseReturn {
-            id: r.operation_id.clone(),
-            supplier_id,
-            receipt_id: receipt_id.clone(),
-            disposition: r.disposition.clone(),
-            refund_method: r.refund_method.clone(),
-            total_paise: goods_total_i64,
-            reason: r.reason.trim().to_string(),
-            created_at: now(&tx)?,
-        };
-        record(
-            &tx,
-            &r.operation_id,
-            "purchase_return.posted",
-            &raw,
-            &result,
-        )?;
         outbox(&tx, &r.operation_id, "purchase_return.posted", &result)?;
         tx.commit()?;
         Ok(result)
@@ -2586,6 +2604,7 @@ impl Store {
         for row in rows {
             result.push(row?);
         }
+        drop(q);
         tx.commit()?;
         Ok(result)
     }

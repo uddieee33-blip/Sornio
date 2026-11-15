@@ -351,7 +351,7 @@ fn missing_product_multi_row_guard_and_new_delivery_after_ack() {
         let tx = s.0.transaction_with_behavior(mode).unwrap();
         let setup = "CREATE TEMP TABLE p(v INT);INSERT INTO p VALUES(0),(0);";
         tx.execute_batch(setup).unwrap();
-        let sql = "UPDATE local_products SET stock_milli=99000 WHERE id='rice'";
+        let sql = "UPDATE local_products SET stock_milli=99000 WHERE id='item'";
         super::one(&tx, sql, []).unwrap();
         let multi = super::one(&tx, "UPDATE p SET v=1", []);
         assert!(matches!(

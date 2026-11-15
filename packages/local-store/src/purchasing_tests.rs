@@ -333,10 +333,11 @@ fn receiving_partially_then_completely_reconciles_stock_and_payables() {
     assert_eq!(first.order_status, "partial");
     let after_first = find_supplier(&s, "s1").balance_paise;
     assert_eq!(after_first, "12000");
+    let current = first_order(&s, &order);
     let second = receive(
         &mut s,
         "rcv-2",
-        &first_order(&s, &order),
+        &current,
         vec![receipt_line(0, "rice", 6_000)],
     );
     assert_eq!(second.order_status, "received");
@@ -814,7 +815,7 @@ fn migration_to_v13_preserves_existing_data_and_enables_purchasing() {
         .iter()
         .any(|p| p.id == "legacy-stock"));
     // Purchasing works end to end on the migrated database.
-    s.save_supplier(supplier("migrated")).unwrap();
+    s.save_supplier(supplier("s1")).unwrap();
     let order = create(&mut s, "po-migrated", vec![line("legacy-stock", 100, 50)]);
     assert_eq!(order.number, 1);
 }
