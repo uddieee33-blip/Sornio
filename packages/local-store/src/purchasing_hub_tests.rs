@@ -19,7 +19,11 @@ const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abc
 const PASSWORD: &str = "Mobile purchasing password 2026";
 
 fn seeded() -> Workspace {
-    let mut w = Workspace::new(Store::open(std::path::Path::new(":memory:"), KEY).unwrap());
+    seeded_at(std::path::Path::new(":memory:"))
+}
+
+fn seeded_at(path: &std::path::Path) -> Workspace {
+    let mut w = Workspace::new(Store::open(path, KEY).unwrap());
     w.setup(PASSWORD).unwrap();
     w.add_product(AddProduct {
         operation_id: "rice".into(),
@@ -45,6 +49,313 @@ fn seeded() -> Workspace {
     .unwrap();
     w.hub_configure_for_test(true, None).unwrap();
     w
+}
+
+#[test]
+fn phase22_envelope_and_native_operation_ids_must_match() {
+    let mut w = seeded();
+    let (i, token) = owner_phone(&mut w);
+    let body = submit_body(
+        &i,
+        "purchasing.purchase_order_created",
+        "outer-id",
+        json!({
+            "operationId":"different-native-id", "supplierId":"sup-1", "note":"Mismatch",
+            "lines":[{"productId":"rice","quantityMilli":1000,"unitCostPaise":9000,"taxBps":0}]
+        }),
+    );
+    assert!(w
+        .hub_request("/v1/purchasing/submit", &token, body)
+        .is_err());
+    let db = &w.store_for_test().0;
+    assert_eq!(
+        db.query_row("SELECT COUNT(*) FROM local_purchase_orders", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    assert_eq!(
+        db.query_row("SELECT COUNT(*) FROM local_hub_operations", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+}
+
+#[test]
+fn phase22_storage_failure_is_retryable_and_never_a_durable_refusal() {
+    let mut w = seeded();
+    let (i, token) = owner_phone(&mut w);
+    w.store_for_test().0.execute_batch("CREATE TEMP TRIGGER phase22_disk_failure BEFORE INSERT ON local_purchase_orders BEGIN SELECT RAISE(ABORT, 'synthetic storage failure'); END;").unwrap();
+    let body = submit_body(
+        &i,
+        "purchasing.purchase_order_created",
+        "storage-retry",
+        json!({
+            "operationId":"storage-retry", "supplierId":"sup-1", "note":"Retry unchanged",
+            "lines":[{"productId":"rice","quantityMilli":1000,"unitCostPaise":9000,"taxBps":0}]
+        }),
+    );
+    assert!(
+        w.hub_request("/v1/purchasing/submit", &token, body.clone())
+            .is_err(),
+        "storage errors must not commit a permanent refusal"
+    );
+    assert_eq!(
+        w.store_for_test()
+            .0
+            .query_row("SELECT COUNT(*) FROM local_hub_operations", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        0
+    );
+    w.store_for_test()
+        .0
+        .execute_batch("DROP TRIGGER phase22_disk_failure")
+        .unwrap();
+    let result = w
+        .hub_request("/v1/purchasing/submit", &token, body)
+        .unwrap();
+    assert_eq!(result["status"], "accepted");
+}
+
+#[test]
+fn phase22_file_backed_lost_journal_ack_recovers_after_reopen() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("purchasing.db");
+    let mut w = seeded_at(&path);
+    let (i, token) = owner_phone(&mut w);
+    w.store_for_test().0.execute_batch("CREATE TEMP TRIGGER phase22_lost_ack BEFORE INSERT ON local_hub_operations BEGIN SELECT RAISE(ABORT, 'synthetic lost journal acknowledgement'); END;").unwrap();
+    let body = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "restart-payment",
+        json!({
+            "operationId":"restart-payment", "supplierId":"sup-1", "invoiceId":null,
+            "method":"bank", "amountPaise":12345, "reference":"SYNTHETIC", "paidOn":null
+        }),
+    );
+    assert!(w
+        .hub_request("/v1/purchasing/submit", &token, body.clone())
+        .is_err());
+    assert_eq!(
+        w.store_for_test()
+            .0
+            .query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| r
+                .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    drop(w); // TEMP fault disappears when the SQLCipher connection is closed.
+    assert_ne!(&std::fs::read(&path).unwrap()[..16], b"SQLite format 3\0");
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.login("owner", PASSWORD).unwrap();
+    let recovered = w
+        .hub_request("/v1/purchasing/submit", &token, body.clone())
+        .unwrap();
+    assert_eq!(recovered["status"], "accepted");
+    for _ in 0..10 {
+        assert_eq!(
+            w.hub_request("/v1/purchasing/submit", &token, body.clone())
+                .unwrap(),
+            recovered
+        );
+    }
+    let db = &w.store_for_test().0;
+    assert_eq!(
+        db.query_row("SELECT COUNT(*) FROM local_supplier_payments", [], |r| r
+            .get::<_, i64>(0))
+            .unwrap(),
+        1
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT SUM(amount_paise) FROM local_supplier_entries",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        -12345
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT SUM(amount_paise) FROM local_supplier_journal",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        0
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT COUNT(*) FROM local_hub_operations WHERE id='restart-payment'",
+            [],
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn phase22_file_lifecycle_reconciles_after_restart_and_encrypted_restore() {
+    use crate::purchasing::{PostSupplierInvoice, ReverseSupplierEntry};
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("lifecycle.db");
+    let mut w = seeded_at(&path);
+    let (i, token) = owner_phone(&mut w);
+    let (order, _) = approved_order(&mut w, &i, &token, "lifecycle");
+    let receive = |op: &str, quantity: i64, damaged: i64| {
+        submit_body(
+            &i,
+            "purchasing.goods_received",
+            op,
+            json!({"operationId":op,"orderId":order,
+        "reference":op,"note":"Synthetic delivery","lines":[{"lineIndex":0,"productId":"rice",
+        "quantityMilli":quantity,"damagedMilli":damaged,"note":null}]}),
+        )
+    };
+    let first = w
+        .hub_request(
+            "/v1/purchasing/submit",
+            &token,
+            receive("life-receipt-a", 6000, 1000),
+        )
+        .unwrap();
+    assert_eq!(first["status"], "accepted");
+    assert_eq!(first["result"]["goodsTotalPaise"], 45000);
+    assert_eq!(first["result"]["damagedTotalPaise"], 9000);
+    let second = w
+        .hub_request(
+            "/v1/purchasing/submit",
+            &token,
+            receive("life-receipt-b", 4000, 0),
+        )
+        .unwrap();
+    assert_eq!(second["status"], "accepted");
+    let invoice = w
+        .post_supplier_invoice(PostSupplierInvoice {
+            operation_id: "life-invoice".into(),
+            supplier_id: "sup-1".into(),
+            receipt_id: Some("life-receipt-a".into()),
+            reference: "LIFE-INVOICE".into(),
+            total_paise: 54000,
+            due_on: None,
+        })
+        .unwrap();
+    assert_eq!(invoice.variance_paise, 9000);
+    let payment = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "life-payment",
+        json!({
+        "operationId":"life-payment","supplierId":"sup-1","invoiceId":"life-invoice",
+        "method":"bank","amountPaise":10000,"reference":"LIFE-PAY","paidOn":null}),
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, payment)
+            .unwrap()["status"],
+        "accepted"
+    );
+    w.reverse_supplier_entry(ReverseSupplierEntry {
+        operation_id: "life-reversal".into(),
+        target_operation_id: "life-payment".into(),
+        reason: "Synthetic bank rejection".into(),
+    })
+    .unwrap();
+    let snapshot = w
+        .hub_request(
+            "/v1/purchasing/workspace",
+            &token,
+            json!({"version":1,"hubId":i["hubId"],"businessId":i["businessId"]}),
+        )
+        .unwrap();
+    assert_eq!(snapshot["invoices"][0]["outstandingPaise"], 54000);
+    let payment = submit_body(
+        &i,
+        "purchasing.supplier_payment",
+        "life-replacement",
+        json!({
+        "operationId":"life-replacement","supplierId":"sup-1","invoiceId":"life-invoice",
+        "method":"bank","amountPaise":10000,"reference":"LIFE-REPLACE","paidOn":null}),
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, payment)
+            .unwrap()["status"],
+        "accepted"
+    );
+    let returned = submit_body(
+        &i,
+        "purchasing.purchase_return",
+        "life-return",
+        json!({
+        "operationId":"life-return","receiptId":"life-receipt-b","disposition":"supplier_credit",
+        "refundMethod":null,"reason":"Synthetic return","lines":[{"receiptLine":0,"productId":"rice","quantityMilli":1000}]}),
+    );
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, returned.clone())
+            .unwrap()["status"],
+        "accepted"
+    );
+    drop(w);
+    let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
+    w.login("owner", PASSWORD).unwrap();
+    assert_eq!(
+        w.hub_request("/v1/purchasing/submit", &token, returned)
+            .unwrap()["status"],
+        "accepted"
+    );
+    let archive = dir.path().join("lifecycle.sorniobackup");
+    let recovery = "Phase22 synthetic recovery password";
+    w.export_backup(&archive, PASSWORD, recovery).unwrap();
+    assert_ne!(
+        &std::fs::read(&archive).unwrap()[..16],
+        b"SQLite format 3\0"
+    );
+    let mut restored = Workspace::new(Store::open(&dir.path().join("restored.db"), KEY).unwrap());
+    let preview = restored
+        .preview_backup(&archive, "", recovery, PASSWORD)
+        .unwrap();
+    restored
+        .restore_backup(
+            &archive,
+            dir.path(),
+            "",
+            recovery,
+            PASSWORD,
+            &preview,
+            &preview.confirmation,
+        )
+        .unwrap();
+    restored.login("owner", PASSWORD).unwrap();
+    for store in [w.store_for_test(), restored.store_for_test()] {
+        let db = &store.0;
+        assert_eq!(
+            db.query_row(
+                "SELECT stock_milli FROM local_products WHERE id='rice'",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            108000
+        );
+        assert_eq!(
+            db.query_row(
+                "SELECT SUM(amount_paise) FROM local_supplier_entries",
+                [],
+                |r| r.get::<_, i64>(0)
+            )
+            .unwrap(),
+            71000
+        );
+        assert_eq!(db.query_row("SELECT COUNT(*) FROM (SELECT operation_id FROM local_supplier_journal GROUP BY operation_id HAVING SUM(amount_paise)<>0)", [], |r|r.get::<_,i64>(0)).unwrap(),0);
+        assert_eq!(
+            db.query_row("SELECT COUNT(*) FROM local_goods_receipts", [], |r| r
+                .get::<_, i64>(0))
+                .unwrap(),
+            2
+        );
+    }
 }
 
 /// Enrol one device and sign it in as the named staff account on the supplied

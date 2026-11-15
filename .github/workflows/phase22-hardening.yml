@@ -1,0 +1,54 @@
+name: Phase22 native corrective workload
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/phase22-hardening.yml'
+      - 'apps/desktop/check-phase22-scale.py'
+      - 'packages/local-store/examples/phase22_inspect.rs'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  native-workload:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: '2'
+      CARGO_TERM_COLOR: never
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0
+        with:
+          workspaces: packages/local-store
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0
+        with:
+          python-version: '3.12'
+      - name: Record exact source and environment
+        run: |
+          mkdir -p dist/phase22
+          git rev-parse HEAD > dist/phase22/source-sha.txt
+          rustc --version > dist/phase22/rustc.txt
+          uname -a > dist/phase22/host.txt
+      - name: Native regression cases
+        run: |
+          set -o pipefail
+          cargo test --locked --manifest-path packages/local-store/Cargo.toml phase22 -- --nocapture 2>&1 | tee dist/phase22/regression.log
+      - name: Compile synthetic workload and read-only reconciler
+        run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --example phase22_inspect
+      - name: Install resource measurement dependency
+        run: python -m pip install psutil==7.2.2
+      - name: Execute requested initial tier and measured two-minute concurrent session
+        run: |
+          set -o pipefail
+          python apps/desktop/check-phase22-scale.py --bridge packages/local-store/target/release/examples/cashier_review_bridge --inspect packages/local-store/target/release/examples/phase22_inspect --output dist/phase22/scale.json --soak-seconds 120 2>&1 | tee dist/phase22/scale.log
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: Sornio-Phase22-native-workload
+          path: dist/phase22/
+          if-no-files-found: error
+          retention-days: 7
