@@ -352,7 +352,14 @@ impl Store {
         // touches no purchasing table at all.
         let existing = {
             let tx = self.0.unchecked_transaction()?;
-            let stored = journal_lookup(&tx, device, operation_id, &actor, kind, &digest_source);
+            let stored = journal_lookup(
+                &tx,
+                device,
+                operation_id,
+                &actor,
+                kind,
+                &digest(&digest_source),
+            );
             tx.commit()?;
             stored?
         };
@@ -375,9 +382,14 @@ impl Store {
         // must converge on one journal row. If the other submission won, its stored
         // answer is the answer, and the store method above already replayed rather
         // than re-posted.
-        if let Some(stored) =
-            journal_lookup(&tx, device, operation_id, &actor, kind, &digest_source)?
-        {
+        if let Some(stored) = journal_lookup(
+            &tx,
+            device,
+            operation_id,
+            &actor,
+            kind,
+            &digest(&digest_source),
+        )? {
             tx.commit()?;
             return Ok(stored);
         }
@@ -616,7 +628,7 @@ fn journal_lookup(
     operation_id: &str,
     actor: &str,
     kind: &str,
-    digest: &str,
+    expected_digest: &str,
 ) -> Result<Option<Value>, StoreError> {
     let Some(row) = journal_row(db, operation_id)? else {
         return Ok(None);
@@ -631,7 +643,7 @@ fn journal_lookup(
     // The identity alone is not enough. An id reused for a *different* body has to
     // conflict here, or the phone would be handed the earlier operation's result
     // and report work it never sent as committed.
-    if stored["digest"].as_str() != Some(digest) {
+    if stored["digest"].as_str() != Some(expected_digest) {
         return Err(StoreError::OperationConflict);
     }
     Ok(Some(serde_json::from_str(&row.result)?))

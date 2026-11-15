@@ -407,7 +407,7 @@ def main() -> int:
     # The replay path must compare the digest too, not just the identity: an id
     # reused for a different body has to conflict instead of replaying.
     lookup_fn = HUB.split("fn journal_lookup")[1].split("\n}")[0]
-    check('stored["digest"].as_str() != Some(digest)' in lookup_fn,
+    check('stored["digest"].as_str() != Some(expected_digest)' in lookup_fn,
           "a replay whose payload differs raises a conflict")
     check("Permission::SupplierRead" in HUB,
           "the workspace read requires SupplierRead at the native boundary")

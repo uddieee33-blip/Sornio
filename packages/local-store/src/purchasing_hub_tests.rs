@@ -471,7 +471,10 @@ fn the_capability_document_matches_the_native_role_matrix() {
             envelope.clone(),
         )
         .unwrap();
-    assert_eq!(assistant["capabilities"]["manageSuppliers"], true);
+    // An assistant manager drafts and receives but cannot edit the supplier
+    // register: `Role::AssistantManager` does not include `ManageSuppliers`.
+    assert_eq!(assistant["capabilities"]["supplierRead"], true);
+    assert_eq!(assistant["capabilities"]["manageSuppliers"], false);
     assert_eq!(assistant["capabilities"]["managePurchaseOrders"], true);
     assert_eq!(assistant["capabilities"]["receiveStock"], true);
     assert_eq!(assistant["capabilities"]["paySuppliers"], false);
