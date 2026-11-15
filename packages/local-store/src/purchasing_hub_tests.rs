@@ -1045,7 +1045,7 @@ fn the_owner_actor_is_reported_so_the_phone_never_trusts_its_own_claim() {
     assert_eq!(document["actorId"], json!(actor));
     assert_eq!(document["role"], "owner");
     // A long session must not be silently renewed by a passive read.
-    let before = w.last_activity.get();
+    let before = w.idle_clock_for_test();
     let _ = w.hub_request(
         "/v1/purchasing/workspace",
         &token,

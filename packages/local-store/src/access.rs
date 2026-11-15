@@ -60,6 +60,11 @@ impl Workspace {
     pub(crate) fn local_session_for_test(&self) -> Option<crate::identity::LocalSession> {
         self.local_session().ok()
     }
+    /// Reads the desktop idle clock without making the field itself reachable.
+    #[cfg(test)]
+    pub(crate) fn idle_clock_for_test(&self) -> std::time::Instant {
+        self.last_activity.get()
+    }
     /// Native enrollment only; no renderer or listener command is registered yet.
     pub fn enroll_lan_device(
         &mut self,
@@ -1472,7 +1477,7 @@ impl Workspace {
                     // phone must not be told "unknown"; the journal row is scoped to
                     // that device and employee, so revoking either still refuses it,
                     // and a `not_found` answer never authorises a write on its own.
-                    crate::purchasing_hub::operation_status(&self.store, &device, body)
+                    crate::purchasing_hub::operation_status(&self.store, &device, &body)
                 }
                 _ => Err(StoreError::Forbidden),
             }
