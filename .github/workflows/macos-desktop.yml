@@ -241,3 +241,15 @@ jobs:
           path: apps/desktop/src-tauri/target/release/bundle/macos/*.app
           if-no-files-found: error
           retention-days: 7
+
+      - name: Attempt installed macOS native acceptance (blocked infrastructure fails closed)
+        run: |
+          app=$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          python3 scripts/check-phase22-macos-installed.py --app "$app" --output dist/phase22-macos/installed.json
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        if: always()
+        with:
+          name: Sornio-Phase22-macOS-installed
+          path: dist/phase22-macos/
+          if-no-files-found: warn
+          retention-days: 7
