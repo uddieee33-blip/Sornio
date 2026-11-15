@@ -171,7 +171,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec
       - name: Capture the compiler error
         run: |
-          cargo test --locked --no-run --manifest-path packages/local-store/Cargo.toml 2>&1 | tee /tmp/build.log || true
+          cargo test --all-targets --locked --no-run --manifest-path packages/local-store/Cargo.toml 2>&1 | tee /tmp/build.log || true
           python3 - <<'EOF'
           import re,pathlib
           raw=pathlib.Path('/tmp/build.log').read_text()
