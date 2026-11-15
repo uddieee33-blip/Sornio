@@ -342,7 +342,17 @@ try:
         assert focus_control('Workspace note', 'Edit').get_value() == ORIGINAL_NOTE
         # The Phase 5 ₹1,000.00 split (₹600 cash + ₹400 credit on top of the
         # Phase 4 ₹10.63 split) must be the preserved ledger after reinstall.
-        assert_balances('701.64', '404.63', '1.5')
+        #
+        # Stock is asserted separately, because purchasing moved it. Cash and
+        # credit are untouched by purchasing, but rice stood at 1.5 pcs when the
+        # retail stages finished and the installed-app purchasing lifecycle then
+        # received 1.750 and returned 0.250 — so the preserved workspace holds
+        # 3 pcs, not the 1.5 this line used to demand. The old figure was written
+        # before the lifecycle existed and would fail on every preserved
+        # workspace the lifecycle actually produces.
+        wait_until(30, 0.5, lambda: message_visible('Cash recorded: ₹701.64'))
+        wait_until(30, 0.5, lambda: message_visible('Credit receivable: ₹404.63'))
+        assert_stock(3000)
         window.child_window(title='Restore saved copy 3', control_type='Button', visible_only=False).wait('exists', timeout=30)
         # The last posted sale (the Phase 5 ₹1,000.00 mixed cash+credit split)
         # must be the preserved receipt after reinstall; it is a checkout
@@ -532,7 +542,36 @@ try:
                 send_keys("{ENTER}", pause=0.1)  # the dialog's default action
         else:
             send_keys("{ENTER}", pause=0.1)
-        dialog.wait_not("visible", timeout=45)
+        # Drive the dialog until it is actually gone.
+        #
+        # A single click was assumed to be enough, and it was not: run
+        # 43759908030 at code candidate 78837b09 failed here, after 45 seconds,
+        # with the dialog still on screen. Every purchasing assertion ahead of
+        # it had already passed, so the run reported "installed acceptance
+        # failed" for a save dialog that had simply not been pressed. A hosted
+        # runner gives no guarantee that click_input() lands while the window is
+        # being composited, so the timeout is now a budget for several attempts
+        # instead of one shot.
+        #
+        # Nothing is skipped by retrying: the dialog must still disappear for
+        # this function to return, and the caller independently asserts that the
+        # app reported saving the exact path that was verified above.
+        for attempt in range(4):
+            try:
+                dialog.wait_not("visible", timeout=15)
+                break
+            except Exception:
+                if attempt == 3:
+                    raise
+                try:
+                    if button is not None and button.exists():
+                        dialog.set_focus()
+                        button.click_input()
+                    else:
+                        dialog.set_focus()
+                        send_keys("{ENTER}", pause=0.1)
+                except Exception:
+                    send_keys("{ENTER}", pause=0.1)
         return verified
     original_note = focus_control("Workspace note", "Edit").get_value()
     activate("Open backup controls")
