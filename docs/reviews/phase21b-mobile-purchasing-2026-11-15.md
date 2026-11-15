@@ -61,14 +61,21 @@ Design decisions that matter:
 
 | Gate | Result |
 | --- | --- |
-| `cargo test --all-targets --locked` (debug) | passed — the last red run said 303 passed / 4 failed / 6 ignored, and those four are the fixes in §3 |
-| `cargo test --all-targets --locked --release` | passed |
+| `cargo test --all-targets --locked` (debug, native hub + acceptance) | **pass** — 303 passed / 4 failed / 6 ignored before §3's fixes; green after |
+| `cargo test --all-targets --locked --release` | pass |
 | `cargo fmt --check` (both manifests) | clean |
 | `scripts/verify-purchasing-protocol.py` | 64 checks, 0 failed |
 | `apps/mobile` runtime (`jest`) | 104 tests, 7 suites, all pass |
 | `apps/mobile` `tsc --noEmit` | clean |
 | `scripts/verify-mobile-contracts.mjs` | 63 checks |
 | `scripts/extract-i18n.mjs --check` | 2749 phrases agree |
+| `browser` job (desktop + SQLCipher integration) | pass |
+| `macos`, `Real PostgreSQL concurrency`, `Historical SQLCipher`, `Dependency audit` | pass |
+| `local-windows` | still running at the time of writing; not claimed |
+| `iOS simulator compile` | pass |
+| `iPhone simulator` + `iPad simulator` (build, install, sustained launch) | pass |
+| `iPhone` + `iPad` interactive acceptance (XCUITest taps) | pass — but see §4 |
+| `android` (Gradle debug compile) | pass |
 
 The offline and financial recovery scenarios are exercised twice, from both
 sides of the wire:
@@ -105,10 +112,18 @@ running something, not by reading it.
 
 ## 4. Known limitations
 
-- **No hardware acceptance.** Nothing was installed on an Android device, an
-  iPhone or an iPad. The iPhone/iPad/Android results above are headless React
-  Native execution with device profiles, which proves layout branching and
-  state transitions, not native views, gestures or TLS.
+- **The simulator evidence does not cover purchasing.** The `iPhone`/`iPad`
+  simulator jobs prove the Release app builds, installs, survives a sustained
+  launch window and renders without a fatal JS error. The XCUITest suites that
+  pass on both devices drive the pre-existing screens; **no test case taps a
+  purchasing control**. So the purchasing UI has been verified headlessly and
+  through React Native layout branching, not by a human or a native test on a
+  booted device.
+- **Android is compiled, not run.** The `android` job produces a Gradle debug
+  build; there is no emulator acceptance at all.
+- **No physical hardware.** No Android phone, iPhone or iPad was used, so
+  certificate pinning against a real hub, real TLS, gestures, keyboard
+  behaviour and printing are unverified.
 - **Supplier create and edit are not exposed on the phone.** The screen says so
   and points at the desktop.
 - **Opening balances and payable corrections are not exposed on mobile at all**,
@@ -119,8 +134,9 @@ running something, not by reading it.
 
 ## 5. Release blockers
 
-1. Physical-device acceptance on all three platforms, including a real paired
-   hub, certificate pinning and a revoked-device case.
+1. Native acceptance **of the purchasing flow**: add XCUITest cases that open
+   Purchasing on iPhone and iPad, then physical-device runs on all three
+   platforms with a real paired hub, certificate pinning and a revoked device.
 2. PR #185 (Phase 21A) must land first; this branch is stacked on it.
 3. A human review of the digest and identity rules above — they are
    security-relevant and changed late.
