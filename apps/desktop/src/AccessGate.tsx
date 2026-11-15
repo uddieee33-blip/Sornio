@@ -91,7 +91,7 @@ export function AccessGate({ children }: { children: (onLocked: (detail?: string
             <label htmlFor="setup-type">Business type for setup</label><select id="setup-type" value={businessType} onChange={e => setBusinessType(e.target.value)}>{['general','kirana','cafe','gym','salon','electronics','boutique','service'].map(type => <option key={type} value={type}>{type}</option>)}</select>
             <label htmlFor="owner-name">Owner name</label><input id="owner-name" maxLength={80} required value={displayName} onChange={e => setDisplayName(e.target.value)}/>
           </> : null}
-          <label htmlFor="account-name">Account name</label><input id="account-name" autoComplete="username" maxLength={80} pattern="[A-Za-z0-9_-]+" required value={username} onChange={e => setUsername(e.target.value)}/>
+          <label htmlFor="account-name">Account name</label><input id="account-name" autoComplete="username" maxLength={80} pattern={'[A-Za-z0-9_\\-]+'} required value={username} onChange={e => setUsername(e.target.value)}/>
           <label htmlFor="local-password">Local password</label>
           <input id="local-password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} autoFocus minLength={setup ? 10 : undefined} maxLength={128} required value={password} onChange={(e) => setPassword(e.target.value)}/>
           {setup ? <><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" type="password" autoComplete="new-password" maxLength={128} required value={confirm} onChange={(e) => setConfirm(e.target.value)}/><p className="access-hint">Use 10–128 characters. Keep this password safe: password recovery is not available in this review.</p></> : null}

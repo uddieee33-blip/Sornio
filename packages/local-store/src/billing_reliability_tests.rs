@@ -191,10 +191,12 @@ fn cash_credit_and_zero_tax_ledgers_are_correct_per_invoice() {
             5579,
         ),
         (
+            // A pure cash sale carries no customer; the ledger attaches a
+            // customer only to the credit part of a tender.
             "zero-tax",
             Tender::Cash,
             0,
-            Some("customer-1"),
+            None,
             "cash",
             5313,
         ),

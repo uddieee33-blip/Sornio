@@ -41,6 +41,6 @@ assert len(read(search='Renamed cook',limit=50))==3 # Explicitly current names, 
 # Deliberately do not assert unchanged principals/audit after our own test writes.
 for t in before:
  if t not in ('local_identity_audit','local_principals'):assert db.execute(f'SELECT * FROM {t}').fetchall()==before[t]
-assert db.execute('PRAGMA user_version').fetchone()[0]==22
+assert db.execute('PRAGMA user_version').fetchone()[0]==23
 assert db.execute('PRAGMA foreign_key_check').fetchall()==[]
 print('Security history SQL passed: stable bounded pages, tied timestamps, scope/action/actor/date/literal search filters, durable outcomes, legacy gaps, redaction, current-name labels and unchanged financial/session/device records.')

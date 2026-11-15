@@ -33,6 +33,13 @@ pub enum Permission {
     Staff,
     Outbox,
     Audit,
+    SupplierRead,
+    ManageSuppliers,
+    ManagePurchaseOrders,
+    ApprovePurchaseOrder,
+    ReceiveStock,
+    PaySuppliers,
+    CorrectPayables,
 }
 impl Role {
     pub fn allows(&self, permission: Permission) -> bool {
@@ -51,10 +58,23 @@ impl Role {
                     | CreditPolicy
                     | Reconcile
                     | Refund
+                    | SupplierRead
+                    | ManageSuppliers
+                    | ManagePurchaseOrders
+                    | ApprovePurchaseOrder
+                    | ReceiveStock
+                    | PaySuppliers
             ),
             Self::AssistantManager => matches!(
                 permission,
-                View | Sell | AddItem | CustomerRead | ManageCustomers | CollectCredit
+                View | Sell
+                    | AddItem
+                    | CustomerRead
+                    | ManageCustomers
+                    | CollectCredit
+                    | SupplierRead
+                    | ManagePurchaseOrders
+                    | ReceiveStock
             ),
             Self::Cashier => matches!(permission, View | Sell | CustomerRead | CollectCredit),
         }

@@ -62,6 +62,19 @@ def activate(title):
     send_keys("{SPACE}", pause=0.1)
 
 
+def activate_link(title):
+    """Click a rail navigation link. WebView2 exposes a[href] as Hyperlink on
+    some builds and as Button on others, so try both; Enter activates it."""
+    for control_type in ("Hyperlink", "Button"):
+        target = window.child_window(title=title, control_type=control_type, visible_only=False)
+        if not target.exists(timeout=1.0):
+            continue
+        focus_control(title, control_type)
+        send_keys("{ENTER}" if control_type == "Hyperlink" else "{SPACE}", pause=0.1)
+        return
+    raise AssertionError(f"Navigation link not found as Hyperlink or Button: {title}")
+
+
 def ui_descendants(control_type=None):
     """Descendants tolerating transient UIA enumeration failures (see ui_texts)."""
     try:
@@ -828,6 +841,27 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-thousand-split-reopened.png")
     print("Phase 5 installed-UI regression: ₹1,000.00 = ₹600.00 cash + ₹400.00 customer credit (100000/60000/40000 paise) through the packaged app under a burst of repeated submit keys produced exactly one invoice, a receipt showing ₹600.00 + ₹400.00 for native-customer-2, balances ₹701.64 cash / ₹404.63 credit / 1.5 pcs stock, and survived a forced restart; reinstall preservation is asserted by --verify-preserved.")
     print("Native retail release: real cash/UPI split, pending/unverified separation, explicit manual statement match, forced match receipt recovery, authorized return, cash refund, pending digital refund, atomic stock restoration, saved CA CSV and exact cashier variance passed.")
+    # Phase 21A installed-UI smoke: the purchasing surface opens in the packaged app.
+    # Full PO/receiving/invoice/payment/return coverage stays on the bridge-level
+    # acceptance (check-suppliers.cjs); this proves the installed UI can create a
+    # supplier and archive/restore it against the real native store. Tab wraps
+    # around the end of the document in this WebView, so the rail link is in
+    # reach from wherever the flow ended.
+    activate_link("Suppliers & purchases")
+    wait_until(30, 0.2, lambda: message_visible("Suppliers are up to date."))
+    fill("Supplier ID", "native-supplier-1")
+    fill("Supplier name", "Native supplier")
+    window.capture_as_image().save(OUTPUT / "windows-supplier-created.png")
+    activate("Save supplier")
+    wait_until(30, 0.5, lambda: message_visible("Supplier saved."))
+    # Saving selects the new supplier, so the account section renders with the
+    # archive toggle. Archive and restore it, both directions against the native store.
+    activate("Archive supplier")
+    wait_until(30, 0.5, lambda: message_visible("Supplier archived."))
+    activate("Restore supplier")
+    wait_until(30, 0.5, lambda: message_visible("Supplier restored."))
+    window.capture_as_image().save(OUTPUT / "windows-suppliers.png")
+    print("Phase 21A installed-UI smoke: the packaged app opened the purchasing work area, created native-supplier-1 through the real native store, archived it and restored it, entirely through the installed UI. The purchase order, receiving, invoice, payment and return lifecycle is covered by the bridge-level acceptance, not claimed here.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()

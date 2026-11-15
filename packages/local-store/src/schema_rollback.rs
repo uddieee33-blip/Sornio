@@ -7,8 +7,8 @@
 //!
 //! Before this module existed every such test kept its own frozen literal
 //! `DROP TABLE ...` list, and those lists stopped at the version the test cared
-//! about (v3, v4, v5, v7, v9, v10, v11). The schema has since grown to v22, so
-//! the literals left the v13-v22 tables behind while setting `user_version` back
+//! about (v3, v4, v5, v7, v9, v10, v11). The schema has since grown to v23, so
+//! the literals left the v13-v23 tables behind while setting `user_version` back
 //! to the earlier value. The migrator then re-ran those phases and failed on
 //! `table local_held_bills already exists` before any assertion in the test ran.
 //!
@@ -63,6 +63,46 @@ const POST_V11_TABLES: &[&str] = &[
     "local_kitchen_staff_next",
     // v22: session_signout-schema.sql
     "local_hub_session_handles",
+    // v23: purchasing-schema.sql
+    "local_suppliers",
+    "local_supplier_ops",
+    "local_supplier_pending",
+    "local_supplier_canceled",
+    "local_supplier_outbox",
+    "local_supplier_entries",
+    "local_supplier_journal",
+    "local_supplier_invoices",
+    "local_supplier_payments",
+    "local_goods_receipts",
+    "local_goods_receipt_lines",
+    "local_purchase_orders",
+    "local_purchase_order_lines",
+    "local_purchase_returns",
+    "local_purchase_return_lines",
+    "local_purchase_stock_events",
+];
+
+/// Tables the v23 purchasing phase creates, on their own, so a test can mint the
+/// archive a pre-Phase-21 (Phase 20 / v22) release would have produced: drop only
+/// these and stamp `user_version = 22`. Kept next to `POST_V11_TABLES` and
+/// asserted to be a subset of it by the drift test so the two cannot drift.
+const POST_V22_TABLES: &[&str] = &[
+    "local_suppliers",
+    "local_supplier_ops",
+    "local_supplier_pending",
+    "local_supplier_canceled",
+    "local_supplier_outbox",
+    "local_supplier_entries",
+    "local_supplier_journal",
+    "local_supplier_invoices",
+    "local_supplier_payments",
+    "local_goods_receipts",
+    "local_goods_receipt_lines",
+    "local_purchase_orders",
+    "local_purchase_order_lines",
+    "local_purchase_returns",
+    "local_purchase_return_lines",
+    "local_purchase_stock_events",
 ];
 
 /// Tables that exist at v11 or earlier, plus tables that are not created by a
@@ -117,6 +157,23 @@ const PRE_V13_TABLES: &[&str] = &[
     "local_lan_operations",
 ];
 
+/// Drop every table the v23 purchasing phase created, leaving a v22 database.
+///
+/// Call this on an exported archive before stamping `user_version = 22` to
+/// manufacture the backup a Phase 20 release would have produced. Nothing here
+/// touches row data: the purchasing tables are empty in a database that never
+/// reached v23.
+pub(crate) fn drop_post_v22_tables(db: &rusqlite::Connection) {
+    let mut sql = String::new();
+    for table in POST_V22_TABLES {
+        sql.push_str("DROP TABLE IF EXISTS ");
+        sql.push_str(table);
+        sql.push(';');
+    }
+    db.execute_batch(&sql)
+        .unwrap_or_else(|e| panic!("removing post-v22 fixture tables failed: {e}"));
+}
+
 /// Drop every table created after v11.
 ///
 /// Call this next to an existing `remove_fixture_tables` call, before the test
@@ -170,6 +227,16 @@ mod tests {
 
         // Every table in the live schema must be accounted for by one list or the
         // other, or a migration test rolling back past it will collide.
+        // POST_V22_TABLES must be a subset of POST_V11_TABLES; both describe
+        // the purchasing phase and they must not drift apart.
+        let post_v22: BTreeSet<&str> = POST_V11_TABLES.iter().copied().collect();
+        for table in POST_V22_TABLES {
+            assert!(
+                post_v22.contains(table),
+                "{table} is in POST_V22_TABLES but not POST_V11_TABLES"
+            );
+        }
+
         let unlisted: Vec<&String> = live
             .iter()
             .filter(|t| !post.contains(*t) && !pre.contains(*t))

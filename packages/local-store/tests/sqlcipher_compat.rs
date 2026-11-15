@@ -114,20 +114,13 @@ fn encrypted_store_survives_the_upgrade_with_its_financial_balances_intact() {
                 "the fixture is too small to be a real encrypted database"
             );
 
-            // Open only. No login: a login is a deliberate write, and it must not be able to
-            // masquerade as the open rewriting the database.
-            {
-                let _store =
-                    Store::open(&path, KEY).expect("the historical fixture must open with its key");
-                let after_open = std::fs::read(&path).expect("the fixture must still be readable");
-                assert_eq!(
-                    before, after_open,
-                    "opening a historical database must not rewrite any byte of it"
-                );
-            }
-
-            // The functional read-back runs on a copy, so this test never writes to the delivered
-            // historical file and its bytes stay comparable.
+            // A fixture written by the previous build sits below the current
+            // schema ceiling, and opening it migrates in place (the WAL is
+            // checkpointed into the main file when the store is dropped). The
+            // delivered fixture must therefore never be opened, not even read
+            // through a connection that might write it. Everything — the open,
+            // the migration and the record checks — runs on a copy; the
+            // delivered file is only ever read for byte comparison.
             let work = Path::new(env!("CARGO_TARGET_TMPDIR")).join("compat-historical-work.db");
             let _ = std::fs::remove_file(&work);
             std::fs::copy(&path, &work).expect("the historical fixture must copy");
@@ -136,6 +129,9 @@ fn encrypted_store_survives_the_upgrade_with_its_financial_balances_intact() {
                 std::fs::read(&work).expect("the copy must be readable"),
                 "the copy must start byte-identical to the fixture"
             );
+            // The open (and the schema migration it carries) happens on the
+            // copy. records_are_intact logs in, which is a deliberate write,
+            // so this stays on the copy as well.
             records_are_intact(&work);
 
             // And the delivered fixture is still exactly as it arrived.
@@ -145,8 +141,8 @@ fn encrypted_store_survives_the_upgrade_with_its_financial_balances_intact() {
                 "the historical fixture must be left byte-identical by this test"
             );
             eprintln!(
-                "compat: the historical fixture opened byte-identically, its records were read back \
-                 and checked, and the delivered file was left untouched"
+                "compat: the historical fixture was opened on a copy, its records were read back \
+                 and checked, and the delivered file was left byte-identical"
             );
         }
         None => {

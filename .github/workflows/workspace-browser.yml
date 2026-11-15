@@ -262,6 +262,7 @@ jobs:
           run_check check-statement-print http://127.0.0.1:1420 "" /tmp/sornio-screenshots/customer-statements
           run_check check-retail
           run_check check-inventory-recovery
+          run_check check-suppliers
           if [ "${#failed_checks[@]}" -gt 0 ]; then
             echo "::error::${#failed_checks[@]} desktop UI check(s) failed: ${failed_checks[*]}"
             echo "::error::full desktop UI check log follows"

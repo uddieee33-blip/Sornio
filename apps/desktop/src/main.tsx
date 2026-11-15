@@ -12,6 +12,7 @@ import { SavedCopies } from './SavedCopies';
 import { InventoryPanel } from './InventoryPanel';
 import { RetailPanel } from './RetailPanel';
 import { CustomerPanel } from './CustomerPanel';
+import { SupplierPanel } from './SupplierPanel';
 import { StaffPanel } from './StaffPanel';
 import { BackupPanel } from './BackupPanel';
 import { CredentialsPanel } from './CredentialsPanel';
@@ -23,7 +24,7 @@ import type { Draft, Snapshot } from './workspace-types';
 import brandIcon from '../../../public/brand/icon-192.png';
 import './style.css';
 
-type WorkArea = 'restaurant' | 'counter' | 'stock' | 'customers' | 'operations' | 'settings';
+type WorkArea = 'restaurant' | 'counter' | 'stock' | 'customers' | 'suppliers' | 'operations' | 'settings';
 const empty: Draft = { businessName: '', businessType: 'kirana', note: '' };
 const types = [
   ['kirana', 'Grocery & kiryana'], ['general', 'General store'], ['cafe', 'Café & restaurant'],
@@ -68,15 +69,18 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
   const [checkoutBusy, setCheckoutBusy] = useState(false);
   const [customerBusy, setCustomerBusy] = useState(false);
   const [customerDirty, setCustomerDirty] = useState(false);
+  const [supplierBusy, setSupplierBusy] = useState(false);
+  const [supplierDirty, setSupplierDirty] = useState(false);
+  const [supplierRefresh, setSupplierRefresh] = useState(0);
   const [retailBusy, setRetailBusy] = useState(false), [retailDirty, setRetailDirty] = useState(false), [retailRefresh, setRetailRefresh] = useState(0);
   const [customerRefresh, setCustomerRefresh] = useState(0);
   const [inventoryRefresh, setInventoryRefresh] = useState(0);
   const [checkoutRefresh, setCheckoutRefresh] = useState(0);
-  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
+  const refreshInventory = useCallback(() => { setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); setRetailRefresh(value => value + 1); setSupplierRefresh(value => value + 1); }, []);
   const refreshCheckout = useCallback(() => { setCheckoutRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
   const retailChanged = useCallback(() => { setCheckoutRefresh(value => value + 1); setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty;
+  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty;
   const dirty = otherDirty || credentialDirty;
 
   useEffect(() => {
@@ -139,7 +143,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
     } finally { saving.current = false; }
   }
 
-  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || status === 'opening' || status === 'saving';
+  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || supplierBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -160,7 +164,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
       <div className="workspace-name"><span className="eyebrow">THIS DEVICE</span><strong>Local workspace</strong><span>Windows foundation</span></div>
       <nav aria-label="Workspace">{([
         ...(snapshot?.draft?.businessType === 'cafe' ? [['restaurant', 'Tables & kitchen'] as const] : []), ['counter', 'Counter'], ['stock', businessProfile(draft.businessType).stockLabel], ['customers', businessProfile(draft.businessType).customerLabel],
-        ['operations', 'Payments & closing'], ['settings', owner ? 'Business & settings' : 'My access'],
+        ['suppliers', 'Suppliers & purchases'], ['operations', 'Payments & closing'], ['settings', owner ? 'Business & settings' : 'My access'],
       ] as const).map(([id, label]) => <a key={id} href={`#area-${id}`} className={workArea === id ? 'selected' : ''}
         aria-current={workArea === id ? 'location' : undefined} onClick={event => {
           event.preventDefault(); if (busy) return; setWorkArea(id);
@@ -179,6 +183,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
         <section id="area-counter" tabIndex={-1} aria-label="Counter">{native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}</section>
         <section id="area-stock" tabIndex={-1} aria-label="Items and stock">{native && snapshot && hasCapability(draft.businessType, 'stockReview') ? <GroceryStockPanel refreshToken={inventoryRefresh} onLocked={onLocked}/> : null}{native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}</section>
         <section id="area-customers" tabIndex={-1} aria-label="Customers and udhaar">{native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}</section>
+        <section id="area-suppliers" tabIndex={-1} aria-label="Suppliers and purchases">{native && snapshot ? <SupplierPanel role={session.principal.role} disabled={busy} refreshToken={supplierRefresh} onChanged={refreshInventory} onBusyChange={setSupplierBusy} onDirtyChange={setSupplierDirty}/> : null}</section>
         <section id="area-operations" tabIndex={-1} aria-label="Payments and closing">{native && snapshot ? <RetailPanel session={session} disabled={busy} refreshToken={retailRefresh} onChanged={retailChanged} onBusyChange={setRetailBusy} onDirtyChange={setRetailDirty}/> : null}</section>
         <section id="area-settings" tabIndex={-1} aria-label="Business and access">
         <div className="workspace-grid">
@@ -204,7 +209,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
         </div>
         {native && snapshot && owner ? <StaffPanel disabled={busy || credentialDirty} refreshToken={staffRefresh} onBusyChange={setStaffBusy} onDirtyChange={setStaffDirty}/> : null}
         {native && snapshot ? <CredentialsPanel owner={owner} disabled={busy} blockedByDraft={otherDirty} onLocked={onLocked} onBusyChange={setCredentialBusy} onDirtyChange={setCredentialDirty} onStaffChanged={staffChanged}/> : null}
-        {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}
+        {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}
         {native && snapshot && owner ? <SavedCopies revision={snapshot.revision} disabled={busy} dirty={draftDirty} onLocked={onLocked} onRestore={(source) => void restore(source)}/> : null}</section>
       </div>
     </main>

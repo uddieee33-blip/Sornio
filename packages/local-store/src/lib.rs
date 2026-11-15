@@ -20,6 +20,7 @@ pub mod kitchen_history;
 mod kitchen_staff;
 pub mod lan_authority;
 pub mod payments;
+pub mod purchasing;
 pub mod recovery;
 pub mod replication;
 mod responsibility_access;
@@ -69,12 +70,36 @@ pub enum StoreError {
     DayClosed,
     #[error("This account has adjusted credit history. Automatic credit returns are unavailable; review an explicit accounting and stock correction.")]
     ComplexCreditReturn,
+    #[error("Check the supplier name, phone, tax identity and payment terms.")]
+    InvalidSupplier,
+    #[error("That supplier could not be found. Reload suppliers before continuing.")]
+    SupplierMissing,
+    #[error("This supplier's details changed. Refresh before continuing.")]
+    SupplierConflict,
+    #[error("Check the purchase order lines, quantities and costs.")]
+    InvalidPurchaseOrder,
+    #[error("That purchase order could not be found. Reload orders before continuing.")]
+    PurchaseOrderMissing,
+    #[error("This purchase order changed. Refresh it before continuing.")]
+    PurchaseOrderConflict,
+    #[error("That action is not allowed at the order's current state.")]
+    OrderState,
+    #[error("Check the receipt quantities against what was ordered.")]
+    InvalidReceipt,
+    #[error("Check the supplier invoice, reference, amount and due date.")]
+    InvalidPayable,
+    #[error("Check the return quantities against what was received.")]
+    InvalidReturn,
+    #[error("Check the supplier, order, receipt, invoice and payment details.")]
+    InvalidPurchase,
     #[error("The local database could not be opened or saved. Keep the original files and retry.")]
     Database(#[from] rusqlite::Error),
     #[error("The database encryption key is invalid.")]
     InvalidKey,
     #[error("Encrypted SQLite support is unavailable. No data was saved.")]
     EncryptionUnavailable,
+    #[error("This database was created by an unreleased purchasing preview and does not match this version. Keep the original file and restore from a backup made before that preview, or export it from the matching build.")]
+    ExperimentalSchema,
     #[error("This database needs a newer Sornio version.")]
     NewerSchema,
     #[error("Another window changed this draft. Reopen it before saving again.")]
@@ -168,7 +193,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 22;
+const SCHEMA_VERSION: i64 = 23;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -304,6 +329,9 @@ impl Store {
             }
             if locked_version < 22 {
                 session_signout::migrate(&tx)?;
+            }
+            if locked_version < 23 {
+                purchasing::migrate(&tx)?;
             }
             tx.commit()?;
         }
