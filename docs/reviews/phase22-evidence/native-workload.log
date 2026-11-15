@@ -1,0 +1,58 @@
+
+running 1 test
+PHASE22_PROGRESS invoices=1
+PHASE22_PROGRESS invoices=1001
+PHASE22_PROGRESS invoices=2001
+PHASE22_PROGRESS invoices=3001
+PHASE22_PROGRESS invoices=4001
+PHASE22_PROGRESS invoices=5001
+test phase22_reliability_tests::requested_synthetic_dataset_reconciles_after_restart_and_backup_restore has been running for over 60 seconds
+PHASE22_PROGRESS invoices=6001
+PHASE22_PROGRESS invoices=7001
+PHASE22_PROGRESS invoices=8001
+PHASE22_PROGRESS invoices=9001
+PHASE22_PROGRESS invoices=10001
+PHASE22_PROGRESS invoices=11001
+PHASE22_PROGRESS invoices=12001
+PHASE22_PROGRESS invoices=13001
+PHASE22_PROGRESS invoices=14001
+PHASE22_PROGRESS invoices=15001
+PHASE22_PROGRESS invoices=16001
+PHASE22_PROGRESS invoices=17001
+PHASE22_PROGRESS invoices=18001
+PHASE22_PROGRESS invoices=19001
+PHASE22_PROGRESS invoices=20001
+PHASE22_PROGRESS invoices=21001
+PHASE22_PROGRESS invoices=22001
+PHASE22_PROGRESS invoices=23001
+PHASE22_PROGRESS invoices=24001
+PHASE22_PROGRESS invoices=25001
+PHASE22_PROGRESS invoices=26001
+PHASE22_PROGRESS invoices=27001
+PHASE22_PROGRESS invoices=28001
+PHASE22_PROGRESS invoices=29001
+PHASE22_PROGRESS invoices=30001
+PHASE22_PROGRESS invoices=31001
+PHASE22_PROGRESS invoices=32001
+PHASE22_PROGRESS invoices=33001
+PHASE22_PROGRESS invoices=34001
+PHASE22_PROGRESS invoices=35001
+PHASE22_PROGRESS invoices=36001
+PHASE22_PROGRESS invoices=37001
+PHASE22_PROGRESS invoices=38001
+PHASE22_PROGRESS invoices=39001
+PHASE22_PROGRESS invoices=40001
+PHASE22_PROGRESS invoices=41001
+PHASE22_PROGRESS invoices=42001
+PHASE22_PROGRESS invoices=43001
+PHASE22_PROGRESS invoices=44001
+PHASE22_PROGRESS invoices=45001
+PHASE22_PROGRESS invoices=46001
+PHASE22_PROGRESS invoices=47001
+PHASE22_PROGRESS invoices=48001
+PHASE22_PROGRESS invoices=49001
+PHASE22_METRICS {"backup_bytes":179638272,"backup_seconds":34.363710066,"counts":{"customers":10000,"invoices":50000,"products":5000,"purchaseOrders":5000,"suppliers":1000},"elapsed_seconds":394.708299701,"encrypted_database_bytes":181522432,"financial_reconciliation":"PASS: cash, stock, balanced invoice journals, no draft-order debt; repeated after reopen and restore","limitations":"native Workspace/SQLCipher workload; no installed GUI performance or physical power-loss claim","native_postings_per_second":212.0096855210132,"query_bundle_ms":{"maximum":490.100194,"median":321.32549900000004,"samples":30},"reopen_with_unlock_ms":1203.885158,"result":"PASS","schema":23,"stages":{"customers_seconds":10.865563378000001,"invoices_seconds":235.838281997,"orders_seconds":12.164318289,"products_seconds":6.883873866,"suppliers_seconds":1.7403650449999999},"startup_with_setup_ms":782.016721}
+test phase22_reliability_tests::requested_synthetic_dataset_reconciles_after_restart_and_backup_restore ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 317 filtered out; finished in 394.78s
+

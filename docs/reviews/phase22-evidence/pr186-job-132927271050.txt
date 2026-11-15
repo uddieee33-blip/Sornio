@@ -1,0 +1,120 @@
+Retrieved from GitHub job 132927271050 during Phase 22 corrective execution.
+URL: https://github.com/uddieee33-blip/Sornio/actions/runs/43751829430/job/132927271050
+Selected verbatim log lines; complete job logs remain at the URL.
+
+2026-11-15T19:20:09.7274861Z [command]/usr/bin/git -c protocol.version=2 fetch --no-tags --prune --no-recurse-submodules --depth=1 origin +991be38042db0c7ade615940ca196a17de0899c3:refs/remotes/pull/186/merge
+2026-11-15T19:20:10.6070729Z  * [new ref]         991be38042db0c7ade615940ca196a17de0899c3 -> pull/186/merge
+2026-11-15T19:20:10.7177657Z HEAD is now at 991be38 Merge 3bc8d86cb0c3148a4078c1956acca5da453d9fc8 into 49a244a73ba21b6738961ab736282250d3a19214
+2026-11-15T19:20:10.7229233Z 991be38042db0c7ade615940ca196a17de0899c3
+2026-11-15T19:24:03.2668128Z test purchasing::tests::damaged_goods_do_not_enter_stock_or_the_payable ... ok
+2026-11-15T19:24:03.7544779Z test purchasing::tests::every_operation_journal_balances_and_statements_reconcile ... ok
+2026-11-15T19:24:05.8194245Z test purchasing::tests::experimental_database_with_drifted_purchasing_fails_closed ... ok
+2026-11-15T19:24:06.2748737Z test purchasing::tests::invoices_post_variance_and_payments_allocate_once ... ok
+2026-11-15T19:24:07.2109110Z test purchasing::tests::migration_to_v23_preserves_existing_data_and_enables_purchasing ... ok
+2026-11-15T19:24:07.5259631Z test purchasing::tests::experimental_v13_purchasing_database_is_adopted_on_upgrade ... ok
+2026-11-15T19:24:07.6929108Z test purchasing::tests::purchase_order_lifecycle_enforces_the_state_machine ... ok
+2026-11-15T19:24:08.0121864Z test purchasing::tests::purchase_order_totals_use_integer_money_and_snapshot_product_data ... ok
+2026-11-15T19:24:08.4253332Z test purchasing::tests::receiving_is_exactly_once_under_retries_and_reopen ... ok
+2026-11-15T19:24:08.5098831Z test purchasing::tests::receiving_partially_then_completely_reconciles_stock_and_payables ... ok
+2026-11-15T19:24:09.0068890Z test purchasing::tests::returns_deduct_stock_and_reduce_the_payable_exactly_once ... ok
+2026-11-15T19:24:09.1038545Z test purchasing::tests::reversing_a_payment_restores_the_payable_and_audits_once ... ok
+2026-11-15T19:24:09.6325925Z test purchasing::tests::supplier_profiles_use_stable_ids_revisions_and_exact_replays ... ok
+2026-11-15T19:24:09.8680907Z test purchasing::tests::unallocated_payments_are_the_explicit_advance_workflow ... ok
+2026-11-15T19:24:11.1988476Z test purchasing::tests::native_roles_gate_every_purchasing_capability ... ok
+2026-11-15T19:24:11.6498277Z test purchasing_hub::integration::a_draft_or_receipt_never_moves_stock_or_money ... ok
+2026-11-15T19:24:11.9408597Z test purchasing_hub::integration::a_cashier_cannot_read_the_supplier_workspace ... ok
+2026-11-15T19:24:12.5939708Z test purchasing_hub::integration::a_hub_disable_blocks_every_purchasing_route ... ok
+2026-11-15T19:24:13.0495647Z test purchasing_hub::integration::a_lost_acknowledgement_is_recovered_by_operation_identity ... ok
+2026-11-15T19:24:13.3588422Z test purchasing_hub::integration::a_partial_receipt_leaves_the_order_partial_and_accepts_the_remainder ... ok
+2026-11-15T19:24:14.0408899Z test purchasing_hub::integration::a_replayed_operation_returns_the_same_result_and_posts_once ... ok
+2026-11-15T19:24:14.4468663Z test purchasing_hub::integration::a_return_is_refused_without_a_receipt_and_refusals_are_durable ... ok
+2026-11-15T19:24:14.7680420Z test purchasing_hub::integration::a_revoked_device_stops_reading_immediately ... ok
+2026-11-15T19:24:15.4518405Z test purchasing_hub::integration::a_stale_revision_is_refused_and_reported_without_overwriting ... ok
+2026-11-15T19:24:15.5482131Z test purchasing_hub::integration::a_session_expiry_during_recovery_does_not_lose_the_committed_result ... ok
+2026-11-15T19:24:15.8295529Z test purchasing_hub::integration::a_statement_read_is_bounded_and_scoped_to_one_supplier ... ok
+2026-11-15T19:24:16.1579301Z test purchasing_hub::integration::a_supplier_payment_posts_once_and_a_replay_is_identical ... ok
+2026-11-15T19:24:17.2578279Z test purchasing_hub::integration::an_identity_owned_by_another_device_cannot_adopt_its_result ... ok
+2026-11-15T19:24:17.3985430Z test purchasing_hub::integration::an_operation_audit_row_is_written_for_every_committed_mobile_write ... ok
+2026-11-15T19:24:17.5831813Z test purchasing_hub::integration::an_order_operation_identity_cannot_be_replayed_as_a_purchasing_one ... ok
+2026-11-15T19:24:17.6818199Z test purchasing_hub::integration::an_assistant_manager_cannot_record_a_supplier_payment_through_mobile ... ok
+2026-11-15T19:24:18.7908532Z test purchasing_hub::integration::an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one ... ok
+2026-11-15T19:24:19.2438430Z test purchasing_hub::integration::an_unknown_operation_reports_not_found_rather_than_inventing_a_result ... ok
+2026-11-15T19:24:19.4394099Z test purchasing_hub::integration::an_unknown_purchasing_kind_is_refused_before_the_store_runs ... ok
+2026-11-15T19:24:19.4768284Z test purchasing_hub::integration::journal_rows_are_immutable_and_survive_delete_attempts ... ok
+2026-11-15T19:24:20.1848708Z test purchasing_hub::integration::reusing_an_operation_identity_for_another_kind_is_a_conflict ... ok
+2026-11-15T19:24:20.6548321Z test purchasing_hub::integration::reusing_an_operation_identity_for_different_content_is_a_conflict ... ok
+2026-11-15T19:24:21.1578650Z test purchasing_hub::integration::the_owner_actor_is_reported_so_the_phone_never_trusts_its_own_claim ... ok
+2026-11-15T19:24:21.4328559Z test purchasing_hub::integration::workspace_read_requires_an_approved_device_session ... ok
+2026-11-15T19:24:21.5799285Z test purchasing_hub::integration::unsupported_protocol_version_is_refused ... ok
+2026-11-15T19:24:22.5769509Z test purchasing_hub::integration::workspace_read_returns_suppliers_orders_and_capabilities ... ok
+2026-11-15T19:24:22.8298592Z test purchasing_hub::integration::wrong_workspace_is_refused_before_any_data_is_read ... ok
+2026-11-15T19:24:22.9328532Z test purchasing_hub::integration::the_capability_document_matches_the_native_role_matrix ... ok
+2026-11-15T19:25:22.1953631Z test result: ok. 307 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 281.82s
+2026-11-15T19:25:24.1168152Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.91s
+2026-11-15T19:25:24.1242319Z test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+2026-11-15T19:25:25.7738798Z test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+2026-11-15T19:25:26.2606135Z test security_command_tests::kitchen_grants_cannot_escalate_financial_permissions ... ok
+2026-11-15T19:25:26.9359481Z test security_command_tests::authorised_kitchen_and_restaurant_operations_really_succeed ... ok
+2026-11-15T19:25:27.5269403Z test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+2026-11-15T19:25:28.3618999Z test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+2026-11-15T19:25:28.5600632Z test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+2026-11-15T19:25:31.8272124Z test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+2026-11-15T19:25:31.8273676Z test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.71s
+2026-11-15T19:25:31.8345548Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-15T19:28:11.0448655Z test purchasing::tests::damaged_goods_do_not_enter_stock_or_the_payable ... ok
+2026-11-15T19:28:11.7877170Z test purchasing::tests::every_operation_journal_balances_and_statements_reconcile ... ok
+2026-11-15T19:28:12.5522216Z test purchasing::tests::invoices_post_variance_and_payments_allocate_once ... ok
+2026-11-15T19:28:13.4638146Z test purchasing::tests::migration_to_v23_preserves_existing_data_and_enables_purchasing ... ok
+2026-11-15T19:28:13.5648521Z test purchasing::tests::native_roles_gate_every_purchasing_capability ... ok
+2026-11-15T19:28:13.6428327Z test purchasing::tests::experimental_database_with_drifted_purchasing_fails_closed ... ok
+2026-11-15T19:28:13.8220560Z test purchasing::tests::purchase_order_lifecycle_enforces_the_state_machine ... ok
+2026-11-15T19:28:13.9255287Z test purchasing::tests::experimental_v13_purchasing_database_is_adopted_on_upgrade ... ok
+2026-11-15T19:28:14.1107975Z test purchasing::tests::purchase_order_totals_use_integer_money_and_snapshot_product_data ... ok
+2026-11-15T19:28:14.7280930Z test purchasing::tests::receiving_is_exactly_once_under_retries_and_reopen ... ok
+2026-11-15T19:28:14.7385452Z test purchasing::tests::receiving_partially_then_completely_reconciles_stock_and_payables ... ok
+2026-11-15T19:28:14.7738220Z test purchasing::tests::returns_deduct_stock_and_reduce_the_payable_exactly_once ... ok
+2026-11-15T19:28:14.8722171Z test purchasing::tests::reversing_a_payment_restores_the_payable_and_audits_once ... ok
+2026-11-15T19:28:15.4478199Z test purchasing_hub::integration::a_cashier_cannot_read_the_supplier_workspace ... ok
+2026-11-15T19:28:15.6834558Z test purchasing_hub::integration::a_draft_or_receipt_never_moves_stock_or_money ... ok
+2026-11-15T19:28:15.7301533Z test purchasing::tests::supplier_profiles_use_stable_ids_revisions_and_exact_replays ... ok
+2026-11-15T19:28:15.7779668Z test purchasing::tests::unallocated_payments_are_the_explicit_advance_workflow ... ok
+2026-11-15T19:28:16.2851077Z test purchasing_hub::integration::a_hub_disable_blocks_every_purchasing_route ... ok
+2026-11-15T19:28:16.5582828Z test purchasing_hub::integration::a_lost_acknowledgement_is_recovered_by_operation_identity ... ok
+2026-11-15T19:28:16.6118147Z test purchasing_hub::integration::a_partial_receipt_leaves_the_order_partial_and_accepts_the_remainder ... ok
+2026-11-15T19:28:16.6522795Z test purchasing_hub::integration::a_replayed_operation_returns_the_same_result_and_posts_once ... ok
+2026-11-15T19:28:17.1215042Z test purchasing_hub::integration::a_return_is_refused_without_a_receipt_and_refusals_are_durable ... ok
+2026-11-15T19:28:17.4261483Z test purchasing_hub::integration::a_revoked_device_stops_reading_immediately ... ok
+2026-11-15T19:28:17.5232323Z test purchasing_hub::integration::a_session_expiry_during_recovery_does_not_lose_the_committed_result ... ok
+2026-11-15T19:28:17.5638490Z test purchasing_hub::integration::a_stale_revision_is_refused_and_reported_without_overwriting ... ok
+2026-11-15T19:28:17.9677126Z test purchasing_hub::integration::a_statement_read_is_bounded_and_scoped_to_one_supplier ... ok
+2026-11-15T19:28:18.2966513Z test purchasing_hub::integration::a_supplier_payment_posts_once_and_a_replay_is_identical ... ok
+2026-11-15T19:28:18.4423175Z test purchasing_hub::integration::an_assistant_manager_cannot_record_a_supplier_payment_through_mobile ... ok
+2026-11-15T19:28:18.4532871Z test purchasing_hub::integration::an_identity_owned_by_another_device_cannot_adopt_its_result ... ok
+2026-11-15T19:28:18.7832983Z test purchasing_hub::integration::an_operation_audit_row_is_written_for_every_committed_mobile_write ... ok
+2026-11-15T19:28:19.1544993Z test purchasing_hub::integration::an_order_operation_identity_cannot_be_replayed_as_a_purchasing_one ... ok
+2026-11-15T19:28:19.3378412Z test purchasing_hub::integration::an_unknown_operation_reports_not_found_rather_than_inventing_a_result ... ok
+2026-11-15T19:28:19.3462507Z test purchasing_hub::integration::an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one ... ok
+2026-11-15T19:28:19.6033440Z test purchasing_hub::integration::an_unknown_purchasing_kind_is_refused_before_the_store_runs ... ok
+2026-11-15T19:28:20.0274040Z test purchasing_hub::integration::journal_rows_are_immutable_and_survive_delete_attempts ... ok
+2026-11-15T19:28:20.2393028Z test purchasing_hub::integration::reusing_an_operation_identity_for_another_kind_is_a_conflict ... ok
+2026-11-15T19:28:20.2401650Z test purchasing_hub::integration::reusing_an_operation_identity_for_different_content_is_a_conflict ... ok
+2026-11-15T19:28:20.4629346Z test purchasing_hub::integration::the_capability_document_matches_the_native_role_matrix ... ok
+2026-11-15T19:28:20.8753033Z test purchasing_hub::integration::the_owner_actor_is_reported_so_the_phone_never_trusts_its_own_claim ... ok
+2026-11-15T19:28:21.0759557Z test purchasing_hub::integration::workspace_read_requires_an_approved_device_session ... ok
+2026-11-15T19:28:21.0888831Z test purchasing_hub::integration::unsupported_protocol_version_is_refused ... ok
+2026-11-15T19:28:21.2095980Z test purchasing_hub::integration::workspace_read_returns_suppliers_orders_and_capabilities ... ok
+2026-11-15T19:28:21.2817749Z test purchasing_hub::integration::wrong_workspace_is_refused_before_any_data_is_read ... ok
+2026-11-15T19:29:02.5106052Z test result: ok. 307 passed; 0 failed; 6 ignored; 0 measured; 0 filtered out; finished in 165.29s
+2026-11-15T19:29:03.3203981Z test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+2026-11-15T19:29:03.3242653Z test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+2026-11-15T19:29:04.3719626Z test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+2026-11-15T19:29:04.4551717Z test security_command_tests::authorised_kitchen_and_restaurant_operations_really_succeed ... ok
+2026-11-15T19:29:04.4558671Z test security_command_tests::kitchen_grants_cannot_escalate_financial_permissions ... ok
+2026-11-15T19:29:04.4606160Z test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+2026-11-15T19:29:05.1622735Z test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+2026-11-15T19:29:05.4148787Z test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+2026-11-15T19:29:05.8256534Z test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+2026-11-15T19:29:05.8257713Z test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.50s
+2026-11-15T19:29:05.8338888Z test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+2026-11-15T19:32:20.2669572Z Supplier purchasing UI acceptance passed: create/edit/archive/restore, draft->submit->approve, receipt with damaged stock, invoice, partial payment, exactly-once IPC retries, purchase return, cashier/assistant/manager/owner permission boundaries.
+

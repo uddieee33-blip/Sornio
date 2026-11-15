@@ -1,0 +1,14 @@
+{
+  "result": "PASS",
+  "source_commit": "3bc8d86cb0c3148a4078c1956acca5da453d9fc8",
+  "environment": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "executable": "/workspace/scratch/c4af9d6a6718/Sornio/packages/local-store/target/debug/examples/cashier_review_bridge",
+  "requested_seconds": 60,
+  "session_elapsed_seconds": 60.00405659799992,
+  "payments": 125,
+  "forced_process_kills": 25,
+  "final_payable_paise": -12500,
+  "financial_reconciliation": "PASS after every write and replay",
+  "limitations": "native bridge, synthetic bank advances, no installed GUI or physical power loss",
+  "total_elapsed_seconds": 61.81022920999999
+}
