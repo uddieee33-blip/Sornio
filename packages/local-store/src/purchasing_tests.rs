@@ -772,6 +772,104 @@ fn every_operation_journal_balances_and_statements_reconcile() {
 }
 
 #[test]
+fn experimental_v13_purchasing_database_is_adopted_on_upgrade() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("experimental.db");
+    // Manufacture the database the unreleased v13 review build produced:
+    // everything up to v12, the v13 purchasing DDL, no held_bills phase, and a
+    // row written by the preview itself.
+    {
+        let _ = Store::open(&path, KEY).unwrap();
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.pragma_update(None, "key", KEY).unwrap();
+        crate::schema_rollback::drop_post_v11_tables(&db);
+        db.pragma_update(None, "user_version", 12).unwrap();
+        let experimental = include_str!("purchasing-schema.sql")
+            .replace("PRAGMA user_version=23;", "PRAGMA user_version=13;");
+        assert!(experimental.contains("user_version=13"));
+        db.execute_batch(&experimental).unwrap();
+        db.execute(
+            "INSERT INTO local_suppliers(id,name,phone,gstin,address,payment_terms_days,notes,archived,revision) VALUES('sup-exp','Experimental Supplier','+91 1','22AAAAA0000A1Z5','12 Market Road',30,'',0,1)",
+            (),
+        )
+        .unwrap();
+    }
+    // Adoption must open the database, create the skipped held_bills phase,
+    // stamp v23 and keep the preview's data.
+    let store = Store::open(&path, KEY).unwrap();
+    let suppliers = store.find_suppliers("", true).unwrap();
+    assert_eq!(suppliers.len(), 1);
+    assert_eq!(suppliers[0].id, "sup-exp");
+    assert_eq!(suppliers[0].name, "Experimental Supplier");
+    drop(store);
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.pragma_update(None, "key", KEY).unwrap();
+    assert_eq!(
+        db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0)).unwrap(),
+        23
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_held_bills'",
+            (),
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        1
+    );
+}
+
+#[test]
+fn experimental_database_with_drifted_purchasing_fails_closed() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("drifted.db");
+    {
+        let _ = Store::open(&path, KEY).unwrap();
+        let db = rusqlite::Connection::open(&path).unwrap();
+        db.pragma_update(None, "key", KEY).unwrap();
+        crate::schema_rollback::drop_post_v11_tables(&db);
+        db.pragma_update(None, "user_version", 12).unwrap();
+        let experimental = include_str!("purchasing-schema.sql")
+            .replace("PRAGMA user_version=23;", "PRAGMA user_version=13;");
+        db.execute_batch(&experimental).unwrap();
+        db.execute(
+            "INSERT INTO local_suppliers(id,name,phone,gstin,address,payment_terms_days,notes,archived,revision) VALUES('sup-exp','Experimental Supplier','+91 1','22AAAAA0000A1Z5','12 Market Road',30,'',0,1)",
+            (),
+        )
+        .unwrap();
+        // A local modification by hand: the append-only guard is gone.
+        db.execute_batch("DROP TRIGGER suppliers_no_delete").unwrap();
+    }
+    match Store::open(&path, KEY) {
+        Ok(_) => panic!("a drifted experimental database must not open"),
+        Err(StoreError::ExperimentalSchema) => {}
+        Err(other) => panic!("expected ExperimentalSchema, got {other}"),
+    }
+    // Fail closed: still v13, the preview's row intact, held_bills absent.
+    let db = rusqlite::Connection::open(&path).unwrap();
+    db.pragma_update(None, "key", KEY).unwrap();
+    assert_eq!(
+        db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0)).unwrap(),
+        13
+    );
+    assert_eq!(
+        db.query_row("SELECT name FROM local_suppliers WHERE id='sup-exp'", (), |r| r
+            .get::<_, String>(0))
+        .unwrap(),
+        "Experimental Supplier"
+    );
+    assert_eq!(
+        db.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_held_bills'",
+            (),
+            |r| r.get::<_, i64>(0)
+        )
+        .unwrap(),
+        0
+    );
+}
+
+#[test]
 fn migration_to_v23_preserves_existing_data_and_enables_purchasing() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("s.db");

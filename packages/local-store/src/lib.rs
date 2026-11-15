@@ -98,6 +98,8 @@ pub enum StoreError {
     InvalidKey,
     #[error("Encrypted SQLite support is unavailable. No data was saved.")]
     EncryptionUnavailable,
+    #[error("This database was created by an unreleased purchasing preview and does not match this version. Keep the original file and restore from a backup made before that preview, or export it from the matching build.")]
+    ExperimentalSchema,
     #[error("This database needs a newer Sornio version.")]
     NewerSchema,
     #[error("Another window changed this draft. Reopen it before saving again.")]

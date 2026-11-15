@@ -11,6 +11,7 @@ use crate::{
     identity::{self, Permission, Role},
     Store, StoreError,
 };
+use std::path::Path;
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
@@ -2709,8 +2710,74 @@ impl Store {
 /// The schema file is the single source of truth for both tables and the
 /// append-only triggers over them. It must stay idempotent-free: SQLite has
 /// no IF NOT EXISTS for tables, so it may only ever run once per database.
+///
+/// One exception exists, deliberately narrow: the pre-Phase-20 draft of this
+/// migration shipped as schema v13 on an unreleased review branch, and early
+/// reviewers may have run it. Its DDL was byte-identical to the DDL below
+/// except for the final version stamp, so such a database carries exactly the
+/// objects this phase creates - stamped v13 and without the v13 held_bills
+/// phase, which the open path never ran for it (`locked_version < 13` was
+/// false). Adopt that database, and nothing else, and only if the whole schema
+/// matches a fresh v23 reference byte-for-byte; any other state fails closed
+/// and leaves the file untouched.
 pub(crate) fn migrate(tx: &Transaction<'_>) -> Result<(), StoreError> {
+    let has_purchased: bool = tx
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_suppliers'",
+            (),
+            |row| row.get::<_, i64>(0),
+        )? == 1;
+    if has_purchased {
+        return adopt_experimental_v13(tx);
+    }
     tx.execute_batch(include_str!("purchasing-schema.sql"))?;
+    Ok(())
+}
+
+/// Every object SQLite reports, minus SQLite bookkeeping and backup-manifest
+/// artifacts (a backup export leaves `sornio_backup_manifest` behind, which a
+/// fresh reference does not have).
+fn live_schema(connection: &Connection) -> Result<Vec<(String, String, String)>, StoreError> {
+    let mut statement = connection.prepare(
+        "SELECT type, name, sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*' AND name NOT LIKE 'sornio_backup_%' ORDER BY type, name",
+    )?;
+    let rows = statement
+        .query_map((), |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
+        .collect::<Result<Vec<_>, _>>()?;
+    Ok(rows)
+}
+
+/// Adopt a database created by the unreleased v13 purchasing preview.
+///
+/// The preview skipped the v13 held_bills phase for the same reason, so a
+/// missing `local_held_bills` is created from the held_bills DDL with only the
+/// version stamp removed. The whole schema is then compared against a fresh
+/// in-memory v23 reference built by running the real open path; a single
+/// divergent object aborts the upgrade with `ExperimentalSchema`.
+fn adopt_experimental_v13(tx: &Transaction<'_>) -> Result<(), StoreError> {
+    let has_held_bills: bool = tx
+        .query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='local_held_bills'",
+            (),
+            |row| row.get::<_, i64>(0),
+        )? == 1;
+    if !has_held_bills {
+        let held_bills = include_str!("held_bills_schema.sql");
+        let ddl = held_bills
+            .rsplit_once("PRAGMA user_version")
+            .map(|(ddl, _)| ddl)
+            .ok_or(StoreError::ExperimentalSchema)?;
+        tx.execute_batch(ddl)?;
+    }
+    let reference = Store::open(
+        Path::new(":memory:"),
+        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+    )?;
+    let reference_schema = live_schema(&reference.0)?;
+    if live_schema(tx)? != reference_schema {
+        return Err(StoreError::ExperimentalSchema);
+    }
+    tx.execute_batch("PRAGMA user_version = 23;")?;
     Ok(())
 }
 
