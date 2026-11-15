@@ -216,6 +216,50 @@ function isCoreEnglishDictionaryValue(node) {
   return Boolean(current && ts.isIdentifier(current.name) && current.name.text === 'en');
 }
 
+/**
+ * A snake_case or dot-delimited machine token: a state name, storage key or
+ * enum member. Such tokens are compared and switched on, never displayed, so
+ * they are not translatable copy.
+ */
+const IDENTIFIER_SHAPED = /^[a-z][a-z0-9]*(?:[._][a-z0-9]+)+$/;
+
+/**
+ * True when a string literal is part of a *type* rather than a value
+ * expression. Covers `type X = 'a' | 'b'`, `interface { k: 'a' }`, tuple and
+ * array element types, and literal-keyed member names.
+ */
+function isTypeLevelLiteral(node) {
+  for (let current = node.parent; current; current = current.parent) {
+    if (
+      ts.isUnionTypeNode(current) ||
+      ts.isIntersectionTypeNode(current) ||
+      ts.isLiteralTypeNode(current) ||
+      ts.isTypeAliasDeclaration(current) ||
+      ts.isTypeReferenceNode(current) ||
+      ts.isArrayTypeNode(current) ||
+      ts.isTupleTypeNode(current) ||
+      ts.isIndexSignatureDeclaration(current)
+    ) {
+      return true;
+    }
+    // Stop climbing as soon as we reach a value expression or statement; a
+    // literal such as `throw new Error('…')` must keep its throw context.
+    if (
+      ts.isExpression(current) ||
+      ts.isStatement(current) ||
+      ts.isTypeNode(current) ||
+      ts.isTypeElement(current) ||
+      ts.isSourceFile(current) ||
+      ts.isBlock(current) ||
+      ts.isCaseClause(current) ||
+      ts.isModuleBlock(current)
+    ) {
+      return false;
+    }
+  }
+  return false;
+}
+
 function hasHumanLanguage(value, strongContext = false) {
   if (!value || value.length > 900 || !/[A-Za-z]/.test(value)) return false;
   if (/^[A-Za-z]$/.test(value)) return false;
@@ -227,6 +271,13 @@ function hasHumanLanguage(value, strongContext = false) {
   if (/\b(?:bg|text|border|ring|shadow|rounded|grid|flex|items|justify|hover|focus|sm|md|lg|xl|px|py|mt|mb|ml|mr|gap|w|h|min|max|translate|animate|overflow|tracking|leading|font|inset|absolute|relative|fixed|sticky|z)-[\[\]a-z0-9/.:%_-]+/i.test(value)) return false;
   if (/^(?:[a-z][A-Za-z0-9]*)(?:\.[a-z][A-Za-z0-9]*)+$/.test(value)) return false;
   if (/^[A-Z0-9_]+$/.test(value) && value.length > 3) return false;
+  // Dot-delimited identifiers that reach `return` position — storage and cache
+  // keys such as `sornio.count.v1.${mode}.${hex(businessId)}` — read as
+  // "several words" to the checks below, so they used to land in en.json as
+  // translatable copy. No screen renders the result of a storage-key builder,
+  // and a translator rewriting it would break persistence, so it is excluded
+  // before the word-count test.
+  if (/^[a-z0-9]+(?:\.[a-z0-9{}]+)+$/.test(value) && !/ /.test(value)) return false;
 
   const words = value.match(/[A-Za-z]+(?:['’][A-Za-z]+)?/g) ?? [];
   if (words.length >= 2) return true;
@@ -270,6 +321,18 @@ for (const file of sourceFiles()) {
       add(node.text, file, 'jsx', true);
     } else if (ts.isNoSubstitutionTemplateLiteral(node) || ts.isStringLiteral(node)) {
       const parent = node.parent;
+
+      // A literal that is a *type* — `'known' | 'changed_certificate'` in a
+      // union, a literal element of an array type, or a string-keyed member
+      // name — names a value the program compares against. It is never copy,
+      // and it cannot be translated: rewriting it would change a discriminant
+      // rather than what a shopkeeper reads. Those literals used to be pulled
+      // into en.json by the `return`/throw branch below whenever the same token
+      // was also returned (e.g. `return 'known'`), which is why the catalogue
+      // grew keys like `changed_certificate` and `first_connection` that no
+      // screen displays. The guard is first so no later branch can re-admit it.
+      if (isTypeLevelLiteral(node)) return;
+
       let strongContext = false;
       let include = false;
 
@@ -289,7 +352,14 @@ for (const file of sourceFiles()) {
         include = true;
         strongContext = true;
       } else if (ts.isReturnStatement(parent) || ts.isThrowStatement(parent)) {
-        include = true;
+        // `return 'first_connection'` is a discriminant, not copy. The call
+        // sites translate that state into a sentence themselves, so cataloguing
+        // the identifier produced keys like `changed_certificate` and
+        // `hint_mismatch` that no screen ever renders — and made the i18n gate
+        // fail on copy that does not exist. Identifier-shaped tokens are
+        // excluded here; anything with a space, punctuation or sentence shape
+        // is still admitted (`return 'Invalid certificate fingerprint.'`).
+        include = !IDENTIFIER_SHAPED.test(node.text);
       }
 
       if (include) add(node.text, file, 'literal', strongContext);

@@ -60,6 +60,16 @@ MIGRATION_ORDER = [
     "inventory_recovery",
     "recovery",
     "lan_authority",
+    "held_bills",
+    "restaurant",
+    "restaurant_checkout",
+    "restaurant_recovery",
+    "kitchen",
+    "hub",
+    "kitchen_staff",
+    "assignment_recovery",
+    "responsibility_access",
+    "session_signout",
     "purchasing",
 ]
 
@@ -76,7 +86,17 @@ MODULE_VERSION = {
     "inventory_recovery": 10,
     "recovery": 11,
     "lan_authority": 12,
-    "purchasing": 13,
+    "held_bills": 13,
+    "restaurant": 14,
+    "restaurant_checkout": 15,
+    "restaurant_recovery": 16,
+    "kitchen": 17,
+    "hub": 18,
+    "kitchen_staff": 19,
+    "assignment_recovery": 20,
+    "responsibility_access": 21,
+    "session_signout": 22,
+    "purchasing": 23,
 }
 
 failures: list[str] = []
@@ -244,22 +264,18 @@ def load_migrations() -> tuple[list[tuple[str, list[str]]], int]:
     version = int(re.search(r"SCHEMA_VERSION: i64 = (\d+)", lib).group(1))
     groups: list[tuple[str, list[str]]] = []
 
-    # Schema v1 and v2 are inline batch strings inside Store::open.
+    # Schema v1 and v3 are inline batch strings inside Store::open. Replay the
+    # real literals verbatim so the replayed schema is byte-identical to what
+    # the engine stores in `sqlite_schema` (the recovery fixtures compare
+    # against exactly that text).
     applied: list[str] = []
     start, end = module_body(lib, "open_secret")
     for literal, is_include, _ in rust_string_literals(lib, start, end):
-        if not is_include and "CREATE TABLE workspace_draft" in literal:
+        if not is_include and any(
+            name in literal
+            for name in ("workspace_draft", "workspace_history", "workspace_access")
+        ):
             applied += ddl_from_sql(literal)
-    applied += [
-        "CREATE TABLE workspace_history (revision INTEGER PRIMARY KEY CHECK (revision > 0),"
-        " payload TEXT NOT NULL);",
-        "CREATE TABLE workspace_access ("
-        " singleton INTEGER PRIMARY KEY CHECK (singleton = 1),"
-        " password_hash TEXT,"
-        " failed_attempts INTEGER NOT NULL DEFAULT 0"
-        " CHECK (failed_attempts BETWEEN 0 AND 5),"
-        " retry_after INTEGER NOT NULL DEFAULT 0 CHECK (retry_after >= 0));",
-    ]
 
     groups.append(("workspace-v1-v3", applied))
     for module in MIGRATION_ORDER:
@@ -328,7 +344,7 @@ def build(statements: list[str]) -> sqlite3.Connection:
 # --------------------------------------------------------------------------
 # Attack suite: every one of these must be refused by the database itself
 # --------------------------------------------------------------------------
-def seed(db: sqlite3.Connection) -> None:
+def seed(db: sqlite3.Connection, include_purchasing: bool = True) -> None:
     """Mirror exactly what billing::post_into + payments::invoice_posted write.
 
     A mixed cash + UPI retail sale of 42.50 + 5% tax:
@@ -429,6 +445,13 @@ def seed(db: sqlite3.Connection) -> None:
     db.execute(
         "INSERT INTO local_retail_return_parts VALUES('op-ret-1','pay-upi',2451,0,0)"
     )
+    if include_purchasing:
+        seed_purchasing(db)
+    db.commit()
+
+
+def seed_purchasing(db: sqlite3.Connection) -> None:
+    """Mirror exactly what purchasing::goods_receipt_posted + payments::invoice_posted write."""
     db.execute(
         "INSERT INTO local_suppliers(id,name,phone,gstin,address,payment_terms_days,notes,archived,revision)"
         " VALUES('sup-1','Supplier','  ','22AAAAA0000A1Z5','Market Road',30,'',0,1)"
@@ -488,8 +511,6 @@ def seed(db: sqlite3.Connection) -> None:
     db.execute(
         "INSERT INTO local_supplier_canceled VALUES('op-cx-1')"
     )
-    db.commit()
-
 
 # Tables whose history must never be rewritten. Named once so a future table
 # added without guards is caught by the coverage check below.

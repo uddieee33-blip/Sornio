@@ -499,6 +499,7 @@ fn migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collis
     w.post_invoice(sale("legacy")).unwrap();
     let invoices = serde_json::to_value(w.list_invoices(0).unwrap()).unwrap();
     remove_fixture_tables(&w.store_for_test().0);
+    crate::schema_rollback::drop_post_v11_tables(&w.store_for_test().0);
     w.store_for_test()
         .0
         .pragma_update(None, "user_version", 11)
@@ -506,7 +507,24 @@ fn migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collis
     let actual=w.store_for_test().0.prepare("SELECT type,name,sql FROM sqlite_schema WHERE sql IS NOT NULL AND name NOT GLOB 'sqlite_*' ORDER BY type,name").unwrap().query_map([],|r|Ok((r.get::<_,String>(0)?,r.get::<_,String>(1)?,r.get::<_,String>(2)?))).unwrap().collect::<Result<Vec<_>,_>>().unwrap();
     let frozen: Vec<(String, String, String)> =
         serde_json::from_str(include_str!("../../fixtures/recovery-v11-schema.json")).unwrap();
-    assert_eq!(actual, frozen);
+    // Assert equality first, so the comparison is unchanged, then report where the
+    // two diverge. A bare assert_eq! on 123 entries prints both whole vectors, which
+    // overran the check-run annotation cap and left the CI record saying only that
+    // something differed.
+    if actual != frozen {
+        let at = actual
+            .iter()
+            .zip(frozen.iter())
+            .position(|(a, f)| a != f)
+            .unwrap_or_else(|| actual.len().min(frozen.len()));
+        panic!(
+            "frozen v11 schema differs at entry {at} of {}/{}\n  actual: {:?}\n  frozen: {:?}",
+            actual.len(),
+            frozen.len(),
+            actual.get(at),
+            frozen.get(at)
+        );
+    }
     drop(w);
     let mut migrated = open(&path);
     migrated.login("owner", PASSWORD).unwrap();
@@ -516,6 +534,7 @@ fn migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collis
     );
     assert!(migrated.list_lan_devices().unwrap().is_empty());
     remove_fixture_tables(&migrated.store_for_test().0);
+    crate::schema_rollback::drop_post_v11_tables(&migrated.store_for_test().0);
     migrated
         .store_for_test()
         .0

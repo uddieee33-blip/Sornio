@@ -1,0 +1,20 @@
+import {useEffect,useRef,useState} from 'react';
+import {AppState,PermissionsAndroid,Platform,View,Linking,type Permission} from 'react-native';
+import {ActionButton,Body,Eyebrow,Muted} from '../components/primitives';
+import {nativeLan} from '../../modules/sornio-lan';
+import {discoveryRegistry,type DiscoveredHub} from '../../../../packages/business-domain/src/hub-discovery';
+import type {HubProfile} from '../../../../packages/business-domain/src/hub-setup';
+export function NearbyHubs({busy,profiles,onUse}:{busy:boolean;profiles:HubProfile[];onUse:(details:{origin:string;hubId:string;businessId:string;certificateSha256?:string})=>void}){
+ const [rows,setRows]=useState<DiscoveredHub[]>([]),[status,setStatus]=useState('Looking for shop computers on this network…');const refresh=useRef<()=>Promise<void>>(async()=>{});
+ useEffect(()=>{let active=true;let native:ReturnType<typeof nativeLan>|null=null;const registry=discoveryRegistry();let subscriptions:{remove:()=>void}[]=[];let starting=false;
+  async function scan(){if(!active||starting||AppState.currentState!=='active')return;starting=true;try{
+   if(Platform.OS==='android'&&Number(Platform.Version)>=37){const permission='android.permission.ACCESS_LOCAL_NETWORK' as Permission;if(!await PermissionsAndroid.check(permission)){const result=await PermissionsAndroid.request(permission,{title:'Find your Sornio shop',message:'Sornio uses the private shop network to find the desktop hub and submit unpaid restaurant orders.',buttonPositive:'Allow network access',buttonNegative:'Not now'});if(result!=='granted'){if(active)setStatus('Local-network permission was not granted. Enable it in app settings, or use manual setup after granting access.');return;}}}
+   if(!native){native=nativeLan();subscriptions=[native.addListener('onService',event=>{if(!active)return;try{registry.accept(event);setRows(registry.list());}catch{/* Ignore malformed/untrusted advertisements. */}}),native.addListener('onDiscoveryStatus',event=>{if(active)setStatus(event.state==='searching'?'Searching the local network. Every discovery is unverified.':event.state==='stopped'?'Discovery paused.':'Discovery is unavailable or network permission is blocked. Cards and saved shop details remain available.');})];}
+   registry.clear();if(active)setRows([]);await native.startDiscovery();
+  }catch{if(active)setStatus('Native discovery is unavailable in this build. Use an installed app build, saved details or a connection card.');}finally{starting=false;}}
+  refresh.current=scan;void scan();const timer=setInterval(()=>{if(active){setRows(registry.list());void scan();}},30000);
+  const state=AppState.addEventListener('change',value=>{if(value==='active')void scan();else{registry.clear();if(active)setRows([]);void native?.stopDiscovery().catch(()=>{});}});
+  return()=>{active=false;clearInterval(timer);state.remove();subscriptions.forEach(s=>s.remove());void native?.stopDiscovery().catch(()=>{});refresh.current=async()=>{};};
+ },[]);
+ return <View style={{gap:12}}><Eyebrow>Nearby shop computers</Eyebrow><Muted>{status}</Muted><ActionButton label="Refresh nearby shops" disabled={busy} onPress={()=>void refresh.current()}/>{rows.map(row=>{const saved=profiles.find(p=>p.hub.hubId===row.hubId&&p.hub.businessId===row.businessId&&p.origin===row.origin);return <View key={row.key} style={{gap:8,padding:12,borderWidth:1}}><Body>{row.businessName}</Body><Muted>{`${row.origin}\n${saved?.certificateSha256?'Previously confirmed shop — discovery is unverified; HTTPS certificate is checked when connecting':saved?'Saved shop details — HTTPS verification is still required':'Unverified discovery — owner approval required'}`}</Muted><ActionButton label={`Review connection to ${row.businessName}`} disabled={busy} onPress={()=>onUse({...row,certificateSha256:row.certificateSha256??undefined})}/></View>;})}{!rows.length?<Muted>No shop found yet. Keep the desktop hub enabled on the same Wi-Fi; firewall, guest-network isolation or multicast restrictions can block discovery.</Muted>:null}<ActionButton label="Open app network permissions" disabled={busy} onPress={()=>void Linking.openSettings()}/></View>;
+}

@@ -772,7 +772,7 @@ fn every_operation_journal_balances_and_statements_reconcile() {
 }
 
 #[test]
-fn migration_to_v13_preserves_existing_data_and_enables_purchasing() {
+fn migration_to_v23_preserves_existing_data_and_enables_purchasing() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("s.db");
     {
@@ -795,9 +795,11 @@ fn migration_to_v13_preserves_existing_data_and_enables_purchasing() {
             opening_stock_milli: 1_000,
         })
         .unwrap();
-        // Simulate a v12 database: drop the v13 purchasing tables and roll the version back.
+        // Simulate a genuine v22 database (current Phase 20 head): every phase-13..22
+    // table was created by its own phase and stays; only the v23 purchasing
+    // tables are removed and the version rolled back.
         s.0.execute_batch(
-            "DROP TABLE local_purchase_return_lines; DROP TABLE local_purchase_returns; DROP TABLE local_supplier_payments; DROP TABLE local_supplier_invoices; DROP TABLE local_purchase_stock_events; DROP TABLE local_goods_receipt_lines; DROP TABLE local_goods_receipts; DROP TABLE local_purchase_order_lines; DROP TABLE local_purchase_orders; DROP TABLE local_supplier_journal; DROP TABLE local_supplier_entries; DROP TABLE local_supplier_outbox; DROP TABLE local_supplier_pending; DROP TABLE local_supplier_canceled; DROP TABLE local_supplier_ops; DROP TABLE local_suppliers; PRAGMA user_version = 12;",
+            "DROP TABLE local_purchase_return_lines; DROP TABLE local_purchase_returns; DROP TABLE local_supplier_payments; DROP TABLE local_supplier_invoices; DROP TABLE local_purchase_stock_events; DROP TABLE local_goods_receipt_lines; DROP TABLE local_goods_receipts; DROP TABLE local_purchase_order_lines; DROP TABLE local_purchase_orders; DROP TABLE local_supplier_journal; DROP TABLE local_supplier_entries; DROP TABLE local_supplier_outbox; DROP TABLE local_supplier_pending; DROP TABLE local_supplier_canceled; DROP TABLE local_supplier_ops; DROP TABLE local_suppliers; PRAGMA user_version = 22;",
         )
         .unwrap();
     }
@@ -805,7 +807,7 @@ fn migration_to_v13_preserves_existing_data_and_enables_purchasing() {
     let version: i64 =
         s.0.pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-    assert_eq!(version, 13);
+    assert_eq!(version, 23);
     assert_eq!(
         s.load().unwrap().draft.unwrap().business_name,
         "Existing shop"

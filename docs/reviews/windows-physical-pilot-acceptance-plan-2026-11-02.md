@@ -75,15 +75,15 @@ Every step must be executed sequentially on the physical Windows counter PC with
 - **Procedure**:
   1. Press `F2` to focus **Search items for sale**.
   2. Scan the physical barcode on `Tea 250g` five times rapidly using the shop's USB HID barcode scanner without touching mouse or keyboard.
-  3. Scan an unknown/unregistered barcode once and observe the counter alert.
-- **Pass Criteria**: Five rapid valid scans add `Tea 250g` once and increment its cart quantity cleanly to `5` (`5 pcs`) with no dropped digits, no partial SKU text left in search, and no premature form submission; scanning an unknown barcode shows an alert (`Choose one item...`) without adding a wrong item.
+  3. Scan unknown, partial, leading-zero and duplicate/ambiguous codes; record the result. Scan a kg/litre/metre item and enter its quantity explicitly.
+- **Pass Criteria**: Five rapid valid scans add `Tea 250g` once and increment its cart quantity to `5` with no premature submission. Unknown, partial or ambiguous codes do not add a wrong item; leading zeroes remain intact. Measured items request quantity rather than automatically incrementing. Test the actual scanner with focus in search.
 - **Result**: `[ ] PASS`  `[ ] FAIL`
 - **Observed Evidence (Scanner scan speed, cart quantity `5`, unknown-code behavior)**: `__________________________________________________`
 
-### Step 6 — Cash Sale (`F2` / `F3` / `F4` / `Escape` / `Enter`)
+### Step 6 — Cash Sale (`F2` / `F3` / `F4` / `Escape` / focused `Alt+Enter`)
 - **Procedure**:
   1. With `Tea 250g` in cart, press `F3` to focus quantity, type `2`, press `Enter`, then add `1.250` kg of `Basmati Rice`.
-  2. Press `F4` to open **Review sale**, press `Escape` to verify review cancels safely back to search without posting, then press `F4` and `Enter` to confirm the **Cash** sale.
+  2. Press `F4` to open **Review sale**. Scan a code while the confirm button is focused and verify its plain Enter does not post. Press `Escape` to cancel safely, then press `F4` and focused `Alt+Enter` (or click **Confirm sale**) to confirm the **Cash** sale.
 - **Pass Criteria**: Sale saves once with a stable UUID (`Saved invoice ID`) and sequential sale number; `Cash recorded` increases by the exact paise total (`2 × ₹120.00 + 1.250 × ₹85.50 = ₹240.00 + ₹106.88 = ₹346.88`); stock deducts to `18 pcs` and `29.25 kg`.
 - **Result**: `[ ] PASS`  `[ ] FAIL`
 - **Observed Evidence (`Saved invoice ID`, sale number, `Cash recorded`)**: `__________________________________________________`
@@ -93,7 +93,7 @@ Every step must be executed sequentially on the physical Windows counter PC with
   1. In **Customers & credit**, create customer `cust-pilot-1` (`Pilot Credit Customer`, phone `+91 98765 00001`, credit limit `₹2,000.00`).
   2. Click **Start next sale**, add `1` unit of `Atta 20kg` (`₹1,000.00`, Tax `0%`), set **Transaction type** to `UPI / card / split`.
   3. Select customer `cust-pilot-1`, enter `599.99` Cash + `400.00` Customer credit and verify **Review sale** stays disabled (`Split payment amounts must equal the invoice total exactly.`).
-  4. Correct Cash to `600.00` and Customer credit to `400.00`, review (`F4`), and confirm (`Enter`).
+  4. Correct Cash to `600.00` and Customer credit to `400.00`, review (`F4`), and confirm by clicking **Confirm sale** or using focused `Alt+Enter`.
   5. Repeat one small split sale with `UPI` (`₹50.00`, optional reference `PILOTUPI001`) + `Cash` (`₹70.00`) for `1 × Tea 250g` (`₹120.00`).
 - **Pass Criteria**: `₹1,000.00` invoice posts once; `Cash recorded` increases by exactly `₹600.00` and `Credit receivable` increases by exactly `₹400.00`; on the UPI split sale, UPI (`₹50.00`) appears as `Pending — unverified` (`Externally verified: ₹0.00`) in **Payments & closing** and is NOT counted in drawer cash.
 - **Result**: `[ ] PASS`  `[ ] FAIL`
@@ -158,6 +158,7 @@ Every step must be executed sequentially on the physical Windows counter PC with
 ### Step 14 — Authorized Return (Sellable vs Damaged) & Daily Cashier Closing
 - **Procedure**:
   1. In **Payments & closing**, enter the UPI+Cash split invoice ID in **Invoice ID for payment records**, enter return quantity `1` with condition `Damaged — keep out of stock`, enter reason `Damaged pack test`, click **Calculate native return**, review, and confirm. Verify stock does NOT increase for the damaged return while cash/pending-refund obligations update accurately.
+  2. Using a separate eligible synthetic sale, process a sellable return and verify that exactly the returned quantity is restored once and the refund/credit balances reconcile.
   2. Optionally click **Save CA settlement CSV** and inspect the exported CSV (`externally_verified` column must be `false` on all rows).
   3. Physically count drawer cash, enter **Declared opening float (₹)** (if used) and **Counted drawer cash (₹)**, click **Review cashier closing**, and click **Confirm retail operation**.
   4. Attempt to post a new sale on the closed business date for that cashier (must be refused with `day_closed` unless Owner/Manager explicitly reopens the day with a reason).

@@ -21,6 +21,11 @@ OUTPUT = Path("dist/native-review")
 OUTPUT.mkdir(parents=True, exist_ok=True)
 PASSWORD = "SornioReviewAccess2026"
 ORIGINAL_NOTE = "Saved in the native app. Reopen without the website."
+# The copy the checkout renders when a credit sale has no resolved customer.
+# It is pinned here because the installed app is the only place this sentence
+# can be read, and a stale expectation there fails as a 30-second locator
+# timeout that says nothing about the cause.
+CREDIT_CUSTOMER_REQUIRED = "Select an existing credit customer and wait for their credit details."
 sys.stdout.reconfigure(encoding="utf-8", errors="backslashreplace")
 sys.stderr.reconfigure(encoding="utf-8", errors="backslashreplace")
 app = None
@@ -93,6 +98,31 @@ def message_visible(text):
     return any(text in t for t in ui_texts())
 
 
+def visible_product_labels():
+    """The product copy on screen, without any input value.
+
+    Edit controls are skipped entirely, so a password can never be read out
+    of the form, and long digit runs are masked so a phone number cannot
+    reach a log. What remains is the copy a cashier sees, which is exactly
+    what a stale expectation needs to be compared against.
+    """
+    labels = []
+    for control in ui_descendants():
+        try:
+            kind = control.element_info.control_type
+            if kind not in ("Button", "Header", "Text"):
+                continue
+            text = control.window_text()
+        except Exception:
+            continue
+        if not text or len(text) > 160:
+            continue
+        text = re.sub(r"\d{6,}", "[digits]", text)
+        if text.strip():
+            labels.append(text.strip())
+    return sorted(set(labels))
+
+
 def message_text(substr):
     """Full text of the first UIA control containing substr (may span lines)."""
     for text in ui_texts():
@@ -144,13 +174,40 @@ def assert_no_receipt():
 
 
 def assert_review_blocked(reason):
+    """The checkout gate must refuse this operation before any receipt exists.
+
+    `reason` is the validation copy the app renders. It is matched as a
+    substring of the visible UI text, so a longer sentence still matches.
+    """
     review = window.child_window(title="Review sale", control_type="Button", visible_only=False)
     wait_until(15, 0.2, lambda: not review.wrapper_object().is_enabled())
-    wait_until(15, 0.2, lambda: message_visible(reason))
+    try:
+        wait_until(15, 0.2, lambda: message_visible(reason))
+    except Exception as timeout_error:
+        # A timeout here means the app showed a different sentence than the
+        # one this check expects. Name the copy that was actually on screen,
+        # so the failure says "the wording moved" instead of "timed out".
+        visible = " | ".join(visible_product_labels()[:40])
+        raise AssertionError(
+            f"The checkout gate did not show {reason!r}. Visible copy: {visible}"
+        ) from timeout_error
     assert_no_receipt()
     assert not window.child_window(
         title="Confirm sale", control_type="Button", visible_only=False
     ).exists(timeout=0.1), "Invalid checkout reached confirmation"
+
+
+def wait_enabled(title, control_type="Button", timeout=30):
+    """Wait until a control is present and enabled, and return it.
+
+    The checkout enables "Review sale" only once the native store has read
+    the selected credit customer back, and that read is asynchronous. Tabbing
+    until a control takes focus (what activate() does) would race it, so wait
+    for the enabled state first and only then press the control.
+    """
+    control = window.child_window(title=title, control_type=control_type, visible_only=False)
+    wait_until(timeout, 0.2, lambda: control.exists(timeout=0.1) and control.wrapper_object().is_enabled())
+    return control.wrapper_object()
 
 
 def saved_invoice_id():
@@ -291,7 +348,10 @@ try:
     fill("Quantity for Sample native rice (pcs)", "0.750")
     focus_control("Transaction type", "ComboBox")
     send_keys("{END}{ENTER}", pause=0.2)
-    assert_review_blocked("Enter a customer reference for credit")
+    # A credit sale must name a customer the native store has actually read
+    # back, so the store knows the limit and the balance before it posts the
+    # debt. A typed reference is not enough any more, and the app says so.
+    assert_review_blocked(CREDIT_CUSTOMER_REQUIRED)
     activate("Refresh checkout")
     assert_balances("53.13", "0.00", "2.75")
     assert_no_receipt()
@@ -301,8 +361,10 @@ try:
     fill("Credit limit (₹, blank for no limit)", "50.00")
     activate("Save customer")
     wait_until(30, 0.5, lambda: message_visible("Customer saved."))
-    fill("Find credit customer", "9876543210")
+    fill("Find credit customer", "native-customer-1")
     activate("Use customer native-customer-1")
+    # The store reads the customer back before the sale may be reviewed.
+    wait_enabled("Review sale")
     activate("Review sale")
     activate("Confirm sale")
     wait_until(30, 0.5, lambda: message_visible("Sale saved on this PC"))
@@ -648,9 +710,14 @@ try:
     fill("Tax (%)", "0")
     focus_control("Transaction type", "ComboBox")
     send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
-    fill("Customer reference for a credit split (optional)", "native-customer-1")
     fill("Split cash amount (₹)", "6.00")
     fill("Split customer credit amount (₹)", "4.63")
+    # A split that includes customer credit must name a customer the store has
+    # read back, exactly like a plain credit sale: typing a reference into the
+    # optional field is not enough, and the field is filled by the lookup.
+    fill("Find credit customer", "native-customer-1")
+    activate("Use customer native-customer-1")
+    wait_enabled("Review sale")
     activate("Review sale")
     confirm_button = window.child_window(title="Confirm sale", control_type="Button", visible_only=False)
     confirm_button.wait("exists enabled", timeout=30)
@@ -713,9 +780,13 @@ try:
     fill("Tax (%)", "0")
     focus_control("Transaction type", "ComboBox")
     send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
-    fill("Customer reference for a credit split (optional)", "native-customer-2")
     fill("Split cash amount (₹)", "600.00")
     fill("Split customer credit amount (₹)", "400.00")
+    # The same rule as the Phase 4 split: the credit part of a split needs a
+    # customer the store has read back, not a typed reference.
+    fill("Find credit customer", "native-customer-2")
+    activate("Use customer native-customer-2")
+    wait_enabled("Review sale")
     activate("Review sale")
     confirm_button = window.child_window(title="Confirm sale", control_type="Button", visible_only=False)
     confirm_button.wait("exists enabled", timeout=30)
@@ -763,7 +834,18 @@ except Exception:
     if window is not None:
         try:
             window.capture_as_image().save(OUTPUT / "windows-local-failure.png")
-            # Do not dump input/control text (passwords or customer records) to logs.
+            # The visible copy is what a stale assertion turns on: the check
+            # waits for one product string and the app shows another. Record
+            # the labels and paragraphs that were on screen, never input
+            # values, and mask long digit runs so a phone number cannot reach
+            # a log.
+            labels = visible_product_labels()
+            (OUTPUT / "windows-local-failure-labels.txt").write_text(
+                "\n".join(labels), encoding="utf-8"
+            )
+            print("Visible product copy at the moment of failure:")
+            for label in labels[:160]:
+                print("   ", label)
         except Exception as capture_error:
             print("Could not capture the failing native window:", type(capture_error).__name__)
     raise

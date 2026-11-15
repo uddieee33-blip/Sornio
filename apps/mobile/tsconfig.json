@@ -4,9 +4,19 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "paths": {
-      "@sornio/mobile-contracts": ["../../packages/mobile-contracts/src/index.ts"],
-      "@sornio/mobile-design": ["../../packages/mobile-design/src/index.ts"]
-    }
+      "@sornio/mobile-contracts": [
+        "../../packages/mobile-contracts/src/index.ts"
+      ],
+      "@sornio/mobile-design": [
+        "../../packages/mobile-design/src/index.ts"
+      ]
+    },
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["jest", "node"]
   },
-  "include": ["**/*.ts", "**/*.tsx"]
+  "include": [
+    "**/*.ts",
+    "**/*.tsx"
+  ]
 }

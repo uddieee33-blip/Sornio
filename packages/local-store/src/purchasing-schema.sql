@@ -192,4 +192,4 @@ CREATE TRIGGER supplier_canceled_no_update BEFORE UPDATE ON local_supplier_cance
 CREATE TRIGGER supplier_canceled_no_delete BEFORE DELETE ON local_supplier_canceled BEGIN SELECT RAISE(ABORT, 'Cancellation records are append only'); END;
 CREATE TRIGGER purchase_stock_events_no_update BEFORE UPDATE ON local_purchase_stock_events BEGIN SELECT RAISE(ABORT, 'Stock events are append only'); END;
 CREATE TRIGGER purchase_stock_events_no_delete BEFORE DELETE ON local_purchase_stock_events BEGIN SELECT RAISE(ABORT, 'Stock events are append only'); END;
-PRAGMA user_version=13;
+PRAGMA user_version=23;

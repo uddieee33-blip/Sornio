@@ -20,6 +20,7 @@ fn version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration()
     let db = Connection::open(&archive).unwrap();
     db.pragma_update(None, "key", SECRET).unwrap();
     crate::lan_authority::remove_fixture_tables(&db);
+    crate::schema_rollback::drop_post_v11_tables(&db);
     db.pragma_update(None, "user_version", 11).unwrap();
     let payload: String = db
         .query_row("SELECT payload FROM sornio_backup_manifest", [], |r| {
@@ -49,6 +50,56 @@ fn version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration()
     .unwrap();
     assert_eq!(source.list_invoices(0).unwrap()[0].invoice, invoice);
     assert_eq!(count(&source.0, "local_lan_devices"), 0);
+    assert_eq!(
+        source
+            .0
+            .pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
+            .unwrap(),
+        SCHEMA_VERSION
+    );
+}
+#[test]
+fn legacy_v22_archive_remains_verifiable_and_restorable_after_purchasing_migration() {
+    let d = tempfile::tempdir().unwrap();
+    let mut source = seeded(&d.path().join("live"));
+    let invoice = source.post_invoice(sale("v22-sale", 1)).unwrap();
+    let archive = d.path().join("v22-backup");
+    export(&mut source, &archive, SECRET).unwrap();
+    // Manufacture the exact archive Phase 20 would have produced: the current
+    // database with the purchasing phase dropped and the version stamp lowered.
+    let db = Connection::open(&archive).unwrap();
+    db.pragma_update(None, "key", SECRET).unwrap();
+    crate::schema_rollback::drop_post_v22_tables(&db);
+    db.pragma_update(None, "user_version", 22).unwrap();
+    let payload: String = db
+        .query_row("SELECT payload FROM sornio_backup_manifest", [], |r| {
+            r.get(0)
+        })
+        .unwrap();
+    let mut manifest: Manifest = serde_json::from_str(&payload).unwrap();
+    manifest.schema = 22;
+    manifest.digest = digest(&db).unwrap();
+    db.execute(
+        "UPDATE sornio_backup_manifest SET payload=?1",
+        [serde_json::to_string(&manifest).unwrap()],
+    )
+    .unwrap();
+    drop(db);
+    let p = preview(&mut source, &archive, SECRET, LOGIN).unwrap();
+    assert_eq!(p.schema_version, 22);
+    assert_eq!(p.business_id, crate::identity::scope(&source.0).unwrap().business_id);
+    restore(
+        &mut source,
+        &archive,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &p,
+        &p.confirmation,
+    )
+    .unwrap();
+    assert_eq!(source.list_invoices(0).unwrap()[0].invoice, invoice);
+    assert_eq!(count(&source.0, "local_suppliers"), 0);
     assert_eq!(
         source
             .0
@@ -821,6 +872,7 @@ fn recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_erro
     let invoices = s.list_invoices(0).unwrap();
     let products = s.list_products().unwrap();
     crate::lan_authority::remove_fixture_tables(&s.0);
+    crate::schema_rollback::drop_post_v11_tables(&s.0);
     s.0.execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; PRAGMA user_version=10;").unwrap();
     drop(s);
     let migrated = Store::open(&path, KEY).unwrap();

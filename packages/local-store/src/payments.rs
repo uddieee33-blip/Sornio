@@ -343,7 +343,7 @@ pub(crate) fn invoice_id_check(db: &Connection, id: &str, retail: bool) -> Resul
     }
     Ok(())
 }
-fn available(db: &Connection, id: &str) -> Result<(), StoreError> {
+pub(crate) fn available(db: &Connection, id: &str) -> Result<(), StoreError> {
     if !billing::valid_id(id)||db.query_row("SELECT EXISTS(SELECT 1 FROM local_invoices WHERE id=?1) OR EXISTS(SELECT 1 FROM local_customer_ops WHERE operation_id=?1) OR EXISTS(SELECT 1 FROM local_customer_pending WHERE operation_id=?1) OR EXISTS(SELECT 1 FROM local_customer_canceled WHERE operation_id=?1) OR EXISTS(SELECT 1 FROM local_checkout_canceled WHERE operation_id=?1) OR EXISTS(SELECT 1 FROM local_retail_canceled WHERE id=?1)",[id],|r|r.get::<_,bool>(0))?{return Err(StoreError::OperationConflict);}
     Ok(())
 }
@@ -568,6 +568,46 @@ fn target(db: &Connection, s: &Option<Session>, username: &str) -> Result<String
     Ok(id)
 }
 
+/// Validate the complete allocation against the native total before mutating
+/// inventory or either ledger. The same guard also protects legacy posting.
+pub(crate) fn validate_allocation(
+    parts: &[PaymentPart],
+    total: i64,
+    customer: Option<&str>,
+    retail: bool,
+) -> Result<(), StoreError> {
+    if parts.is_empty()
+        || parts.len() > 8
+        || parts
+            .iter()
+            .try_fold(0i128, |v, p| sum(v, p.amount_paise as i128))?
+            != total as i128
+    {
+        return Err(StoreError::InvalidPayment);
+    }
+    let mut ids = BTreeSet::new();
+    let mut credit_parts = 0usize;
+    for p in parts {
+        if !billing::valid_id(&p.id)
+            || !ids.insert(&p.id)
+            || !(1..=MAX_VALUE).contains(&p.amount_paise)
+            || !matches!(p.method.as_str(), "cash" | "upi" | "card" | "credit")
+            || p.reference.len() > 80
+            || (!p.reference.is_empty() && reference(&p.reference).is_err())
+            || (p.method == "credit" && customer.is_none())
+        {
+            return Err(StoreError::InvalidPayment);
+        }
+        if p.method == "credit" {
+            credit_parts += 1;
+        }
+    }
+    if credit_parts > 1 || (retail && (credit_parts == 1) != customer.is_some()) {
+        return Err(StoreError::InvalidPayment);
+    }
+    Ok(())
+}
+
 pub(crate) fn invoice_posted(
     db: &Connection,
     s: &Option<Session>,
@@ -586,31 +626,14 @@ pub(crate) fn invoice_posted(
         reference: String::new(),
     }];
     let parts = parts.unwrap_or(&fallback);
-    if parts.is_empty()
-        || parts.len() > 8
-        || parts
-            .iter()
-            .try_fold(0i128, |v, p| sum(v, p.amount_paise as i128))?
-            != i.total_paise as i128
-    {
-        return Err(StoreError::InvalidPayment);
-    }
-    let mut ids = BTreeSet::new();
+    validate_allocation(
+        parts,
+        i.total_paise,
+        i.customer_id.as_deref(),
+        i.tender == Tender::Retail,
+    )?;
     let mut cash = 0i64;
-    let mut credit_parts = 0usize;
     for p in parts {
-        if !billing::valid_id(&p.id)
-            || !ids.insert(&p.id)
-            || !(1..=MAX_VALUE).contains(&p.amount_paise)
-            || !matches!(p.method.as_str(), "cash" | "upi" | "card" | "credit")
-            || (!p.reference.is_empty() && reference(&p.reference).is_err())
-            || (p.method == "credit" && i.customer_id.is_none())
-        {
-            return Err(StoreError::InvalidPayment);
-        }
-        if p.method == "credit" {
-            credit_parts += 1;
-        }
         one(
             db,
             "INSERT INTO local_retail_payments VALUES(?1,?2,?3,?4,?5,?6)",
@@ -628,9 +651,6 @@ pub(crate) fn invoice_posted(
                 .checked_add(p.amount_paise)
                 .ok_or(StoreError::InvalidPayment)?;
         }
-    }
-    if credit_parts > 1 || (credit_parts == 1) != i.customer_id.is_some() {
-        return Err(StoreError::InvalidPayment);
     }
     if i.tender == Tender::Retail {
         // Cash is banked immediately; upi/card parts stay in receivables until
@@ -1165,55 +1185,66 @@ fn validate(r: &Request) -> Result<(), StoreError> {
     Ok(())
 }
 
+pub(crate) fn prepare_into(
+    tx: &Transaction<'_>,
+    session: &Option<Session>,
+    r: Request,
+) -> Result<bool, StoreError> {
+    validate(&r)?;
+    let raw = serde_json::to_string(&r)?;
+    let s = session.clone().ok_or(StoreError::Locked)?;
+    identity::guard(
+        &tx,
+        session,
+        r.action.permission(),
+        "retail.prepared",
+        Some(&r.operation_id),
+    )?;
+    let old: Option<String> = tx
+        .query_row(
+            "SELECT request FROM local_retail_pending WHERE actor_id=?1",
+            [&s.actor_id],
+            |q| q.get(0),
+        )
+        .optional()?;
+    if let Some(old) = old {
+        return if old == raw {
+            Ok(false)
+        } else {
+            Err(StoreError::CheckoutActive)
+        };
+    }
+    if replay(&tx, &r, &raw)?.is_some() {
+        return Ok(false);
+    }
+    available(&tx, &r.operation_id)?;
+    if tx.query_row(
+        "SELECT EXISTS(SELECT 1 FROM local_retail_pending WHERE id=?1)",
+        [&r.operation_id],
+        |q| q.get::<_, bool>(0),
+    )? {
+        return Err(StoreError::OperationConflict);
+    }
+    if matches!(r.action, Action::Sale { .. }) {
+        crate::held_bills::guard_checkout(tx, session, &r.operation_id)?;
+        sale_clear(&tx)?;
+    }
+    one(
+        &tx,
+        "INSERT INTO local_retail_pending VALUES(?1,?2,?3)",
+        params![s.actor_id, r.operation_id, raw],
+    )?;
+    Ok(true)
+}
+
 impl Store {
     pub(crate) fn prepare_retail(&mut self, r: Request) -> Result<(), StoreError> {
-        validate(&r)?;
-        let raw = serde_json::to_string(&r)?;
-        let s = self.1.clone().ok_or(StoreError::Locked)?;
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
-        identity::guard(
-            &tx,
-            &self.1,
-            r.action.permission(),
-            "retail.prepared",
-            Some(&r.operation_id),
-        )?;
-        let old: Option<String> = tx
-            .query_row(
-                "SELECT request FROM local_retail_pending WHERE actor_id=?1",
-                [&s.actor_id],
-                |q| q.get(0),
-            )
-            .optional()?;
-        if let Some(old) = old {
-            return if old == raw {
-                Ok(())
-            } else {
-                Err(StoreError::CheckoutActive)
-            };
+        if prepare_into(&tx, &self.1, r)? {
+            tx.commit()?;
         }
-        if replay(&tx, &r, &raw)?.is_some() {
-            return Ok(());
-        }
-        available(&tx, &r.operation_id)?;
-        if tx.query_row(
-            "SELECT EXISTS(SELECT 1 FROM local_retail_pending WHERE id=?1)",
-            [&r.operation_id],
-            |q| q.get::<_, bool>(0),
-        )? {
-            return Err(StoreError::OperationConflict);
-        }
-        if matches!(r.action, Action::Sale { .. }) {
-            sale_clear(&tx)?;
-        }
-        one(
-            &tx,
-            "INSERT INTO local_retail_pending VALUES(?1,?2,?3)",
-            params![s.actor_id, r.operation_id, raw],
-        )?;
-        tx.commit()?;
         Ok(())
     }
     pub(crate) fn pending_retail(&self) -> Result<Option<Pending>, StoreError> {
@@ -1284,6 +1315,10 @@ impl Store {
             "DELETE FROM local_retail_pending WHERE actor_id=?1 AND id=?2",
             params![s.actor_id, id],
         )?;
+        if !saved {
+            crate::held_bills::cancel_checkout(&tx, id)?;
+            crate::restaurant_recovery::canceled(&tx, id)?;
+        }
         tx.commit()?;
         Ok(())
     }
@@ -1294,6 +1329,16 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Authority first, writes after the replay check. `guard` records an audit
+        // row, so calling it before `replay` made a retried retail operation
+        // return the stored receipt while appending a second event for a sale that
+        // happened once. `verify` checks the same permission and session, including
+        // the recovery generation, without writing; the first authoritative posting
+        // is audited below.
+        identity::verify(&tx, &s, r.action.permission())?;
+        if let Some(v) = replay(&tx, &r, &raw)? {
+            return Ok(v);
+        }
         identity::guard(
             &tx,
             &self.1,
@@ -1301,9 +1346,6 @@ impl Store {
             r.action.key(),
             Some(&r.operation_id),
         )?;
-        if let Some(v) = replay(&tx, &r, &raw)? {
-            return Ok(v);
-        }
         available(&tx, &r.operation_id)?;
         let pending: Option<String> = tx
             .query_row(

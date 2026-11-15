@@ -1,8 +1,10 @@
 name: Workspace browser review
 on:
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit']
-    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', '.github/workflows/workspace-browser.yml']
+    # Stacked Phase 13-18 draft PRs use another `feature/` branch as their base,
+    # so a `[main]`-only filter meant they produced no Windows or browser result.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    paths: ['app/**', 'components/**', 'apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', 'scripts/verify-workspace-browser.cjs', 'scripts/test-ci-logged-wrappers.py', '.github/workflows/windows-local.yml', '.github/workflows/workspace-browser.yml']
   workflow_dispatch:
 permissions:
   contents: read
@@ -21,6 +23,8 @@ jobs:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+      - name: Test CI wrapper failure propagation
+        run: python3 scripts/test-ci-logged-wrappers.py
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
         with:
           node-version: 24
@@ -39,16 +43,53 @@ jobs:
             && cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml -- --check; then
             exit 0
           fi
-          cargo fmt --manifest-path packages/local-store/Cargo.toml
-          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml
+          # A file rustfmt cannot parse makes `cargo fmt` itself fail, and
+          # with `set -e` the step would then die before it could say a word
+          # - leaving only "Process completed with exit code 1" in the check
+          # record, which says nothing about which file and why. Capture the
+          # output first and report it.
+          cargo fmt --manifest-path packages/local-store/Cargo.toml > /tmp/rustfmt-store.log 2>&1 || true
+          cargo fmt --manifest-path apps/desktop/src-tauri/Cargo.toml > /tmp/rustfmt-desktop.log 2>&1 || true
+          for rustfmt_log in /tmp/rustfmt-store.log /tmp/rustfmt-desktop.log; do
+            if [ -s "$rustfmt_log" ]; then
+              echo "::error::$(basename "$rustfmt_log"): $(sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$rustfmt_log" | tr -d '\n' | head -c 20000)"
+            fi
+          done
           # One annotation carries the whole diff; newlines escaped as %0A so
           # the check-run API returns it in full instead of truncating a
           # per-line annotation list.
-          git diff -- packages apps \
+          #
+          # `head -c 60000` is not cosmetic. Check-run annotation messages are
+          # capped at 65535 bytes, and the Rust sources under `apps/` are
+          # minified (file lists and match arms on single long lines), so the
+          # formatting diff for one such file alone can exceed the cap — in
+          # which case GitHub rejects the annotation and the check record keeps
+          # only "Process completed with exit code 1". Truncating keeps the
+          # beginning of the diff, which is where the reviewer starts anyway.
+          rustfmt_diff=$(git diff -- packages apps \
             | sed -e 's/\x1b\[[0-9;]*m//g' -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' \
-            | tr -d '\n' | sed 's/^/::error::rustfmt diff: /'
+            | tr -d '\n' | head -c 60000 || true)
+          echo "::error::rustfmt diff: ${rustfmt_diff}"
+          echo "::error::rustfmt would reformat these files: $(git diff --name-only -- packages apps | tr '\n' ' ')"
+          # The formatted files are published as an artifact so the exact
+          # formatting rustfmt wants can be taken into the tree without a
+          # local Rust toolchain.
+          rm -rf /tmp/rustfmt-result
+          mkdir -p /tmp/rustfmt-result
+          for rustfmt_file in $(git diff --name-only -- packages apps); do
+            mkdir -p "/tmp/rustfmt-result/$(dirname "$rustfmt_file")"
+            cp "$rustfmt_file" "/tmp/rustfmt-result/$rustfmt_file"
+          done
           git checkout -- packages apps
           exit 1
+      - name: Upload the rustfmt result
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-rustfmt-result
+          path: /tmp/rustfmt-result
+          if-no-files-found: ignore
+          retention-days: 7
       - name: Test native billing and inventory in debug and release
         # Emit failing tests / compiler errors as full-text ::error::
         # annotations (newlines as %0A) so failures stay visible in the check
@@ -61,16 +102,38 @@ jobs:
           run_tests() {
             local profile="$1"; shift
             local log; log="$(mktemp)"
-            cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml "$@" 2>&1 | tee "$log" || true
-            local code=${PIPESTATUS[0]}
+            local -a statuses
+            set +e
+            cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml "$@" 2>&1 | tee "$log"
+            statuses=("${PIPESTATUS[@]}")
+            set -e
+            local code=${statuses[0]}
+            if [ "${statuses[1]}" -ne 0 ]; then
+              echo "::error::[$profile] native test log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+            fi
             if [ "$code" -ne 0 ]; then
-              sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean"
+              echo "::error::[$profile] native test or logging failure (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              sed -e 's/\x1b\[[0-9;]*m//g' "$log" > "$log.clean" || true
               { grep -E '^test .* FAILED$|^test result: FAILED' "$log.clean" | head -60 | esc; } \
-                | sed "s/^/::error::[$profile] failing tests: /"
+                | sed "s/^/::error::[$profile] failing tests: /" || true
               { grep -E '^error(\[|:)' "$log.clean" | head -30 | esc; } \
-                | sed "s/^/::error::[$profile] compiler errors: /"
-              { awk '/^failures:$/{f=1} f' "$log.clean" | grep -vE '^test .* ok$' | head -120 | esc; } \
-                | sed "s/^/::error::[$profile] failure details: /"
+                | sed "s/^/::error::[$profile] compiler errors: /" || true
+              # Chunked, not one annotation. A single annotation is capped at
+              # 65535 bytes, and an oversized one is rejected outright: the
+              # Phase 19B run reported only the first 4096 bytes of panic text,
+              # which hid two distinct failures. Emitting several smaller
+              # annotations keeps every failing assertion in the check record.
+              awk '/^failures:$/{f=1} f' "$log.clean" | cut -c1-400 | grep -vE '^test .* ok$' | head -400 > "/tmp/$profile-failures.txt" || true
+              split -b 3000 -a 3 "/tmp/$profile-failures.txt" "/tmp/$profile-part-" || true
+              for part in /tmp/"$profile"-part-*; do
+                [ -f "$part" ] || continue
+                { sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' "$part" | tr -d '\n'; } \
+                  | sed "s|^|::error file=packages/local-store/src::[$profile] failure detail: |" || true
+                # The command must end the line itself: without this, the next
+                # ::error:: token is parsed as part of this message and disappears.
+                echo
+              done
             fi
             return "$code"
           }
@@ -96,17 +159,36 @@ jobs:
           npm run start > /tmp/sornio-server.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" || true' EXIT
+          # Wait for the server to answer, and fail with its log when it does
+          # not. The old loop fell through silently after sixty seconds, so a
+          # server that never started was reported as a page-load timeout
+          # inside the acceptance script.
+          server_ready=0
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:3000/api/health > /dev/null; then server_ready=1; break; fi
+            if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
             sleep 1
           done
+          if [ "$server_ready" -ne 1 ]; then
+            echo "::error::the local server never became ready on port 3000."
+            tail -40 /tmp/sornio-server.log || true
+            exit 1
+          fi
           log=/tmp/sornio-browser-acceptance.log
-          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs 2>&1 | tee "$log" || true
-          code=${PIPESTATUS[0]}
+          set +e
+          NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules" node scripts/verify-workspace-browser.cjs 2>&1 | tee "$log"
+          statuses=("${PIPESTATUS[@]}")
+          set -e
+          code=${statuses[0]}
+          if [ "${statuses[1]}" -ne 0 ]; then
+            echo "::error::Browser acceptance log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+            if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
+          fi
           if [ "$code" -ne 0 ]; then
+            echo "::error::Browser acceptance or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
             { tail -40 "$log"; echo '--- server log tail ---'; tail -20 /tmp/sornio-server.log; } \
               | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
-              | sed 's/^/::error::browser acceptance failure: /'
+              | sed 's/^/::error::browser acceptance failure: /' || true
           fi
           exit "$code"
       - name: Build and review local desktop access UI
@@ -116,25 +198,57 @@ jobs:
           set -o pipefail
           npm ci --prefix apps/desktop
           npm run build --prefix apps/desktop
+          node --test apps/desktop/test-scan.mjs
           npm run dev --prefix apps/desktop > /tmp/sornio-desktop-server.log 2>&1 &
           desktop_pid=$!
           trap 'kill "$desktop_pid" || true' EXIT
+          # Wait for the desktop server to actually answer, and say so when it
+          # does not. The old loop fell through silently after sixty seconds,
+          # so a server that never started produced a locator timeout in the
+          # first UI check instead of "the server never came up".
+          desktop_ready=0
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:1420 > /dev/null; then break; fi
+            if curl -fsS http://127.0.0.1:1420 > /dev/null; then desktop_ready=1; break; fi
+            if ! kill -0 "$desktop_pid" 2>/dev/null; then break; fi
             sleep 1
           done
+          if [ "$desktop_ready" -ne 1 ]; then
+            echo "::error::the desktop dev server never became ready on port 1420."
+            tail -40 /tmp/sornio-desktop-server.log || true
+            exit 1
+          fi
           export NODE_PATH="$RUNNER_TEMP/sornio-browser/node_modules"
           log=/tmp/sornio-desktop-checks.log
           : > "$log"
+          # Every desktop check runs even when an earlier one fails. The old
+          # loop exited on the first failure, so a single stale assertion hid
+          # every check behind it — which is how three separate copy drifts
+          # sat unnoticed behind one broken selector.
+          failed_checks=()
+          failed_code=0
           run_check() {
             local name="$1"; shift
-            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log" || true
-            local code=${PIPESTATUS[0]}
-            if [ "$code" -ne 0 ]; then
-              tail -40 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
-                | sed "s/^/::error::desktop UI check $name failed: /"
-              exit "$code"
+            local -a statuses
+            local check_log="/tmp/sornio-desktop-check-$name.log"
+            set +e
+            node "apps/desktop/$name.cjs" "$@" 2>&1 | tee -a "$log" "$check_log"
+            statuses=("${PIPESTATUS[@]}")
+            set -e
+            local code=${statuses[0]}
+            if [ "${statuses[1]}" -ne 0 ]; then
+              echo "::error::Desktop UI check $name log write failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              if [ "$code" -eq 0 ]; then code=${statuses[1]}; fi
             fi
+            if [ "$code" -ne 0 ]; then
+              echo "::error::Desktop UI check $name or logging failed (command exit ${statuses[0]}, tee exit ${statuses[1]})."
+              tail -40 "$check_log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
+                | sed "s/^/::error::desktop UI check $name failed: /" || true
+              failed_checks+=("$name")
+              if [ "$failed_code" -eq 0 ]; then failed_code=$code; fi
+            else
+              echo "desktop UI check $name passed"
+            fi
+            return 0
           }
           run_check check-ui
           run_check check-focus
@@ -148,6 +262,13 @@ jobs:
           run_check check-statement-print http://127.0.0.1:1420 "" /tmp/sornio-screenshots/customer-statements
           run_check check-retail
           run_check check-inventory-recovery
+          if [ "${#failed_checks[@]}" -gt 0 ]; then
+            echo "::error::${#failed_checks[@]} desktop UI check(s) failed: ${failed_checks[*]}"
+            echo "::error::full desktop UI check log follows"
+            tail -200 "$log" | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' \
+              | sed 's/^/::error::desktop UI checks: /' || true
+            exit "$failed_code"
+          fi
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         if: always()
         with:
@@ -156,6 +277,8 @@ jobs:
             /tmp/sornio-screenshots/
             /tmp/sornio-server.log
             /tmp/sornio-desktop-server.log
+            /tmp/sornio-desktop-checks.log
+            /tmp/sornio-desktop-check-*.log
           retention-days: 7
 
 

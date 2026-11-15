@@ -1,0 +1,7 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {staffAccessReport} from './src/staff-access.ts';
+const event={id:'op',actorId:'owner',actorName:'Owner',responsibility:'revoked',revision:3,createdAt:'2026-11-12T00:00:00Z'};
+const session={deviceId:'phone',name:'Kitchen phone',expires:2000000000,lastSeen:null};
+const report={employeeId:'cook',generatedAt:'2026-11-12T00:00:00Z',events:[event],nextCursor:null,sessions:[session]};
+test('bounded access reports preserve recorded changes and public session metadata',()=>{assert.equal(staffAccessReport(report,'cook').events[0].responsibility,'revoked');assert.equal(staffAccessReport({...report,events:[],sessions:[]},'cook').sessions.length,0);});
+test('foreign employee, malformed audit and unbounded pages fail closed',()=>{assert.throws(()=>staffAccessReport(report,'foreign'));for(const changes of [{events:[{...event,revision:0}]},{events:[{...event,responsibility:'admin'}]},{events:[event,event]},{events:Array.from({length:51},(_,i)=>({...event,id:String(i)}))},{sessions:[session,session]},{generatedAt:'invalid'}])assert.throws(()=>staffAccessReport({...report,...changes},'cook'));});
+test('token and credential fields cannot be accepted as public access-report data',()=>{assert.throws(()=>staffAccessReport({...report,token:'must-not-exist'},'cook'));assert.throws(()=>staffAccessReport({...report,sessions:[{...session,tokenHash:'must-not-exist'}]},'cook'));assert.throws(()=>staffAccessReport({...report,events:[{...event,credential:'must-not-exist'}]},'cook'));});

@@ -4,7 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces']
+    # `feature/*phase1*`, `feature/*lane*`, `repair/*` and `arena/*` cover the
+    # stacked draft-PR graph: those PRs do not use `main` as their base, so this
+    # workflow used to produce no result at all for a Phase 13-18 PR. The
+    # patterns are explicit so a fork cannot change what a check means.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'fix/enforce-owner-onboarding-20261023', 'feature/sornio-business-workspaces', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
 
 # Run checks for every pushed commit instead of silently cancelling an earlier
 # verification when another commit is pushed to the same PR. GitHub queues
@@ -45,6 +49,12 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      # Cheap, static, and first: a stale Cargo.lock makes every `--locked`
+      # native command fail later on another runner, after a toolchain install.
+      # This check names the manifest and the missing crates instead.
+      - name: Verify native lockfiles describe their manifests
+        run: npm run verify:cargo-lock
 
       # Two type checks, on purpose. `typecheck` runs the JavaScript-API
       # compiler that typescript-eslint, the i18n extractor and Next's build
@@ -100,7 +110,200 @@ jobs:
       - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
       - name: Install pinned Rust advisory scanner
         run: cargo install cargo-audit --version 0.22.2 --locked
+      # Raw job logs expire and, in this repository's case, are not reliably
+      # retrievable at all — the first Phase 19 run of this job failed and the
+      # only surviving evidence was "exit code 1", which says nothing about
+      # *which* advisory or *which* lockfile. Both audits therefore run with
+      # their output captured, print it, and re-emit the findings as an
+      # annotation so the check record itself carries the crate, the advisory id
+      # and the fix. The step still fails with cargo audit's own exit code.
       - name: Audit native lockfiles
+        shell: bash
         run: |
-          cargo audit --file packages/local-store/Cargo.lock
-          cargo audit --file apps/desktop/src-tauri/Cargo.lock
+          set +e
+          cargo audit --file packages/local-store/Cargo.lock --json > /tmp/audit-store.json 2>/tmp/audit-store.err
+          store=$?
+          cargo audit --file apps/desktop/src-tauri/Cargo.lock --json > /tmp/audit-desktop.json 2>/tmp/audit-desktop.err
+          desktop=$?
+          set -e
+
+          # Findings must reach the check record: raw job logs live in artefact
+          # storage that could not be retrieved for any run in this repository
+          # (the API returns "exit code 1" and nothing else). One ::error:: per
+          # advisory, carrying crate, version, id, severity and the patched
+          # range. Nothing is suppressed — the step fails on cargo audit's own
+          # exit code regardless of whether parsing succeeded.
+          report() {
+            lock="$1"; json="$2"; err="$3"; code="$4"
+            if [ "$code" -eq 0 ]; then
+              echo "::notice::$lock passed cargo audit"
+              return 0
+            fi
+            if ! command -v jq >/dev/null 2>&1 || ! jq -e . "$json" >/dev/null 2>&1; then
+              echo "::error file=$lock::cargo audit could not run (exit $code): $(head -c 500 "$err" | tr '\n' ' ')"
+              return 0
+            fi
+            echo "::error file=$lock::$(jq -r '.vulnerabilities.count // 0' "$json") advisory(ies) reported for $lock"
+            jq -r --arg lock "$lock" '.vulnerabilities.list[]? | .advisory |
+              "::error file=" + $lock + "::" + (.package // "?") + " " + (.id // "?") +
+              " (" + ((.severity // "unknown")|tostring) + "): " + (.title // "") +
+              " — patched: " + ((.patched_versions // "none")|tostring)' "$json" || true
+            jq -r --arg lock "$lock" '.warnings.unmaintained[]? |
+              "::warning file=" + $lock + "::unmaintained: " + (.package.name // "?")' "$json" || true
+          }
+
+          report packages/local-store/Cargo.lock /tmp/audit-store.json /tmp/audit-store.err "$store"
+          report apps/desktop/src-tauri/Cargo.lock /tmp/audit-desktop.json /tmp/audit-desktop.err "$desktop"
+
+          if [ "$store" -ne 0 ] || [ "$desktop" -ne 0 ]; then
+            echo "::error::cargo audit failed (local-store exit $store, src-tauri exit $desktop)"
+            exit 1
+          fi
+          echo "Both native lockfiles passed cargo audit."
+
+  historical-sqlcipher:
+    name: Historical SQLCipher compatibility (4.6.1 to 4.20.0)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      CARGO_BUILD_JOBS: 4
+      # The parent of the commit that moved to the fixed SQLCipher: the database an installed
+      # shop actually has on disk. It is built here, not described here.
+      HISTORICAL_COMMIT: 614bd29a565427e5c0588dbe9719f34a37ee403a
+      HISTORICAL_SQLCIPHER: 4.6.1
+      CURRENT_SQLCIPHER: 4.20.0
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+          # The historical tree has to be reachable, so the full history is fetched.
+          fetch-depth: 0
+
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+
+      # The fixture is written with one key and read with another if these ever drift apart, and
+      # the failure would look like an encryption problem instead of a typo.
+      - name: Check the fixture writer and the compatibility test use one key
+        run: |
+          set -euo pipefail
+          example_key=$(sed -n 's/^const KEY: &str = "\(.*\)";$/\1/p' packages/local-store/examples/seed_compat_fixture.rs)
+          test_key=$(sed -n 's/^const KEY: &str = "\(.*\)";$/\1/p' packages/local-store/tests/sqlcipher_compat.rs)
+          if [ -z "$example_key" ] || [ -z "$test_key" ]; then
+            echo "::error::could not read the test key from the fixture writer or the compatibility test"
+            exit 1
+          fi
+          if [ "$example_key" != "$test_key" ]; then
+            echo "::error::the fixture writer and the compatibility test use different keys"
+            exit 1
+          fi
+          echo "The fixture writer and the compatibility test use the same test-only key."
+
+      # The historical build is compiled from its own tree with its own lockfile, so the fixture
+      # is written by the SQLCipher that shipped, not by the build under test.
+      - name: Build the historical store and write the fixture with it
+        run: |
+          set -euo pipefail
+          work=/tmp/sornio-historical
+          rm -rf "$work"
+          git worktree add --detach "$work" "$HISTORICAL_COMMIT"
+          if ! grep -q 'rusqlite = { version = "0.37"' "$work/packages/local-store/Cargo.toml"; then
+            echo "::error::$HISTORICAL_COMMIT does not pin rusqlite 0.37, so it is not the historical build this job claims to test"
+            exit 1
+          fi
+          mkdir -p "$work/packages/local-store/examples"
+          cp packages/local-store/examples/seed_compat_fixture.rs "$work/packages/local-store/examples/seed_compat_fixture.rs"
+          cd "$work/packages/local-store"
+          if ! cargo build --locked --release --example seed_compat_fixture > /tmp/sornio-historical-build.log 2>&1; then
+            echo "::error::the historical store could not be built"
+            # Raw job logs live in storage this repository cannot read back, so
+            # the compiler's own words are emitted as an annotation.
+            build_output=$(tail -80 /tmp/sornio-historical-build.log | sed -e 's/%/%25/g' -e 's/\r/%0D/g' -e 's/$/%0A/' | tr -d '\n' | head -c 20000 || true)
+            echo "::error::historical build output: ${build_output}"
+            echo ""
+            exit 1
+          fi
+          ./target/release/examples/seed_compat_fixture /tmp/sornio-compat-fixture.db | tee /tmp/sornio-historical-sqlcipher.txt
+          cd "$GITHUB_WORKSPACE"
+          git worktree remove --force "$work"
+
+      # The version is measured from the compiled library, not read out of a manifest: the
+      # historical build has to be the SQLCipher the release record says it is.
+      - name: Check the fixture was written by SQLCipher 4.6.1
+        run: |
+          set -euo pipefail
+          reported=$(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)
+          echo "the historical build compiled SQLCipher ${reported}"
+          if [ "$reported" != "$HISTORICAL_SQLCIPHER" ]; then
+            echo "::error::the historical build compiled SQLCipher ${reported}, not ${HISTORICAL_SQLCIPHER}"
+            exit 1
+          fi
+          grep -o 'sqlite=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1
+          grep -o 'user_version=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1
+          echo "::notice::the historical fixture was written by SQLCipher ${reported}"
+
+      - name: Build the current store and report its SQLCipher
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/packages/local-store"
+          cargo build --locked --release --example seed_compat_fixture
+          ./target/release/examples/seed_compat_fixture /tmp/sornio-current-fixture.db | tee /tmp/sornio-current-sqlcipher.txt
+          reported=$(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-current-sqlcipher.txt | head -1 | cut -d= -f2)
+          echo "the current build compiled SQLCipher ${reported}"
+          if [ "$reported" != "$CURRENT_SQLCIPHER" ]; then
+            echo "::error::the current build compiled SQLCipher ${reported}, not ${CURRENT_SQLCIPHER}"
+            exit 1
+          fi
+          echo "::notice::the current build compiles SQLCipher ${reported}"
+
+      # The historical fixture is opened by the current build, and its bytes are compared before
+      # and after. The comparison is made here as well as inside the test, so the evidence
+      # survives even if the test itself is changed.
+      - name: Open the historical fixture with the current build
+        run: |
+          set -euo pipefail
+          cd "$GITHUB_WORKSPACE/packages/local-store"
+          before=$(sha256sum /tmp/sornio-compat-fixture.db | cut -d' ' -f1)
+          echo "the historical fixture hashes to ${before}"
+          SORNIO_COMPAT_FIXTURE=/tmp/sornio-compat-fixture.db cargo test --locked --test sqlcipher_compat -- --nocapture
+          after=$(sha256sum /tmp/sornio-compat-fixture.db | cut -d' ' -f1)
+          echo "the historical fixture hashes to ${after} after the test"
+          if [ "$before" != "$after" ]; then
+            echo "::error::the compatibility test modified the historical fixture (${before} -> ${after})"
+            exit 1
+          fi
+          echo "::notice::the historical fixture opened byte-identically under SQLCipher ${CURRENT_SQLCIPHER}"
+
+      - name: Record the fixture manifest
+        run: |
+          set -euo pipefail
+          {
+            echo "historical commit: $HISTORICAL_COMMIT"
+            echo "historical sqlcipher: $(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "historical sqlite: $(grep -o 'sqlite=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "current sqlcipher: $(grep -o 'sqlcipher=[^ ]*' /tmp/sornio-current-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "current sqlite: $(grep -o 'sqlite=[^ ]*' /tmp/sornio-current-sqlcipher.txt | head -1 | cut -d= -f2)"
+            echo "fixture sha256: $(sha256sum /tmp/sornio-compat-fixture.db | cut -d' ' -f1)"
+            echo "fixture bytes: $(stat -c %s /tmp/sornio-compat-fixture.db)"
+            echo "fixture user_version: $(grep -o 'user_version=[^ ]*' /tmp/sornio-historical-sqlcipher.txt | head -1 | cut -d= -f2)"
+          } | tee /tmp/compat-fixture-manifest.txt
+          # The artifact is published, but the review machine cannot read this
+          # repository's artifact storage, so the manifest is also emitted as
+          # annotations: the checksum and the two versions are the evidence, and
+          # the evidence has to be readable.
+          while IFS= read -r manifest_line; do
+            echo "::notice::compat fixture: ${manifest_line}"
+          done < /tmp/compat-fixture-manifest.txt
+
+      - name: Upload the historical fixture and its manifest
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-historical-sqlcipher-fixture
+          path: |
+            /tmp/sornio-compat-fixture.db
+            /tmp/compat-fixture-manifest.txt
+            /tmp/sornio-historical-sqlcipher.txt
+            /tmp/sornio-current-sqlcipher.txt
+          if-no-files-found: error
+          retention-days: 7

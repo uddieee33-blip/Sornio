@@ -47,7 +47,7 @@ export function AccessGate({ children }: { children: (onLocked: (detail?: string
     invoke<AccessStatus>('workspace_access_status').then((status) => {
       if (current) setAccess(status);
     }).catch((error: unknown) => {
-      if (current) setMessage(errorMessage(error, 'Local access could not be opened. Keep the original database and Windows profile.'));
+      if (current) setMessage(errorMessage(error, 'Local access could not be opened. Keep the original database and device profile.'));
     });
     return () => { current = false; };
   }, [native, retry]);
@@ -81,8 +81,8 @@ export function AccessGate({ children }: { children: (onLocked: (detail?: string
     <section className="access-card" aria-labelledby="access-title">
       <div className="wordmark"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</div>
       <p className="eyebrow">LOCAL WINDOWS WORKSPACE</p>
-      <h1 id="access-title">{!native ? 'Installed app required' : !access ? message ? 'Let’s reopen safely.' : 'Opening local access…' : setup ? 'Make this PC yours.' : 'Welcome back.'}</h1>
-      <p className="access-intro">{!native ? 'Open the installed Windows app to use this workspace.' : !access ? 'Your original files stay on this PC.' : setup ? 'Set up your business and its owner account on this PC.' : 'Enter your account name and password. Existing review owners use account name owner.'}</p>
+      <h1 id="access-title">{!native ? 'Installed app required' : !access ? message ? 'Let’s reopen safely.' : 'Opening local access…' : setup ? 'Make this device yours.' : 'Welcome back.'}</h1>
+      <p className="access-intro">{!native ? 'Open the installed desktop app to use this workspace.' : !access ? 'Your original files stay on this device.' : setup ? 'Set up your business and its owner account on this device.' : 'Enter your account name and password. Existing review owners use account name owner.'}</p>
       {message ? <p className="access-error" role="alert">{message}</p> : null}
       {native && access ? <form onSubmit={(event) => void submit(event)}>
         <fieldset disabled={busy || recoveryBusy}>
