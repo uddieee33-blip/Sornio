@@ -606,9 +606,11 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let before: i64 = w
         .store_for_test()
         .0
-        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT stock_milli FROM local_products WHERE id='rice'",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
     let too_much = w
         .hub_request(
@@ -627,9 +629,11 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let unchanged: i64 = w
         .store_for_test()
         .0
-        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT stock_milli FROM local_products WHERE id='rice'",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(unchanged, before);
 
@@ -649,9 +653,11 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let after: i64 = w
         .store_for_test()
         .0
-        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT stock_milli FROM local_products WHERE id='rice'",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
     // 4,000 received of which 1,000 damaged: only the 3,000 good units land.
     assert_eq!(after, before + 3000);
@@ -674,9 +680,11 @@ fn an_over_receipt_is_refused_and_stock_moves_only_once_for_a_valid_one() {
     let after_replay: i64 = w
         .store_for_test()
         .0
-        .query_row("SELECT stock_milli FROM local_products WHERE id='rice'", [], |r| {
-            r.get(0)
-        })
+        .query_row(
+            "SELECT stock_milli FROM local_products WHERE id='rice'",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
     assert_eq!(
         after_replay, after,
@@ -787,7 +795,10 @@ fn a_supplier_payment_posts_once_and_a_replay_is_identical() {
             |r| r.get(0),
         )
         .unwrap();
-    assert_eq!(journal, 2, "a payment must post a balanced two-account journal");
+    assert_eq!(
+        journal, 2,
+        "a payment must post a balanced two-account journal"
+    );
     let balanced: i64 = w
         .store_for_test()
         .0
@@ -886,7 +897,8 @@ fn a_session_expiry_during_recovery_does_not_lose_the_committed_result() {
         .hub_request("/v1/purchasing/submit", &token, body)
         .unwrap();
     // Drop every staff session, as a sign-out or expiry would.
-    w.store_for_test().0
+    w.store_for_test()
+        .0
         .execute("DELETE FROM local_hub_sessions", [])
         .unwrap();
     assert!(w
