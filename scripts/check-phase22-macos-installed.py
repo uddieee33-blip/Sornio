@@ -11,9 +11,12 @@ The distinction the verdict has to keep:
 
   PASS      the installed bundle ran the purchasing lifecycle. Never claimed
             here: no macOS UI driver exists in this repository.
-  BLOCKED   the bundle installed and launched, and the operating system then
-            denied the automation the job needs. This is a statement about the
-            runner, not about the product.
+  BLOCKED   the bundle installed and launched, and the automated purchasing
+            interaction could not be run. Measured on this runner, the cause is
+            the missing driver, not a denied permission: `UI elements enabled`
+            comes back true, so macOS hosted runners do grant Accessibility.
+            That distinction decides whether the remaining work is authoring or
+            hardware, so the probe records both independently.
   FAIL      the product itself did not install or did not launch.
 
 BLOCKED must not be reported as a pass. It also must not be reported as a
@@ -59,7 +62,11 @@ def main():
     started = time.monotonic()
     result = {
         "status": "NOT RUN",
-        "sourceSha": os.environ.get("GITHUB_SHA"),
+        # On a pull_request event GITHUB_SHA is the synthetic merge commit, which
+        # names no tree anyone can check out. The workflow passes the real head
+        # commit alongside it, and that is what this record must carry.
+        "sourceSha": os.environ.get("SORNIO_ACCEPTANCE_SOURCE_SHA") or os.environ.get("GITHUB_SHA"),
+        "mergeSha": os.environ.get("GITHUB_SHA"),
         "runId": os.environ.get("GITHUB_RUN_ID"),
         "runnerName": os.environ.get("RUNNER_NAME"),
         "environment": platform.platform(),
@@ -154,10 +161,10 @@ def main():
                 result["reason"] = (
                     "Installed and launched; macOS purchasing interaction is BLOCKED because "
                     + (
-                        "this hosted runner has not granted Accessibility automation to the job, "
-                        "which cannot be granted non-interactively, and "
+                        "this runner reports Accessibility automation as unavailable, and "
                         if not granted
-                        else "no macOS UI driver exists in this repository, and "
+                        else "no macOS UI driver is implemented in this repository although the "
+                        "runner reports Accessibility as available, and "
                     )
                     + "the Windows UIA driver cannot run on macOS."
                 )

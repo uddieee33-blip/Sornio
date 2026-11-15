@@ -249,16 +249,24 @@ jobs:
         # Three verdicts, deliberately kept apart:
         #   PASS    the installed app ran the purchasing lifecycle. Not claimed:
         #           there is no macOS UI driver here.
-        #   BLOCKED the bundle installed and launched, and the runner then denied
-        #           the automation. A statement about the runner, not the product.
+        #   BLOCKED the bundle installed and launched, and the purchasing
+        #           interaction could not be run. Measured on this runner the
+        #           cause is the missing driver, not a denied permission:
+        #           `UI elements enabled` returns true. That decides whether the
+        #           remaining work is authoring or hardware, so the probe reports
+        #           the permission state separately from the verdict.
         #   FAIL    the product did not install or did not launch.
         #
         # Exit 78 is the script's deliberate "blocked" code. It does not fail the
-        # job, because a correctly detected infrastructure block must not hide
-        # the build evidence above it — and because a release matrix that turns
-        # BLOCKED into PASS to keep the job green is the failure mode this whole
-        # phase exists to prevent. BLOCKED is never reported as a pass.
+        # job, because a correctly detected block must not hide the build
+        # evidence above it — and because a release matrix that turns BLOCKED
+        # into PASS to keep the job green is the failure mode this whole phase
+        # exists to prevent. BLOCKED is never reported as a pass.
         shell: bash
+        env:
+          # GITHUB_SHA on a pull_request event is the synthetic merge commit and
+          # names no checkoutable tree; the record must carry the real head.
+          SORNIO_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set +e
           app=$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)

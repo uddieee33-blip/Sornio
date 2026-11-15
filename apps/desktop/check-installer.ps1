@@ -47,7 +47,10 @@ function Write-InstallerManifest {
   $exeItem = Get-Item -LiteralPath $InstalledExe
   @{
     generatedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
-    commitSha = $env:GITHUB_SHA
+    # On a pull_request event GITHUB_SHA is the synthetic merge commit; the job
+    # passes the real head commit separately so the manifest names its source.
+    commitSha = if ($env:SORNIO_ACCEPTANCE_SOURCE_SHA) { $env:SORNIO_ACCEPTANCE_SOURCE_SHA } else { $env:GITHUB_SHA }
+    mergeCommitSha = $env:GITHUB_SHA
     workflowName = $env:GITHUB_WORKFLOW
     workflowRunId = $env:GITHUB_RUN_ID
     runnerOs = $env:RUNNER_OS

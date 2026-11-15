@@ -1076,7 +1076,13 @@ try:
     wait_until(30, 0.5, lambda: message_visible("PO-1 · Closed"))
     window.capture_as_image().save(OUTPUT / "windows-purchasing-restored.png")
     (OUTPUT / "purchasing-installed-result.json").write_text(json.dumps({
-        "result": "PASS", "source_commit": os.environ.get("GITHUB_SHA"),
+        # GITHUB_SHA on a pull_request event is the synthetic merge commit, which
+        # names no tree that can be checked out. The workflow passes the real head
+        # commit as SORNIO_ACCEPTANCE_SOURCE_SHA; prefer it, and keep the merge
+        # commit visible under its own key so the two can never be confused.
+        "result": "PASS",
+        "source_commit": os.environ.get("SORNIO_ACCEPTANCE_SOURCE_SHA") or os.environ.get("GITHUB_SHA"),
+        "merge_commit": os.environ.get("GITHUB_SHA"),
         "executable": str(EXE), "environment": "installed Windows release application; UIA keyboard; outbound blocked",
         "duration_seconds": time.monotonic() - purchasing_started,
         "dataset": {"suppliers": 1, "purchase_orders": 1, "receipts": 2, "invoices": 1, "payments": 1, "returns": 1},

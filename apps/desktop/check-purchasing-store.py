@@ -98,7 +98,10 @@ def main():
 
     result = {
         "status": "FAIL",
-        "sourceSha": os.environ.get("GITHUB_SHA"),
+        # GITHUB_SHA on a pull_request event is the synthetic merge commit; the
+        # workflow supplies the real head commit separately.
+        "sourceSha": os.environ.get("SORNIO_ACCEPTANCE_SOURCE_SHA") or os.environ.get("GITHUB_SHA"),
+        "mergeSha": os.environ.get("GITHUB_SHA"),
         "runId": os.environ.get("GITHUB_RUN_ID"),
         "runnerOs": os.environ.get("RUNNER_OS"),
         "database": str(database),
