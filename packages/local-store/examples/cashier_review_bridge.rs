@@ -345,6 +345,11 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             &argument::<String>(a, "search")?,
             argument(a, "includeArchived")?,
         )?)?,
+        "suspect_local_supplier_duplicates" => serde_json::to_value(w.supplier_duplicates(
+            &argument::<String>(a, "name")?,
+            argument::<Option<String>>(a, "phone")?.as_deref(),
+            argument::<Option<String>>(a, "gstin")?.as_deref(),
+        )?)?,
         "read_supplier_statement" => serde_json::to_value(w.supplier_statement(
             &argument::<String>(a, "supplierId")?,
             argument(a, "after")?,

@@ -1500,6 +1500,12 @@ impl Store {
         let tx = self
             .0
             .transaction_with_behavior(TransactionBehavior::Immediate)?;
+        // Minimum role first: a role holding neither purchasing permission is refused before
+        // any order data is read. The status-dependent half (approved orders need approval
+        // rights) is re-checked after the load, and the final guard stays the audited path.
+        if let Some(session) = &self.1 {
+            identity::verify(&tx, session, Permission::ManagePurchaseOrders)?;
+        }
         let current = load_order(&tx, &r.id)?;
         // Cancelling an already-approved order is an owner/manager decision and
         // only possible before any stock has moved.

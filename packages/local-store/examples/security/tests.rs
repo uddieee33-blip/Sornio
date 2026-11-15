@@ -230,6 +230,103 @@ fn cases() -> Vec<Case> {
         REPORTS
     );
 
+    // Purchasing and supplier payables. SupplierRead/ManagePurchaseOrders are held by owner,
+    // manager and assistant_manager; ApprovePurchaseOrder, PaySuppliers and Refund add the
+    // money ceiling (manager holds them, assistant_manager does not); CorrectPayables is
+    // owner-only. Payloads are valid so a denial must come from the permission gate.
+    const PURCHASE_MONEY: &[&str] = &["owner", "manager"];
+    let supplier = json!({"operationId":"sup-op","id":"sup-1","name":"Rice Supplies","phone":null,"gstin":null,"address":null,"paymentTermsDays":30,"notes":"","archived":false,"expectedRevision":null});
+    c!("save_local_supplier", json!({"r":supplier}), PURCHASE_MONEY);
+    c!(
+        "find_local_suppliers",
+        json!({"search":"","includeArchived":false}),
+        MANAGE
+    );
+    c!(
+        "suspect_local_supplier_duplicates",
+        json!({"name":"Rice Supplies","phone":null,"gstin":null}),
+        MANAGE
+    );
+    c!(
+        "read_supplier_statement",
+        json!({"supplierId":"sup-1","after":0,"through":null}),
+        MANAGE
+    );
+    c!(
+        "list_purchase_returns",
+        json!({"supplierId":"sup-1"}),
+        MANAGE
+    );
+    let order_lines =
+        json!([{"productId":"rice","quantityMilli":1000,"unitCostPaise":1000,"taxBps":null}]);
+    c!(
+        "create_purchase_order",
+        json!({"r":{"operationId":"po-op","supplierId":"sup-1","note":"","lines":order_lines}}),
+        MANAGE
+    );
+    c!(
+        "update_purchase_order",
+        json!({"r":{"operationId":"po-update","id":"po-1","expectedRevision":1,"note":"","lines":order_lines}}),
+        MANAGE
+    );
+    c!("get_purchase_order", json!({"id":"po-1"}), MANAGE);
+    c!(
+        "find_purchase_orders",
+        json!({"search":"","status":"","supplierId":""}),
+        MANAGE
+    );
+    c!(
+        "submit_purchase_order",
+        json!({"r":{"operationId":"po-submit","id":"po-1","expectedRevision":1,"reason":null}}),
+        MANAGE
+    );
+    c!(
+        "decide_purchase_order",
+        json!({"r":{"operationId":"po-decide","id":"po-1","expectedRevision":1,"decision":"approve","reason":null}}),
+        PURCHASE_MONEY
+    );
+    c!(
+        "cancel_purchase_order",
+        json!({"r":{"operationId":"po-cancel","id":"po-1","expectedRevision":1,"reason":null}}),
+        MANAGE
+    );
+    c!(
+        "close_purchase_order",
+        json!({"r":{"operationId":"po-close","id":"po-1","expectedRevision":1,"reason":null}}),
+        PURCHASE_MONEY
+    );
+    c!(
+        "post_goods_receipt",
+        json!({"r":{"operationId":"po-receive","orderId":"po-1","reference":null,"note":"","lines":[{"lineIndex":0,"productId":"rice","quantityMilli":1000,"damagedMilli":null,"note":null}]}}),
+        MANAGE
+    );
+    c!("list_goods_receipts", json!({"orderId":"po-1"}), MANAGE);
+    c!(
+        "post_supplier_invoice",
+        json!({"r":{"operationId":"inv-op","supplierId":"sup-1","receiptId":null,"reference":"INV-1","totalPaise":1000,"dueOn":null}}),
+        PURCHASE_MONEY
+    );
+    c!(
+        "post_supplier_payment",
+        json!({"r":{"operationId":"pay-op","supplierId":"sup-1","invoiceId":null,"method":"cash","amountPaise":1000,"reference":"PAY-1","paidOn":null}}),
+        PURCHASE_MONEY
+    );
+    c!(
+        "post_supplier_opening",
+        json!({"r":{"operationId":"open-op","supplierId":"sup-1","amountPaise":1000,"dueOn":null,"reason":"Opening balance"}}),
+        OWNER
+    );
+    c!(
+        "reverse_supplier_entry",
+        json!({"r":{"operationId":"rev-op","targetOperationId":"orig-op","reason":"Correction"}}),
+        OWNER
+    );
+    c!(
+        "post_purchase_return",
+        json!({"r":{"operationId":"ret-op","receiptId":"rcpt-1","disposition":"supplier_credit","refundMethod":null,"reason":"Damaged on arrival","lines":[{"receiptLine":0,"productId":"rice","quantityMilli":1000}]}}),
+        PURCHASE_MONEY
+    );
+
     // Restaurant, kitchen, hub and held-bill coverage. Every payload below uses the real
     // domain shape, because each command reaches its permission gate before its payload is
     // interpreted - a malformed payload would fail deserialisation and prove nothing.
@@ -445,7 +542,8 @@ fn capability_is_local_only_and_no_generic_database_or_reset_command_exists() {
             "local-identity",
             "local-customers",
             "local-retail",
-            "local-recovery"
+            "local-recovery",
+            "local-purchasing"
         ])
     );
     let d = tempfile::tempdir().unwrap();
