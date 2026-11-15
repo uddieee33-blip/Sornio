@@ -1,0 +1,97 @@
+{
+  "source_head": "3bc8d86cb0c3148a4078c1956acca5da453d9fc8",
+  "executed_merge_commit": "991be38042db0c7ade615940ca196a17de0899c3",
+  "run_id": 43751829408,
+  "job_id": 132927270889,
+  "verdict": "PASS",
+  "scope": "Original Windows installed lifecycle and supplier create/archive/restore smoke; full purchasing lifecycle not exercised by this version",
+  "artifact_id": 14178569992,
+  "artifact_archive_sha256": "c4d7a9b1cfff4679c27b8020497c99c4169912d43f554cef1be22db26e8331d5",
+  "artifact_bytes_downloaded_and_verified": true,
+  "reviewed_screenshot": "windows-suppliers.png",
+  "environment": "Windows Server 2025, 10.0.26100",
+  "files": {
+    "installer-lifecycle-result.json": {
+      "installedOfflineFixture": "passed",
+      "finalUninstallPreservesData": "passed",
+      "physicalPrinterScannerPowerLoss": "untested",
+      "sameVersionReinstallAndVaultReopen": "passed",
+      "runtimeAbsentOfflineInstall": "untested",
+      "stoppedDataPreservedAcrossUninstall": "passed",
+      "actualVersionUpgrade": "untested"
+    },
+    "windows-evidence-verification.json": {
+      "windowsEngineeringEvidence": "passed",
+      "consumerPilotDecision": "blocked",
+      "reason": "A same-version engineering review cannot prove upgrades, offline installation without the runtime, or real shop hardware and usability.",
+      "installerSha256": "307485144e526e015f5e92b1908d3f8211943a4a2412419d421950dc1ec3ac7a",
+      "installerManifest": {
+        "installerFile": "Sornio Local Review_0.3.0_x64-setup.exe",
+        "installerBytes": 224159714,
+        "installerSha256": "307485144e526e015f5e92b1908d3f8211943a4a2412419d421950dc1ec3ac7a",
+        "installedExeSha256": "cf7a0aea84a96bc377ff49a7f2c88ca9dc19a9aa7111ef5cb23a5c14537551f1",
+        "commitSha": "991be38042db0c7ade615940ca196a17de0899c3",
+        "workflowRunId": "43751829408"
+      },
+      "signatureObservation": "NotSigned",
+      "signedConsumerReleaseVerified": false,
+      "passedWindowsLifecycleChecks": [
+        "installedOfflineFixture",
+        "stoppedDataPreservedAcrossUninstall",
+        "sameVersionReinstallAndVaultReopen",
+        "finalUninstallPreservesData"
+      ],
+      "remainingUntestedWindowsGates": [
+        "actualVersionUpgrade",
+        "runtimeAbsentOfflineInstall",
+        "physicalPrinterScannerPowerLoss"
+      ],
+      "screenshots": [
+        {
+          "file": "windows-first-setup.png",
+          "sha256": "dff4baafd446dae41507e189ff078f8959483ddaaae03fd5340dae59e3a672ca",
+          "width": 1040,
+          "height": 736
+        },
+        {
+          "file": "windows-local-cash-receipt.png",
+          "sha256": "870500ba3d3763289094ff64f8746c8f0385e3834a8dde606c5c8510dc524a38",
+          "width": 1040,
+          "height": 736
+        },
+        {
+          "file": "windows-retail-closing.png",
+          "sha256": "d220301f030810c5bdf61c03b4334eeaed7e5e20c6dde51cafe8e127f9df31fe",
+          "width": 1040,
+          "height": 736
+        },
+        {
+          "file": "windows-installed-preserved.png",
+          "sha256": "968a70f07bd55b035a4f0a3929f00012c1e3c6499a02c8f569a26f880d1dade6",
+          "width": 1040,
+          "height": 736
+        }
+      ]
+    },
+    "installer-artifact.json": {
+      "lifecycle": "same-version-reinstall-not-upgrade",
+      "artifactSha256": "307485144E526E015F5E92B1908D3F8211943A4A2412419D421950DC1EC3AC7A",
+      "signatureStatus": "NotSigned",
+      "execution": "passed"
+    },
+    "installer-manifest.json": {
+      "generatedAtUtc": "2026-11-15T20:29:04.0520591Z",
+      "note": "installerSha256 and installedExeSha256 hash different files; the GitHub artifact archive digest is reported by the Actions API and is not interchangeable with either.",
+      "runnerOs": "Windows",
+      "installedExePath": "C:\\Users\\runneradmin\\AppData\\Local\\SornioPilotAcceptance\\sornio-desktop.exe",
+      "installerBytes": 224159714,
+      "installedExeBytes": 27030528,
+      "installerFile": "Sornio Local Review_0.3.0_x64-setup.exe",
+      "installerSha256": "307485144e526e015f5e92b1908d3f8211943a4a2412419d421950dc1ec3ac7a",
+      "commitSha": "991be38042db0c7ade615940ca196a17de0899c3",
+      "workflowRunId": "43751829408",
+      "installedExeSha256": "cf7a0aea84a96bc377ff49a7f2c88ca9dc19a9aa7111ef5cb23a5c14537551f1",
+      "workflowName": "Windows local workspace"
+    }
+  }
+}

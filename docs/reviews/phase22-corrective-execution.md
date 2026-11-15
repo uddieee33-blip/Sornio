@@ -1,6 +1,6 @@
 # Phase 22 corrective execution — Phase 21B / schema v23
 
-Status: execution in progress. This report replaces the interpretation that old
+Status: native corrective tests passed; expanded installed-app CI is in progress. This report replaces the interpretation that old
 `main`/v12 acceptance establishes anything about the Phase 21B product. It does
 not. The prior untracked v12 report is historical baseline evidence only.
 
@@ -9,7 +9,9 @@ not. The prior untracked v12 report is historical baseline evidence only.
 - Repository: `uddieee33-blip/Sornio`.
 - PR #184: `arena/729c232c-sornio`, `4c8841d879824c4e2e90bdd81f36f3cea9062270`.
 - PR #185: `arena/110fa338-sornio`, `49a244a73ba21b6738961ab736282250d3a19214`.
-- PR #186: `arena/5de4cdf3-sornio`, `3bc8d86cb0c3148a4078c1956acca5da453d9fc8`.
+- PR #186 initially: `arena/5de4cdf3-sornio`, `3bc8d86cb0c3148a4078c1956acca5da453d9fc8`.
+  It advanced during execution to `8515830dfdc2e90373b9c39f825b09f594b2f3b5`;
+  verified diff changes only its report (6 lines), with no executable-source change.
 - `git ls-remote origin 'refs/heads/arena/*' refs/pull/186/head` independently
   confirmed the three published heads and PR #186's head. The configured fetch
   rule is `+refs/heads/*:refs/remotes/origin/*`; the branches exist.
@@ -34,7 +36,7 @@ Selected verbatim logs are in `phase22-evidence/pr186-job-*.txt`.
 | Linux native release | same | PASS: 307 + 2 + 8; library duration 165.29 s. Includes all 28 purchasing-hub integration cases in each profile. |
 | Desktop browser → native purchasing | same | PASS: real SQLCipher bridge; supplier create/edit/archive/restore, PO submit/approve, damaged receiving, invoice variance, partial payment, return, replay and role boundaries. Log at 19:32:20Z. No installed-app claim. |
 | macOS native debug/release and unsigned bundle | 43751829398 / 132927270859 | PASS: 308 + 2 + 8 in each profile, library 236.44 / 106.04 s. Installed macOS GUI lifecycle: NOT RUN. |
-| Windows native release/debug | 43751829408 / 132927270889 | PASS steps; logs show 308 + 2 + 8 in each profile, library 751.15 / 872.82 s. Whole workflow still reported in progress at inspection; installed acceptance is not marked PASS. |
+| Windows native release/debug | 43751829408 / 132927270889 | PASS steps; logs show 308 + 2 + 8 in each profile, library 751.15 / 872.82 s. Whole workflow subsequently completed PASS. Downloaded artifact 14178569992, verified archive SHA-256 c4d7a9b1cfff4679c27b8020497c99c4169912d43f554cef1be22db26e8331d5, inspected installed-executable manifest and lifecycle JSON, and viewed the actual supplier screenshot. This is the original supplier smoke, not the new full purchasing lifecycle. |
 | iPhone interactive | 43751829466 / 132930002425 | PASS: 6 native UI tests, 268.881 s. General navigation/session behavior, not purchasing lifecycle. |
 | iPad interactive | 43751829466 / 132930002459 | PASS: 6 native UI tests, 204.971 s. General tablet behavior, not purchasing lifecycle. |
 | Headless mobile | 43751829466 / 132927511423 | PASS, including purchasing protocol and UI runtime suites. Reference transport; not native purchasing-device evidence. |
@@ -101,6 +103,21 @@ After the additional reversal fix, the affected native purchasing/migration/
 recovery tests passed **50 tests, 0 failed, 1 subprocess worker ignored** in
 24.06 s. The Windows release identity verifier passed 40 checks.
 
+Full release-profile validation of **published c5eb40b57c2aca7147cb2122c8487a3f43099544**:
+**314 library + 2 SQLCipher compatibility + 8 native security passed**, zero
+failures; 8 deliberate workers/workloads ignored. Library execution 138.90 s,
+compatibility 0.84 s, security 2.03 s; compilation took 2m19s separately.
+Evidence: `phase22-evidence/regression-release.log`.
+
+The first new CI run found a copy-verifier false negative for dynamic purchasing
+labels. Root cause: its token vocabulary retained the source closing quote in
+`Approved'`, `Received'` and `Closed'`. Trimming delimiter quotes fixes the
+analysis; the supplier fixture ID uses the existing reviewed fixture-data map.
+422 expectations pass locally, and an injected stale “Make this PC yours.”
+expectation still fails closed. The older scale script also mislabeled Windows
+results as Linux; its metadata now reports `platform.platform()`. Neither change
+alters product code or removes a financial assertion.
+
 Local environment: Debian 13.6, Linux x86_64, Rust 1.100.0. Rust was successfully
 installed in this session; there is no remaining local Rust-toolchain blocker.
 Development-tree runs identify #186 plus the hardening diff; they must not be
@@ -116,6 +133,15 @@ backup/restore; and same-version reinstall preservation. Native UI statement
 assertions reconcile **7,500 + 500 - 3,000 - 2,500 + 10,000 = 12,500 paise**.
 This new extension is **NOT RUN** until the Windows CI runner executes it.
 Python syntax verification is not installed acceptance.
+
+Published release workload on c5eb40b also passed: **112.78 s**, 864.90 invoice
+postings/s, median/max query bundle 92.34/129.51 ms, reopen+unlock 171.10 ms,
+peak process RSS 186,658,816 bytes and sampled CPU 112.27 s. Test executable
+SHA-256: `8fcf1f068c31440139c33b3dd161f6673fab75831ab5735ab1cf4e65bc63abdd`.
+The only uncommitted files at its start were the copy verifier and old scale
+metadata script; all Rust source matches c5eb40b and per-file hashes are retained.
+Matched closed-file schema-v23 database growth: 974,848 → 181,522,432 bytes
+(180,547,584 bytes), measured without double-counting the WAL.
 
 The browser workflow now executes the full requested native dataset and a timed
 crash/replay session, captures CPU/RSS, elapsed time, database growth, query

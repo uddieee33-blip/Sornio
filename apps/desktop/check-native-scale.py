@@ -7,6 +7,7 @@ import argparse
 import datetime
 import json
 import os
+import platform
 from pathlib import Path
 import statistics
 import subprocess
@@ -19,7 +20,7 @@ def main():
     parser.add_argument("--bridge", required=True)
     parser.add_argument("--output", required=True)
     args = parser.parse_args()
-    results = {"environment": "Linux native stdio fixture; synthetic data", "products": 1000,
+    results = {"environment": f"{platform.platform()} native stdio fixture; synthetic data", "products": 1000,
                "customers": 1000, "invoices": 1000, "timings_ms": {}}
     secret = "Synthetic scale owner password"
     recovery = "Separate synthetic scale recovery phrase"

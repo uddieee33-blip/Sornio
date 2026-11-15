@@ -204,7 +204,10 @@ for (const [file, source] of corpus) {
 
 /** Words of length 3 or more, which are the ones that carry meaning. */
 function words(text) {
-  return text.match(/[A-Za-z][A-Za-z'’-]{2,}/g) ?? [];
+  // Source quotes delimit a word; they are not part of the visible label.
+  // Keep internal apostrophes (don't), while accepting 'Approved' as Approved.
+  return (text.match(/[A-Za-z][A-Za-z'’-]{2,}/g) ?? [])
+    .map(word => word.replace(/['’]+$/g, ''));
 }
 
 /** The vocabulary the product itself uses in one file. */
@@ -308,6 +311,7 @@ const FIXTURE_DERIVED = new Map([
   ['Use customer native-customer-1', 'product label with the fixture customer name'],
   ['Use customer native-customer-2', 'product label with the fixture customer name'],
   ['Open customer native-customer-1', 'product label with the fixture customer name'],
+  ['Open supplier native-supplier-1', 'product Open supplier ${s.id} label with the native fixture supplier ID'],
   ['Asha <shop>', 'fixture customer and shop name'],
   ['Asha <shop> ਪੰਜਾਬੀ', 'fixture customer and shop name'],
   ['Immutable original shop', 'fixture shop name'],

@@ -158,8 +158,9 @@ jobs:
           PY
       - name: Measure the requested native customer-data workload
         run: |
-          python3 -m pip install psutil==7.2.2
-          python3 scripts/run-phase22-workload.py --binary "$SORNIO_PHASE22_TEST_BINARY" --output /tmp/sornio-screenshots/phase22-workload.json
+          python3 -m venv "$RUNNER_TEMP/sornio-phase22-python"
+          "$RUNNER_TEMP/sornio-phase22-python/bin/python" -m pip install psutil==7.2.2
+          "$RUNNER_TEMP/sornio-phase22-python/bin/python" scripts/run-phase22-workload.py --binary "$SORNIO_PHASE22_TEST_BINARY" --output /tmp/sornio-screenshots/phase22-workload.json
       - name: Controlled native purchasing crash and acknowledgement session
         run: python3 apps/desktop/check-purchasing-soak.py --bridge packages/local-store/target/debug/examples/cashier_review_bridge --seconds 60 --output /tmp/sornio-screenshots/phase22-soak.json
       - run: npm ci

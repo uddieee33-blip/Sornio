@@ -1,0 +1,18 @@
+Source c5eb40b57c2aca7147cb2122c8487a3f43099544, run 43758753254, job 132948543452.
+Selected verbatim job-log lines:
+2026-11-15T20:36:24.0859224Z 7 desktop UI expectation(s) no longer exist in the product:
+2026-11-15T20:36:24.0861275Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0862262Z       "PO-1 · Approved"
+2026-11-15T20:36:24.0862869Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0863528Z       "PO-1 · Received"
+2026-11-15T20:36:24.0863994Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0864529Z       "PO-1 · Closed"
+2026-11-15T20:36:24.0864983Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0865523Z       "Open supplier native-supplier-1"
+2026-11-15T20:36:24.0866046Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0866586Z       "PO-1 · Closed"
+2026-11-15T20:36:24.0887208Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0887751Z       "Open supplier native-supplier-1"
+2026-11-15T20:36:24.0888128Z   apps/desktop/check-native.py  [uia-label]
+2026-11-15T20:36:24.0888565Z       "PO-1 · Closed"
+2026-11-15T20:36:24.1126514Z ##[error]Process completed with exit code 1.
