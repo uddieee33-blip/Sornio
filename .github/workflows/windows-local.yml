@@ -12,7 +12,18 @@ on:
     # produce no Windows result at all — the same silent gap the comment below
     # describes for the Phase 13-18 stack.
     branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'hardening/phase22-native-recovery-20261116', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
-    paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
+    # The same reasoning applies to `paths`: the base filtered again, so a
+    # Phase 22D head that changed acceptance scripts and Rust tests produced no
+    # Windows result at all until a temporary PR was opened to force one. The
+    # acceptance harness and the store it exercises are both here.
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/business-domain/**'
+      - 'packages/local-store/**'
+      - 'scripts/**'
+      - '.github/workflows/windows-local.yml'
+      - '.github/workflows/macos-desktop.yml'
+      - 'docs/reviews/2026-11-16-phase22d-execution-report.md'
   workflow_dispatch:
 permissions:
   contents: read
