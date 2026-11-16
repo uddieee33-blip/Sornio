@@ -447,11 +447,35 @@ fn main() {
     let path = std::env::args_os()
         .nth(1)
         .expect("Synthetic review database path required");
-    let store = Store::open(
-        std::path::Path::new(&path),
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    )
-    .unwrap();
+    // Two key sources, and they are deliberately not interchangeable.
+    //
+    // Without `SORNIO_REVIEW_DEVICE_DIR` this fixture opens a scratch database
+    // under a hard-coded synthetic key, exactly as it always has.
+    //
+    // With it, the fixture opens the *installed application's own* workspace
+    // through the same `device::initialize` entry point the shipped binary
+    // calls, so the OS credential store supplies the real device key. That is
+    // what lets a post-run audit assert the bytes the installed product wrote
+    // rather than the product's own rendering of them. The path argument is
+    // unused in that mode and the synthetic key is never used, so a real
+    // database can never be opened with a known key.
+    let store = match std::env::var_os("SORNIO_REVIEW_DEVICE_DIR") {
+        Some(directory) => {
+            eprintln!("bridge: opening the installed application's workspace via the OS credential store");
+            match sornio_local_store::device::initialize(std::path::Path::new(&directory)) {
+                Ok(store) => store,
+                Err(message) => {
+                    eprintln!("bridge: the installed workspace could not be opened: {message}");
+                    std::process::exit(3);
+                }
+            }
+        }
+        None => Store::open(
+            std::path::Path::new(&path),
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+        .unwrap(),
+    };
     let mut workspace = Workspace::new(store);
     for line in io::stdin().lock().lines() {
         let input: Call = serde_json::from_str(&line.unwrap()).unwrap();
