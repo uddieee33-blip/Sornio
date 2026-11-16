@@ -5,7 +5,10 @@ use crate::{
     catalog::AddProduct,
     customers::SaveCustomer,
     identity::{Role, StaffDetails},
-    purchasing::{CreatePurchaseOrder, PurchaseOrderLineInput, SaveSupplier},
+    purchasing::{
+        CreatePurchaseOrder, DecidePurchaseOrder, GoodsReceiptLineInput, PostGoodsReceipt,
+        PurchaseOrderLineInput, SaveSupplier, TransitionPurchaseOrder,
+    },
     Store, StoreError,
 };
 use serde_json::json;
@@ -41,6 +44,139 @@ fn scalar(w: &Workspace, sql: &str) -> i64 {
         .0
         .query_row(sql, [], |r| r.get(0))
         .unwrap()
+}
+
+/// The regression the installed-app acceptance could not run, at the layer where
+/// it is deterministic: export, preview, then stop the process, reopen the
+/// workspace from disk, and export again.
+///
+/// The GUI failure that blocked Phase 22C was the *third* native Save dialog of
+/// a run — the first one after the application restarted — even though an
+/// earlier export in the same process succeeded. Whatever the window manager was
+/// doing, the product-side question behind it is answerable here: does a second
+/// export, in a new process, from a workspace reopened by the same key, still
+/// produce a complete encrypted archive of the committed purchasing rows?
+///
+/// It also pins the two properties the GUI asserts: a backup is never
+/// overwritten (`persist_noclobber`), and an archive carries the rows rather
+/// than a rendering of them.
+#[test]
+fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("restart-export.db");
+    let recovery = "Separate restart recovery password";
+    let (first, second) = (dir.path().join("before.sorniobackup"), dir.path().join("after.sorniobackup"));
+    {
+        let mut w = open(&path);
+        w.setup(PASSWORD).unwrap();
+        w.add_product(AddProduct {
+            operation_id: "restart-add-item".into(),
+            name: "Restart rice".into(),
+            sku: "RESTART-RICE".into(),
+            unit: "pcs".into(),
+            unit_price_paise: 10000,
+            opening_stock_milli: 1000,
+        })
+        .unwrap();
+        // The id is supplied by the caller and must satisfy the store's own id
+        // rule, which is what the GUI's "Supplier ID" field is for.
+        w.save_supplier(SaveSupplier {
+            operation_id: "restart-supplier".into(),
+            id: "restart-supplier-1".into(),
+            name: "Restart supplier".into(),
+            phone: None,
+            gstin: None,
+            address: None,
+            payment_terms_days: 0,
+            notes: String::new(),
+            archived: false,
+            expected_revision: None,
+        })
+        .unwrap();
+        let order = w
+            .create_purchase_order(CreatePurchaseOrder {
+                operation_id: "restart-order".into(),
+                supplier_id: "restart-supplier-1".into(),
+                note: String::new(),
+                lines: vec![PurchaseOrderLineInput {
+                    product_id: "restart-add-item".into(),
+                    quantity_milli: 2000,
+                    unit_cost_paise: 10000,
+                    tax_bps: None,
+                }],
+            })
+            .unwrap();
+        // Approve, exactly as the installed-app stage does between submit and
+        // receive: a receipt is refused unless the order is approved.
+        w.submit_purchase_order(TransitionPurchaseOrder {
+            operation_id: "restart-submit".into(),
+            id: order.id.clone(),
+            expected_revision: order.revision,
+            reason: None,
+        })
+        .unwrap();
+        let submitted = w.get_purchase_order(&order.id).unwrap();
+        w.decide_purchase_order(DecidePurchaseOrder {
+            operation_id: "restart-approve".into(),
+            id: order.id.clone(),
+            expected_revision: submitted.revision,
+            // The store's decision vocabulary is "approve" | "reject"; anything
+            // else is InvalidPurchaseOrder (run 43826193202, line 126).
+            decision: "approve".into(),
+            reason: None,
+        })
+        .unwrap();
+        let approved = w.get_purchase_order(&order.id).unwrap();
+        assert_eq!(approved.status, "approved");
+        // A partial receipt with damage excluded — the shape whose recovery the
+        // installed-app stage asserts after its own restart.
+        w.post_goods_receipt(PostGoodsReceipt {
+            operation_id: "restart-receipt".into(),
+            order_id: approved.id.clone(),
+            reference: Some("RESTART-PARTIAL".into()),
+            note: String::new(),
+            lines: vec![GoodsReceiptLineInput {
+                line_index: 0,
+                product_id: "restart-add-item".into(),
+                quantity_milli: 1000,
+                damaged_milli: Some(250),
+                note: None,
+            }],
+        })
+        .unwrap();
+        w.export_backup(&first, PASSWORD, recovery).unwrap();
+        // A second export to the same path is refused, not silently overwritten.
+        assert!(w.export_backup(&first, PASSWORD, recovery).is_err());
+    }
+
+    // The "restart": the first Workspace is dropped, a new one is opened from
+    // the same file with the same key, exactly as a relaunched application does.
+    let mut w = open(&path);
+    w.login("owner", PASSWORD).unwrap();
+    let reopened = w.supplier_statement("restart-supplier-1", 0, None).unwrap();
+    assert_eq!(reopened.supplier.balance_paise, "7500");
+    let stock: i64 = w
+        .store_for_test()
+        .0
+        .query_row("SELECT stock_milli FROM local_products WHERE id='restart-add-item'", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(stock, 1750, "0.250 of the receipt was damaged and must not enter stock");
+
+    // The export the GUI could not reach: same workspace, new process, second
+    // archive, no overwrite of the first.
+    w.export_backup(&second, PASSWORD, recovery).unwrap();
+    assert!(second.exists(), "the export after the restart wrote no archive");
+    drop(w);
+
+    // Both archives open independently, and the post-restart one carries the
+    // same committed payable the live store did.
+    for archive in [&first, &second] {
+        let mut w = open(&path);
+        w.login("owner", PASSWORD).unwrap();
+        let preview = w.preview_backup(archive, PASSWORD, recovery, PASSWORD).unwrap();
+        assert!(preview.file_sha256.len() == 64, "archive {archive:?} has no content hash");
+        assert!(!std::fs::read(archive).unwrap().starts_with(b"SQLite format 3"));
+    }
 }
 
 #[test]
