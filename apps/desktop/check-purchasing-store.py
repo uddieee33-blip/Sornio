@@ -334,9 +334,11 @@ def main():
                          True,
                          "the installed-app stage asserts it reached the restored 12500 state"))
             if restore:
+                # The product persists the backup id it restored and when;
+                # `local_recovery_audit.backup_id` is a 64-hex random id.
                 expect(
-                    "the restore receipt names an encrypted backup identifier",
-                    bool(re.match(r"^[a-f0-9]{8,}", str(restore.get("backupId", "")))),
+                    "the restore receipt names the backup it restored",
+                    bool(re.fullmatch(r"[a-f0-9]{64}", str(restore.get("backupId", "")))),
                     True,
                 )
                 expect("the restore receipt has a creation time", int(restore.get("createdAt", 0)) > 0, True)
