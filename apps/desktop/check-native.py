@@ -464,8 +464,33 @@ try:
         verified; set_edit_text and the legacy Alt+N sequence remain as
         fallbacks for environments where they do work.
         """
-        dialog = Desktop(backend="uia").window(title=title)
-        dialog.wait("visible", timeout=45)
+        def live_dialog():
+            """The dialog that is actually on screen right now, or None.
+
+            `Desktop().window(title=...)` returns the first match, and this run
+            opens the same titled dialog twice: once for the retail backup and
+            once for the purchasing backup. Run 43777130146 failed on the second
+            one with every purchasing assertion already passed, which is the
+            signature of driving a stale element from the first. Re-resolving by
+            title and visibility on each attempt, and preferring the most
+            recently created match, removes that failure mode.
+            """
+            matches = []
+            try:
+                for candidate in Desktop(backend="uia").windows(title=title):
+                    try:
+                        if candidate.is_visible():
+                            matches.append(candidate)
+                    except Exception:
+                        continue
+            except Exception:
+                return None
+            return matches[-1] if matches else None
+
+        dialog = live_dialog()
+        if dialog is None:
+            dialog = Desktop(backend="uia").window(title=title)
+            dialog.wait("visible", timeout=45)
         dialog.set_focus()
         target = str(path)
         edit = dialog.child_window(title="File name:", control_type="Edit")
@@ -521,19 +546,30 @@ try:
         # Nothing is skipped by retrying: the dialog must still disappear for
         # this function to return, and the caller independently asserts that the
         # app reported saving the exact path that was verified above.
-        for attempt in range(4):
+        for attempt in range(6):
+            current = live_dialog()
+            if current is None:
+                return verified
             try:
-                dialog.wait_not("visible", timeout=15)
-                break
+                current.wait_not("visible", timeout=10)
+                return verified
             except Exception:
-                if attempt == 3:
+                if attempt == 5:
                     raise
+                # Re-resolve everything from the fresh handle: the dialog that is
+                # on screen now is not necessarily the one addressed above.
                 try:
-                    if button is not None and button.exists():
-                        dialog.set_focus()
-                        button.click_input()
-                    else:
-                        dialog.set_focus()
+                    current.set_focus()
+                    pressed = False
+                    for candidate in current.descendants(control_type="Button"):
+                        try:
+                            if wanted.lower() in candidate.window_text().lower():
+                                candidate.click_input()
+                                pressed = True
+                                break
+                        except Exception:
+                            continue
+                    if not pressed:
                         send_keys("{ENTER}", pause=0.1)
                 except Exception:
                     send_keys("{ENTER}", pause=0.1)
