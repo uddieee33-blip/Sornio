@@ -47,16 +47,39 @@ def focus_control(title, control_type):
     UIA SetFocus may return successfully without focusing WebView controls.
     Resolving offscreen controls with visible_only=False plus actual Tab input
     avoids relying on layout, scroll position, or a fixed number of Tab stops.
+
+    The 240 limit was set when the review screen had only draft, catalog and
+    checkout. Supplier purchasing adds dozens of buttons (supplier list, order
+    actions, receipt/invoice/payment/return forms, statement rows). The backup
+    panel sits at the bottom of that page, so the tab distance grows with every
+    purchasing interaction. A run at 9ee6c23 failed at `activate(\"Export
+    encrypted backup…\")` after tabbing past \"Save CA settlement CSV\" and
+    \"Suppliers & purchases\" — the target exists, enabled and visible, but 240
+    TAB presses did not reach it. Using 600 covers the worst-case purchasing
+    layout while still bounding the wait. If the target is still not focused,
+    the error now includes the visible product copy so the next failure can be
+    triaged without re-running the installed app.
     """
     target = window.child_window(title=title, control_type=control_type, visible_only=False)
     target.wait("exists", timeout=45)
     window.set_focus()
-    for _ in range(240):
+    for _ in range(600):
         control = target.wrapper_object()
         if control.is_visible() and control.is_enabled() and control.has_keyboard_focus():
             return control
         send_keys("{TAB}", pause=0.1)
-    raise AssertionError(f"Keyboard focus did not reach {control_type}: {title}")
+    # Diagnostics: what was on screen when focus could not be reached.
+    try:
+        labels = visible_product_labels()
+        hint = " | ".join(labels[:80])
+        raise AssertionError(
+            f"Keyboard focus did not reach {control_type}: {title} after 600 tabs. "
+            f"Visible product copy (truncated): {hint[:2000]}"
+        )
+    except AssertionError:
+        raise
+    except Exception:
+        raise AssertionError(f"Keyboard focus did not reach {control_type}: {title}")
 
 
 def fill(title, text):
