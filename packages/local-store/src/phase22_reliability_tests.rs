@@ -78,9 +78,11 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
             opening_stock_milli: 1000,
         })
         .unwrap();
+        // The id is supplied by the caller and must satisfy the store's own id
+        // rule, which is what the GUI's "Supplier ID" field is for.
         w.save_supplier(SaveSupplier {
             operation_id: "restart-supplier".into(),
-            id: String::new(),
+            id: "restart-supplier-1".into(),
             name: "Restart supplier".into(),
             phone: None,
             gstin: None,
@@ -91,11 +93,10 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
             expected_revision: None,
         })
         .unwrap();
-        let supplier = &w.find_suppliers("", false).unwrap()[0];
         let order = w
             .create_purchase_order(CreatePurchaseOrder {
                 operation_id: "restart-order".into(),
-                supplier_id: supplier.id.clone(),
+                supplier_id: "restart-supplier-1".into(),
                 note: String::new(),
                 lines: vec![PurchaseOrderLineInput {
                     product_id: "restart-add-item".into(),
@@ -150,12 +151,7 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
     // the same file with the same key, exactly as a relaunched application does.
     let mut w = open(&path);
     w.login("owner", PASSWORD).unwrap();
-    let reopened = w.supplier_statement(
-        &w.find_suppliers("", false).unwrap()[0].id,
-        0,
-        None,
-    )
-    .unwrap();
+    let reopened = w.supplier_statement("restart-supplier-1", 0, None).unwrap();
     assert_eq!(reopened.supplier.balance_paise, "7500");
     let stock: i64 = w
         .store_for_test()
