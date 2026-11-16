@@ -84,6 +84,32 @@ CONFIRM_TITLES = (
 AFFIRMATIVE = ("Yes", "&Yes", "Replace", "&Replace", "Save", "&Save", "OK", "Overwrite")
 
 
+class DialogNeverAppeared(RuntimeError):
+    """The control was pressed but no dialog of that title ever became visible.
+
+    This is different from a dialog that will not close, and it was a real
+    regression in this module: the previous acceptance code did
+    ``dialog.wait("visible", timeout=45)`` before driving anything, and the
+    first version of ``close_dialog`` returned immediately when
+    ``live_windows()`` was empty — i.e. when the dialog had simply not opened
+    *yet*. The save dialog opens asynchronously after the button press, so the
+    driver concluded "nothing to do", the export never happened, and the run
+    failed 60 s later at a success-message wait that named neither the dialog
+    nor the press (run 43835367831).
+
+    A press that opens no dialog is a harness failure with evidence too.
+    """
+
+    def __init__(self, title, waited, evidence):
+        self.title = title
+        self.waited = waited
+        self.evidence = evidence
+        self.harness_failure = True
+        super().__init__(
+            f"no visible window titled {title!r} appeared within {waited}s of the press"
+        )
+
+
 class DialogNotClosed(RuntimeError):
     """The native dialog is still on screen after the attempt budget.
 
@@ -124,6 +150,8 @@ class DialogEvidence:
     entry_attempts: int = 0
     field_selector: str = ""
     field_missing: bool = False
+    waited_for_appearance: float = 0.0
+    never_appeared: bool = False
     pressed: int = 0
     harness_failure: bool = False
     handles: list = field(default_factory=list)
@@ -183,6 +211,21 @@ def describe_window(candidate):
     except Exception:
         detail["owner"] = None
     return detail
+
+
+def _all_visible(desktop):
+    """Every visible top-level window, for a failure record."""
+    try:
+        return [w for w in list(desktop.windows()) if _visible(w)]
+    except Exception:
+        return []
+
+
+def _visible(candidate):
+    try:
+        return bool(candidate.is_visible())
+    except Exception:
+        return False
 
 
 def foreground_window(desktop):
@@ -394,6 +437,7 @@ def close_dialog(
     require_verified_entry=False,
     poll=0.5,
     settle=0.2,
+    appearance_timeout=45,
 ):
     """Close a native Save/Open dialog towards `path`.
 
@@ -415,6 +459,22 @@ def close_dialog(
 
     def still_live():
         return bool(live_windows(desktop, title))
+
+    # The dialog opens asynchronously after the control is pressed. Wait for it
+    # before concluding anything: returning here when the window list is merely
+    # empty for a moment was the defect that made an export silently not happen.
+    if not still_live():
+        deadline = time.monotonic() + appearance_timeout
+        while time.monotonic() < deadline:
+            if still_live():
+                break
+            time.sleep(min(poll, 0.25))
+        evidence.waited_for_appearance = round(appearance_timeout, 1)
+        if not still_live():
+            evidence.never_appeared = True
+            evidence.harness_failure = True
+            evidence.live_windows = [describe_window(w) for w in _all_visible(desktop)]
+            raise DialogNeverAppeared(title, appearance_timeout, evidence)
 
     for attempt in range(attempts):
         evidence.attempts = attempt + 1

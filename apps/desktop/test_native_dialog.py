@@ -242,6 +242,7 @@ class DriverTests(unittest.TestCase):
             wait_until=_fast_wait_until,
             poll=0.02,
             settle=0.01,
+            appearance_timeout=kwargs.pop("appearance_timeout", 0.05),
             **kwargs,
         )
 
@@ -315,12 +316,38 @@ class DriverTests(unittest.TestCase):
         self.assertFalse(stale.visible)
         self.assertFalse(live.visible)
 
-    def test_absent_dialog_is_not_a_failure(self):
+    def test_absent_dialog_is_a_harness_failure_not_a_silent_pass(self):
+        # The regression from run 43835367831: the driver returned immediately
+        # when the dialog had not opened *yet*, the export never happened, and
+        # the run failed 60 s later at a success-message wait that named neither
+        # the dialog nor the press.
         evidence = nd.DialogEvidence()
-        verified = self.close(FakeDesktop([]), "Export encrypted Sornio backup",
-                              "C:\\Temp\\x.sorniobackup", evidence=evidence)
+        with self.assertRaises(nd.DialogNeverAppeared) as raised:
+            self.close(FakeDesktop([]), "Export encrypted Sornio backup",
+                       "C:\\Temp\\x.sorniobackup", evidence=evidence,
+                       appearance_timeout=0.05)
+        self.assertTrue(evidence.harness_failure)
+        self.assertTrue(evidence.never_appeared)
+        self.assertTrue(raised.exception.harness_failure)
+
+    def test_a_late_dialog_is_waited_for_instead_of_missed(self):
+        # The dialog opens asynchronously after the button press; a driver that
+        # looks once will miss it.
+        dialog = ScriptedDialog("Export encrypted Sornio backup", closes_after=1)
+        dialog.visible = False
+
+        def appear():
+            dialog.visible = True
+
+        import threading
+        threading.Timer(0.1, appear).start()
+        evidence = nd.DialogEvidence()
+        verified = self.close(FakeDesktop([dialog]), dialog.title,
+                              "C:\\Temp\\x.sorniobackup", evidence=evidence,
+                              appearance_timeout=2.0)
         self.assertFalse(verified)
-        self.assertFalse(evidence.harness_failure)
+        self.assertFalse(evidence.never_appeared)
+        self.assertFalse(dialog.visible)  # it was found, driven, and closed
 
     def test_open_mode_looks_for_the_open_button(self):
         dialog = ScriptedDialog("Choose encrypted Sornio backup", closes_after=1)
