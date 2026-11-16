@@ -6,8 +6,24 @@ on:
     # trigger this acceptance workflow instead of silently never running.
     # Stacked Phase 13-18 draft PRs use another `feature/` branch as their base,
     # so a `[main]`-only filter meant they produced no Windows or browser result.
-    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
-    paths: ['apps/desktop/**', 'packages/business-domain/**', 'packages/local-store/**', '.github/workflows/windows-local.yml']
+    # This filter matches the PR's BASE branch, not its head. Phase 22's report
+    # PR targets hardening/phase22-native-recovery-20261116, so without that
+    # base listed here a pull request could change the acceptance harness and
+    # produce no Windows result at all — the same silent gap the comment below
+    # describes for the Phase 13-18 stack.
+    branches: [main, 'integration/windows-finance-recovery', 'hardening/financial-recovery-audit-2026-10-31', 'hardening/phase22-native-recovery-20261116', 'test/windows-evidence-verification-2026-11-01', 'feature/windows-native-authorization', 'feature/windows-customer-credit', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    # The same reasoning applies to `paths`: the base filtered again, so a
+    # Phase 22D head that changed acceptance scripts and Rust tests produced no
+    # Windows result at all until a temporary PR was opened to force one. The
+    # acceptance harness and the store it exercises are both here.
+    paths:
+      - 'apps/desktop/**'
+      - 'packages/business-domain/**'
+      - 'packages/local-store/**'
+      - 'scripts/**'
+      - '.github/workflows/windows-local.yml'
+      - '.github/workflows/macos-desktop.yml'
+      - 'docs/reviews/2026-11-16-phase22d-execution-report.md'
   workflow_dispatch:
 permissions:
   contents: read
@@ -23,6 +39,13 @@ jobs:
       CARGO_TERM_COLOR: always
       RUST_TEST_THREADS: '4'
       CARGO_BUILD_JOBS: '2'
+      # On a pull_request event GITHUB_SHA is the synthetic merge commit for
+      # refs/pull/N/merge. It names no tree anyone can check out, so evidence
+      # that recorded it named a commit that does not exist as source. Every
+      # acceptance record prefers this value and keeps the merge commit under
+      # its own key.
+      SORNIO_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SORNIO_DIALOG_EVIDENCE: dist/native-review/dialog-evidence.jsonl
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -188,6 +211,12 @@ jobs:
         run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
       - name: Verify native scale and damaged-return recovery
         run: python apps/desktop/check-native-scale.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe --output dist/native-review/native-scale.json
+      - name: Test the OS Save/Open dialog driver contract
+        # The driver that only fails on a installed-app run is now a module with
+        # a synthetic harness: retry, re-resolution of a stale handle, answering
+        # a replace confirmation, and the evidence record are exercised here in
+        # seconds instead of after 40 minutes of product installation.
+        run: python -m unittest discover -s apps/desktop -p test_native_dialog.py
       - name: Test native-check argument forwarding (no product install needed)
         # Pins the Invoke-NativeCheck contract: the fixture stage passes zero
         # extra arguments and the preserved-reopen stage passes exactly
@@ -197,6 +226,39 @@ jobs:
       - name: Verify installed offline app, recovery and lifecycle preservation
         shell: pwsh
         run: ./apps/desktop/check-installer.ps1
+
+      - name: Audit the persisted purchasing state the installed app left behind
+        # The lifecycle step above proves a shopkeeper can drive the workflow and
+        # that the screens show the right numbers. That is a claim about the UI.
+        # This step makes the different claim: it opens the encrypted workspace
+        # the installed binary left behind — through the product's own
+        # credential-store entry point, so the real device key is used — and
+        # asserts the supplier, the order, both receipts, the invoice variance,
+        # the payment, the return, the payable ledger and the stock figure.
+        # By this point the application has exited and been uninstalled, so the
+        # database is quiescent and the audit cannot race a write.
+        # `if: always()` is the point: a GUI step that failed says nothing about
+        # whether the rows the application already committed are correct, so an
+        # earlier UI failure must not conceal an independently observable
+        # persisted-state defect. The job still fails on the GUI step, and this
+        # audit still fails on its own status — neither masks the other. When it
+        # cannot run it reports which assertions did not run and why.
+        if: always()
+        shell: pwsh
+        run: |
+          $backup = ''
+          $recorded = 'dist/native-review/purchasing-backup-path.txt'
+          if (Test-Path $recorded) { $backup = (Get-Content -LiteralPath $recorded -Raw).Trim() }
+          $auditArgs = @(
+            'apps/desktop/check-purchasing-store.py',
+            '--bridge', 'apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe',
+            '--device-dir', "$env:LOCALAPPDATA\com.sornio.localreview",
+            '--output', 'dist/native-review/purchasing-store-audit.json'
+          )
+          if ($backup -and (Test-Path -LiteralPath $backup)) { $auditArgs += @('--backup', $backup) }
+          else { Write-Output "::notice::the installed app recorded no purchasing archive to compare" }
+          python @auditArgs
+          exit $LASTEXITCODE
       - name: Verify native screenshots, installer checksum and lifecycle evidence
         run: python apps/desktop/check-windows-evidence.py --installer-dir apps/desktop/src-tauri/target/release/bundle/nsis --evidence-dir dist/native-review
       - name: Upload engineering installer
