@@ -49,12 +49,21 @@ console.log('ok   native rounding constants found in billing.rs');
 
 const out = mkdtempSync(join(tmpdir(), 'sornio-money-'));
 try {
+  // The sources import one another with explicit `.ts` extensions (the mobile
+  // and desktop projects set `allowImportingTsExtensions`, and Metro/Vite both
+  // resolve those). This one-off emit therefore has to ask for the same
+  // treatment, plus `--rewriteRelativeImportExtensions`, because TypeScript
+  // refuses `allowImportingTsExtensions` unless one of `noEmit`,
+  // `emitDeclarationOnly` or that rewrite is set — and this script needs real
+  // JavaScript output to load. Without both flags the gate died with TS5097 on
+  // `held-bills.ts`/`payment-allocation.ts` before running a single assertion.
   execFileSync(process.execPath, [require.resolve('typescript/lib/tsc.js'),
     'packages/business-domain/src/native-invoice.ts',
     'packages/business-domain/src/fixed-decimal.ts',
     'apps/desktop/src/billing-types.ts',
     '--outDir', out, '--target', 'es2022', '--module', 'commonjs',
-    '--strict', '--skipLibCheck', '--ignoreConfig'], { stdio: 'inherit' });
+    '--strict', '--skipLibCheck', '--ignoreConfig',
+    '--allowImportingTsExtensions', '--rewriteRelativeImportExtensions'], { stdio: 'inherit' });
   const { calculateNativeInvoice } = require(join(out, 'packages/business-domain/src/native-invoice.js'));
   const { parseFixedDecimal } = require(join(out, 'packages/business-domain/src/fixed-decimal.js'));
   const { formatPaiseInput, money, quantity } = require(join(out, 'apps/desktop/src/billing-types.js'));

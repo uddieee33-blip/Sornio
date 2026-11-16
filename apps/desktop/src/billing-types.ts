@@ -7,6 +7,7 @@ export type Invoice = {
   tender: 'cash' | 'credit' | 'retail'; customerId: string | null;
 };
 export type CashierState = {
+  activeHeldBill?: import('./held-bills').ResumedBill | null;
   products: Product[];
   checkout: { request: CheckoutRequest; invoice: Invoice | null; retailRequest?: RetailRequest } | null;
   reportsAllowed: boolean;

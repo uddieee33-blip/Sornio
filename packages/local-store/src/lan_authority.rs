@@ -390,6 +390,27 @@ pub(crate) fn disable_after_restore(
 }
 #[cfg(test)]
 pub(crate) fn remove_fixture_tables(db: &Connection) {
+    // Dropping a table also drops its triggers, and purchase children are
+    // listed before their parents so foreign keys stay satisfied.
+    db.execute_batch(
+        "DROP TABLE IF EXISTS local_purchase_return_lines; \
+         DROP TABLE IF EXISTS local_supplier_payments; \
+         DROP TABLE IF EXISTS local_purchase_stock_events; \
+         DROP TABLE IF EXISTS local_goods_receipt_lines; \
+         DROP TABLE IF EXISTS local_purchase_order_lines; \
+         DROP TABLE IF EXISTS local_supplier_journal; \
+         DROP TABLE IF EXISTS local_supplier_entries; \
+         DROP TABLE IF EXISTS local_supplier_outbox; \
+         DROP TABLE IF EXISTS local_supplier_pending; \
+         DROP TABLE IF EXISTS local_purchase_orders; \
+         DROP TABLE IF EXISTS local_purchase_returns; \
+         DROP TABLE IF EXISTS local_supplier_invoices; \
+         DROP TABLE IF EXISTS local_goods_receipts; \
+         DROP TABLE IF EXISTS local_supplier_ops; \
+         DROP TABLE IF EXISTS local_supplier_canceled; \
+         DROP TABLE IF EXISTS local_suppliers;",
+    )
+    .unwrap();
     db.execute_batch("DROP TABLE local_lan_operations; DROP TABLE local_lan_devices;")
         .unwrap();
 }

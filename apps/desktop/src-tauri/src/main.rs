@@ -1,9 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod hub_discovery;
+mod hub_server;
 use sornio_local_store::customers as crate_types;
-#[cfg(windows)]
+#[cfg(any(windows, target_os = "macos"))]
 use sornio_local_store::device::initialize;
 use sornio_local_store::payments as retail;
+use sornio_local_store::purchasing as purchase_types;
 use sornio_local_store::recovery::BackupPreview;
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
@@ -45,6 +48,11 @@ impl From<StoreError> for CommandError {
     fn from(error: StoreError) -> Self {
         let code = match &error {
             StoreError::Locked => "locked",
+            StoreError::Conflict => "conflict",
+            StoreError::InvalidDraft => "invalid_draft",
+            StoreError::HeldBillConflict => "held_bill_conflict",
+            StoreError::InvalidHeldBill => "invalid_held_bill",
+            StoreError::HeldBillLimit => "held_bill_limit",
             StoreError::InvoiceMissing => "invoice_missing",
             StoreError::BackupStorage => "backup_storage",
             StoreError::InvalidBackup => "invalid_backup",
@@ -82,6 +90,17 @@ impl From<StoreError> for CommandError {
             | StoreError::InvalidStock
             | StoreError::ProductMissing
             | StoreError::CatalogFull => "invalid_product",
+            StoreError::InvalidSupplier => "invalid_supplier",
+            StoreError::SupplierMissing => "supplier_missing",
+            StoreError::SupplierConflict => "supplier_conflict",
+            StoreError::InvalidPurchaseOrder => "invalid_purchase_order",
+            StoreError::PurchaseOrderMissing => "purchase_order_missing",
+            StoreError::PurchaseOrderConflict => "purchase_order_conflict",
+            StoreError::OrderState => "order_state",
+            StoreError::InvalidReceipt => "invalid_receipt",
+            StoreError::InvalidPayable => "invalid_payable",
+            StoreError::InvalidReturn => "invalid_return",
+            StoreError::InvalidPurchase => "invalid_purchase",
             _ => "workspace_error",
         };
         Self {
@@ -91,9 +110,9 @@ impl From<StoreError> for CommandError {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "macos")))]
 fn initialize(_directory: &std::path::Path) -> Result<Store, String> {
-    Err("This local review build requires Windows Credential Manager.".into())
+    Err("This local review build requires Windows Credential Manager or macOS Keychain.".into())
 }
 
 // Password hashing and SQLite waits run off the native UI thread. Authorization
@@ -385,6 +404,137 @@ async fn read_identity_audit(
 }
 
 #[tauri::command]
+async fn kitchen_view(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::kitchen::Document, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.kitchen_view()).await
+}
+#[tauri::command]
+async fn kitchen_action(
+    scope: Scope,
+    a: sornio_local_store::kitchen::Action,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::kitchen::Document, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.kitchen_action(a)).await
+}
+#[tauri::command]
+async fn restaurant_workspace(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::kitchen::Document, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.restaurant_workspace()).await
+}
+#[tauri::command]
+async fn restaurant_status(
+    scope: Scope,
+    order: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Option<sornio_local_store::restaurant_recovery::Status>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.restaurant_status(order)).await
+}
+#[tauri::command]
+async fn edit_restaurant(
+    scope: Scope,
+    order: String,
+    expected: i64,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::restaurant_recovery::Status, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.edit_restaurant(order, expected)).await
+}
+#[tauri::command]
+async fn amend_restaurant(
+    scope: Scope,
+    r: sornio_local_store::restaurant_recovery::Amendment,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::restaurant_recovery::Status, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.amend_restaurant(r)).await
+}
+#[tauri::command]
+async fn takeover_restaurant(
+    scope: Scope,
+    order: String,
+    expected: i64,
+    target: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::restaurant_recovery::Status, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.takeover_restaurant(order, expected, target)
+    })
+    .await
+}
+#[tauri::command]
+async fn restaurant_menu(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<sornio_local_store::restaurant_checkout::Menu>, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.restaurant_menu()).await
+}
+#[tauri::command]
+async fn save_restaurant_menu(
+    scope: Scope,
+    m: sornio_local_store::restaurant_checkout::Menu,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.save_restaurant_menu(m)).await
+}
+#[tauri::command]
+async fn prepare_restaurant(
+    scope: Scope,
+    r: sornio_local_store::restaurant_checkout::Prepare,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::payments::Request, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.prepare_restaurant(r)).await
+}
+#[tauri::command]
+async fn post_restaurant(
+    scope: Scope,
+    order: String,
+    attempt: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::payments::Receipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_restaurant(order, attempt)).await
+}
+#[tauri::command]
+async fn read_restaurant(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::restaurant::View, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.restaurant_view()).await
+}
+#[tauri::command]
+async fn change_restaurant(
+    scope: Scope,
+    r: sornio_local_store::restaurant::Request,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.restaurant_action(r)).await
+}
+#[tauri::command]
+async fn list_local_held_bills(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<sornio_local_store::held_bills::Bill>, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.list_held_bills()).await
+}
+#[tauri::command]
+async fn mutate_local_held_bill(
+    scope: Scope,
+    r: sornio_local_store::held_bills::Mutation,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::held_bills::Resumed, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.mutate_held_bill(r)).await
+}
+#[tauri::command]
+async fn prepare_local_held_checkout(
+    scope: Scope,
+    r: sornio_local_store::held_bills::Prepare,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.prepare_held_checkout(r)).await
+}
+
+#[tauri::command]
 async fn prepare_local_retail(
     scope: Scope,
     r: retail::Request,
@@ -512,6 +662,15 @@ async fn save_local_customer(
 }
 
 #[tauri::command]
+async fn read_local_customer(
+    scope: Scope,
+    customer_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<crate_types::Customer, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.read_customer(&customer_id)).await
+}
+
+#[tauri::command]
 async fn find_local_customers(
     scope: Scope,
     search: String,
@@ -596,6 +755,205 @@ async fn render_customer_statement(
     .await
 }
 
+#[tauri::command]
+async fn save_local_supplier(
+    scope: Scope,
+    r: purchase_types::SaveSupplier,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::Supplier, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.save_supplier(r)).await
+}
+
+#[tauri::command]
+async fn find_local_suppliers(
+    scope: Scope,
+    search: String,
+    include_archived: bool,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::Supplier>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.find_suppliers(&search, include_archived)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn suspect_local_supplier_duplicates(
+    scope: Scope,
+    name: String,
+    phone: Option<String>,
+    gstin: Option<String>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::Supplier>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.supplier_duplicates(&name, phone.as_deref(), gstin.as_deref())
+    })
+    .await
+}
+
+#[tauri::command]
+async fn read_supplier_statement(
+    scope: Scope,
+    supplier_id: String,
+    after: i64,
+    through: Option<i64>,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierStatement, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.supplier_statement(&supplier_id, after, through)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn list_purchase_returns(
+    scope: Scope,
+    supplier_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::PurchaseReturn>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.list_purchase_returns(&supplier_id)).await
+}
+
+#[tauri::command]
+async fn create_purchase_order(
+    scope: Scope,
+    r: purchase_types::CreatePurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.create_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn update_purchase_order(
+    scope: Scope,
+    r: purchase_types::UpdatePurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.update_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn get_purchase_order(
+    scope: Scope,
+    id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.get_purchase_order(&id)).await
+}
+
+#[tauri::command]
+async fn find_purchase_orders(
+    scope: Scope,
+    search: String,
+    status: String,
+    supplier_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::PurchaseOrderSummary>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.find_purchase_orders(&search, &status, &supplier_id)
+    })
+    .await
+}
+
+#[tauri::command]
+async fn submit_purchase_order(
+    scope: Scope,
+    r: purchase_types::TransitionPurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.submit_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn decide_purchase_order(
+    scope: Scope,
+    r: purchase_types::DecidePurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.decide_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn cancel_purchase_order(
+    scope: Scope,
+    r: purchase_types::TransitionPurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.cancel_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn close_purchase_order(
+    scope: Scope,
+    r: purchase_types::TransitionPurchaseOrder,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseOrder, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.close_purchase_order(r)).await
+}
+
+#[tauri::command]
+async fn post_goods_receipt(
+    scope: Scope,
+    r: purchase_types::PostGoodsReceipt,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::GoodsReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_goods_receipt(r)).await
+}
+
+#[tauri::command]
+async fn list_goods_receipts(
+    scope: Scope,
+    order_id: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<purchase_types::GoodsReceipt>, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.list_goods_receipts(&order_id)).await
+}
+
+#[tauri::command]
+async fn post_supplier_invoice(
+    scope: Scope,
+    r: purchase_types::PostSupplierInvoice,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierInvoice, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_supplier_invoice(r)).await
+}
+
+#[tauri::command]
+async fn post_supplier_payment(
+    scope: Scope,
+    r: purchase_types::PostSupplierPayment,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierPayment, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_supplier_payment(r)).await
+}
+
+#[tauri::command]
+async fn post_supplier_opening(
+    scope: Scope,
+    r: purchase_types::PostSupplierOpening,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_supplier_opening(r)).await
+}
+
+#[tauri::command]
+async fn reverse_supplier_entry(
+    scope: Scope,
+    r: purchase_types::ReverseSupplierEntry,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::SupplierReceipt, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.reverse_supplier_entry(r)).await
+}
+
+#[tauri::command]
+async fn post_purchase_return(
+    scope: Scope,
+    r: purchase_types::PostPurchaseReturn,
+    state: tauri::State<'_, LocalState>,
+) -> Result<purchase_types::PurchaseReturn, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.post_purchase_return(r)).await
+}
+
 async fn with_recovery_workspace<T, F>(
     state: tauri::State<'_, LocalState>,
     scope: Option<Scope>,
@@ -636,12 +994,12 @@ async fn choose_local_backup(
 ) -> Result<Option<String>, CommandError> {
     let selected = Arc::clone(selection.inner());
     with_recovery_workspace(state, scope, move |_w| {
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let path = rfd::FileDialog::new()
             .add_filter("Sornio encrypted backup", &["sorniobackup"])
             .set_title("Choose encrypted Sornio backup")
             .pick_file();
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let path: Option<PathBuf> = None;
         let name = path
             .as_ref()
@@ -665,13 +1023,13 @@ async fn export_local_backup(
     let secret = Zeroizing::new(recovery_password);
     with_scoped_workspace(state, scope, move |w| {
         w.require(sornio_local_store::identity::Permission::Settings)?;
-        #[cfg(windows)]
+        #[cfg(any(windows, target_os = "macos"))]
         let path = rfd::FileDialog::new()
             .add_filter("Sornio encrypted backup", &["sorniobackup"])
             .set_file_name("sornio-business.sorniobackup")
             .set_title("Export encrypted Sornio backup")
             .save_file();
-        #[cfg(not(windows))]
+        #[cfg(not(any(windows, target_os = "macos")))]
         let path: Option<PathBuf> = None;
         path.map(|p| w.export_backup(&p, &current, &secret))
             .transpose()
@@ -744,6 +1102,205 @@ async fn restore_local_backup(
     })
     .await
 }
+#[tauri::command]
+async fn restaurant_live(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<serde_json::Value, CommandError> {
+    with_workspace(state, move |w| {
+        w.verify_live_scope(&scope)?;
+        w.restaurant_live()
+    })
+    .await
+}
+#[tauri::command]
+async fn hub_live(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+    runtime: tauri::State<'_, hub_server::State>,
+) -> Result<serde_json::Value, CommandError> {
+    let (address, discovery) = {
+        let r = runtime
+            .lock()
+            .map_err(|_| CommandError::unavailable("Hub state unavailable."))?;
+        let address = if r
+            .stop
+            .as_ref()
+            .is_some_and(|s| !s.load(std::sync::atomic::Ordering::SeqCst))
+        {
+            r.address.clone()
+        } else {
+            None
+        };
+        let discovery=r.advertisement.as_ref().map(|a|a.status()).unwrap_or_else(||serde_json::json!({"state":if r.discovery_error.is_some(){"unavailable"}else{"off"},"message":r.discovery_error}));
+        (address, discovery)
+    };
+    with_workspace(state, move |w| {
+        w.verify_live_scope(&scope)?;
+        let mut view = w.hub_live()?;
+        view["address"] = serde_json::json!(address);
+        view["discovery"] = discovery;
+        Ok(view)
+    })
+    .await
+}
+#[tauri::command]
+async fn hub_admin(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+    runtime: tauri::State<'_, hub_server::State>,
+) -> Result<serde_json::Value, CommandError> {
+    let (address, discovery) = {
+        let r = runtime
+            .lock()
+            .map_err(|_| CommandError::unavailable("Hub state unavailable."))?;
+        let address = if r
+            .stop
+            .as_ref()
+            .is_some_and(|s| !s.load(std::sync::atomic::Ordering::SeqCst))
+        {
+            r.address.clone()
+        } else {
+            None
+        };
+        let discovery=r.advertisement.as_ref().map(|a|a.status()).unwrap_or_else(||serde_json::json!({"state":if r.discovery_error.is_some(){"unavailable"}else{"off"},"message":r.discovery_error}));
+        (address, discovery)
+    };
+    with_scoped_workspace(state, scope, move |w| {
+        let mut v = w.hub_admin()?;
+        let (cert, key) = w.hub_tls()?;
+        let key = Zeroizing::new(key);
+        v["tls"] = hub_server::tls_status(&cert, &key);
+        v["discovery"] = discovery;
+        v["address"] = serde_json::json!(address);
+        Ok(v)
+    })
+    .await
+}
+#[tauri::command]
+async fn hub_device(
+    id: String,
+    revision: i64,
+    actor: Option<String>,
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| {
+        w.hub_device(&id, revision, actor.as_deref())
+    })
+    .await
+}
+#[tauri::command]
+async fn hub_batches(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<serde_json::Value, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.hub_batches()).await
+}
+#[tauri::command]
+async fn hub_dispatch(
+    id: String,
+    revision: i64,
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.hub_dispatch(&id, revision)).await
+}
+#[tauri::command]
+async fn hub_control(
+    enabled: bool,
+    address: String,
+    origin: Option<String>,
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+    runtime: tauri::State<'_, hub_server::State>,
+) -> Result<(), CommandError> {
+    let ws = Arc::clone(state.inner());
+    let rt = Arc::clone(runtime.inner());
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut r = rt
+            .lock()
+            .map_err(|_| CommandError::unavailable("Hub state unavailable."))?;
+        let mut guard = ws
+            .lock()
+            .map_err(|_| CommandError::unavailable("Workspace unavailable."))?;
+        let w = guard
+            .as_mut()
+            .map_err(|_| CommandError::unavailable("Unlock the workspace."))?;
+        w.verify_scope(&scope)?;
+        w.require(sornio_local_store::identity::Permission::Settings)?;
+        r.halt();
+        w.hub_configure(false, None)?;
+        if enabled {
+            let (cert, key) = w.hub_tls()?;
+            let key = Zeroizing::new(key);
+            let tls = hub_server::config(&cert, &key).map_err(|e| CommandError::unavailable(&e))?;
+            let identity = w.hub_admin()?["identity"].clone();
+            let fingerprint = hub_server::tls_status(&cert, &key)["certificateSha256"]
+                .as_str()
+                .unwrap_or("")
+                .to_string();
+            let advertise = origin
+                .filter(|s| !s.trim().is_empty())
+                .map(|o| (o, identity, fingerprint));
+            let next = hub_server::start(&address, tls, ws.clone(), advertise)
+                .map_err(|e| CommandError::unavailable(&e))?;
+            w.hub_configure(true, None)?;
+            *r = next;
+        }
+        Ok(())
+    })
+    .await
+    .map_err(|_| CommandError::unavailable("Hub change interrupted."))?
+}
+#[tauri::command]
+async fn hub_import_tls(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+    runtime: tauri::State<'_, hub_server::State>,
+) -> Result<(), CommandError> {
+    let result = with_scoped_workspace(state, scope, |w| {
+        w.require(sornio_local_store::identity::Permission::Settings)?;
+        #[cfg(any(windows, target_os = "macos"))]
+        {
+            let cert = rfd::FileDialog::new()
+                .set_title("Select trusted HTTPS certificate chain PEM")
+                .pick_file()
+                .ok_or(StoreError::InvalidDraft)?;
+            let key = rfd::FileDialog::new()
+                .set_title("Select matching private key PEM (kept in encrypted local database)")
+                .pick_file()
+                .ok_or(StoreError::InvalidDraft)?;
+            if std::fs::metadata(&cert)
+                .map_err(|_| StoreError::AccessUnavailable)?
+                .len()
+                > 65536
+                || std::fs::metadata(&key)
+                    .map_err(|_| StoreError::AccessUnavailable)?
+                    .len()
+                    > 16384
+            {
+                return Err(StoreError::InvalidDraft);
+            }
+            let cert = std::fs::read_to_string(cert).map_err(|_| StoreError::AccessUnavailable)?;
+            let key = std::fs::read_to_string(key).map_err(|_| StoreError::AccessUnavailable)?;
+            hub_server::config(&cert, &key).map_err(|_| StoreError::InvalidIdentity)?;
+            w.hub_configure(false, Some((cert, key)))
+        }
+        #[cfg(not(any(windows, target_os = "macos")))]
+        {
+            Err(StoreError::AccessUnavailable)
+        }
+    })
+    .await;
+    if result.is_ok() {
+        runtime
+            .lock()
+            .map_err(|_| CommandError::unavailable("Hub state unavailable."))?
+            .halt();
+    }
+    result
+}
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
@@ -754,10 +1311,19 @@ fn main() {
                 .and_then(|path| initialize(&path))
                 .map(Workspace::new);
             app.manage(Arc::new(Mutex::new(workspace)));
+            app.manage(Arc::new(Mutex::new(hub_server::Runtime::default())));
             app.manage(Arc::new(Mutex::new(RecoverySelection::default())));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            restaurant_live,
+            hub_live,
+            hub_admin,
+            hub_control,
+            hub_import_tls,
+            hub_device,
+            hub_batches,
+            hub_dispatch,
             read_last_restore,
             choose_local_backup,
             export_local_backup,
@@ -765,6 +1331,22 @@ fn main() {
             restore_local_backup,
             change_local_password,
             reset_local_staff_password,
+            kitchen_view,
+            kitchen_action,
+            restaurant_workspace,
+            restaurant_status,
+            edit_restaurant,
+            amend_restaurant,
+            takeover_restaurant,
+            restaurant_menu,
+            save_restaurant_menu,
+            prepare_restaurant,
+            post_restaurant,
+            read_restaurant,
+            change_restaurant,
+            list_local_held_bills,
+            mutate_local_held_bill,
+            prepare_local_held_checkout,
             prepare_local_retail,
             post_local_retail,
             clear_local_retail,
@@ -774,6 +1356,7 @@ fn main() {
             export_local_settlements,
             save_local_customer,
             find_local_customers,
+            read_local_customer,
             prepare_local_credit,
             post_local_credit,
             pending_local_credit,
@@ -805,7 +1388,27 @@ fn main() {
             post_local_invoice,
             read_local_invoice,
             list_local_invoices,
-            read_billing_outbox
+            read_billing_outbox,
+            save_local_supplier,
+            find_local_suppliers,
+            suspect_local_supplier_duplicates,
+            read_supplier_statement,
+            list_purchase_returns,
+            create_purchase_order,
+            update_purchase_order,
+            get_purchase_order,
+            find_purchase_orders,
+            submit_purchase_order,
+            decide_purchase_order,
+            cancel_purchase_order,
+            close_purchase_order,
+            post_goods_receipt,
+            list_goods_receipts,
+            post_supplier_invoice,
+            post_supplier_payment,
+            post_supplier_opening,
+            reverse_supplier_entry,
+            post_purchase_return
         ])
         .run(tauri::generate_context!())
         .expect("Sornio could not start");

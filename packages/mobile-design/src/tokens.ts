@@ -110,7 +110,15 @@ export const motion = {
 
 export const layout = {
   phoneMax: 719,
+  /** Any width at or above this is treated as a tablet surface. */
   tabletMin: 720,
+  /**
+   * Width at which the rail plus a readable workspace fits side by side.
+   * Below this the app still uses the tablet frame but stacks the workspace
+   * into one column, so a 744pt iPad mini in portrait is not left with a
+   * 232pt rail beside a 492pt column of clipped controls.
+   */
+  railMin: 820,
   railWidth: 232,
   contentMax: 720,
   gutterPhone: 20,

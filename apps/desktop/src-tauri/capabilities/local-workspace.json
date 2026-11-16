@@ -12,6 +12,7 @@
     "local-identity",
     "local-customers",
     "local-retail",
-    "local-recovery"
+    "local-recovery",
+    "local-purchasing"
   ]
 }

@@ -38,7 +38,7 @@ export function StaffPanel({ disabled, refreshToken = 0, onBusyChange, onDirtyCh
     <button type="button" disabled={busy || disabled} onClick={() => void run(async () => {}, 'Staff refreshed.')}>Reload staff</button>
     <form onSubmit={create}><fieldset disabled={busy || disabled}><legend>Create staff account</legend>
       <label htmlFor="staff-name">Staff name</label><input id="staff-name" maxLength={80} required value={name} onChange={e => setName(e.target.value)}/>
-      <label htmlFor="staff-username">Staff account name</label><input id="staff-username" maxLength={80} pattern="[A-Za-z0-9_-]+" autoComplete="off" required value={username} onChange={e => setUsername(e.target.value)}/>
+      <label htmlFor="staff-username">Staff account name</label><input id="staff-username" maxLength={80} pattern={'[A-Za-z0-9_\\-]+'} autoComplete="off" required value={username} onChange={e => setUsername(e.target.value)}/>
       <label htmlFor="staff-role">Staff role</label><select id="staff-role" value={role} onChange={e => setRole(e.target.value as Role)}>{roles.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select>
       <label htmlFor="staff-password">Staff password</label><input id="staff-password" type="password" autoComplete="new-password" minLength={10} maxLength={128} required value={password} onChange={e => setPassword(e.target.value)}/>
       <button type="submit">Create staff account</button>

@@ -1,0 +1,10 @@
+{
+  "source_commit": "c5eb40b57c2aca7147cb2122c8487a3f43099544",
+  "schema": 23,
+  "environment": "Linux-6.18.57-x86_64-with-glibc2.41",
+  "fresh_empty_database_bytes": 974848,
+  "full_dataset_database_bytes": 181522432,
+  "database_growth_bytes": 180547584,
+  "measurement": "Closed SQLCipher files, matched fresh v23 Workspace baseline versus completed 5k/10k/50k/1k/5k workload; no WAL double-counting",
+  "bridge_sha256": "aff9bc62b436f9f05090e564ff1170bf60a848ee8a62bc37e7e78ff19ec573d3"
+}

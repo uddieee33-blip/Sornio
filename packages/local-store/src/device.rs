@@ -1,4 +1,4 @@
-//! Windows-only device-key provisioning. No renderer-provided paths or secrets.
+//! OS credential-store device-key provisioning for Windows and macOS. No renderer-provided paths or secrets.
 use crate::Store;
 use fs2::FileExt;
 use std::{fs::OpenOptions, path::Path};
@@ -10,7 +10,7 @@ fn open_local(path: &Path) -> Result<Store, String> {
 
 fn open_with_vault(path: &Path, service: &str) -> Result<Store, String> {
     let vault = keyring::Entry::new(service, "workspace-database")
-        .map_err(|_| "Windows Credential Manager could not be opened.".to_string())?;
+        .map_err(|_| "The device credential store could not be opened.".to_string())?;
     let key = match vault.get_password() {
         Ok(secret) => Zeroizing::new(secret),
         Err(keyring::Error::NoEntry) if !path.exists() => {
@@ -20,7 +20,7 @@ fn open_with_vault(path: &Path, service: &str) -> Result<Store, String> {
             vault.set_password(&secret).map_err(|_| "The device key could not be saved. No workspace was created.".to_string())?;
             secret
         }
-        Err(_) => return Err("The workspace key is unavailable. Keep the database and Windows profile; do not reset them.".into()),
+        Err(_) => return Err("The workspace key is unavailable. Keep the database and device profile; do not reset them.".into()),
     };
     Store::open(path, &key).map_err(|error| error.to_string())
 }
@@ -47,7 +47,7 @@ mod tests {
     use crate::Draft;
 
     #[test]
-    fn windows_vault_reopens_but_never_replaces_a_missing_key() {
+    fn native_vault_reopens_but_never_replaces_a_missing_key() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("workspace.db");
         let service = format!(

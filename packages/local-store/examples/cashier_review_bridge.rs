@@ -139,6 +139,12 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             &argument::<String>(a, "ownerPassword")?,
             &argument::<String>(a, "newPassword")?,
         )?)?,
+        "list_local_held_bills" => serde_json::to_value(w.list_held_bills()?)?,
+        "mutate_local_held_bill" => serde_json::to_value(w.mutate_held_bill(argument(a, "r")?)?)?,
+        "prepare_local_held_checkout" => {
+            w.prepare_held_checkout(argument(a, "r")?)?;
+            Value::Null
+        }
         "prepare_local_retail" => {
             w.prepare_retail(argument(a, "r")?)?;
             Value::Null
@@ -170,6 +176,9 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
         }
         "save_local_customer" => {
             serde_json::to_value(w.save_customer(argument::<SaveCustomer>(a, "r")?)?)?
+        }
+        "read_local_customer" => {
+            serde_json::to_value(w.read_customer(&argument::<String>(a, "customerId")?)?)?
         }
         "find_local_customers" => serde_json::to_value(w.find_customers(
             &argument::<String>(a, "search")?,
@@ -267,6 +276,170 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
             serde_json::to_value(w.read_invoice(&argument::<String>(a, "invoiceId")?)?)?
         }
         "list_local_invoices" => serde_json::to_value(w.list_invoices(argument(a, "after")?)?)?,
+        // Restaurant, kitchen, hub and held-bill surfaces. These arms exist so the security
+        // harness exercises the real Workspace method - and therefore the real permission and
+        // scope checks - instead of erroring on a missing arm, which would prove nothing.
+        "list_local_held_bills" => serde_json::to_value(w.list_held_bills()?)?,
+        "mutate_local_held_bill" => serde_json::to_value(w.mutate_held_bill(argument(a, "r")?)?)?,
+        "prepare_local_held_checkout" => {
+            w.prepare_held_checkout(argument(a, "r")?)?;
+            Value::Null
+        }
+        "read_local_customer" => {
+            serde_json::to_value(w.read_customer(&argument::<String>(a, "customerId")?)?)?
+        }
+        "restaurant_live" => serde_json::to_value(w.restaurant_live()?)?,
+        "restaurant_workspace" => serde_json::to_value(w.restaurant_workspace()?)?,
+        "restaurant_status" => {
+            serde_json::to_value(w.restaurant_status(argument::<String>(a, "order")?)?)?
+        }
+        "restaurant_menu" => serde_json::to_value(w.restaurant_menu()?)?,
+        "edit_restaurant" => serde_json::to_value(w.edit_restaurant(
+            argument::<String>(a, "order")?,
+            argument::<i64>(a, "expected")?,
+        )?)?,
+        "amend_restaurant" => serde_json::to_value(w.amend_restaurant(argument(a, "r")?)?)?,
+        "takeover_restaurant" => serde_json::to_value(w.takeover_restaurant(
+            argument::<String>(a, "order")?,
+            argument::<i64>(a, "expected")?,
+            argument::<String>(a, "target")?,
+        )?)?,
+        "prepare_restaurant" => serde_json::to_value(w.prepare_restaurant(argument(a, "r")?)?)?,
+        "post_restaurant" => serde_json::to_value(w.post_restaurant(
+            argument::<String>(a, "order")?,
+            argument::<String>(a, "attempt")?,
+        )?)?,
+        "read_restaurant" => serde_json::to_value(w.restaurant_view()?)?,
+        "change_restaurant" => {
+            w.restaurant_action(argument(a, "r")?)?;
+            Value::Null
+        }
+        "save_restaurant_menu" => {
+            w.save_restaurant_menu(argument(a, "m")?)?;
+            Value::Null
+        }
+        "kitchen_view" => serde_json::to_value(w.kitchen_view()?)?,
+        "kitchen_action" => serde_json::to_value(w.kitchen_action(argument(a, "a")?)?)?,
+        "hub_live" => serde_json::to_value(w.hub_live()?)?,
+        "hub_admin" => serde_json::to_value(w.hub_admin()?)?,
+        "hub_batches" => serde_json::to_value(w.hub_batches()?)?,
+        "hub_dispatch" => {
+            w.hub_dispatch(
+                &argument::<String>(a, "id")?,
+                argument::<i64>(a, "revision")?,
+            )?;
+            Value::Null
+        }
+        "hub_device" => {
+            w.hub_device(
+                &argument::<String>(a, "id")?,
+                argument::<i64>(a, "revision")?,
+                argument::<Option<String>>(a, "actor")?.as_deref(),
+            )?;
+            Value::Null
+        }
+        "save_local_supplier" => serde_json::to_value(w.save_supplier(argument::<
+            sornio_local_store::purchasing::SaveSupplier,
+        >(a, "r")?)?)?,
+        "find_local_suppliers" => serde_json::to_value(w.find_suppliers(
+            &argument::<String>(a, "search")?,
+            argument(a, "includeArchived")?,
+        )?)?,
+        "suspect_local_supplier_duplicates" => serde_json::to_value(w.supplier_duplicates(
+            &argument::<String>(a, "name")?,
+            argument::<Option<String>>(a, "phone")?.as_deref(),
+            argument::<Option<String>>(a, "gstin")?.as_deref(),
+        )?)?,
+        "read_supplier_statement" => serde_json::to_value(w.supplier_statement(
+            &argument::<String>(a, "supplierId")?,
+            argument(a, "after")?,
+            argument(a, "through")?,
+        )?)?,
+        "list_purchase_returns" => {
+            serde_json::to_value(w.list_purchase_returns(&argument::<String>(a, "supplierId")?)?)?
+        }
+        "create_purchase_order" => {
+            serde_json::to_value(w.create_purchase_order(argument::<
+                sornio_local_store::purchasing::CreatePurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "update_purchase_order" => {
+            serde_json::to_value(w.update_purchase_order(argument::<
+                sornio_local_store::purchasing::UpdatePurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "get_purchase_order" => {
+            serde_json::to_value(w.get_purchase_order(&argument::<String>(a, "id")?)?)?
+        }
+        "find_purchase_orders" => serde_json::to_value(w.find_purchase_orders(
+            &argument::<String>(a, "search")?,
+            &argument::<String>(a, "status")?,
+            &argument::<String>(a, "supplierId")?,
+        )?)?,
+        "submit_purchase_order" => {
+            serde_json::to_value(w.submit_purchase_order(argument::<
+                sornio_local_store::purchasing::TransitionPurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "decide_purchase_order" => {
+            serde_json::to_value(w.decide_purchase_order(argument::<
+                sornio_local_store::purchasing::DecidePurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "cancel_purchase_order" => {
+            serde_json::to_value(w.cancel_purchase_order(argument::<
+                sornio_local_store::purchasing::TransitionPurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "close_purchase_order" => {
+            serde_json::to_value(w.close_purchase_order(argument::<
+                sornio_local_store::purchasing::TransitionPurchaseOrder,
+            >(a, "r")?)?)?
+        }
+        "post_goods_receipt" => serde_json::to_value(w.post_goods_receipt(argument::<
+            sornio_local_store::purchasing::PostGoodsReceipt,
+        >(a, "r")?)?)?,
+        "list_goods_receipts" => {
+            serde_json::to_value(w.list_goods_receipts(&argument::<String>(a, "orderId")?)?)?
+        }
+        "post_supplier_invoice" => {
+            serde_json::to_value(w.post_supplier_invoice(argument::<
+                sornio_local_store::purchasing::PostSupplierInvoice,
+            >(a, "r")?)?)?
+        }
+        "post_supplier_payment" => {
+            serde_json::to_value(w.post_supplier_payment(argument::<
+                sornio_local_store::purchasing::PostSupplierPayment,
+            >(a, "r")?)?)?
+        }
+        "post_supplier_opening" => {
+            serde_json::to_value(w.post_supplier_opening(argument::<
+                sornio_local_store::purchasing::PostSupplierOpening,
+            >(a, "r")?)?)?
+        }
+        "reverse_supplier_entry" => {
+            serde_json::to_value(w.reverse_supplier_entry(argument::<
+                sornio_local_store::purchasing::ReverseSupplierEntry,
+            >(a, "r")?)?)?
+        }
+        "post_purchase_return" => {
+            serde_json::to_value(w.post_purchase_return(argument::<
+                sornio_local_store::purchasing::PostPurchaseReturn,
+            >(a, "r")?)?)?
+        }
+        // hub_control and hub_import_tls are native-runtime commands: they drive the hub
+        // listener and the OS file dialog, so there is no store-level equivalent to call.
+        // hub_control's real handler performs verify_scope followed by a Settings require, and
+        // this arm mirrors exactly that pair rather than inventing a weaker check.
+        "hub_control" => {
+            w.verify_scope(&argument::<Scope>(a, "scope")?)?;
+            w.require(sornio_local_store::identity::Permission::Settings)?;
+            Value::Null
+        }
+        "hub_import_tls" => {
+            w.require(sornio_local_store::identity::Permission::Settings)?;
+            Value::Null
+        }
         _ => return Err(StoreError::InvalidInvoice),
     })
 }
@@ -274,11 +447,37 @@ fn main() {
     let path = std::env::args_os()
         .nth(1)
         .expect("Synthetic review database path required");
-    let store = Store::open(
-        std::path::Path::new(&path),
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    )
-    .unwrap();
+    // Two key sources, and they are deliberately not interchangeable.
+    //
+    // Without `SORNIO_REVIEW_DEVICE_DIR` this fixture opens a scratch database
+    // under a hard-coded synthetic key, exactly as it always has.
+    //
+    // With it, the fixture opens the *installed application's own* workspace
+    // through the same `device::initialize` entry point the shipped binary
+    // calls, so the OS credential store supplies the real device key. That is
+    // what lets a post-run audit assert the bytes the installed product wrote
+    // rather than the product's own rendering of them. The path argument is
+    // unused in that mode and the synthetic key is never used, so a real
+    // database can never be opened with a known key.
+    let store = match std::env::var_os("SORNIO_REVIEW_DEVICE_DIR") {
+        Some(directory) => {
+            eprintln!(
+                "bridge: opening the installed application's workspace via the OS credential store"
+            );
+            match sornio_local_store::device::initialize(std::path::Path::new(&directory)) {
+                Ok(store) => store,
+                Err(message) => {
+                    eprintln!("bridge: the installed workspace could not be opened: {message}");
+                    std::process::exit(3);
+                }
+            }
+        }
+        None => Store::open(
+            std::path::Path::new(&path),
+            "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        )
+        .unwrap(),
+    };
     let mut workspace = Workspace::new(store);
     for line in io::stdin().lock().lines() {
         let input: Call = serde_json::from_str(&line.unwrap()).unwrap();
@@ -287,6 +486,9 @@ fn main() {
             Err(error) => {
                 let code = match error {
                     StoreError::Locked => "locked",
+                    StoreError::HeldBillConflict => "held_bill_conflict",
+                    StoreError::InvalidHeldBill => "invalid_held_bill",
+                    StoreError::HeldBillLimit => "held_bill_limit",
                     StoreError::InvoiceMissing => "invoice_missing",
                     StoreError::InvalidBackup => "invalid_backup",
                     StoreError::BackupStorage => "backup_storage",
@@ -323,6 +525,17 @@ fn main() {
                     | StoreError::InvalidStock
                     | StoreError::ProductMissing
                     | StoreError::CatalogFull => "invalid_product",
+                    StoreError::InvalidSupplier => "invalid_supplier",
+                    StoreError::SupplierMissing => "supplier_missing",
+                    StoreError::SupplierConflict => "supplier_conflict",
+                    StoreError::InvalidPurchaseOrder => "invalid_purchase_order",
+                    StoreError::PurchaseOrderMissing => "purchase_order_missing",
+                    StoreError::PurchaseOrderConflict => "purchase_order_conflict",
+                    StoreError::InvalidPurchase => "invalid_purchase",
+                    StoreError::OrderState => "order_state",
+                    StoreError::InvalidReceipt => "invalid_receipt",
+                    StoreError::InvalidPayable => "invalid_payable",
+                    StoreError::InvalidReturn => "invalid_return",
                     StoreError::OperationConflict => "operation_conflict",
                     _ => "workspace_error",
                 };

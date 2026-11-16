@@ -1,0 +1,19 @@
+   Compiling sornio-local-store v0.1.0 (/workspace/scratch/c4af9d6a6718/Sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.35s
+     Running unittests src/lib.rs (packages/local-store/target/debug/build/sornio-local-store/dea834e010448577/out/sornio_local_store-dea834e010448577)
+
+running 1 test
+
+thread 'purchasing::tests::phase22_reversed_allocated_payment_can_be_replaced_without_overpayment' (294) panicked at src/purchasing_tests.rs:51:14:
+called `Result::unwrap()` on an `Err` value: Overpayment
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test purchasing::tests::phase22_reversed_allocated_payment_can_be_replaced_without_overpayment ... FAILED
+
+failures:
+
+failures:
+    purchasing::tests::phase22_reversed_allocated_payment_can_be_replaced_without_overpayment
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 320 filtered out; finished in 0.82s
+
+error: test failed, to rerun pass `--lib`

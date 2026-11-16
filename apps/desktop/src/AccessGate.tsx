@@ -47,7 +47,7 @@ export function AccessGate({ children }: { children: (onLocked: (detail?: string
     invoke<AccessStatus>('workspace_access_status').then((status) => {
       if (current) setAccess(status);
     }).catch((error: unknown) => {
-      if (current) setMessage(errorMessage(error, 'Local access could not be opened. Keep the original database and Windows profile.'));
+      if (current) setMessage(errorMessage(error, 'Local access could not be opened. Keep the original database and device profile.'));
     });
     return () => { current = false; };
   }, [native, retry]);
@@ -81,8 +81,8 @@ export function AccessGate({ children }: { children: (onLocked: (detail?: string
     <section className="access-card" aria-labelledby="access-title">
       <div className="wordmark"><img className="brand-mark" src={brandIcon} alt="" width={38} height={38}/>Sornio</div>
       <p className="eyebrow">LOCAL WINDOWS WORKSPACE</p>
-      <h1 id="access-title">{!native ? 'Installed app required' : !access ? message ? 'Let’s reopen safely.' : 'Opening local access…' : setup ? 'Make this PC yours.' : 'Welcome back.'}</h1>
-      <p className="access-intro">{!native ? 'Open the installed Windows app to use this workspace.' : !access ? 'Your original files stay on this PC.' : setup ? 'Set up your business and its owner account on this PC.' : 'Enter your account name and password. Existing review owners use account name owner.'}</p>
+      <h1 id="access-title">{!native ? 'Installed app required' : !access ? message ? 'Let’s reopen safely.' : 'Opening local access…' : setup ? 'Make this device yours.' : 'Welcome back.'}</h1>
+      <p className="access-intro">{!native ? 'Open the installed desktop app to use this workspace.' : !access ? 'Your original files stay on this device.' : setup ? 'Set up your business and its owner account on this device.' : 'Enter your account name and password. Existing review owners use account name owner.'}</p>
       {message ? <p className="access-error" role="alert">{message}</p> : null}
       {native && access ? <form onSubmit={(event) => void submit(event)}>
         <fieldset disabled={busy || recoveryBusy}>
@@ -91,7 +91,7 @@ export function AccessGate({ children }: { children: (onLocked: (detail?: string
             <label htmlFor="setup-type">Business type for setup</label><select id="setup-type" value={businessType} onChange={e => setBusinessType(e.target.value)}>{['general','kirana','cafe','gym','salon','electronics','boutique','service'].map(type => <option key={type} value={type}>{type}</option>)}</select>
             <label htmlFor="owner-name">Owner name</label><input id="owner-name" maxLength={80} required value={displayName} onChange={e => setDisplayName(e.target.value)}/>
           </> : null}
-          <label htmlFor="account-name">Account name</label><input id="account-name" autoComplete="username" maxLength={80} pattern="[A-Za-z0-9_-]+" required value={username} onChange={e => setUsername(e.target.value)}/>
+          <label htmlFor="account-name">Account name</label><input id="account-name" autoComplete="username" maxLength={80} pattern={'[A-Za-z0-9_\\-]+'} required value={username} onChange={e => setUsername(e.target.value)}/>
           <label htmlFor="local-password">Local password</label>
           <input id="local-password" type="password" autoComplete={setup ? 'new-password' : 'current-password'} autoFocus minLength={setup ? 10 : undefined} maxLength={128} required value={password} onChange={(e) => setPassword(e.target.value)}/>
           {setup ? <><label htmlFor="confirm-password">Confirm password</label><input id="confirm-password" type="password" autoComplete="new-password" maxLength={128} required value={confirm} onChange={(e) => setConfirm(e.target.value)}/><p className="access-hint">Use 10–128 characters. Keep this password safe: password recovery is not available in this review.</p></> : null}

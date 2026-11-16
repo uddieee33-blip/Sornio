@@ -40,7 +40,13 @@ export const MODULE_KEYS = [
 ] as const;
 export type ModuleKey = (typeof MODULE_KEYS)[number];
 
-export const SCREEN_IDS = ['home', 'activity', 'inventory', 'customers', 'settings'] as const;
+/**
+ * `purchasing` is Phase 21B. It is offered only where the portal sells stock and
+ * the role holds the supplier-read permission; the screen itself is authorised
+ * again by the hub on every read, so this list is a navigation hint and never a
+ * grant.
+ */
+export const SCREEN_IDS = ['home', 'activity', 'inventory', 'customers', 'purchasing', 'settings'] as const;
 export type ScreenId = (typeof SCREEN_IDS)[number];
 
 export type FeatureRow = {
@@ -103,7 +109,14 @@ export const FEATURE_MATRIX: FeatureRow[] = [
   row('memberships', 'R', 'Gym/salon plan overview. Enrolment writes stay desktop.'),
   row('reminders', 'P', 'Manual SMS drafts remain on web/desktop.'),
   row('customers', 'R', 'Balances and statements. Credit writes stay desktop.'),
-  row('suppliers', 'P', 'Supplier payables are not in Phase 1 screens.'),
+  /**
+   * Phase 21B: the companion now has a real supplier destination backed by the
+   * native hub. `L` is deliberate — the phone raises orders, receives goods,
+   * records payments and takes returns through the authenticated hub, but the
+   * hub is the only writer and it authorises every operation by role. There is
+   * still no independent mobile purchasing ledger.
+   */
+  row('suppliers', 'L', 'Suppliers, purchase orders, goods receiving, payables and returns over the authenticated shop hub. Every write is authorised and journalled by the native hub; the phone holds no purchasing ledger of its own.'),
   row('team', 'R', 'Staff overview on Settings. Invites stay desktop.'),
   row('cashflow', 'R', 'Summary tiles. No closing or float correction.'),
   row('profitability', 'R', 'Read-only profitability figures when synchronized.'),
@@ -131,6 +144,7 @@ const SCREEN_MODULE: Record<ScreenId, ModuleKey> = {
   activity: 'transactions',
   inventory: 'inventory',
   customers: 'customers',
+  purchasing: 'suppliers',
   settings: 'settings',
 };
 
@@ -139,6 +153,7 @@ const SCREEN_PERMISSION: Record<ScreenId, Permission> = {
   activity: 'sales.view',
   inventory: 'products.view',
   customers: 'customers.view',
+  purchasing: 'products.view',
   settings: 'business.view',
 };
 

@@ -29,7 +29,7 @@ rail + list/detail layout rather than a stretched phone UI.
 | memberships | F | R | R | R | all | yes | yes | hybrid-sync-v1 | Overview |
 | reminders | F | P | P | P | all | no | no | missing | Desktop/web drafts |
 | customers | F | R | R | R | all | yes | yes | hybrid-sync-v1 | Balances / statements |
-| suppliers | F | P | P | P | all | no | no | missing | Phase 4 |
+| suppliers | F | L | L | L | owner, manager, assistant | yes | yes | hub-purchasing-v1 | Phase 21B. Orders, receiving, payments, returns over the authenticated hub; the hub authorises and journals every write |
 | team | F | R | R | R | all | yes | yes | hybrid-sync-v1 | Settings overview |
 | cashflow | F | R | R | R | all | yes | yes | hybrid-sync-v1 | Summary |
 | profitability | F | R | R | R | all | yes | yes | hybrid-sync-v1 | Summary |

@@ -1,0 +1,10 @@
+# Schema sources are embedded with include_str! and stored verbatim in
+# sqlite_schema, so their exact bytes are data, not formatting.
+#
+# With core.autocrlf enabled - the Windows default - a checkout rewrites those
+# files to CRLF. A database created by that build then records \r\n inside every
+# multi-line CREATE TABLE, which changed the frozen v11 schema comparison and made
+# two migration tests fail on Windows while passing on macOS and Linux. Pinning LF
+# keeps the schema a build produces identical on every platform. Only *.sql is
+# pinned: no other embedded file has byte-significant line endings here.
+*.sql text eol=lf

@@ -32,6 +32,39 @@ impl Workspace {
     pub(crate) fn store_for_test(&self) -> &Store {
         &self.store
     }
+    /// Test-only aliases so the Phase 21B purchasing protocol suite can drive the
+    /// same public surfaces the desktop IPC and the hub router do, without
+    /// widening production visibility for any of them.
+    #[cfg(test)]
+    pub(crate) fn hub_configure_for_test(
+        &mut self,
+        enabled: bool,
+        tls: Option<(String, String)>,
+    ) -> Result<(), StoreError> {
+        self.hub_configure(enabled, tls)
+    }
+    #[cfg(test)]
+    pub(crate) fn hub_admin_for_test(&self) -> Result<serde_json::Value, StoreError> {
+        self.hub_admin()
+    }
+    #[cfg(test)]
+    pub(crate) fn hub_device_for_test(
+        &mut self,
+        id: &str,
+        revision: i64,
+        actor: Option<&str>,
+    ) -> Result<(), StoreError> {
+        self.hub_device(id, revision, actor)
+    }
+    #[cfg(test)]
+    pub(crate) fn local_session_for_test(&self) -> Option<crate::identity::LocalSession> {
+        self.local_session().ok()
+    }
+    /// Reads the desktop idle clock without making the field itself reachable.
+    #[cfg(test)]
+    pub(crate) fn idle_clock_for_test(&self) -> std::time::Instant {
+        self.last_activity.get()
+    }
     /// Native enrollment only; no renderer or listener command is registered yet.
     pub fn enroll_lan_device(
         &mut self,
@@ -690,6 +723,10 @@ impl Workspace {
         self.require(Permission::ManageCustomers)?;
         self.store.save_customer(r)
     }
+    pub fn read_customer(&self, id: &str) -> Result<crate::customers::Customer, StoreError> {
+        self.require(Permission::CustomerRead)?;
+        self.store.read_customer(id)
+    }
     pub fn find_customers(
         &self,
         search: &str,
@@ -753,6 +790,158 @@ impl Workspace {
         self.require(Permission::CustomerRead)?;
         self.store.print_customer_statement(id, through)
     }
+    pub fn save_supplier(
+        &mut self,
+        r: crate::purchasing::SaveSupplier,
+    ) -> Result<crate::purchasing::Supplier, StoreError> {
+        self.require(Permission::ManageSuppliers)?;
+        self.store.save_supplier(r)
+    }
+    pub fn find_suppliers(
+        &self,
+        search: &str,
+        include_archived: bool,
+    ) -> Result<Vec<crate::purchasing::Supplier>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.find_suppliers(search, include_archived)
+    }
+    pub fn supplier_duplicates(
+        &self,
+        name: &str,
+        phone: Option<&str>,
+        gstin: Option<&str>,
+    ) -> Result<Vec<crate::purchasing::Supplier>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.supplier_duplicates(name, phone, gstin)
+    }
+    pub fn supplier_statement(
+        &self,
+        id: &str,
+        after: i64,
+        through: Option<i64>,
+    ) -> Result<crate::purchasing::SupplierStatement, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.supplier_statement(id, after, through)
+    }
+    pub fn list_purchase_returns(
+        &self,
+        supplier_id: &str,
+    ) -> Result<Vec<crate::purchasing::PurchaseReturn>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.list_purchase_returns(supplier_id)
+    }
+    pub fn create_purchase_order(
+        &mut self,
+        r: crate::purchasing::CreatePurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ManagePurchaseOrders)?;
+        self.store.create_purchase_order(r)
+    }
+    pub fn update_purchase_order(
+        &mut self,
+        r: crate::purchasing::UpdatePurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ManagePurchaseOrders)?;
+        self.store.update_purchase_order(r)
+    }
+    pub fn get_purchase_order(
+        &self,
+        id: &str,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.get_purchase_order(id)
+    }
+    pub fn find_purchase_orders(
+        &self,
+        search: &str,
+        status: &str,
+        supplier_id: &str,
+    ) -> Result<Vec<crate::purchasing::PurchaseOrderSummary>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.find_purchase_orders(search, status, supplier_id)
+    }
+    pub fn submit_purchase_order(
+        &mut self,
+        r: crate::purchasing::TransitionPurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ManagePurchaseOrders)?;
+        self.store.submit_purchase_order(r)
+    }
+    pub fn decide_purchase_order(
+        &mut self,
+        r: crate::purchasing::DecidePurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ApprovePurchaseOrder)?;
+        self.store.decide_purchase_order(r)
+    }
+    pub fn cancel_purchase_order(
+        &mut self,
+        r: crate::purchasing::TransitionPurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        let current = self.store.get_purchase_order(&r.id)?;
+        self.require(if current.status == "approved" {
+            Permission::ApprovePurchaseOrder
+        } else {
+            Permission::ManagePurchaseOrders
+        })?;
+        self.store.cancel_purchase_order(r)
+    }
+    pub fn close_purchase_order(
+        &mut self,
+        r: crate::purchasing::TransitionPurchaseOrder,
+    ) -> Result<crate::purchasing::PurchaseOrder, StoreError> {
+        self.require(Permission::ApprovePurchaseOrder)?;
+        self.store.close_purchase_order(r)
+    }
+    pub fn post_goods_receipt(
+        &mut self,
+        r: crate::purchasing::PostGoodsReceipt,
+    ) -> Result<crate::purchasing::GoodsReceipt, StoreError> {
+        self.require(Permission::ReceiveStock)?;
+        self.store.post_goods_receipt(r)
+    }
+    pub fn list_goods_receipts(
+        &self,
+        order_id: &str,
+    ) -> Result<Vec<crate::purchasing::GoodsReceipt>, StoreError> {
+        self.require(Permission::SupplierRead)?;
+        self.store.list_goods_receipts(order_id)
+    }
+    pub fn post_supplier_invoice(
+        &mut self,
+        r: crate::purchasing::PostSupplierInvoice,
+    ) -> Result<crate::purchasing::SupplierInvoice, StoreError> {
+        self.require(Permission::PaySuppliers)?;
+        self.store.post_supplier_invoice(r)
+    }
+    pub fn post_supplier_payment(
+        &mut self,
+        r: crate::purchasing::PostSupplierPayment,
+    ) -> Result<crate::purchasing::SupplierPayment, StoreError> {
+        self.require(Permission::PaySuppliers)?;
+        self.store.post_supplier_payment(r)
+    }
+    pub fn post_supplier_opening(
+        &mut self,
+        r: crate::purchasing::PostSupplierOpening,
+    ) -> Result<crate::purchasing::SupplierReceipt, StoreError> {
+        self.require(Permission::CorrectPayables)?;
+        self.store.post_supplier_opening(r)
+    }
+    pub fn reverse_supplier_entry(
+        &mut self,
+        r: crate::purchasing::ReverseSupplierEntry,
+    ) -> Result<crate::purchasing::SupplierReceipt, StoreError> {
+        self.require(Permission::CorrectPayables)?;
+        self.store.reverse_supplier_entry(r)
+    }
+    pub fn post_purchase_return(
+        &mut self,
+        r: crate::purchasing::PostPurchaseReturn,
+    ) -> Result<crate::purchasing::PurchaseReturn, StoreError> {
+        self.require(Permission::Refund)?;
+        self.store.post_purchase_return(r)
+    }
     pub fn prepare_retail(&mut self, r: crate::payments::Request) -> Result<(), StoreError> {
         self.require(r.action.permission())?;
         self.store.prepare_retail(r)
@@ -792,6 +981,110 @@ impl Workspace {
     pub fn takeover_payment(&mut self, id: &str, why: &str) -> Result<String, StoreError> {
         self.require(Permission::Settings)?;
         self.store.takeover_payment(id, why)
+    }
+    pub fn kitchen_view(&self) -> Result<crate::kitchen::Document, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.kitchen_view()
+    }
+    pub fn kitchen_action(
+        &mut self,
+        a: crate::kitchen::Action,
+    ) -> Result<crate::kitchen::Document, StoreError> {
+        self.require(Permission::KitchenView)?;
+        self.store.kitchen_action(a)
+    }
+    pub fn restaurant_workspace(&self) -> Result<crate::kitchen::Document, StoreError> {
+        self.require(Permission::KitchenView)?;
+        self.store.restaurant_workspace()
+    }
+    pub fn restaurant_status(
+        &self,
+        order: String,
+    ) -> Result<Option<crate::restaurant_recovery::Status>, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.restaurant_status(&order)
+    }
+    pub fn edit_restaurant(
+        &mut self,
+        order: String,
+        expected: i64,
+    ) -> Result<crate::restaurant_recovery::Status, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.edit_restaurant(&order, expected)
+    }
+    pub fn amend_restaurant(
+        &mut self,
+        r: crate::restaurant_recovery::Amendment,
+    ) -> Result<crate::restaurant_recovery::Status, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.amend_restaurant(r)
+    }
+    pub fn takeover_restaurant(
+        &mut self,
+        order: String,
+        expected: i64,
+        target: String,
+    ) -> Result<crate::restaurant_recovery::Status, StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.takeover_restaurant(&order, expected, &target)
+    }
+    pub fn restaurant_menu(&self) -> Result<Vec<crate::restaurant_checkout::Menu>, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.restaurant_menu()
+    }
+    pub fn save_restaurant_menu(
+        &mut self,
+        m: crate::restaurant_checkout::Menu,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.save_restaurant_menu(m)
+    }
+    pub fn prepare_restaurant(
+        &mut self,
+        r: crate::restaurant_checkout::Prepare,
+    ) -> Result<crate::payments::Request, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.prepare_restaurant(r)
+    }
+    pub fn post_restaurant(
+        &mut self,
+        order: String,
+        attempt: String,
+    ) -> Result<crate::payments::Receipt, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.post_restaurant(&order, &attempt)
+    }
+    pub fn restaurant_view(&self) -> Result<crate::restaurant::View, StoreError> {
+        self.require(Permission::KitchenView)?;
+        self.store.restaurant_view()
+    }
+    pub fn restaurant_action(&mut self, r: crate::restaurant::Request) -> Result<(), StoreError> {
+        self.require(
+            if matches!(&r.action, crate::restaurant::Action::SetTicketState { .. }) {
+                Permission::KitchenPrepare
+            } else {
+                Permission::Sell
+            },
+        )?;
+        self.store.restaurant_action(r)
+    }
+    pub fn list_held_bills(&self) -> Result<Vec<crate::held_bills::Bill>, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.list_held_bills()
+    }
+    pub fn mutate_held_bill(
+        &mut self,
+        r: crate::held_bills::Mutation,
+    ) -> Result<crate::held_bills::Resumed, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.mutate_held_bill(r)
+    }
+    pub fn prepare_held_checkout(
+        &mut self,
+        r: crate::held_bills::Prepare,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.prepare_held_checkout(r)
     }
     pub fn prepare_checkout(
         &mut self,
@@ -981,3 +1274,275 @@ mod tests;
 #[cfg(test)]
 #[path = "credential_tests.rs"]
 mod credential_tests;
+
+impl Workspace {
+    pub fn hub_admin(&self) -> Result<crate::hub::Document, StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_admin()
+    }
+    pub fn hub_configure(
+        &mut self,
+        enabled: bool,
+        tls: Option<(String, String)>,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_configure(enabled, tls)
+    }
+    /// TLS material never crosses renderer IPC. The native listener consumes this directly.
+    pub fn hub_tls(&self) -> Result<(String, String), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_tls()
+    }
+    pub fn hub_device(
+        &mut self,
+        id: &str,
+        revision: i64,
+        actor: Option<&str>,
+    ) -> Result<(), StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.hub_device(id, revision, actor)
+    }
+    pub fn hub_batches(&self) -> Result<crate::hub::Document, StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.hub_batches()
+    }
+    pub fn hub_dispatch(&mut self, id: &str, revision: i64) -> Result<(), StoreError> {
+        self.require(Permission::Sell)?;
+        self.store.hub_dispatch(id, revision)
+    }
+    /// Called only by the native HTTPS listener. No financial route exists. Session swaps are
+    /// confined to the same native mutex and restored even when authentication is refused.
+    pub fn hub_request(
+        &mut self,
+        path: &str,
+        bearer: &str,
+        body: crate::hub::Document,
+    ) -> Result<crate::hub::Document, StoreError> {
+        self.authorize(Permission::View)?; // A locked/idle desktop does not serve mobile operations.
+        let enabled: bool = self.store.0.query_row(
+            "SELECT enabled FROM local_hub_config WHERE singleton=1",
+            [],
+            |q| q.get(0),
+        )?;
+        if !enabled {
+            return Err(StoreError::Forbidden);
+        }
+        if body["version"].as_u64() != Some(1) {
+            return Ok(serde_json::json!({"error":"unsupported_version","supported":[1]}));
+        }
+        if path == "/v1/identity" {
+            return self.store.hub_identity();
+        }
+        let identity = self.store.hub_identity()?;
+        if body["businessId"] != identity["businessId"] || body["hubId"] != identity["hubId"] {
+            return Err(StoreError::WorkspaceMismatch);
+        }
+        if path == "/v1/enrol" {
+            return self.store.hub_enroll(body);
+        }
+        let desktop = self.store.1.take();
+        let activity = self.last_activity.get();
+        let result = (|| {
+            if path == "/v1/session" {
+                let device = body["deviceId"]
+                    .as_str()
+                    .ok_or(StoreError::InvalidIdentity)?;
+                let username = body["username"]
+                    .as_str()
+                    .ok_or(StoreError::InvalidIdentity)?;
+                let password = body["password"]
+                    .as_str()
+                    .ok_or(StoreError::InvalidPassword)?;
+                let actor = self.store.hub_prelogin(device, bearer)?;
+                self.login(username, password)?;
+                if self.store.1.as_ref().map(|s| s.actor_id.as_str()) != Some(actor.as_str()) {
+                    return Err(StoreError::Forbidden);
+                }
+                return self.store.hub_session(device, bearer);
+            }
+            let (session, device) = self.store.hub_authenticate(bearer)?;
+            self.store.1 = Some(session);
+            if matches!(path, "/v1/submit" | "/v1/kitchen-state") {
+                if let Some(id) = body["operationId"].as_str() {
+                    if self.store.0.query_row(
+                        "SELECT EXISTS(SELECT 1 FROM local_kitchen_assignment_ops WHERE id=?1)",
+                        [id],
+                        |q| q.get::<_, bool>(0),
+                    )? {
+                        return Err(StoreError::OperationConflict);
+                    }
+                }
+            }
+            match path {
+                "/v1/kitchen-assign" => {
+                    let r: crate::assignment_recovery::Request = serde_json::from_value(body)?;
+                    if r.responsibility.is_some() || r.session_handle.is_some() {
+                        return Err(StoreError::Forbidden);
+                    }
+                    self.store.assignment_execute(&device, r, Some(bearer))
+                }
+                "/v1/staff-responsibility" => {
+                    let r: crate::assignment_recovery::Request = serde_json::from_value(body)?;
+                    if r.responsibility.is_none() || r.session_handle.is_some() {
+                        return Err(StoreError::InvalidDraft);
+                    }
+                    self.store.assignment_execute(&device, r, Some(bearer))
+                }
+                "/v1/assignment-operation" => self.store.assignment_status(
+                    &format!("lan:{device}"),
+                    body["operationId"]
+                        .as_str()
+                        .ok_or(StoreError::InvalidDraft)?,
+                ),
+                "/v1/session-signout" => {
+                    let r: crate::assignment_recovery::Request = serde_json::from_value(body)?;
+                    if r.session_handle.is_none() {
+                        return Err(StoreError::InvalidDraft);
+                    }
+                    self.store.assignment_execute(&device, r, Some(bearer))
+                }
+                "/v1/security-history" => self
+                    .store
+                    .security_history(serde_json::from_value(body["query"].clone())?),
+                "/v1/staff-access" => self
+                    .store
+                    .staff_access(serde_json::from_value(body["query"].clone())?),
+                "/v1/kitchen-history" => self
+                    .store
+                    .kitchen_history(serde_json::from_value(body["query"].clone())?),
+                "/v1/workspace" => self.store.restaurant_workspace(),
+                "/v1/kitchen-state" => {
+                    let r = serde_json::from_value(body)?;
+                    self.store.hub_kitchen(&device, r, bearer)
+                }
+                "/v1/submit" => {
+                    let r = serde_json::from_value(body)?;
+                    self.store.hub_submit(&device, r, bearer)
+                }
+                "/v1/operation" => self.store.hub_operation(
+                    &device,
+                    body["operationId"]
+                        .as_str()
+                        .ok_or(StoreError::InvalidDraft)?,
+                ),
+                // --- Phase 21B: mobile purchasing ---------------------------------
+                // Every route below is authenticated by the same device session
+                // the restaurant routes use. `purchasing_workspace` additionally
+                // requires `SupplierRead`, and each write re-runs the native
+                // `guard` on the Phase 21A method it delegates to, so a role that
+                // lost its permission between the read and the write is refused
+                // at the boundary rather than by a hidden button.
+                "/v1/purchasing/workspace" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    // A workspace read must never carry an authority the caller
+                    // claims for itself. Two independent checks are needed and both
+                    // are here: the request must not name an actor (that would let a
+                    // phone assert an identity), and the supplier read is verified
+                    // against the session the hub itself authenticated.
+                    if body.get("actorId").is_some() || body.get("role").is_some() {
+                        return Err(StoreError::Forbidden);
+                    }
+                    self.store.purchasing_workspace()
+                }
+                "/v1/purchasing/order" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    self.store
+                        .purchasing_order(body["orderId"].as_str().ok_or(StoreError::InvalidDraft)?)
+                }
+                "/v1/purchasing/statement" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    self.store.purchasing_statement(
+                        body["supplierId"]
+                            .as_str()
+                            .ok_or(StoreError::InvalidDraft)?,
+                        body["after"].as_i64().unwrap_or(0),
+                        body["through"].as_i64(),
+                    )
+                }
+                "/v1/purchasing/submit" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    self.store.purchasing_submit(
+                        &device,
+                        body["operationId"]
+                            .as_str()
+                            .ok_or(StoreError::InvalidIdentity)?,
+                        &body,
+                    )
+                }
+                "/v1/purchasing/operation" => {
+                    crate::purchasing_hub::envelope(&body)?;
+                    // This is authorised by the device session that the rest of the
+                    // hub already authenticated above, exactly like `/v1/operation`.
+                    // A lost-acknowledgement recovery read is the one moment the
+                    // phone must not be told "unknown"; the journal row is scoped to
+                    // that device and employee, so revoking either still refuses it,
+                    // and a `not_found` answer never authorises a write on its own.
+                    crate::purchasing_hub::operation_status(&self.store, &device, &body)
+                }
+                _ => Err(StoreError::Forbidden),
+            }
+        })();
+        self.store.1 = desktop;
+        self.last_activity.set(activity);
+        result
+    }
+}
+
+impl Workspace {
+    /// Passive polling must not renew either renderer idle authority or staff tokens.
+    pub fn verify_live_scope(&self, scope: &Scope) -> Result<(), StoreError> {
+        self.authorize(Permission::View)?;
+        if &identity::scope(&self.store.0)? != scope {
+            return Err(StoreError::WorkspaceMismatch);
+        }
+        Ok(())
+    }
+    pub fn restaurant_live(&self) -> Result<crate::hub::Document, StoreError> {
+        self.authorize(Permission::KitchenView)?;
+        self.store.restaurant_workspace()
+    }
+    pub fn hub_live(&self) -> Result<crate::hub::Document, StoreError> {
+        self.authorize(Permission::Settings)?;
+        self.store.hub_admin()
+    }
+}
+#[cfg(test)]
+mod live_poll_tests {
+    use super::*;
+    #[test]
+    fn passive_reads_do_not_extend_desktop_idle_authority() {
+        let mut w = Workspace::new(
+            Store::open(
+                std::path::Path::new(":memory:"),
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            )
+            .unwrap(),
+        );
+        w.setup("Synthetic live polling password").unwrap();
+        let before = w.last_activity.get();
+        let scope = w.local_session().unwrap().scope;
+        w.verify_live_scope(&scope).unwrap();
+        w.restaurant_live().unwrap();
+        w.hub_live().unwrap();
+        assert_eq!(w.last_activity.get(), before);
+    }
+    #[test]
+    fn expired_desktop_is_not_revived_by_live_scope_checks() {
+        let mut w = Workspace::new(
+            Store::open(
+                std::path::Path::new(":memory:"),
+                "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+            )
+            .unwrap(),
+        );
+        w.setup("Synthetic live polling password").unwrap();
+        let scope = w.local_session().unwrap().scope;
+        w.last_activity
+            .set(Instant::now() - Duration::from_secs(901));
+        assert!(matches!(
+            w.verify_live_scope(&scope),
+            Err(StoreError::Locked)
+        ));
+        assert!(matches!(w.restaurant_live(), Err(StoreError::Locked)));
+    }
+}

@@ -6,22 +6,48 @@ use std::{path::Path, time::Duration};
 use thiserror::Error;
 
 pub mod access;
+pub mod assignment_recovery;
 pub mod billing;
 pub mod catalog;
 pub mod checkout;
 pub mod customers;
+pub mod held_bills;
+pub mod hub;
 pub mod identity;
 pub mod inventory_recovery;
+pub mod kitchen;
+pub mod kitchen_history;
+mod kitchen_staff;
 pub mod lan_authority;
 pub mod payments;
+pub mod purchasing;
+mod purchasing_hub;
 pub mod recovery;
 pub mod replication;
+mod responsibility_access;
+pub mod restaurant;
+pub mod restaurant_checkout;
+pub mod restaurant_recovery;
+#[cfg(test)]
+mod schema_rollback;
+pub mod security_history;
+mod session_signout;
+pub mod staff_access;
 
-#[cfg(windows)]
+#[cfg(test)]
+mod phase22_reliability_tests;
+
+#[cfg(any(windows, target_os = "macos"))]
 pub mod device;
 
 #[derive(Debug, Error)]
 pub enum StoreError {
+    #[error("This held bill changed or is already in checkout. Refresh checkout and held bills before continuing.")]
+    HeldBillConflict,
+    #[error("This held bill cannot be read safely. Check its items and amounts; keep the original database for recovery.")]
+    InvalidHeldBill,
+    #[error("You have 100 held bills. Resume or discard one before saving another.")]
+    HeldBillLimit,
     #[error("That saved invoice could not be found. Check its ID and reopen the receipt.")]
     InvoiceMissing,
     #[error("The encrypted backup could not be read or written. Keep the original files.")]
@@ -48,12 +74,36 @@ pub enum StoreError {
     DayClosed,
     #[error("This account has adjusted credit history. Automatic credit returns are unavailable; review an explicit accounting and stock correction.")]
     ComplexCreditReturn,
+    #[error("Check the supplier name, phone, tax identity and payment terms.")]
+    InvalidSupplier,
+    #[error("That supplier could not be found. Reload suppliers before continuing.")]
+    SupplierMissing,
+    #[error("This supplier's details changed. Refresh before continuing.")]
+    SupplierConflict,
+    #[error("Check the purchase order lines, quantities and costs.")]
+    InvalidPurchaseOrder,
+    #[error("That purchase order could not be found. Reload orders before continuing.")]
+    PurchaseOrderMissing,
+    #[error("This purchase order changed. Refresh it before continuing.")]
+    PurchaseOrderConflict,
+    #[error("That action is not allowed at the order's current state.")]
+    OrderState,
+    #[error("Check the receipt quantities against what was ordered.")]
+    InvalidReceipt,
+    #[error("Check the supplier invoice, reference, amount and due date.")]
+    InvalidPayable,
+    #[error("Check the return quantities against what was received.")]
+    InvalidReturn,
+    #[error("Check the supplier, order, receipt, invoice and payment details.")]
+    InvalidPurchase,
     #[error("The local database could not be opened or saved. Keep the original files and retry.")]
     Database(#[from] rusqlite::Error),
     #[error("The database encryption key is invalid.")]
     InvalidKey,
     #[error("Encrypted SQLite support is unavailable. No data was saved.")]
     EncryptionUnavailable,
+    #[error("This database was created by an unreleased purchasing preview and does not match this version. Keep the original file and restore from a backup made before that preview, or export it from the matching build.")]
+    ExperimentalSchema,
     #[error("This database needs a newer Sornio version.")]
     NewerSchema,
     #[error("Another window changed this draft. Reopen it before saving again.")]
@@ -147,7 +197,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 12;
+const SCHEMA_VERSION: i64 = 23;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -253,6 +303,39 @@ impl Store {
             }
             if locked_version < 12 {
                 lan_authority::migrate(&tx)?;
+            }
+            if locked_version < 13 {
+                held_bills::migrate(&tx)?;
+            }
+            if locked_version < 14 {
+                restaurant::migrate(&tx)?;
+            }
+            if locked_version < 15 {
+                restaurant_checkout::migrate(&tx)?;
+            }
+            if locked_version < 16 {
+                restaurant_recovery::migrate(&tx)?;
+            }
+            if locked_version < 17 {
+                kitchen::migrate(&tx)?;
+            }
+            if locked_version < 18 {
+                hub::migrate(&tx)?;
+            }
+            if locked_version < 19 {
+                kitchen_staff::migrate(&tx)?;
+            }
+            if locked_version < 20 {
+                assignment_recovery::migrate(&tx)?;
+            }
+            if locked_version < 21 {
+                responsibility_access::migrate(&tx)?;
+            }
+            if locked_version < 22 {
+                session_signout::migrate(&tx)?;
+            }
+            if locked_version < 23 {
+                purchasing::migrate(&tx)?;
             }
             tx.commit()?;
         }
@@ -521,6 +604,7 @@ mod tests {
             let mut old = Store::open(&path, KEY).unwrap();
             old.save(0, draft()).unwrap();
             crate::lan_authority::remove_fixture_tables(&old.0);
+            crate::schema_rollback::drop_post_v11_tables(&old.0);
             old.0
                 .execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();

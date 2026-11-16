@@ -294,7 +294,7 @@ fn overdue(db: &Connection, id: &str) -> Result<i128, StoreError> {
     }
     Ok(total)
 }
-fn customer(db: &Connection, id: &str) -> Result<Customer, StoreError> {
+pub(crate) fn customer(db: &Connection, id: &str) -> Result<Customer, StoreError> {
     if !valid_id(id) {
         return Err(StoreError::InvalidCustomer);
     }
@@ -430,6 +430,11 @@ pub(crate) fn post_sale(
     }
     crate::payments::unclaimed(tx, &invoice.id)?;
     if invoice.tender != Tender::Credit {
+        // A cash invoice may identify an existing customer without creating a
+        // credit entry. Refuse stale or forged customer IDs in this transaction.
+        if let Some(customer_id) = invoice.customer_id.as_deref() {
+            customer(tx, customer_id)?;
+        }
         return Ok(());
     }
     let id = invoice
@@ -484,6 +489,13 @@ pub(crate) fn post_split_credit(
     customer_id: &str,
     amount: i64,
 ) -> Result<(), StoreError> {
+    // Unlike historical credit-only migration, a split sale must always have
+    // a live seller session and an existing customer in this workspace.
+    identity::verify(
+        tx,
+        session.as_ref().ok_or(StoreError::Locked)?,
+        Permission::Sell,
+    )?;
     if !(1..=MAX_VALUE).contains(&amount) || amount > invoice.total_paise {
         return Err(StoreError::InvalidCredit);
     }
@@ -504,12 +516,6 @@ pub(crate) fn post_split_credit(
         |r| r.get::<_, bool>(0),
     )? {
         return Err(StoreError::OperationConflict);
-    }
-    if session.is_none() {
-        tx.execute(
-            "INSERT OR IGNORE INTO local_customers VALUES(?1,?1,NULL,NULL,30,1)",
-            [customer_id],
-        )?;
     }
     let c = customer(tx, customer_id)?;
     let next = add(
@@ -664,6 +670,20 @@ impl Store {
         let result = customer(&tx, &r.id)?;
         record(&tx, &r.operation_id, "customer.saved", &raw, &result)?;
         outbox(&tx, &r.operation_id, "customer.saved", &result)?;
+        tx.commit()?;
+        Ok(result)
+    }
+    pub(crate) fn read_customer(&self, id: &str) -> Result<Customer, StoreError> {
+        if !crate::billing::valid_id(id) {
+            return Err(StoreError::InvalidCustomer);
+        }
+        let tx = self.0.unchecked_transaction()?;
+        identity::verify(
+            &tx,
+            self.1.as_ref().ok_or(StoreError::Locked)?,
+            Permission::CustomerRead,
+        )?;
+        let result = customer(&tx, id)?;
         tx.commit()?;
         Ok(result)
     }

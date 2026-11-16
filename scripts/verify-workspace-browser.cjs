@@ -21,6 +21,8 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     args: ['--no-sandbox', '--disable-dev-shm-usage', '--no-zygote'],
   } : {}) });
   const errors = [];
+  const throttled = [];
+  const prefetchThrottled = [];
   async function contextFor(theme, portal, width) {
     const context = await browser.newContext({ viewport: { width, height: 900 }, reducedMotion: 'reduce' });
     await context.addCookies([
@@ -43,11 +45,76 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     }, { portal });
     const page = await context.newPage();
     page.on('pageerror', error => errors.push(error.message));
+    page.on('response', response => {
+      // The console throttles its own clients. A throttled run sees missing
+      // data and stale screens, so it cannot prove anything about the screens
+      // it was meant to review. Record it instead of letting the run pass.
+      //
+      // A *speculative* prefetch is the one exception, and it is not an
+      // exception this harness grants itself: the console budgets its own
+      // prefetches on purpose, apart from navigation, and a run that opens
+      // dozens of routes reaches that ceiling by design. A refused prefetch
+      // cannot hide a screen - the navigation that follows fetches its own
+      // document and its own data - and every route this script inspects is
+      // waited on until its own heading and workspace are on screen, so a
+      // screen that a refused prefetch had hidden would fail the run anyway.
+      // Refused prefetches are counted and reported; a throttle on anything
+      // the screens depend on still fails the run.
+      if (response.status() !== 429) return;
+      const headers = response.request().headers();
+      const purpose = `${headers.purpose ?? ''} ${headers['sec-purpose'] ?? ''}`.toLowerCase();
+      const speculative = headers['next-router-prefetch'] === '1' || headers['x-middleware-prefetch'] === '1' || purpose.includes('prefetch');
+      const record = `${response.status()} ${response.url()}`;
+      if (speculative) prefetchThrottled.push(record); else throttled.push(record);
+    });
     return { context, page };
   }
+  /**
+   * Wait for the streamed shell to hand the route over to the client.
+   *
+   * Next.js streams the route markup into a hidden container beside the
+   * application root and drains it once the client has hydrated. While that
+   * handover is in flight the document holds two copies of the same markup, so
+   * an unscoped lookup can match the parked copy and the live one at the same
+   * moment and fail as a strict-mode violation. The parked copy is never
+   * inside the console's own "main" region, so the scoped lookups below
+   * cannot see it; this wait is what keeps the unscoped ones honest.
+   */
+  async function waitForStreamedHandover(page) {
+    await page.waitForFunction(
+      () => {
+        const parked = [...document.body.children].filter(node => node.nodeType === 1 && node.tagName === 'DIV' && node.hasAttribute('hidden'));
+        return parked.every(node => node.children.length === 0);
+      },
+      undefined,
+      { timeout: 60000 },
+    );
+  }
+  /**
+   * Navigate and wait for the console to actually be ready.
+   *
+   * The console polls its own identity and sync endpoints on a timer, so
+   * "networkidle" depends on where that poll happens to fall: it can sit
+   * waiting for the next poll, and it says nothing at all about whether the
+   * screen the reviewer is meant to see has rendered. Readiness is instead
+   * two observable application states — the route's own heading is on screen,
+   * and the console's loading placeholder has gone.
+   */
+  async function openWorkspace(page, route) {
+    await page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await page.locator('main#main h1').first().waitFor({ state: 'visible', timeout: 60000 });
+    // The console shows "Loading business…" in the navigation and the page
+    // body while it hydrates. Wait for every one of them to clear.
+    await page.waitForFunction(
+      () => !document.body.innerText.includes('Loading business…'),
+      undefined,
+      { timeout: 60000 },
+    );
+    await page.locator('.console-workspace').waitFor({ state: 'visible', timeout: 60000 });
+    await waitForStreamedHandover(page);
+  }
   async function inspect(page, route, name) {
-    await page.goto(origin + route, { waitUntil: 'networkidle' });
-    await page.locator('.console-workspace').waitFor();
+    await openWorkspace(page, route);
     assert(new URL(page.url()).pathname === route, `Unexpected redirect from ${route}: ${page.url()}`);
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     assert(overflow <= 1, `${name}: page overflows by ${overflow}px`);
@@ -68,7 +135,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       for (const route of ['/customers', '/products', '/billing/new']) {
         await inspect(page, route, `${route.replaceAll('/', '-')}-${width}`);
       }
-      await page.goto(origin + '/products', { waitUntil: 'networkidle' });
+      await openWorkspace(page, '/products');
       const trigger = page.getByRole('button', { name: 'Import CSV', exact: true }).first();
       await trigger.click();
       const dialog = page.getByRole('dialog', { name: 'Import CSV', exact: true });
@@ -89,10 +156,16 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       await context.close();
     }
     const { context, page } = await contextFor('graphite', 'general', 390);
-    await page.goto(origin + '/customers', { waitUntil: 'networkidle' });
-    await page.getByPlaceholder('e.g. Kiran Malhotra').fill('Theme Review Customer');
-    await page.getByRole('button', { name: 'Save customer', exact: true }).click();
-    await page.getByText('Theme Review Customer', { exact: true }).click();
+    await openWorkspace(page, '/customers');
+    // Scope the customer form to the live console. The streamed copy of the
+    // route is parked in a hidden container outside this region, so these
+    // lookups can never match two elements whatever the handover timing is.
+    const liveConsole = page.locator('.console-workspace main#main');
+    const customerForm = liveConsole.locator('.surface-card')
+      .filter({ has: page.getByRole('heading', { name: 'Add customer', exact: true }) });
+    await customerForm.getByPlaceholder('e.g. Kiran Malhotra').fill('Theme Review Customer');
+    await customerForm.getByRole('button', { name: 'Save customer', exact: true }).click();
+    await liveConsole.getByText('Theme Review Customer', { exact: true }).click();
     const customerDialog = page.getByRole('dialog', { name: 'Theme Review Customer', exact: true });
     await customerDialog.waitFor();
     assert(await customerDialog.evaluate(node => node.matches(':modal')));
@@ -108,7 +181,10 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     const paidEnd = now + 30 * 86400;
     const wire = Buffer.from(JSON.stringify({ p: 'growth', s: now, r: paidEnd, t: 0, b: 'activation-code', f: 'local-review' })).toString('base64url');
     await billing.context.addCookies([{ name: 'dukaan.plan', value: `${wire}.${crypto.createHmac('sha256', secret).update(wire).digest('base64url')}`, url: origin, httpOnly: true }]);
-    await billing.page.goto(origin + '/subscription?plan=growth&interval=year', { waitUntil: 'networkidle' });
+    // The subscription page states its own readiness with the plan heading,
+    // so the navigation only has to get the document there.
+    await billing.page.goto(origin + '/subscription?plan=growth&interval=year', { waitUntil: 'domcontentloaded', timeout: 60000 });
+    await waitForStreamedHandover(billing.page);
     await billing.page.getByRole('heading', { name: 'You are on Growth', exact: true }).waitFor();
     assert.equal(await billing.page.getByRole('button', { name: 'Growth year', exact: true }).getAttribute('aria-pressed'), 'true');
     const paidDate = await billing.page.getByText('Paid access ends', { exact: false }).textContent();
@@ -145,7 +221,12 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
     for (const [theme, width] of [['monsoon', 1440], ['graphite', 390]]) {
       const visitor = await contextFor(theme, 'general', width);
       for (const route of ['/', '/install']) {
-        await visitor.page.goto(origin + route, { waitUntil: 'networkidle' });
+        // Public pages are outside the console, so the document itself is the
+        // readiness signal; the pathname assertion below proves the marketing
+        // surface stayed separate from the workspace.
+        await visitor.page.goto(origin + route, { waitUntil: 'domcontentloaded', timeout: 60000 });
+        await visitor.page.waitForLoadState('load', { timeout: 60000 });
+        await waitForStreamedHandover(visitor.page);
         assert.equal(new URL(visitor.page.url()).pathname, route, 'Marketing and download pages stay separate from the workspace');
         assert(await visitor.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), 'Public pages fit the viewport');
         await visitor.page.screenshot({ path: path.join(out, `public-${route === '/' ? 'landing' : 'install'}-${width}.png`), fullPage: true });
@@ -154,6 +235,7 @@ const token = `${payload}.${crypto.createHmac('sha256', secret).update(payload).
       await visitor.context.close();
     }
     assert.deepEqual(errors, [], 'No uncaught browser exceptions');
-    console.log('Workspace browser acceptance passed: eight portals, responsive pages, bidirectional modal focus and subscription API transitions.');
+    assert.deepEqual(throttled, [], `The run was rate limited by the console's own throttle (${throttled.length} responses). A throttled run cannot prove the screens work.`);
+    console.log(`Workspace browser acceptance passed: eight portals, responsive pages, bidirectional modal focus and subscription API transitions.${prefetchThrottled.length ? ` The console refused ${prefetchThrottled.length} of its own speculative prefetches, which cannot hide a screen.` : ''}`);
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
