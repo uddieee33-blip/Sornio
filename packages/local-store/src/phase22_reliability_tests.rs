@@ -120,7 +120,9 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
             operation_id: "restart-approve".into(),
             id: order.id.clone(),
             expected_revision: submitted.revision,
-            decision: "approved".into(),
+            // The store's decision vocabulary is "approve" | "reject"; anything
+            // else is InvalidPurchaseOrder (run 43826193202, line 126).
+            decision: "approve".into(),
             reason: None,
         })
         .unwrap();
