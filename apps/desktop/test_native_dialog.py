@@ -173,6 +173,7 @@ class Modal:
 
     def __init__(self, title, affirmative="Yes"):
         self._title = title
+        self.title = title
         self.visible = True
         self.affirmative = affirmative
         self.pressed = False
@@ -207,7 +208,7 @@ class FakeDesktop:
 
     def windows(self, title=None, title_re=None):
         if title is not None:
-            return [d for d in self.dialogs if d.title == title]
+            return [d for d in self.dialogs if getattr(d, "title", None) == title]
         # Every visible top-level window, dialogs and their modals alike.
         found = [d for d in self.dialogs if getattr(d, "visible", True)]
         found.extend(m for d in self.dialogs for m in [getattr(d, "modal", None)] if m and m.visible)
@@ -372,6 +373,20 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(evidence.confirmations[0]["title"], "Confirm Save As")
         self.assertEqual(evidence.confirmations[0]["answered"], "Yes")
         self.assertEqual(evidence.confirmations[0]["class_name"], "#32770")
+
+    def test_an_unrelated_message_box_is_never_answered(self):
+        # Run 43848149105: the driver treated any #32770 with an OK button as a
+        # replace prompt and clicked "System Properties" six times, losing the
+        # export behind it. Only a titled file-replace prompt may be answered.
+        bystander = Modal("System Properties", affirmative="OK")
+        dialog = ScriptedDialog("Export encrypted Sornio backup", closes_after=1)
+        desktop = FakeDesktop([dialog])
+        desktop.dialogs.append(bystander)
+        evidence = nd.DialogEvidence()
+        self.close(desktop, dialog.title, "C:\\Temp\\x.sorniobackup", evidence=evidence)
+        self.assertFalse(bystander.pressed, "an unrelated message box was clicked")
+        self.assertEqual(evidence.confirmations, [])
+        self.assertFalse(dialog.visible)
 
     def test_verified_entry_is_retried_before_the_press(self):
         dialog = ScriptedDialog("Export encrypted Sornio backup", closes_after=1)

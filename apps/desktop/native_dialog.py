@@ -75,12 +75,6 @@ __all__ = [
 # #32770-class message box; the label differs by locale and by whether the
 # shell is offering "Save As". Matching is on the affirmative button because
 # that is what a user answers, not on the language of the question.
-CONFIRM_TITLES = (
-    "Confirm Save As",
-    "Confirm Save as",
-    "Confirm File Replace",
-    "Confirm replacement",
-)
 AFFIRMATIVE = ("Yes", "&Yes", "Replace", "&Replace", "Save", "&Save", "OK", "Overwrite")
 
 
@@ -351,18 +345,28 @@ def enter_path(dialog, path, send_keys, attempts=3, evidence=None):
     return False
 
 
+# A file-replace prompt is one of these, by title. Nothing else is ever answered:
+# the previous heuristic — "any #32770-class window with an OK button that is not
+# one of this run's dialogs" — matched **System Properties**, a shell window the
+# hosted runner displays. The driver clicked its OK button on every attempt,
+# focus went to a window that had nothing to do with the export, the save dialog
+# was left behind the return value, and the run failed with the dialog still
+# visible (run 43848149105). The evidence record named it.
+REPLACE_PROMPT_TITLES = (
+    "confirm save as",
+    "confirm file replace",
+    "confirm replacement",
+    "confirm overwrite",
+)
+
+
 def confirmation_windows(desktop, dialog_title, known_titles=()):
-    """Visible dialogs that are asking a question, not saving a file.
+    """Visible file-replace prompts, matched by title only.
 
-    Two shapes are covered, because a hosted runner's shell can produce either:
-
-    * a separate top-level #32770 with a "confirm ..." title, and
-    * a modal owned by the file dialog whose title is none of the known ones
-      but whose buttons ask for a yes/no answer.
-
-    `known_titles` are the titles the caller legitimately expects (the Save and
-    Open dialogs of this run); anything else with an affirmative button is
-    treated as a question.
+    A Save dialog whose default filename already exists raises one of these. The
+    set is deliberately closed: an unidentified modal is recorded by the evidence
+    capture and left alone, because clicking an unknown dialog's OK button is
+    how this driver once answered "System Properties" and lost the export.
     """
     found = []
     try:
@@ -373,29 +377,20 @@ def confirmation_windows(desktop, dialog_title, known_titles=()):
         try:
             if not candidate.is_visible():
                 continue
-            title = candidate.window_text() or ""
+            title = (candidate.window_text() or "").strip()
         except Exception:
             continue
         if not title or title in known_titles or title == dialog_title:
+            continue
+        if not any(marker in title.lower() for marker in REPLACE_PROMPT_TITLES):
             continue
         try:
             labels = [c.window_text() for c in candidate.descendants(control_type="Button")]
         except Exception:
             continue
         affirmative = [label for label in labels if label.strip() in AFFIRMATIVE]
-        if not affirmative:
-            continue
-        if not any(marker.lower() in title.lower() for marker in CONFIRM_TITLES):
-            # Not a replace prompt by title. Only accept it as a question when
-            # it is a plain message box (class #32770); a WebView panel with a
-            # Save button is not a modal to answer.
-            try:
-                class_name = candidate.element_info.class_name or ""
-            except Exception:
-                class_name = ""
-            if class_name != "#32770":
-                continue
-        found.append((candidate, affirmative))
+        if affirmative:
+            found.append((candidate, affirmative))
     return found
 
 
