@@ -103,7 +103,7 @@ Not executed, because the step fails here:
 
 | Scenario | Verdict |
 |---|---|
-| Encrypted backup export through the OS picker | **FAIL** (harness) |
+| Encrypted backup export through the OS picker | **FAIL** (harness, open) |
 | Post-backup payment (₹105.00) | **NOT RUN** |
 | Payable settled to exactly ₹0.00 | **NOT RUN** |
 | Restore from the encrypted backup | **NOT RUN** |
@@ -124,9 +124,16 @@ never closes. Three attempts were measured, none resolved it:
    ([43781963670](https://github.com/uddieee33-blip/Sornio/actions/runs/43781963670)).
    Fixed by polling visibility with `wait_until`
    ([43786929707](https://github.com/uddieee33-blip/Sornio/actions/runs/43786929707)).
+   That run confirms the fix works — the `AttributeError` is gone and the loop
+   genuinely retried — and confirms the dialog still does not close: six attempts with
+   a fresh handle each, 60 s in total, `TimeoutError`.
 
-The same helper succeeds for the retail export earlier in the same run, so the dialog
-itself works; the purchasing invocation is what does not. That remains open.
+The traceback names the **purchasing** export (`check-native.py` line 1034). The retail
+export (line 583) and the retail open dialog (line 617) both complete earlier in the
+same process on the same runner. So the native dialog driver works twice and fails on
+the third invocation, which is the first one to happen after the application has been
+stopped and relaunched. That remains open, and it is the single thing standing between
+this harness and the store audit.
 
 ## 5. Defects found by running, and corrected
 
@@ -136,7 +143,7 @@ itself works; the purchasing invocation is what does not. That remains open.
 | C2 | `--verify-preserved` pinned rice at **1.5 pcs**, a figure from before the purchasing lifecycle existed. The lifecycle receives 1.750 and returns 0.250, so that assertion could never hold on a preserved workspace. It had never run, because the check failed earlier. | Reading the check against the lifecycle | Stock is no longer asserted from the UI; the preserved stage asserts cash and credit, and stock is verified from the store |
 | C3 | The base-branch filter meant this work would have run **no** Windows or macOS job | Comparing the PR base against the filter | Both filters list `hardening/phase22-native-recovery-20261116`; verified by the runs starting |
 | C4 | I asserted a product's stock from a UI that cannot attribute it. WebView2 exposes a quantity as a bare number (`1.75`, `1.5`, `4`) with no item name; the name and the figure are separate accessibility nodes. | Two failed runs; my own first diagnosis read the expected string out of the assertion message and was wrong | Three GUI stock assertions removed with the reason recorded in place; reconciliation moved to the store audit, which also asserts accepted/damaged/returned quantities that need no baseline |
-| C5 | `wait_not` called on a `UIAWrapper` | Instant `AttributeError`, with the traceback in the annotation | Visibility polled with `wait_until` |
+| C5 | `wait_not` called on a `UIAWrapper` | Instant `AttributeError`, with the traceback in the annotation | Visibility polled with `wait_until`; verified fixed — the next run retried instead of raising |
 
 ## 6. Authoritative persisted-state audit — authored, not executed
 
