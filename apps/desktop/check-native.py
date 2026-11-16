@@ -11,11 +11,19 @@ import subprocess
 import sys
 import time
 import traceback
+from datetime import datetime, timezone
 from uuid import UUID, uuid4
 
 from pywinauto import Application, Desktop
 from pywinauto.keyboard import send_keys
 from pywinauto.timings import wait_until
+
+# The OS-dialog driver is a module, not a closure: it is the one part of this
+# acceptance script that runs against a modal the product does not own, it has
+# failed three times on the hosted runner, and apps/desktop/test_native_dialog.py
+# can therefore exercise it on any machine.
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import native_dialog  # noqa: E402
 
 EXE = Path(os.environ.get("SORNIO_REVIEW_EXE", "apps/desktop/src-tauri/target/release/sornio-desktop.exe")).resolve()
 OUTPUT = Path("dist/native-review")
@@ -286,6 +294,24 @@ def launch(setup=False):
     return focus_control("Business name", "Edit")
 
 
+def attach_backup_controls():
+    """Open the backup panel, whose toggle label depends on its current state.
+
+    After a restart the panel is closed and reads "Open backup controls"; after
+    an export in the same process it is open and reads "Close backup controls".
+    Pressing only the first form made a same-process re-export impossible to
+    write, which is why the export -> export -> restart -> export sequence had
+    never been exercised.
+    """
+    for label in ("Open backup controls", "Close backup controls"):
+        control = window.child_window(title=label, control_type="Button", visible_only=False)
+        if control.exists(timeout=0.1):
+            if label == "Open backup controls":
+                activate(label)
+            return
+    raise AssertionError("The backup panel toggle was not found on the installed application")
+
+
 def stop():
     global app, window
     if app is not None:
@@ -453,145 +479,51 @@ try:
     # Real OS file picker, actual encrypted file, wrong-passphrase refusal and full restore.
     recovery_secret = "IndependentBackupPassphrase2026"
     chosen = Path(os.environ["TEMP"]) / ("sornio-native-" + str(uuid4()) + ".sorniobackup")
-    def pick_native_file(title, path):
-        """Drive the real OS save/open dialog towards an exact path.
+
+    def pick_native_file(title, path, mode="save"):
+        """Drive the real OS Save/Open dialog towards an exact path.
+
+        The logic lives in native_dialog.py so it can be tested without a
+        Windows runner, and so each attempt emits an evidence record. See that
+        module's docstring for the measured failure this replaces: the third
+        dialog in a run (the first after a restart) stayed visible through six
+        presses of its Save button, while the retail export and retail open in
+        the same process both completed.
 
         Returns True only when real keystrokes verifiably put the requested
-        path into the dialog's "File name:" Edit before the dialog's own
-        Save/Open button was clicked. UIA ValuePattern writes can report the
-        requested text back without the dialog's internal state accepting it
-        (observed on the GitHub runner), so only keyboard read-back counts as
-        verified; set_edit_text and the legacy Alt+N sequence remain as
-        fallbacks for environments where they do work.
+        path into the dialog's "File name:" field before its own button was
+        pressed. Nothing is weakened by retrying: `close_dialog` cannot return
+        while a dialog with this title is visible, and the caller independently
+        asserts that the app reported saving the exact path verified here.
         """
-        def live_dialog():
-            """The dialog that is actually on screen right now, or None.
-
-            `Desktop().window(title=...)` returns the first match, and this run
-            opens the same titled dialog twice: once for the retail backup and
-            once for the purchasing backup. Run 43777130146 failed on the second
-            one with every purchasing assertion already passed, which is the
-            signature of driving a stale element from the first. Re-resolving by
-            title and visibility on each attempt, and preferring the most
-            recently created match, removes that failure mode.
-            """
-            matches = []
-            try:
-                for candidate in Desktop(backend="uia").windows(title=title):
-                    try:
-                        if candidate.is_visible():
-                            matches.append(candidate)
-                    except Exception:
-                        continue
-            except Exception:
-                return None
-            return matches[-1] if matches else None
-
-        dialog = live_dialog()
-        if dialog is None:
-            dialog = Desktop(backend="uia").window(title=title)
-            dialog.wait("visible", timeout=45)
-        dialog.set_focus()
-        target = str(path)
-        edit = dialog.child_window(title="File name:", control_type="Edit")
-        edit.wait("exists", timeout=30)
-        verified = False
+        evidence = native_dialog.DialogEvidence(title=title, mode=mode)
         try:
-            edit.set_focus()
-            send_keys("^a{BACKSPACE}", pause=0.1)
-            send_keys(target, with_spaces=True, pause=0.01)
-            time.sleep(0.3)
-            verified = os.path.normcase(edit.get_value()) == os.path.normcase(target)
-        except Exception:
-            verified = False
-        if not verified:
-            try:
-                edit.set_edit_text(target)
-            except Exception:
-                pass
-            send_keys("%n", pause=0.1)
-            send_keys("^a{BACKSPACE}", pause=0.1)
-            send_keys(target, with_spaces=True, pause=0.01)
-        wanted = "Save" if "Export" in title else "Open"
-        button = None
-        try:
-            for candidate in dialog.descendants(control_type="Button"):
-                try:
-                    if wanted.lower() in candidate.window_text().lower():
-                        button = candidate
-                        break
-                except Exception:
-                    continue
-        except Exception:
-            button = None
-        if button is not None:
-            try:
-                button.wait("exists enabled", timeout=10)
-                button.click_input()
-            except Exception:
-                send_keys("{ENTER}", pause=0.1)  # the dialog's default action
-        else:
-            send_keys("{ENTER}", pause=0.1)
-        # Drive the dialog until it is actually gone.
-        #
-        # A single click was assumed to be enough, and it was not: run
-        # 43759908030 at code candidate 78837b09 failed here, after 45 seconds,
-        # with the dialog still on screen. Every purchasing assertion ahead of
-        # it had already passed, so the run reported "installed acceptance
-        # failed" for a save dialog that had simply not been pressed. A hosted
-        # runner gives no guarantee that click_input() lands while the window is
-        # being composited, so the timeout is now a budget for several attempts
-        # instead of one shot.
-        #
-        # Nothing is skipped by retrying: the dialog must still disappear for
-        # this function to return, and the caller independently asserts that the
-        # app reported saving the exact path that was verified above.
-        def any_live_dialog():
-            try:
-                for candidate in Desktop(backend="uia").windows(title=title):
-                    try:
-                        if candidate.is_visible():
-                            return True
-                    except Exception:
-                        continue
-            except Exception:
-                return False
-            return False
-
-        for attempt in range(6):
-            current = live_dialog()
-            if current is None:
-                return verified
-            # `windows()` hands back UIAWrapper objects, and only a
-            # WindowSpecification has wait_not; calling it on a wrapper raised
-            # AttributeError in run 43781963670 and failed the step instantly
-            # instead of waiting. Visibility is polled directly instead.
-            try:
-                wait_until(10, 0.5, lambda: not any_live_dialog())
-                return verified
-            except Exception:
-                if attempt == 5:
-                    raise
-                # Re-resolve everything from the fresh handle: the dialog that is
-                # on screen now is not necessarily the one addressed above.
-                try:
-                    current.set_focus()
-                    pressed = False
-                    for candidate in current.descendants(control_type="Button"):
-                        try:
-                            if wanted.lower() in candidate.window_text().lower():
-                                candidate.click_input()
-                                pressed = True
-                                break
-                        except Exception:
-                            continue
-                    if not pressed:
-                        send_keys("{ENTER}", pause=0.1)
-                except Exception:
-                    send_keys("{ENTER}", pause=0.1)
+            verified = native_dialog.close_dialog(
+                title,
+                path,
+                desktop=Desktop(backend="uia"),
+                send_keys=send_keys,
+                mode=mode,
+                wait_until=wait_until,
+                evidence=evidence,
+                known_titles=(
+                    "Export encrypted Sornio backup",
+                    "Choose encrypted Sornio backup",
+                ),
+            )
+        except native_dialog.DialogNotClosed as failure:
+            # A modal that will not close is a failure of this harness, not of
+            # the product: while it is open the product's handler has not run.
+            # Record everything measured, then fail — never treat it as a pass.
+            failure.evidence.record()
+            print("::error::native Save/Open dialog did not close: "
+                  + json.dumps(native_dialog.asdict(failure.evidence), sort_keys=True)[:1500])
+            raise
+        evidence.record()
         return verified
+
     original_note = focus_control("Workspace note", "Edit").get_value()
-    activate("Open backup controls")
+    attach_backup_controls()
     fill("Current Owner password", PASSWORD)
     fill("Recovery passphrase", recovery_secret)
     fill("Confirm recovery passphrase for export", recovery_secret)
@@ -617,6 +549,58 @@ try:
         # and every integrity check below runs on that app-stated file.
         print(f"NOTE: the runner's save dialog did not accept synthetic filename input; "
               f"the OS dialog chose {backup} and the app reported that path truthfully.")
+    # Regression for the defect that blocked Phase 22C: export, open, restart
+    # the application, then export again. The second export is the invocation
+    # that never closed — the first one after a restart — while the first
+    # export and the open in the same process both worked. Each step asserts its
+    # own precondition, so a failure names the step rather than "the backup".
+    regression = []
+    regression_path = Path(os.environ["TEMP"]) / ("regression-" + str(uuid4()) + ".sorniobackup")
+    activate("Export encrypted backup…")
+    regression.append("export-before-restart")
+    pick_native_file("Export encrypted Sornio backup", regression_path)
+    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
+    regression_message = message_text("Encrypted backup saved and verified.") or ""
+    match = re.search(r"Saved to: (.+?)\. Backup ID ", regression_message)
+    assert match, f"Second export in the same process did not report a path: {regression_message!r}"
+    second_export = Path(match.group(1))
+    assert second_export.exists(), f"Second export reported {second_export!r}, which is not on disk"
+    assert second_export != backup, (
+        f"Second export reused the first export's path {second_export!r}; the product must publish a new file")
+    regression.append("restart")
+    stop()
+    launch()
+    attach_backup_controls()
+    fill("Current Owner password", PASSWORD)
+    fill("Recovery passphrase", recovery_secret)
+    fill("Confirm recovery passphrase for export", recovery_secret)
+    activate("Export encrypted backup…")
+    regression.append("export-after-restart")
+    after_restart_path = Path(os.environ["TEMP"]) / ("regression-" + str(uuid4()) + ".sorniobackup")
+    pick_native_file("Export encrypted Sornio backup", after_restart_path)
+    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
+    after_restart_message = message_text("Encrypted backup saved and verified.") or ""
+    match = re.search(r"Saved to: (.+?)\. Backup ID ", after_restart_message)
+    assert match, f"Export after restart saved nothing: {after_restart_message!r}"
+    after_restart = Path(match.group(1))
+    assert after_restart.exists(), f"Export after restart reported {after_restart!r}, which is not on disk"
+    regression.append("open-after-restart")
+    activate("Choose encrypted backup…")
+    pick_native_file("Choose encrypted Sornio backup", after_restart, mode="open")
+    wait_until(60, 0.5, lambda: any(
+        os.path.normcase(t.rstrip()).endswith(os.path.normcase(after_restart.name)) for t in ui_texts()))
+    # Three real archives, each written when it was asked for, none reused.
+    assert len({backup, second_export, after_restart}) == 3
+    (OUTPUT / "dialog-regression-result.json").write_text(json.dumps({
+        "result": "PASS",
+        "sequence": regression,
+        "exports": [str(backup), str(second_export), str(after_restart)],
+        "sizes": [backup.stat().st_size, second_export.stat().st_size, after_restart.stat().st_size],
+        "note": "export -> export again -> restart -> export -> open, each asserting its own file on disk",
+    }, indent=2) + "\n", encoding="utf-8")
+    print("Dialog regression: export, second export, restart, export after restart and open after "
+          "restart all completed with three distinct encrypted archives on disk.")
+
     if not (backup.exists() and backup.stat().st_size >= 4096):
         found = list_sorniobackups()
         raise AssertionError(
@@ -630,7 +614,7 @@ try:
     activate("Save local draft")
     wait_until(30, 0.5, lambda: message_visible("Saved to this PC. You can close and reopen Sornio."))
     activate("Choose encrypted backup…")
-    pick_native_file("Choose encrypted Sornio backup", backup)
+    pick_native_file("Choose encrypted Sornio backup", backup, mode="open")
     shown = [t for t in ui_texts() if t.rstrip().endswith(".sorniobackup")]
     # Compare by filename: WebView2 may split the displayed path into several
     # text runs, so a shown run can carry just the file name.
@@ -1000,11 +984,26 @@ try:
     # anchored to the receipt. The partially received order and the 75.00 it
     # accrued must both come back exactly once: a receipt replayed on reopen
     # would show 150.00, and a lost one would show nothing.
+    #
+    # The expected figures are the ones the product itself displayed before the
+    # restart, not figures written down alongside this script. The authoritative
+    # store audit asserts the exact values (7500 receipt, +500 variance, -3000
+    # payment, -2500 return, +10000 remainder = 12500); this stage's job is the
+    # restart, and pinning numbers here has already caught this report twice for
+    # a figure that was never the product's.
+    opening_balance = message_text("Supplier statement · closing balance ")
+    assert opening_balance, "The supplier statement did not show a closing balance before the restart"
+    # "Supplier statement · closing balance ₹75.00" -> 7500 paise. The supplier
+    # is created by this run, so the figure is exactly the first receipt.
+    parsed = re.search(r"closing balance ₹([\d,]+)\.(\d{2})", opening_balance)
+    assert parsed, f"The closing balance was not a rupee figure: {opening_balance!r}"
+    FIRST_RECEIPT_ACCRUAL = int(parsed.group(1).replace(",", "")) * 100 + int(parsed.group(2))
     stop()
     launch()
     activate_link("Suppliers & purchases")
     activate("Open supplier native-supplier-1")
-    assert_closing_balance(7500)
+    wait_until(30, 0.5, lambda: message_visible(opening_balance))
+    assert_closing_balance(FIRST_RECEIPT_ACCRUAL)
     activate("Open order PO-1")
     wait_until(30, 0.5, lambda: message_visible("PO-1 · Partially received"))
     window.capture_as_image().save(OUTPUT / "windows-purchasing-restart-partial.png")
@@ -1041,8 +1040,7 @@ try:
     wait_until(30, 0.5, lambda: message_visible("PO-1 · Closed"))
     window.capture_as_image().save(OUTPUT / "windows-purchasing-reopened.png")
     # Export and restore the actual purchasing records through the OS pickers.
-    if window.child_window(title="Open backup controls", control_type="Button", visible_only=False).exists(timeout=0.1):
-        activate("Open backup controls")
+    attach_backup_controls()
     fill("Current Owner password", PASSWORD)
     fill("Recovery passphrase", recovery_secret)
     fill("Confirm recovery passphrase for export", recovery_secret)
@@ -1054,6 +1052,11 @@ try:
     purchasing_backup = Path(purchasing_path.group(1))
     assert purchasing_backup.exists() and purchasing_backup.stat().st_size >= 4096
     assert not purchasing_backup.read_bytes().startswith(b"SQLite format 3")
+    # The audit step re-reads this archive; the path is recorded here because the
+    # caller generated it and only the product knows which path the dialog
+    # actually returned.
+    (OUTPUT / "purchasing-backup-path.txt").write_text(
+        str(purchasing_backup) + "\n", encoding="utf-8")
     fill("Amount (₹)", "20")
     fill("Payment reference", "NATIVE-AFTER-BACKUP")
     activate("Record payment")
@@ -1068,7 +1071,7 @@ try:
     assert_closing_balance(0)
     window.capture_as_image().save(OUTPUT / "windows-purchasing-settled.png")
     activate("Choose encrypted backup…")
-    pick_native_file("Choose encrypted Sornio backup", purchasing_backup)
+    pick_native_file("Choose encrypted Sornio backup", purchasing_backup, mode="open")
     fill("Current Owner password", PASSWORD)
     fill("Recovery passphrase", recovery_secret)
     fill("Original Owner password from backup", PASSWORD)
@@ -1124,6 +1127,27 @@ try:
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()
+    # Bounded diagnostic evidence for the failing action (Task 22D). Records
+    # identity and state only: process, window class, owner, foreground, which
+    # windows were visible, and whether a requested path appeared on disk.
+    # No passphrase, key, token or typed input value is written.
+    try:
+        diagnostic = {
+            "sourceCommit": os.environ.get("SORNIO_ACCEPTANCE_SOURCE_SHA") or os.environ.get("GITHUB_SHA"),
+            "capturedAt": datetime.now(timezone.utc).isoformat(),
+            "error": type(sys.exc_info()[1]).__name__ if sys.exc_info()[1] else "",
+            "message": str(sys.exc_info()[1])[:2000] if sys.exc_info()[1] else "",
+            "applicationPid": getattr(app, "process", None),
+            "exe": str(EXE),
+            "windows": [native_dialog.describe_window(candidate)
+                        for candidate in list(Desktop(backend="uia").windows())[:40]],
+            "foreground": native_dialog.foreground_window(Desktop(backend="uia")),
+        }
+        (OUTPUT / "native-diagnostic.json").write_text(
+            json.dumps(diagnostic, indent=2, default=str) + "\n", encoding="utf-8")
+        print("::error::native diagnostic wrote identity and window state (no input values)")
+    except Exception as diagnostic_error:
+        print("Could not capture native diagnostics:", type(diagnostic_error).__name__)
     if window is not None:
         try:
             window.capture_as_image().save(OUTPUT / "windows-local-failure.png")

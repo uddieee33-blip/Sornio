@@ -199,6 +199,12 @@ jobs:
         run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
       - name: Verify native scale and damaged-return recovery
         run: python apps/desktop/check-native-scale.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe --output dist/native-review/native-scale.json
+      - name: Test the OS Save/Open dialog driver contract
+        # The driver that only fails on a installed-app run is now a module with
+        # a synthetic harness: retry, re-resolution of a stale handle, answering
+        # a replace confirmation, and the evidence record are exercised here in
+        # seconds instead of after 40 minutes of product installation.
+        run: python -m unittest discover -s apps/desktop -p test_native_dialog.py
       - name: Test native-check argument forwarding (no product install needed)
         # Pins the Invoke-NativeCheck contract: the fixture stage passes zero
         # extra arguments and the preserved-reopen stage passes exactly
@@ -219,9 +225,28 @@ jobs:
         # the payment, the return, the payable ledger and the stock figure.
         # By this point the application has exited and been uninstalled, so the
         # database is quiescent and the audit cannot race a write.
+        # `if: always()` is the point: a GUI step that failed says nothing about
+        # whether the rows the application already committed are correct, so an
+        # earlier UI failure must not conceal an independently observable
+        # persisted-state defect. The job still fails on the GUI step, and this
+        # audit still fails on its own status — neither masks the other. When it
+        # cannot run it reports which assertions did not run and why.
+        if: always()
         shell: pwsh
         run: |
-          python apps/desktop/check-purchasing-store.py `
+          $backup = ''
+          $recorded = 'dist/native-review/purchasing-backup-path.txt'
+          if (Test-Path $recorded) { $backup = (Get-Content -LiteralPath $recorded -Raw).Trim() }
+          $auditArgs = @(
+            'apps/desktop/check-purchasing-store.py',
+            '--bridge', 'apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe',
+            '--device-dir', "$env:LOCALAPPDATA\com.sornio.localreview",
+            '--output', 'dist/native-review/purchasing-store-audit.json'
+          )
+          if ($backup -and (Test-Path -LiteralPath $backup)) { $auditArgs += @('--backup', $backup) }
+          else { Write-Output "::notice::the installed app recorded no purchasing archive to compare" }
+          python @auditArgs
+          exit $LASTEXITCODE
             --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe `
             --device-dir "$env:LOCALAPPDATA\com.sornio.localreview" `
             --output dist/native-review/purchasing-store-audit.json

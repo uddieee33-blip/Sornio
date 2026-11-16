@@ -46,6 +46,26 @@ def annotate(level, title, message):
     print(f"::{level} title={title}::{message}")
 
 
+def probe_process_trusted():
+    """Whether *this* process may drive another application's UI.
+
+    `get UI elements enabled` is an application-level setting; it can be true
+    while the calling process is untrusted. AXIsProcessTrusted() answers the
+    narrower question a driver depends on. It is loaded through ctypes so a
+    failure to load is an answer ("not trusted here"), not a crash.
+    """
+    try:
+        import ctypes
+
+        framework = ctypes.CDLL(
+            "/System/Library/Frameworks/ApplicationServices.framework/ApplicationServices"
+        )
+        framework.AXIsProcessTrusted.restype = ctypes.c_bool
+        return bool(framework.AXIsProcessTrusted())
+    except Exception:
+        return False
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", required=True)
@@ -151,6 +171,21 @@ def main():
                 }
                 granted = probe.returncode == 0 and probe.stdout.strip() == "true"
                 result["accessibilityGranted"] = granted
+                # The claim under test is narrower than "Accessibility is on".
+                # System Events can report automation as enabled while *this*
+                # process is still not trusted to drive another application's
+                # UI, which is the permission a driver actually needs. Both are
+                # probed, and the AXIsProcessTrusted answer is the one that
+                # decides whether an authored driver could work at all.
+                trusted = probe_process_trusted()
+                result["accessibilityGrantedToProcess"] = trusted
+                result["driverFeasibility"] = (
+                    "AUTHORABLE"
+                    if granted and trusted
+                    else "BLOCKED_PERMISSION"
+                    if not granted
+                    else "BLOCKED_PROCESS_TRUST"
+                )
                 # There is no macOS UI driver in this repository, and no way to
                 # grant Accessibility to a process non-interactively on a hosted
                 # runner: the grant lives in a SIP-protected TCC database that
@@ -160,12 +195,16 @@ def main():
                 result["status"] = "BLOCKED"
                 result["reason"] = (
                     "Installed and launched; macOS purchasing interaction is BLOCKED because "
-                    + (
-                        "this runner reports Accessibility automation as unavailable, and "
-                        if not granted
-                        else "no macOS UI driver is implemented in this repository although the "
-                        "runner reports Accessibility as available, and "
-                    )
+                    + {
+                        "AUTHORABLE": "the runner reports Accessibility for System Events and "
+                        "process trust for this probe, so a driver is authorable, but none is "
+                        "implemented in this repository yet, and ",
+                        "BLOCKED_PERMISSION": "this runner reports Accessibility automation as "
+                        "unavailable (measured, not assumed), and ",
+                        "BLOCKED_PROCESS_TRUST": "System Events reports automation enabled but "
+                        "this process is not trusted to drive another application's UI on a "
+                        "hosted runner, and ",
+                    }[result["driverFeasibility"]]
                     + "the Windows UIA driver cannot run on macOS."
                 )
             finally:
