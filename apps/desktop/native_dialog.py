@@ -64,6 +64,7 @@ __all__ = [
     "ConfirmationSeen",
     "DialogEvidence",
     "DialogNotClosed",
+    "DialogNotFound",
     "asdict",
     "close_dialog",
     "describe_window",
@@ -100,6 +101,20 @@ class DialogNotClosed(RuntimeError):
             f"{title!r} was still visible after {attempts} attempts; "
             f"no product code runs until a Save dialog returns a path"
         )
+
+
+class DialogNotFound(RuntimeError):
+    """Expected native Save/Open picker never became visible.
+
+    A missing picker is a harness failure, not a successful dismissal: the
+    installed application has not returned a chosen path to the backup handler.
+    """
+
+    def __init__(self, title, seconds, evidence):
+        self.title = title
+        self.evidence = evidence
+        self.harness_failure = True
+        super().__init__(f"{title!r} did not appear within {seconds}s; no file-picker action was verified")
 
 
 @dataclass
@@ -388,6 +403,7 @@ def close_dialog(
     mode="save",
     attempts=6,
     attempt_timeout=10,
+    appearance_timeout=15,
     wait_until=None,
     evidence=None,
     known_titles=(),
@@ -398,9 +414,10 @@ def close_dialog(
     """Close a native Save/Open dialog towards `path`.
 
     Returns True when real keystrokes verifiably put `path` in the field before
-    the button was pressed, and raises `DialogNotClosed` — with evidence — if the
-    dialog is still visible after `attempts` rounds. It never returns while a
-    dialog with this title is visible.
+    the button was pressed. It first waits for the asynchronous picker to appear,
+    raising `DialogNotFound` when it never does; then raises `DialogNotClosed`
+    if a seen picker remains visible after `attempts` rounds. Neither case can
+    be mistaken for a successful export.
 
     `require_verified_entry=True` refuses to press the button with a field that
     does not hold the requested path: on a dialog whose default name already
@@ -416,13 +433,37 @@ def close_dialog(
     def still_live():
         return bool(live_windows(desktop, title))
 
+    observed_dialog = False
     for attempt in range(attempts):
         evidence.attempts = attempt + 1
         windows = live_windows(desktop, title)
+        if not windows and not observed_dialog:
+            # The real Windows picker is asynchronous. Run 43835367831
+            # returned before it appeared, then waited for an app success
+            # while the unhandled picker remained on screen. Never treat
+            # "not yet visible" as "successfully dismissed".
+            try:
+                if wait_until is not None:
+                    wait_until(appearance_timeout, poll, lambda: still_live())
+                else:
+                    deadline = time.monotonic() + appearance_timeout
+                    while time.monotonic() < deadline and not still_live():
+                        time.sleep(poll)
+            except Exception as error:
+                evidence.error = f"appearance wait: {type(error).__name__}: {error}"
+            windows = live_windows(desktop, title)
+            if not windows:
+                evidence.attempts = 0
+                evidence.live_windows = []
+                evidence.foreground = foreground_window(desktop)
+                evidence.live_after = False
+                evidence.harness_failure = True
+                raise DialogNotFound(title, appearance_timeout, evidence)
         evidence.live_windows = [describe_window(w) for w in windows]
         if not windows:
             evidence.live_after = False
             return evidence.entry_verified
+        observed_dialog = True
         # Newest match: this run opens the same titled dialog twice, and the
         # older element is the one that must not be driven.
         dialog = windows[-1]

@@ -315,12 +315,37 @@ class DriverTests(unittest.TestCase):
         self.assertFalse(stale.visible)
         self.assertFalse(live.visible)
 
-    def test_absent_dialog_is_not_a_failure(self):
+    def test_absent_dialog_fails_closed_instead_of_claiming_success(self):
         evidence = nd.DialogEvidence()
-        verified = self.close(FakeDesktop([]), "Export encrypted Sornio backup",
-                              "C:\\Temp\\x.sorniobackup", evidence=evidence)
-        self.assertFalse(verified)
+        with self.assertRaises(nd.DialogNotFound):
+            self.close(FakeDesktop([]), "Export encrypted Sornio backup",
+                       "C:\\Temp\\x.sorniobackup", evidence=evidence,
+                       appearance_timeout=0.05)
+        self.assertTrue(evidence.harness_failure)
+        self.assertFalse(evidence.live_after)
+        self.assertEqual(evidence.pressed, 0)
+
+    def test_delayed_windows_picker_is_waited_for_and_then_driven(self):
+        dialog = ScriptedDialog("Export encrypted Sornio backup")
+
+        class DelayedDesktop(FakeDesktop):
+            def __init__(self, dialogs):
+                super().__init__(dialogs)
+                self.polls = 0
+
+            def windows(self, title=None, title_re=None):
+                if title == dialog.title and self.polls < 3:
+                    self.polls += 1
+                    return []
+                return super().windows(title=title, title_re=title_re)
+
+        evidence = nd.DialogEvidence()
+        self.close(DelayedDesktop([dialog]), dialog.title, "C:\\Temp\\x.sorniobackup",
+                   evidence=evidence, appearance_timeout=0.25)
+        self.assertEqual(dialog.presses, 1)
+        self.assertFalse(dialog.visible)
         self.assertFalse(evidence.harness_failure)
+        self.assertEqual(evidence.pressed, 1)
 
     def test_open_mode_looks_for_the_open_button(self):
         dialog = ScriptedDialog("Choose encrypted Sornio backup", closes_after=1)

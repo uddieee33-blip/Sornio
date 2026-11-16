@@ -45,6 +45,7 @@ jobs:
       # acceptance record prefers this value and keeps the merge commit under
       # its own key.
       SORNIO_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+      SORNIO_DIALOG_EVIDENCE: dist/native-review/dialog-evidence.jsonl
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
@@ -258,9 +259,6 @@ jobs:
           else { Write-Output "::notice::the installed app recorded no purchasing archive to compare" }
           python @auditArgs
           exit $LASTEXITCODE
-            --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe `
-            --device-dir "$env:LOCALAPPDATA\com.sornio.localreview" `
-            --output dist/native-review/purchasing-store-audit.json
       - name: Verify native screenshots, installer checksum and lifecycle evidence
         run: python apps/desktop/check-windows-evidence.py --installer-dir apps/desktop/src-tauri/target/release/bundle/nsis --evidence-dir dist/native-review
       - name: Upload engineering installer
