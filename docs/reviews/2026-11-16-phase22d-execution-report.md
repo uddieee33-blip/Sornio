@@ -103,6 +103,27 @@ position. A dialog whose field cannot be identified is recorded
 (`field_missing`, `field_selector`) and treated as a harness failure with
 evidence, never a blind write. Two tests pin it.
 
+**A second defect of mine, from the next run.** With the address-box fallback
+gone, run 43835367831 came further than any run since 43792415789 — 6m51s of
+installed-app work instead of 18 s — and then failed at the retail export with
+*no backup panel content on screen*. The previous code began with
+`dialog.wait("visible", timeout=45)`; my first version of `close_dialog`
+returned immediately when the visible-window list was empty, so "the dialog has
+not opened yet" was read as "nothing to do". The driver returned, no export
+happened, and 60 s later a success-message wait failed naming neither the dialog
+nor the press.
+
+`close_dialog` now waits up to `appearance_timeout` (45 s, the same budget the
+old code used) for a visible window of that title, and a dialog that never
+appears raises `DialogNeverAppeared` with every visible window recorded — a
+harness failure, never a silent `False`. Two tests: a dialog that appears 100 ms
+late is found and driven, and a dialog that never appears fails the harness
+instead of the product.
+
+Both defects are in this report because both were introduced while fixing the
+problem, and both were found by running the acceptance rather than by reading
+the code.
+
 ### The driver, and why it is a module
 
 `apps/desktop/native_dialog.py` + `apps/desktop/test_native_dialog.py` (15 tests,
