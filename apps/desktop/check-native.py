@@ -546,12 +546,28 @@ try:
         # Nothing is skipped by retrying: the dialog must still disappear for
         # this function to return, and the caller independently asserts that the
         # app reported saving the exact path that was verified above.
+        def any_live_dialog():
+            try:
+                for candidate in Desktop(backend="uia").windows(title=title):
+                    try:
+                        if candidate.is_visible():
+                            return True
+                    except Exception:
+                        continue
+            except Exception:
+                return False
+            return False
+
         for attempt in range(6):
             current = live_dialog()
             if current is None:
                 return verified
+            # `windows()` hands back UIAWrapper objects, and only a
+            # WindowSpecification has wait_not; calling it on a wrapper raised
+            # AttributeError in run 43781963670 and failed the step instantly
+            # instead of waiting. Visibility is polled directly instead.
             try:
-                current.wait_not("visible", timeout=10)
+                wait_until(10, 0.5, lambda: not any_live_dialog())
                 return verified
             except Exception:
                 if attempt == 5:
