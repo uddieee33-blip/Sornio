@@ -23,12 +23,17 @@ name: macOS desktop workspace
 
 on:
   pull_request:
-    branches: [main, 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
+    # Matches the PR's BASE branch. The Phase 22 report targets
+    # hardening/phase22-native-recovery-20261116; omitting it would let a pull
+    # request touch this workflow and the installed-app probe without producing
+    # a macOS result.
+    branches: [main, 'hardening/phase22-native-recovery-20261116', 'feature/*phase1*', 'feature/*lane*', 'repair/*', 'arena/*']
     paths:
       - 'apps/desktop/**'
       - 'packages/business-domain/**'
       - 'packages/local-store/**'
       - 'packages/replication-cloud/**'
+      - 'scripts/check-phase22-macos-installed.py'
       - '.github/workflows/macos-desktop.yml'
   workflow_dispatch:
 
@@ -231,10 +236,70 @@ jobs:
           codesign -dv "$app" 2>&1 || echo "::notice::bundle is unsigned (expected in CI; not a distributable release)"
           du -sh "$app"
 
-      # NOTE ON SCOPE: this step compiles native code and produces an unsigned
-      # .app. It does not prove that an installed macOS app launches against a
-      # real login Keychain, and it does not prove notarized distribution.
-      # Those stay unverified until they run on Apple hardware/account.
+        # NOTE ON SCOPE: this step compiles native code and produces an unsigned
+        # .app. It does not prove that an installed macOS app launches against a
+        # real login Keychain, and it does not prove notarized distribution.
+
+      - name: Attempt installed macOS acceptance (a blocked runner is recorded, not hidden)
+        # Until this step existed, the macOS job only proved the bundle compiled.
+        # A compiled bundle and a bundle that installs, launches and provisions
+        # its Keychain-backed encrypted workspace are different claims, and this
+        # repository had never measured the second one on the release branch.
+        #
+        # Three verdicts, deliberately kept apart:
+        #   PASS    the installed app ran the purchasing lifecycle. Not claimed:
+        #           there is no macOS UI driver here.
+        #   BLOCKED the bundle installed and launched, and the purchasing
+        #           interaction could not be run. Measured on this runner the
+        #           cause is the missing driver, not a denied permission:
+        #           `UI elements enabled` returns true. That decides whether the
+        #           remaining work is authoring or hardware, so the probe reports
+        #           the permission state separately from the verdict.
+        #   FAIL    the product did not install or did not launch.
+        #
+        # Exit 78 is the script's deliberate "blocked" code. It does not fail the
+        # job, because a correctly detected block must not hide the build
+        # evidence above it — and because a release matrix that turns BLOCKED
+        # into PASS to keep the job green is the failure mode this whole phase
+        # exists to prevent. BLOCKED is never reported as a pass.
+        shell: bash
+        env:
+          # GITHUB_SHA on a pull_request event is the synthetic merge commit and
+          # names no checkoutable tree; the record must carry the real head.
+          SORNIO_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set +e
+          app=$(find apps/desktop/src-tauri/target/release/bundle/macos -maxdepth 1 -name '*.app' | head -1)
+          if [ -z "$app" ]; then
+            echo "::error::no .app was produced, so installed acceptance cannot even be attempted"
+            exit 1
+          fi
+          python3 scripts/check-phase22-macos-installed.py \
+            --app "$app" \
+            --output dist/phase22-macos/installed.json
+          code=$?
+          set -e
+          case "$code" in
+            0)
+              echo "::notice::installed macOS acceptance PASSED"
+              ;;
+            78)
+              echo "::warning::installed macOS acceptance is BLOCKED on this runner. This is not a pass: the macOS purchasing lifecycle remains unverified until it runs where UI automation is available."
+              ;;
+            *)
+              echo "::error::installed macOS acceptance FAILED (exit $code)"
+              exit "$code"
+              ;;
+          esac
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: Sornio-Phase22-macOS-installed
+          path: dist/phase22-macos/
+          if-no-files-found: warn
+          retention-days: 7
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: Sornio-macOS-unsigned-app
