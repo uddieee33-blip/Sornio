@@ -461,7 +461,9 @@ fn main() {
     // database can never be opened with a known key.
     let store = match std::env::var_os("SORNIO_REVIEW_DEVICE_DIR") {
         Some(directory) => {
-            eprintln!("bridge: opening the installed application's workspace via the OS credential store");
+            eprintln!(
+                "bridge: opening the installed application's workspace via the OS credential store"
+            );
             match sornio_local_store::device::initialize(std::path::Path::new(&directory)) {
                 Ok(store) => store,
                 Err(message) => {

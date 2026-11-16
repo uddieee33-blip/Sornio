@@ -65,7 +65,10 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
     let dir = tempfile::tempdir().unwrap();
     let path = dir.path().join("restart-export.db");
     let recovery = "Separate restart recovery password";
-    let (first, second) = (dir.path().join("before.sorniobackup"), dir.path().join("after.sorniobackup"));
+    let (first, second) = (
+        dir.path().join("before.sorniobackup"),
+        dir.path().join("after.sorniobackup"),
+    );
     {
         let mut w = open(&path);
         w.setup(PASSWORD).unwrap();
@@ -158,14 +161,24 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
     let stock: i64 = w
         .store_for_test()
         .0
-        .query_row("SELECT stock_milli FROM local_products WHERE id='restart-add-item'", [], |r| r.get(0))
+        .query_row(
+            "SELECT stock_milli FROM local_products WHERE id='restart-add-item'",
+            [],
+            |r| r.get(0),
+        )
         .unwrap();
-    assert_eq!(stock, 1750, "0.250 of the receipt was damaged and must not enter stock");
+    assert_eq!(
+        stock, 1750,
+        "0.250 of the receipt was damaged and must not enter stock"
+    );
 
     // The export the GUI could not reach: same workspace, new process, second
     // archive, no overwrite of the first.
     w.export_backup(&second, PASSWORD, recovery).unwrap();
-    assert!(second.exists(), "the export after the restart wrote no archive");
+    assert!(
+        second.exists(),
+        "the export after the restart wrote no archive"
+    );
     drop(w);
 
     // Both archives open independently, and the post-restart one carries the
@@ -173,9 +186,16 @@ fn backup_export_survives_a_process_restart_and_restores_the_purchasing_ledger()
     for archive in [&first, &second] {
         let mut w = open(&path);
         w.login("owner", PASSWORD).unwrap();
-        let preview = w.preview_backup(archive, PASSWORD, recovery, PASSWORD).unwrap();
-        assert!(preview.file_sha256.len() == 64, "archive {archive:?} has no content hash");
-        assert!(!std::fs::read(archive).unwrap().starts_with(b"SQLite format 3"));
+        let preview = w
+            .preview_backup(archive, PASSWORD, recovery, PASSWORD)
+            .unwrap();
+        assert!(
+            preview.file_sha256.len() == 64,
+            "archive {archive:?} has no content hash"
+        );
+        assert!(!std::fs::read(archive)
+            .unwrap()
+            .starts_with(b"SQLite format 3"));
     }
 }
 
