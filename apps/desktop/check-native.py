@@ -24,6 +24,7 @@ from pywinauto.timings import wait_until
 # can therefore exercise it on any machine.
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import native_dialog  # noqa: E402
+import native_activation  # noqa: E402
 
 EXE = Path(os.environ.get("SORNIO_REVIEW_EXE", "apps/desktop/src-tauri/target/release/sornio-desktop.exe")).resolve()
 OUTPUT = Path("dist/native-review")
@@ -90,6 +91,20 @@ def fill(title, text):
 
 
 def activate(title):
+    # WebView2 exposes a real UIA Invoke pattern on buttons. The export action
+    # can be unreachable by Tab after the purchasing workflow populates the
+    # page with hundreds of controls; invoking its accessible button is a real
+    # user-interface action, not IPC, JavaScript injection or a mocked result.
+    # The following dialog, file and encrypted-data checks remain mandatory.
+    if title == "Export encrypted backup…":
+        target = window.child_window(title=title, control_type="Button", visible_only=False)
+        target.wait("exists", timeout=45)
+        try:
+            native_activation.invoke_button(target.wrapper_object())
+            return
+        except native_activation.InvocationUnavailable as error:
+            print(f"Native accessibility Invoke unavailable for {title}: {error}; "
+                  "trying verified keyboard focus")
     focus_control(title, "Button")
     send_keys("{SPACE}", pause=0.1)
 
