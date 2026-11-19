@@ -221,6 +221,8 @@ jobs:
         # a replace confirmation, and the evidence record are exercised here in
         # seconds instead of after 40 minutes of product installation.
         run: python -m unittest discover -s apps/desktop -p test_native_dialog.py
+      - name: Test native-accessibility button invocation contract
+        run: python -m unittest discover -s apps/desktop -p test_native_activation.py
       - name: Test native-check argument forwarding (no product install needed)
         # Pins the Invoke-NativeCheck contract: the fixture stage passes zero
         # extra arguments and the preserved-reopen stage passes exactly
@@ -263,9 +265,6 @@ jobs:
           else { Write-Output "::notice::the installed app recorded no purchasing archive to compare" }
           python @auditArgs
           exit $LASTEXITCODE
-            --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe `
-            --device-dir "$env:LOCALAPPDATA\com.sornio.localreview" `
-            --output dist/native-review/purchasing-store-audit.json
       - name: Verify native screenshots, installer checksum and lifecycle evidence
         run: python apps/desktop/check-windows-evidence.py --installer-dir apps/desktop/src-tauri/target/release/bundle/nsis --evidence-dir dist/native-review
       - name: Upload engineering installer
