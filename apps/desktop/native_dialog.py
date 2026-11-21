@@ -104,6 +104,14 @@ class DialogNeverAppeared(RuntimeError):
         )
 
 
+class DialogSelectionUnverified(RuntimeError):
+    """The OS dialog closed without a verified entry and explicit submission."""
+
+    def __init__(self, evidence):
+        self.evidence = evidence
+        super().__init__(f"{evidence.title!r} closed without verified selection of {evidence.requested_path!r}")
+
+
 class DialogNotClosed(RuntimeError):
     """The native dialog is still on screen after the attempt budget.
 
@@ -305,6 +313,11 @@ def find_filename_edit(dialog):
     return None, ""
 
 
+def literal_keys(text):
+    """Quote filename characters with a special meaning in pywinauto.send_keys."""
+    return "".join("{" + ch + "}" if ch in "+^%~(){}" else ch for ch in text)
+
+
 def type_path(edit, path, send_keys, pause=0.03, settle=0.3):
     """Put `path` in the field with real keystrokes and read it back.
 
@@ -322,7 +335,7 @@ def type_path(edit, path, send_keys, pause=0.03, settle=0.3):
     try:
         edit.set_focus()
         send_keys("^a{BACKSPACE}", pause=0.1)
-        send_keys(target, with_spaces=True, pause=pause)
+        send_keys(literal_keys(target), with_spaces=True, pause=pause)
         time.sleep(settle)
         return os.path.normcase(str(edit.get_value())) == os.path.normcase(target)
     except Exception:
@@ -342,6 +355,8 @@ def enter_path(dialog, path, send_keys, attempts=3, evidence=None):
             evidence.entry_attempts = index + 1
         # Slower keystrokes on each retry: the measured failure mode of the fast
         # path is dropped or transposed characters, not a rejected value.
+        if not _visible(dialog):
+            return False
         if type_path(edit, path, send_keys, pause=0.03 * (index + 1)):
             return True
     return False
@@ -462,6 +477,13 @@ def close_dialog(
     def still_live():
         return bool(current_windows())
 
+    def closed_result():
+        evidence.live_after = False
+        if require_verified_entry and not (evidence.entry_verified and evidence.pressed):
+            evidence.harness_failure = True
+            raise DialogSelectionUnverified(evidence)
+        return evidence.entry_verified
+
     # The dialog opens asynchronously after the control is pressed. Wait for it
     # before concluding anything: returning here when the window list is merely
     # empty for a moment was the defect that made an export silently not happen.
@@ -483,8 +505,7 @@ def close_dialog(
         windows = current_windows()
         evidence.live_windows = [describe_window(w) for w in windows]
         if not windows:
-            evidence.live_after = False
-            return evidence.entry_verified
+            return closed_result()
         # Newest match: this run opens the same titled dialog twice, and the
         # older element is the one that must not be driven.
         dialog = windows[-1]
@@ -524,13 +545,11 @@ def close_dialog(
         try:
             if wait_until is not None:
                 wait_until(attempt_timeout, poll, lambda: not still_live())
-                evidence.live_after = False
-                return evidence.entry_verified
+                return closed_result()
         except Exception:
             pass
         if not still_live():
-            evidence.live_after = False
-            return evidence.entry_verified
+            return closed_result()
     evidence.live_after = still_live()
     evidence.harness_failure = True
     raise DialogNotClosed(title, attempts, evidence)

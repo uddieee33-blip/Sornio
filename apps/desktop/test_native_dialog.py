@@ -435,6 +435,36 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(decoy.value, "")
         self.assertEqual(evidence.field_selector, "title='File name:'")
 
+    def test_filename_is_sent_as_literal_text(self):
+        path = r"C:\Users\RUNNER~1\A+B (2026)\50%^{name}.sorniobackup"
+        edit = FakeEdit(path)
+        self.assertTrue(nd.type_path(edit, path, self.keys, settle=0))
+        self.assertEqual(self.log, ["^a{BACKSPACE}", r"C:\Users\RUNNER{~}1\A{+}B {(}2026{)}\50{%}{^}{{}name{}}.sorniobackup"])
+
+    @unittest.skipUnless(os.name == "nt", "uses the installed Windows keyboard parser")
+    def test_windows_keyboard_parser_decodes_filename_without_virtual_key_actions(self):
+        from pywinauto.keyboard import KeyAction, parse_keys
+        path = r"C:\Users\RUNNER~1\A+B (2026)\50%^{name}.sorniobackup"
+        events = parse_keys(nd.literal_keys(path), with_spaces=True)
+        self.assertTrue(all(type(event) is KeyAction for event in events))
+        self.assertEqual("".join(event.key for event in events), path)
+
+    def test_an_unsubmitted_dialog_disappearance_fails_strict_selection(self):
+        dialog = ScriptedDialog("Choose encrypted Sornio backup")
+        evidence = nd.DialogEvidence()
+
+        def dismiss_on_entry(sequence, **kwargs):
+            if kwargs.get("with_spaces"):
+                dialog.visible = False
+
+        self.keys = dismiss_on_entry
+        with self.assertRaises(nd.DialogSelectionUnverified):
+            self.close(FakeDesktop([dialog]), dialog.title, "chosen.sorniobackup",
+                       mode="open", evidence=evidence, require_verified_entry=True)
+        self.assertTrue(evidence.harness_failure)
+        self.assertEqual(evidence.pressed, 0)
+        self.assertFalse(evidence.entry_verified)
+
     def test_filename_automation_id_on_a_real_wrapper_surface(self):
         dialog = ScriptedDialog("Export encrypted Sornio backup", decoy=FakeEdit())
         dialog.decoys[0].element_info.name = "Search"

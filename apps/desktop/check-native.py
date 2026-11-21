@@ -557,12 +557,13 @@ try:
                     "Choose encrypted Sornio backup",
                 ),
             )
-        except (native_dialog.DialogNeverAppeared, native_dialog.DialogNotClosed) as failure:
+        except (native_dialog.DialogNeverAppeared, native_dialog.DialogNotClosed,
+                native_dialog.DialogSelectionUnverified) as failure:
             # A modal that will not close is a failure of this harness, not of
             # the product: while it is open the product's handler has not run.
             # Record everything measured, then fail — never treat it as a pass.
             failure.evidence.record()
-            print("::error::native Save/Open dialog did not close: "
+            print("::error::native Save/Open selection failed: "
                   + json.dumps(native_dialog.asdict(failure.evidence), sort_keys=True)[:1500])
             raise
         evidence.record()
