@@ -142,32 +142,6 @@ class ScriptedDialog:
             return list(self.buttons)
         return list(self.edits) + list(self.buttons)
 
-    def child_window(self, title=None, control_type=None, auto_id=None):
-        for edit in self.edits:
-            if title and edit.window_text().lower() != str(title).lower():
-                continue
-            if auto_id is not None and getattr(edit, "automation_id", None) != str(auto_id):
-                continue
-            if control_type and control_type != "Edit":
-                continue
-            return _Spec(edit)
-        return _Spec(None)
-
-
-class _Spec:
-    """`child_window(...)` returns a specification, not a wrapper."""
-
-    def __init__(self, element):
-        self._element = element
-
-    def exists(self, timeout=0):
-        return self._element is not None and getattr(self._element, "is_visible", lambda: False)()
-
-    def wrapper_object(self):
-        return self._element
-
-
-
 class Modal:
     """A #32770 confirmation owned by a file dialog."""
 
@@ -460,6 +434,25 @@ class DriverTests(unittest.TestCase):
         self.assertEqual(dialog.edit.value, "C:\\Temp\\x.sorniobackup")
         self.assertEqual(decoy.value, "")
         self.assertEqual(evidence.field_selector, "title='File name:'")
+
+    def test_filename_automation_id_on_a_real_wrapper_surface(self):
+        dialog = ScriptedDialog("Export encrypted Sornio backup", decoy=FakeEdit())
+        dialog.decoys[0].element_info.name = "Search"
+        dialog.edit.element_info.name = ""
+        dialog.edit.element_info.automation_id = "1001"
+        self.assertFalse(hasattr(dialog, "child_window"))
+        self.assertEqual(nd.find_filename_edit(dialog), (dialog.edit, "auto_id='1001'"))
+        dialog.edit._enabled = False
+        self.assertEqual(nd.find_filename_edit(dialog), (None, ""))
+
+    def test_strict_export_never_accepts_any_replace_prompt(self):
+        bystander = Modal("Confirm Save As")
+        dialog = ScriptedDialog("Export encrypted Sornio backup")
+        with self.assertRaises(nd.DialogNotClosed):
+            self.close(FakeDesktop([dialog, bystander]), dialog.title, "unique.sorniobackup",
+                       require_verified_entry=True, process_id=4242)
+        self.assertFalse(bystander.pressed)
+        self.assertEqual(dialog.presses, 0)
 
     def test_a_dialog_with_no_identifiable_file_name_field_is_a_harness_failure(self):
         dialog = ScriptedDialog("Export encrypted Sornio backup", closes_after=None)

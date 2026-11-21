@@ -158,6 +158,8 @@ class DialogDriverUse(unittest.TestCase):
         source = module_source(NATIVE)
         self.assertIn("import native_dialog", source)
         self.assertIn("native_dialog.close_dialog(", source)
+        self.assertIn("require_verified_entry=True", source)
+        self.assertIn("process_id=app.process", source)
         # The old inline loop that re-resolved a dialog and clicked blind is gone.
         self.assertNotIn("any_live_dialog", source)
 
@@ -173,7 +175,7 @@ class DialogDriverUse(unittest.TestCase):
         tree = ast.parse(module_source(NATIVE))
         helper = next(node for node in ast.walk(tree)
                       if isinstance(node, ast.FunctionDef) and node.name == "export_backup")
-        calls = [node.value for node in helper.body if isinstance(node, ast.Expr)
+        calls = [node.value for node in helper.body if isinstance(node, (ast.Expr, ast.Assign))
                  and isinstance(node.value, ast.Call)]
         self.assertEqual([(call.func.id, call.args[0].value) for call in calls[:4]], [
             ("fill", "Current Owner password"), ("fill", "Recovery passphrase"),

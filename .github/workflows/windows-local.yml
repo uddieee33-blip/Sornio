@@ -234,6 +234,8 @@ jobs:
         shell: pwsh
         run: pwsh -File apps/desktop/test-invoke-native-check.ps1
       - name: Verify installed offline app, recovery and lifecycle preservation
+        env:
+          SORNIO_DIALOG_EVIDENCE: dist/native-review/native-dialog.jsonl
         shell: pwsh
         run: ./apps/desktop/check-installer.ps1
 

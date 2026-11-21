@@ -100,14 +100,19 @@ def activate(title):
     if title == "Export encrypted backup…":
         target = window.child_window(title=title, control_type="Button", visible_only=False)
         target.wait("exists", timeout=45)
+        control = target.wrapper_object()
+        if not control.is_visible() or not control.is_enabled():
+            control = focus_control(title, "Button")
         try:
-            native_activation.invoke_button(target.wrapper_object())
-            return
+            native_activation.invoke_button(control)
+            print(f"UIA Invoke issued for {title}", flush=True)
+            return "UIA Invoke"
         except native_activation.InvocationUnavailable as error:
             print(f"Native accessibility Invoke unavailable for {title}: {error}; "
                   "trying verified keyboard focus")
     focus_control(title, "Button")
     send_keys("{SPACE}", pause=0.1)
+    return "keyboard Space"
 
 
 def activate_link(title):
@@ -519,7 +524,7 @@ try:
     recovery_secret = "IndependentBackupPassphrase2026"
     chosen = Path(os.environ["TEMP"]) / ("sornio-native-" + str(uuid4()) + ".sorniobackup")
 
-    def pick_native_file(title, path, mode="save"):
+    def pick_native_file(title, path, mode="save", activation=""):
         """Drive the real OS Save/Open dialog towards an exact path.
 
         The logic lives in native_dialog.py so it can be tested without a
@@ -535,7 +540,7 @@ try:
         while a dialog with this title is visible, and the caller independently
         asserts that the app reported saving the exact path verified here.
         """
-        evidence = native_dialog.DialogEvidence(title=title, mode=mode)
+        evidence = native_dialog.DialogEvidence(title=title, mode=mode, activation=activation)
         try:
             verified = native_dialog.close_dialog(
                 title,
@@ -545,12 +550,14 @@ try:
                 mode=mode,
                 wait_until=wait_until,
                 evidence=evidence,
+                require_verified_entry=True,
+                process_id=app.process,
                 known_titles=(
                     "Export encrypted Sornio backup",
                     "Choose encrypted Sornio backup",
                 ),
             )
-        except native_dialog.DialogNotClosed as failure:
+        except (native_dialog.DialogNeverAppeared, native_dialog.DialogNotClosed) as failure:
             # A modal that will not close is a failure of this harness, not of
             # the product: while it is open the product's handler has not run.
             # Record everything measured, then fail — never treat it as a pass.
@@ -562,20 +569,21 @@ try:
         return verified
 
     def export_backup(destination):
+        assert not destination.exists(), f"Export destination already exists: {destination}"
         # BackupPanel clears all three credentials after each operation.
         fill("Current Owner password", PASSWORD)
         fill("Recovery passphrase", recovery_secret)
         fill("Confirm recovery passphrase for export", recovery_secret)
-        activate("Export encrypted backup…")
-        verified_entry = pick_native_file("Export encrypted Sornio backup", destination, mode="save")
+        activation = activate("Export encrypted backup…")
+        verified_entry = pick_native_file("Export encrypted Sornio backup", destination, mode="save", activation=activation)
+        assert verified_entry, "The native Save dialog did not confirm the requested path"
         wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
         message = message_text("Encrypted backup saved and verified.") or ""
         receipt = re.search(r"Saved to: (.+?)\. Backup ID ([a-f0-9]{64})\. SHA-256 ([a-f0-9]{64})\.", message)
         assert receipt, f"Export did not show a complete backup receipt: {message!r}"
         archive = Path(receipt[1])
         assert archive.is_file() and archive.suffix == ".sorniobackup", archive
-        if verified_entry:
-            assert archive.samefile(destination), f"Expected {destination}, app reported {archive}"
+        assert archive.samefile(destination), f"Expected {destination}, app reported {archive}"
         assert archive.stat().st_size >= 4096, archive
         with archive.open("rb") as stream:
             assert not stream.read(16).startswith(b"SQLite format 3"), archive
