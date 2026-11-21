@@ -330,12 +330,26 @@ const FIXTURE_DERIVED = new Map([
   ['1.875 pcs', 'runtime quantity'],
 ]);
 
+// Order cells interpolate names and SKUs supplied by the installed fixture.
+// Render the actual cell template so stale punctuation or fixture data still fails.
+const supplierPanel = corpus.get('apps/desktop/src/SupplierPanel.tsx') ?? '';
+const lineCell = supplierPanel.match(/<td>([^<>]*\{line\.name\}[^<>]*\{line\.sku\}[^<>]*)<\/td>/)?.[1];
+const nativeFixture = readFileSync(join(ROOT, 'apps/desktop/check-native.py'), 'utf8');
+const fixtureItems = /fill\("Item name", "([^"]+)"\)\s+fill\("Item code \(optional\)", "([^"]+)"\)/g;
+const purchaseCells = new Set();
+if (lineCell) {
+  for (const [, name, sku] of nativeFixture.matchAll(fixtureItems)) {
+    purchaseCells.add(normalise(lineCell.replace('{line.name}', name).replace('{line.sku}', sku)));
+  }
+}
+
 const missing = [];
 const normalisedHaystack = normalise([...corpus.values()].join('\n'));
 for (const { literal, source, kind } of expectations) {
   const needle = normalise(literal);
   if (!needle) continue;
   if (FIXTURE_DERIVED.has(needle)) continue;
+  if (source === 'apps/desktop/check-native.py' && purchaseCells.has(needle)) continue;
   // Fast path: the product still contains this text verbatim.
   if (normalisedHaystack.includes(needle)) continue;
   const producible = templates.some(template => templateProduces(template, needle));

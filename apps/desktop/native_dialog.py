@@ -104,6 +104,14 @@ class DialogNeverAppeared(RuntimeError):
         )
 
 
+class DialogSelectionUnverified(RuntimeError):
+    """The OS dialog closed without a verified entry and explicit submission."""
+
+    def __init__(self, evidence):
+        self.evidence = evidence
+        super().__init__(f"{evidence.title!r} closed without verified selection of {evidence.requested_path!r}")
+
+
 class DialogNotClosed(RuntimeError):
     """The native dialog is still on screen after the attempt budget.
 
@@ -144,6 +152,7 @@ class DialogEvidence:
     entry_attempts: int = 0
     field_selector: str = ""
     field_missing: bool = False
+    activation: str = ""
     waited_for_appearance: float = 0.0
     never_appeared: bool = False
     pressed: int = 0
@@ -225,7 +234,7 @@ def _visible(candidate):
 def foreground_window(desktop):
     """The window the OS says the user is looking at, or why that is unknown."""
     try:
-        return describe_window(desktop.window(active_only=True))
+        return describe_window(desktop.window(active_only=True).wrapper_object())
     except Exception as error:
         return {"error": type(error).__name__}
 
@@ -286,21 +295,27 @@ FILENAME_FIELD_AUTO_IDS = ("1001",)
 
 def find_filename_edit(dialog):
     """The dialog's file-name field, or None. Returns (control, selector_used)."""
+    # Desktop.windows() returns UIA wrappers. child_window()/exists() belong
+    # to WindowSpecification and cannot resolve controls from these wrappers.
+    try:
+        edits = [edit for edit in dialog.descendants(control_type="Edit")
+                 if edit.is_visible() and edit.is_enabled()]
+    except Exception:
+        return None, ""
     for title in FILENAME_FIELD_TITLES:
-        try:
-            spec = dialog.child_window(title=title, control_type="Edit")
-            if spec.exists(timeout=1):
-                return spec.wrapper_object(), f"title={title!r}"
-        except Exception:
-            continue
+        matches = [edit for edit in edits if edit.element_info.name == title]
+        if len(matches) == 1:
+            return matches[0], f"title={title!r}"
     for auto_id in FILENAME_FIELD_AUTO_IDS:
-        try:
-            spec = dialog.child_window(auto_id=auto_id, control_type="Edit")
-            if spec.exists(timeout=1):
-                return spec.wrapper_object(), f"auto_id={auto_id!r}"
-        except Exception:
-            continue
+        matches = [edit for edit in edits if edit.element_info.automation_id == auto_id]
+        if len(matches) == 1:
+            return matches[0], f"auto_id={auto_id!r}"
     return None, ""
+
+
+def literal_keys(text):
+    """Quote filename characters with a special meaning in pywinauto.send_keys."""
+    return "".join("{" + ch + "}" if ch in "+^%~(){}" else ch for ch in text)
 
 
 def type_path(edit, path, send_keys, pause=0.03, settle=0.3):
@@ -320,7 +335,7 @@ def type_path(edit, path, send_keys, pause=0.03, settle=0.3):
     try:
         edit.set_focus()
         send_keys("^a{BACKSPACE}", pause=0.1)
-        send_keys(target, with_spaces=True, pause=pause)
+        send_keys(literal_keys(target), with_spaces=True, pause=pause)
         time.sleep(settle)
         return os.path.normcase(str(edit.get_value())) == os.path.normcase(target)
     except Exception:
@@ -340,6 +355,8 @@ def enter_path(dialog, path, send_keys, attempts=3, evidence=None):
             evidence.entry_attempts = index + 1
         # Slower keystrokes on each retry: the measured failure mode of the fast
         # path is dropped or transposed characters, not a rejected value.
+        if not _visible(dialog):
+            return False
         if type_path(edit, path, send_keys, pause=0.03 * (index + 1)):
             return True
     return False
@@ -430,6 +447,7 @@ def close_dialog(
     evidence=None,
     known_titles=(),
     require_verified_entry=False,
+    process_id=None,
     poll=0.5,
     settle=0.2,
     appearance_timeout=45,
@@ -452,8 +470,19 @@ def close_dialog(
     evidence.requested_path = str(path)
     wanted = "Save" if mode == "save" else "Open"
 
+    def current_windows():
+        return [candidate for candidate in live_windows(desktop, title)
+                if process_id is None or candidate.element_info.process_id == process_id]
+
     def still_live():
-        return bool(live_windows(desktop, title))
+        return bool(current_windows())
+
+    def closed_result():
+        evidence.live_after = False
+        if require_verified_entry and not (evidence.entry_verified and evidence.pressed):
+            evidence.harness_failure = True
+            raise DialogSelectionUnverified(evidence)
+        return evidence.entry_verified
 
     # The dialog opens asynchronously after the control is pressed. Wait for it
     # before concluding anything: returning here when the window list is merely
@@ -473,11 +502,10 @@ def close_dialog(
 
     for attempt in range(attempts):
         evidence.attempts = attempt + 1
-        windows = live_windows(desktop, title)
+        windows = current_windows()
         evidence.live_windows = [describe_window(w) for w in windows]
         if not windows:
-            evidence.live_after = False
-            return evidence.entry_verified
+            return closed_result()
         # Newest match: this run opens the same titled dialog twice, and the
         # older element is the one that must not be driven.
         dialog = windows[-1]
@@ -489,13 +517,15 @@ def close_dialog(
             pass
         # A modal raised by an earlier press is answered before the parent is
         # clicked again: the parent ignores input while the question is open.
-        for candidate, affirmative in confirmation_windows(desktop, title, known_titles):
-            seen = answer_confirmation(candidate, affirmative, evidence)
-            evidence.confirmations.append(asdict(seen))
-            time.sleep(settle)
+        if not require_verified_entry:
+            for candidate, affirmative in confirmation_windows(desktop, title, known_titles):
+                seen = answer_confirmation(candidate, affirmative, evidence)
+                evidence.confirmations.append(asdict(seen))
+                time.sleep(settle)
         if not evidence.entry_verified:
             evidence.entry_verified = enter_path(dialog, path, send_keys, evidence=evidence)
         if require_verified_entry and not evidence.entry_verified:
+            time.sleep(poll)
             continue
         button = find_button(dialog, wanted)
         try:
@@ -515,13 +545,11 @@ def close_dialog(
         try:
             if wait_until is not None:
                 wait_until(attempt_timeout, poll, lambda: not still_live())
-                evidence.live_after = False
-                return evidence.entry_verified
+                return closed_result()
         except Exception:
             pass
         if not still_live():
-            evidence.live_after = False
-            return evidence.entry_verified
+            return closed_result()
     evidence.live_after = still_live()
     evidence.harness_failure = True
     raise DialogNotClosed(title, attempts, evidence)
