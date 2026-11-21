@@ -464,12 +464,26 @@ fn main() {
             eprintln!(
                 "bridge: opening the installed application's workspace via the OS credential store"
             );
-            match sornio_local_store::device::initialize(std::path::Path::new(&directory)) {
-                Ok(store) => store,
-                Err(message) => {
-                    eprintln!("bridge: the installed workspace could not be opened: {message}");
-                    std::process::exit(3);
+            // The OS-backed key provider is intentionally unavailable on Linux.
+            // The synthetic review bridge must still compile for cross-platform CI,
+            // but must NEVER substitute its known synthetic key for a real device.
+            #[cfg(any(windows, target_os = "macos"))]
+            {
+                match sornio_local_store::device::initialize(std::path::Path::new(&directory)) {
+                    Ok(store) => store,
+                    Err(message) => {
+                        eprintln!("bridge: the installed workspace could not be opened: {message}");
+                        std::process::exit(3);
+                    }
                 }
+            }
+            #[cfg(not(any(windows, target_os = "macos")))]
+            {
+                let _ = directory;
+                eprintln!(
+                    "bridge: OS credential-backed workspace review is unavailable on this platform"
+                );
+                std::process::exit(3);
             }
         }
         None => Store::open(

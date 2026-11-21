@@ -52,6 +52,12 @@ function bridge() {
     // The native app asks the operator to acknowledge an item save; do the same through the IPC layer or the catalog (correctly) blocks locking.
     const acknowledged = await rawScoped('acknowledge_local_inventory', { operationId: 'review-rice' });
     assert.equal(acknowledged.ok, true, JSON.stringify(acknowledged.error));
+    const ghee = await rawScoped('add_local_product', { request: {
+      operationId: 'review-ghee', name: 'Phase 5 acceptance ghee', sku: 'GHEE', unit: 'pcs',
+      unitPricePaise: 100000, openingStockMilli: 1000,
+    } });
+    assert.equal(ghee.ok, true, JSON.stringify(ghee.error));
+    assert.equal((await rawScoped('acknowledge_local_inventory', { operationId: 'review-ghee' })).ok, true);
     for (const [username, role] of [['manager', 'manager'], ['assistant', 'assistant_manager'], ['cashier', 'cashier']]) {
       const created = await rawScoped('create_local_staff', { details: { username, displayName: username, role }, password });
       assert.equal(created.ok, true, JSON.stringify(created.error));
@@ -99,7 +105,13 @@ function bridge() {
     // --- Purchase order draft -> submit -> approve (UI, owner) ---
     const productList = await rawScoped('list_local_products');
     assert.equal(productList.ok, true, JSON.stringify(productList.error));
-    await page.getByLabel('Item', { exact: true }).selectOption(productList.value[0].id);
+    assert.equal(productList.value[0].id, 'review-ghee');
+    const item = page.getByLabel('Item', { exact: true });
+    await item.focus();
+    await item.press('Alt+ArrowDown');
+    await page.keyboard.type('Sample');
+    await item.press('Enter');
+    assert.equal(await item.inputValue(), 'review-rice');
     await label('Quantity').fill('2');
     await label('Unit cost (₹)').fill('100');
     await label('GST').selectOption('1200');
@@ -159,7 +171,7 @@ function bridge() {
     await label('Reason for the return').fill('Damaged packaging');
     await button('Record return').click();
     await page.getByText(/Return recorded for/).waitFor();
-    assert.ok((await page.getByText('INV-9001', { exact: false }).count()) >= 1, 'statement should show the invoice reference');
+    await page.getByRole('row').filter({ hasText: 'Ref INV-9001' }).waitFor();
 
     // --- RBAC: assistant_manager may manage orders but may not approve or pay ---
     await button('Lock workspace').click();

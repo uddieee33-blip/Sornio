@@ -64,6 +64,9 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
      if(s.failReadAfterSave){s.failReadAfterSave=false;s.failStockRead=true;}
      return structuredClone(product);
     }
+    if(command!=='save_workspace' && command!=='restore_workspace') {
+     throw new Error(`Unsupported local UI fixture command: ${command}`);
+    }
     if(args.expectedRevision!==s.snapshot.revision)throw {code:'workspace_error',message:'Another window changed this draft. Reopen it before saving again.'};
     const draft=command==='restore_workspace'?s.copies.find(c=>c.revision===args.sourceRevision)?.draft:args.draft;
     if(!draft)throw {code:'workspace_error',message:'Saved copy not available.'};
@@ -145,7 +148,7 @@ const baseUrl = process.argv[2] || 'http://127.0.0.1:1420';
   assert.equal(await note.inputValue(),'Original committed note');
   await page.evaluate(()=>{globalThis.review.snapshot={revision:4,draft:{businessName:'Other window',businessType:'kirana',note:'New committed work'}};globalThis.review.copies.unshift(structuredClone(globalThis.review.snapshot));});
   await note.fill('Conflicting edits');await button('Save local draft').click();
-  await page.getByRole('alert').filter({hasText:'Another window changed'}).waitFor();
+  await page.getByLabel('Local storage status', {exact:true}).getByRole('alert').filter({hasText:'Another window changed'}).waitFor();
   assert.equal(await note.inputValue(),'Conflicting edits');
   await button('Reopen saved draft').click();await button('Discard edits and reopen').click();
   await page.getByText('Reopened the latest saved draft from this PC.',{exact:true}).waitFor();
