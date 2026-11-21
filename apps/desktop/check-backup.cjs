@@ -46,6 +46,19 @@ async function stop() { if(child.exitCode!==null || child.signalCode!==null)retu
   await label('Current Owner password').fill(login);await label('Recovery passphrase').fill(secret);await label('Confirm recovery passphrase for export').fill(secret);
   await button('Export encrypted backup…').click();await page.getByRole('status').filter({hasText:'Encrypted backup saved and verified.'}).waitFor();
   const bytes=readFileSync(backup);for(const plain of [login,secret,'Before backup private note']) assert(!bytes.includes(Buffer.from(plain)));
+  const exportButton = button('Export encrypted backup…');
+  assert(await exportButton.isDisabled(), 'Export must require fresh credentials after each use');
+  for (const field of ['Current Owner password', 'Recovery passphrase', 'Confirm recovery passphrase for export']) {
+    assert.equal(await label(field).inputValue(), '');
+  }
+  await label('Current Owner password').fill(login);
+  await label('Recovery passphrase').fill(secret);
+  await label('Confirm recovery passphrase for export').fill(secret);
+  assert(await exportButton.isEnabled());
+  // The browser fixture has a fixed destination. A second real request must refuse to overwrite it.
+  await exportButton.click();
+  await page.getByRole('alert').filter({hasText:'The encrypted backup could not be read or written.'}).waitFor();
+  assert.deepEqual(readFileSync(backup), bytes);
   await label('Workspace note').fill('Saved after backup');await button('Save local draft').click();await page.getByText('Saved to this PC. You can close and reopen Sornio.',{exact:true}).waitFor();
   await button('Choose encrypted backup…').click();await page.getByText('synthetic.sorniobackup',{exact:true}).waitFor();
   await credentials('Wrong recovery passphrase!');await button('Verify and preview backup').click();await page.getByRole('alert').filter({hasText:'Backup could not be verified.'}).waitFor();

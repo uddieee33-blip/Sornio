@@ -4,6 +4,7 @@ CI blocks outbound traffic for this app and its WebView runtime. This script
 uses verified native keyboard focus, not debugging, injected JS or mocked IPC.
 """
 from pathlib import Path
+import hashlib
 import json
 import os
 import re
@@ -560,68 +561,43 @@ try:
         evidence.record()
         return verified
 
+    def export_backup(destination):
+        # BackupPanel clears all three credentials after each operation.
+        fill("Current Owner password", PASSWORD)
+        fill("Recovery passphrase", recovery_secret)
+        fill("Confirm recovery passphrase for export", recovery_secret)
+        activate("Export encrypted backup…")
+        verified_entry = pick_native_file("Export encrypted Sornio backup", destination, mode="save")
+        wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
+        message = message_text("Encrypted backup saved and verified.") or ""
+        receipt = re.search(r"Saved to: (.+?)\. Backup ID ([a-f0-9]{64})\. SHA-256 ([a-f0-9]{64})\.", message)
+        assert receipt, f"Export did not show a complete backup receipt: {message!r}"
+        archive = Path(receipt[1])
+        assert archive.is_file() and archive.suffix == ".sorniobackup", archive
+        if verified_entry:
+            assert archive.samefile(destination), f"Expected {destination}, app reported {archive}"
+        assert archive.stat().st_size >= 4096, archive
+        with archive.open("rb") as stream:
+            assert not stream.read(16).startswith(b"SQLite format 3"), archive
+            stream.seek(0)
+            assert hashlib.file_digest(stream, "sha256").hexdigest() == receipt[3], archive
+        return archive, receipt[2], receipt[3]
+
     original_note = focus_control("Workspace note", "Edit").get_value()
     attach_backup_controls()
-    fill("Current Owner password", PASSWORD)
-    fill("Recovery passphrase", recovery_secret)
-    fill("Confirm recovery passphrase for export", recovery_secret)
-    activate("Export encrypted backup…")
-    driven = pick_native_file("Export encrypted Sornio backup", chosen)
-    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
-    saved_text = message_text("Encrypted backup saved and verified.") or ""
-    stated_match = re.search(r"Saved to: (.+?)\. Backup ID ", saved_text)
-    assert stated_match, f"Success message did not state the saved path: {saved_text!r}"
-    # The app-reported path is the source of truth for every check below.
-    backup = Path(stated_match.group(1))
-    assert backup.suffix == ".sorniobackup", f"Stated backup path is not a .sorniobackup: {backup!r}"
-    if driven:
-        # Real keystrokes verifiably put the chosen path into the dialog, so the
-        # app must report exactly that path.
-        assert os.path.normcase(os.path.realpath(backup)) == os.path.normcase(os.path.realpath(chosen)), (
-            f"Backup was saved to {backup!r}, not the dialog-verified chosen path {chosen!r}")
-    else:
-        # Conclusively diagnosed on the GitHub runner: the OS save dialog ignores
-        # synthetic filename input (raw keys and UIA value writes alike) and picks
-        # its own default. The product is still fully proven: it wrote the archive
-        # exactly where the dialog returned and now reports that path in the UI,
-        # and every integrity check below runs on that app-stated file.
-        print(f"NOTE: the runner's save dialog did not accept synthetic filename input; "
-              f"the OS dialog chose {backup} and the app reported that path truthfully.")
-    # Regression for the defect that blocked Phase 22C: export, open, restart
-    # the application, then export again. The second export is the invocation
-    # that never closed — the first one after a restart — while the first
-    # export and the open in the same process both worked. Each step asserts its
-    # own precondition, so a failure names the step rather than "the backup".
-    regression = []
+    backup, _, _ = export_backup(chosen)
+    regression = ["export"]
     regression_path = Path(os.environ["TEMP"]) / ("regression-" + str(uuid4()) + ".sorniobackup")
-    activate("Export encrypted backup…")
+    second_export, _, _ = export_backup(regression_path)
+    assert second_export != backup, f"Second export reused the first archive: {backup}"
     regression.append("export-before-restart")
-    pick_native_file("Export encrypted Sornio backup", regression_path)
-    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
-    regression_message = message_text("Encrypted backup saved and verified.") or ""
-    match = re.search(r"Saved to: (.+?)\. Backup ID ", regression_message)
-    assert match, f"Second export in the same process did not report a path: {regression_message!r}"
-    second_export = Path(match.group(1))
-    assert second_export.exists(), f"Second export reported {second_export!r}, which is not on disk"
-    assert second_export != backup, (
-        f"Second export reused the first export's path {second_export!r}; the product must publish a new file")
-    regression.append("restart")
     stop()
     launch()
+    regression.append("restart")
     attach_backup_controls()
-    fill("Current Owner password", PASSWORD)
-    fill("Recovery passphrase", recovery_secret)
-    fill("Confirm recovery passphrase for export", recovery_secret)
-    activate("Export encrypted backup…")
-    regression.append("export-after-restart")
     after_restart_path = Path(os.environ["TEMP"]) / ("regression-" + str(uuid4()) + ".sorniobackup")
-    pick_native_file("Export encrypted Sornio backup", after_restart_path)
-    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
-    after_restart_message = message_text("Encrypted backup saved and verified.") or ""
-    match = re.search(r"Saved to: (.+?)\. Backup ID ", after_restart_message)
-    assert match, f"Export after restart saved nothing: {after_restart_message!r}"
-    after_restart = Path(match.group(1))
-    assert after_restart.exists(), f"Export after restart reported {after_restart!r}, which is not on disk"
+    after_restart, _, _ = export_backup(after_restart_path)
+    regression.append("export-after-restart")
     regression.append("open-after-restart")
     activate("Choose encrypted backup…")
     pick_native_file("Choose encrypted Sornio backup", after_restart, mode="open")
@@ -994,12 +970,14 @@ try:
     wait_until(30, 0.5, lambda: message_visible("Supplier restored."))
     window.capture_as_image().save(OUTPUT / "windows-suppliers.png")
     focus_control("Item", "ComboBox")
-    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    # Catalogue order changes when the mixed-tender fixture adds ghee.
+    send_keys("%{DOWN}Sample{ENTER}", pause=0.1, vk_packet=False)
     fill("Quantity", "2")
     fill("Unit cost (₹)", "100")
     activate("Create draft order")
     wait_until(30, 0.5, lambda: message_visible("Draft order created."))
     wait_until(30, 0.5, lambda: message_visible("PO-1 · Draft"))
+    wait_until(30, 0.5, lambda: message_visible("Sample native rice (NATIVE-RICE)"))
     activate("Submit for approval")
     wait_until(30, 0.5, lambda: message_visible("PO-1 · Awaiting approval"))
     activate("Approve order")
@@ -1079,22 +1057,11 @@ try:
     window.capture_as_image().save(OUTPUT / "windows-purchasing-reopened.png")
     # Export and restore the actual purchasing records through the OS pickers.
     attach_backup_controls()
-    fill("Current Owner password", PASSWORD)
-    fill("Recovery passphrase", recovery_secret)
-    fill("Confirm recovery passphrase for export", recovery_secret)
-    activate("Export encrypted backup…")
-    pick_native_file("Export encrypted Sornio backup", Path(os.environ["TEMP"]) / ("purchasing-" + str(uuid4()) + ".sorniobackup"))
-    wait_until(60, 0.5, lambda: message_visible("Encrypted backup saved and verified."))
-    purchasing_path = re.search(r"Saved to: (.+?)\. Backup ID ", message_text("Encrypted backup saved and verified.") or "")
-    assert purchasing_path, "Purchasing backup did not report its actual path"
-    purchasing_backup = Path(purchasing_path.group(1))
-    assert purchasing_backup.exists() and purchasing_backup.stat().st_size >= 4096
-    assert not purchasing_backup.read_bytes().startswith(b"SQLite format 3")
-    # The audit step re-reads this archive; the path is recorded here because the
-    # caller generated it and only the product knows which path the dialog
-    # actually returned.
-    (OUTPUT / "purchasing-backup-path.txt").write_text(
-        str(purchasing_backup) + "\n", encoding="utf-8")
+    purchasing_backup, backup_id, digest = export_backup(
+        Path(os.environ["TEMP"]) / ("purchasing-" + str(uuid4()) + ".sorniobackup"))
+    (OUTPUT / "purchasing-backup-receipt.json").write_text(json.dumps({
+        "path": str(purchasing_backup), "backupId": backup_id, "sha256": digest,
+    }) + "\n", encoding="utf-8")
     fill("Amount (₹)", "20")
     fill("Payment reference", "NATIVE-AFTER-BACKUP")
     activate("Record payment")
@@ -1151,17 +1118,17 @@ try:
             "forced restart immediately after partial receiving, recovered exactly once",
             "supplier invoice anchored to the receipt with the variance booked",
             "supplier partial payment",
-            "supplier return reducing the payable and restoring stock",
+            "supplier return reducing both the payable and available stock",
             "full receiving completing the order",
             "order close",
             "payable settled to exactly zero and then restored from the encrypted backup",
         ],
         "financial_reconciliation": "7500 receipt + 500 invoice variance - 3000 bank payment - 2500 return + 10000 receipt = 12500 paise; preserved after a forced restart in the middle of the lifecycle; then 2000 paid (10500) and a further 10500 settled it to 0, and the encrypted backup restored 12500",
-        "inventory_reconciliation": "1.5 pcs + 0.75 accepted of a 1.0 receipt (0.25 damaged) - 0.25 returned + 1.0 remainder = 3 pcs, asserted after each movement",
+        "inventory_reconciliation": "1.5 pcs + 0.75 accepted of a 1.0 receipt (0.25 damaged) - 0.25 returned + 1.0 remainder = 3 pcs, checked by the independent persisted-store audit",
         "assertion_style": "rendered product state from the installed binary; independently re-read from the encrypted workspace by apps/desktop/check-purchasing-store.py",
         "limitations": "unsigned engineering installer; same-version reinstall checked by the separate preserved-data stage; no physical printer, scanner or power-loss coverage"
     }, indent=2) + "\n", encoding="utf-8")
-    print("Phase 22 installed purchasing lifecycle passed: 12500-paise payable and 3-pcs stock reconciled, settled to zero, and restored; a forced restart mid-lifecycle recovered the partial receipt exactly once.")
+    print("Phase 22 installed purchasing lifecycle passed: 12500-paise payable settled to zero and restored; a forced restart mid-lifecycle recovered the partial receipt exactly once.")
     print("Native Windows release: offline password setup, two saves, restore, lock/unlock, forced termination, wrong-password refusal, fractional item/stock saves, overselling and missing-credit-reference guards, review cancellation, real cash/credit checkout, committed receipt UUIDs/totals, ledger balances, deductions, receipt recovery, durable acknowledgement, owner staff creation, cashier restrictions/sale, role changes, disabled-account refusal, customer creation/phone lookup, partial and full cash collection, forced repayment receipt recovery, ledger balances and native printable statement passed.")
 except Exception:
     traceback.print_exc()

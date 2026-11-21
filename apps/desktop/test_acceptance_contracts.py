@@ -169,6 +169,21 @@ class DialogDriverUse(unittest.TestCase):
             if "Choose encrypted Sornio backup" in call:
                 self.assertIn('mode="open"', call, f"open dialog called without its mode: {call}")
 
+    def test_every_export_enters_fresh_credentials_before_activation(self):
+        tree = ast.parse(module_source(NATIVE))
+        helper = next(node for node in ast.walk(tree)
+                      if isinstance(node, ast.FunctionDef) and node.name == "export_backup")
+        calls = [node.value for node in helper.body if isinstance(node, ast.Expr)
+                 and isinstance(node.value, ast.Call)]
+        self.assertEqual([(call.func.id, call.args[0].value) for call in calls[:4]], [
+            ("fill", "Current Owner password"), ("fill", "Recovery passphrase"),
+            ("fill", "Confirm recovery passphrase for export"), ("activate", "Export encrypted backup…"),
+        ])
+        direct = [node for node in ast.walk(tree) if isinstance(node, ast.Call)
+                  and isinstance(node.func, ast.Name) and node.func.id == "activate"
+                  and isinstance(node.args[0], ast.Constant) and node.args[0].value == "Export encrypted backup…"]
+        self.assertEqual(direct, [calls[3]])
+
     def test_the_export_open_restart_export_regression_is_present(self):
         source = module_source(NATIVE)
         for marker in ("export-before-restart", "restart", "export-after-restart", "open-after-restart"):

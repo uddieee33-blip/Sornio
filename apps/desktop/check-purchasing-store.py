@@ -35,6 +35,7 @@ What changed in Phase 22D, and why
 3. The reserved phrase is `RESTORE <12 hex>`, matched against the real pattern.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -51,7 +52,7 @@ RETURN = 2500
 RECEIPT_REMAINDER = 10000
 CLOSING_PAYABLE = 12500
 ORDER_TOTAL = 20000  # 2.000 at 100.00
-RECEIVED_MILLI = 2000  # both receipts together, damaged excluded
+RECEIVED_MILLI = 2000  # gross received, including the damaged quarter
 NET_STOCK_MILLI = 1500  # +750 accepted of the first receipt, -250 returned, +1000 remainder
 # What the retail stages left in stock when purchasing began. Not assumed: the
 # same run's own retail assertions read 4 pcs, 2.75 after the 1.250 sale, 2.00
@@ -76,15 +77,6 @@ def expect(label, observed, expected):
     return observed
 
 
-def optional(label, observed, expected, consequence):
-    """A check that cannot abort the audit, reported with what it could not say."""
-    result = {"check": label, "expected": expected, "observed": observed}
-    result["status"] = "PASS" if observed == expected else "FAIL"
-    if result["status"] == "FAIL":
-        result["wouldHaveBlocked"] = consequence
-    return result
-
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--bridge", required=True, help="cashier_review_bridge binary")
@@ -101,6 +93,8 @@ def main():
         help="encrypted archive the installed app exported; opened read-only for the "
         "backup/restored-state consistency check",
     )
+    parser.add_argument("--backup-receipt", type=Path,
+                        help="path, backup ID and digest recorded during the installed UI export")
     args = parser.parse_args()
 
     output = Path(args.output)
@@ -125,6 +119,7 @@ def main():
     def finish(status, reason=""):
         if reason:
             result["reason"] = reason
+            print(f"::error::Purchasing store audit {status}: {reason}")
         result["status"] = status
         output.write_text(json.dumps(result, indent=2, default=str) + "\n", encoding="utf-8")
         print(json.dumps(result, indent=2, default=str))
@@ -156,15 +151,24 @@ def main():
     result["observations"]["databaseHeader"] = header.hex()
     result["observations"]["encryptedAtRest"] = True
 
-    scope = None
+    if not Path(args.bridge).is_file():
+        result["checksNotRun"] = ["read installed workspace and reconcile purchasing and recovery"]
+        return finish("BLOCKED", "the native review bridge was not built")
     process = subprocess.Popen(
         [str(Path(args.bridge).resolve()), str(database)],
         stdin=subprocess.PIPE,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        text=True,
+        encoding="utf-8",
         env={**os.environ, "SORNIO_REVIEW_DEVICE_DIR": str(device_dir)},
     )
+
+    return audit_open_workspace(process, args, result, finish)
+
+
+def audit_open_workspace(process, args, result, finish):
+    """Reconcile rows and recovery evidence through an already opened native store."""
+    scope = None
 
     def call(command, **values):
         payload = {"command": command, "args": {**values, **({"scope": scope} if scope else {})}}
@@ -232,7 +236,7 @@ def main():
         expect("one ledger entry per operation", len(set(operation_ids)), len(operation_ids))
         kinds = [e["kind"] for e in entries]
         expect("ledger kinds in order", kinds,
-               ["receipt", "invoice", "payment", "return", "receipt"])
+               ["goods_received", "invoice_variance", "payment", "return_credit", "goods_received"])
 
         orders = call("find_purchase_orders", search="", status="", supplierId=supplier["id"])
         expect("purchase order count", len(orders), 1)
@@ -249,7 +253,7 @@ def main():
         line = order["lines"][0]
         expect("received against the line", line["receivedMilli"], RECEIVED_MILLI)
         expect("ordered quantity", line["quantityMilli"], 2000)
-        expect("unit cost", line["unitCostPaise"], 100)
+        expect("unit cost", line["unitCostPaise"], 10_000)
         expect("line subtotal", line["lineSubtotalPaise"], ORDER_TOTAL)
 
         # Accepted quantities, derived from the receipts and returns themselves.
@@ -319,62 +323,46 @@ def main():
         expect("rice stock after the purchasing lifecycle", rice[0]["stockMilli"], EXPECTED_RICE_MILLI)
         expect("rice product is the one on the order line", rice[0]["id"], line["productId"])
 
-        # ---- Supplementary: recorded, never allowed to abort the audit. ----
-        # The restore phrase is reserved inside the encrypted archive and typed
-        # by the installed-app stage; the audit cannot re-open that archive
-        # without the recovery passphrase, which is used in-memory by the app and
-        # deliberately not available here. What the store can prove is the
-        # restore that happened: the last-restore receipt the product persisted.
-        try:
-            restore = call("read_last_restore")
-            result["observations"]["lastRestore"] = restore
-            result["supplementary"].append(
-                optional("a restore was committed after the purchasing backup",
-                         bool(restore and restore.get("backupId")),
-                         True,
-                         "the installed-app stage asserts it reached the restored 12500 state"))
-            if restore:
-                # The product persists the backup id it restored and when;
-                # `local_recovery_audit.backup_id` is a 64-hex random id.
-                expect(
-                    "the restore receipt names the backup it restored",
-                    bool(re.fullmatch(r"[a-f0-9]{64}", str(restore.get("backupId", "")))),
-                    True,
-                )
-                expect("the restore receipt has a creation time", int(restore.get("createdAt", 0)) > 0, True)
-        except AuditFailure as failure:
-            result["supplementary"].append(
-                {"check": "last restore receipt", "status": "NOT RUN", "reason": str(failure)})
-
-        # ---- Backup / restored-state consistency. ----
-        # Compare the archive the app exported with the live store: a backup is
-        # consistent when the committed rows it claims to contain are the rows
-        # this audit just reconciled.
-        if args.backup:
-            archive = Path(args.backup)
-            if not archive.is_file():
-                result["supplementary"].append(
-                    {"check": "backup consistency", "status": "NOT RUN",
-                     "reason": f"{archive} was not produced by the installed app"})
-            else:
-                size = archive.stat().st_size
-                with archive.open("rb") as handle:
-                    magic = handle.read(16)
-                result["observations"]["backup"] = {
-                    "path": str(archive), "bytes": size, "header": magic.hex(),
-                    "encrypted": not magic.startswith(b"SQLite format 3"),
-                }
-                expect("backup is at least one SQLCipher page", size >= 4096, True)
-                expect("backup is encrypted", magic.startswith(b"SQLite format 3"), False)
+        result["observations"]["purchasingReconciled"] = True
+        # Finish the independent row audit even when the GUI stopped before export.
+        if args.backup_receipt and not args.backup_receipt.is_file():
+            result["checksNotRun"] = ["exported archive and restored backup identity"]
+            return finish("BLOCKED", "the installed UI did not record its purchasing export")
+        receipt = None
+        archive = Path(args.backup) if args.backup else None
+        if args.backup_receipt:
+            receipt = json.loads(args.backup_receipt.read_text(encoding="utf-8"))
+            archive = Path(receipt["path"])
+        if not archive or not archive.is_file():
+            result["checksNotRun"] = ["exported archive and restored backup identity"]
+            return finish("BLOCKED", "the purchasing archive is unavailable")
+        restore = call("read_last_restore")
+        result["observations"]["lastRestore"] = restore
+        expect("restore receipt present", bool(restore), True)
+        expect("restored backup ID", bool(re.fullmatch(r"[a-f0-9]{64}", restore["backupId"])), True)
+        expect("restore time", restore["createdAt"] > 0, True)
+        size = archive.stat().st_size
+        expect("backup is at least one SQLCipher page", size >= 4096, True)
+        with archive.open("rb") as handle:
+            magic = handle.read(16)
+            expect("backup has no plaintext SQLite header", magic.startswith(b"SQLite format 3"), False)
+            handle.seek(0)
+            digest = hashlib.file_digest(handle, "sha256").hexdigest()
+        result["observations"]["backup"] = {"path": str(archive), "bytes": size, "sha256": digest}
+        if receipt:
+            expect("restored the exported purchasing backup", restore["backupId"], receipt["backupId"])
+            expect("exported archive hash", digest, receipt["sha256"])
+        else:
+            result["checksNotRun"] = ["compare archive digest and restored ID to UI export receipt"]
+            return finish("BLOCKED", "the archive is present but its UI export receipt is unavailable")
 
         result["checksNotRun"] = []
         return finish("PASS")
-    except AuditFailure as failure:
+    except (AuditFailure, OSError, ValueError, KeyError, TypeError, IndexError) as failure:
         result["reason"] = str(failure)
         result["checksNotRun"] = ["every check after the failing assertion, in this order: "
                                   "encrypted at rest, supplier, order, receipts, damage, "
                                   "returns, stock, ledger, backup"]
-        print(f"::error::purchasing store audit failed: {failure}")
         return finish("FAIL", str(failure))
     finally:
         try:
@@ -385,6 +373,7 @@ def main():
             process.wait(timeout=20)
         except subprocess.TimeoutExpired:
             process.kill()
+            process.wait()
 
 
 if __name__ == "__main__":

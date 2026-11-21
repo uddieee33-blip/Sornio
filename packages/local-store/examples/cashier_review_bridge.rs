@@ -480,7 +480,9 @@ fn main() {
             #[cfg(not(any(windows, target_os = "macos")))]
             {
                 let _ = directory;
-                eprintln!("bridge: OS credential-backed workspace review is unavailable on this platform");
+                eprintln!(
+                    "bridge: OS credential-backed workspace review is unavailable on this platform"
+                );
                 std::process::exit(3);
             }
         }

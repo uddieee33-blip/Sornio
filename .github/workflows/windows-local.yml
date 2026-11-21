@@ -213,6 +213,10 @@ jobs:
         run: python -m unittest discover -s apps/desktop -p test_windows_evidence.py
       - name: Build native synthetic scale fixture
         run: cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
+      - name: Exercise purchasing audit with a disposable SQLCipher workspace
+        run: python apps/desktop/check-purchasing-audit-regression.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe
+      - name: Test installed acceptance contracts
+        run: python -m unittest discover -s apps/desktop -p test_acceptance_contracts.py
       - name: Verify native scale and damaged-return recovery
         run: python apps/desktop/check-native-scale.py --bridge apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe --output dist/native-review/native-scale.json
       - name: Test the OS Save/Open dialog driver contract
@@ -252,17 +256,13 @@ jobs:
         if: always()
         shell: pwsh
         run: |
-          $backup = ''
-          $recorded = 'dist/native-review/purchasing-backup-path.txt'
-          if (Test-Path $recorded) { $backup = (Get-Content -LiteralPath $recorded -Raw).Trim() }
           $auditArgs = @(
             'apps/desktop/check-purchasing-store.py',
             '--bridge', 'apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe',
             '--device-dir', "$env:LOCALAPPDATA\com.sornio.localreview",
+            '--backup-receipt', 'dist/native-review/purchasing-backup-receipt.json',
             '--output', 'dist/native-review/purchasing-store-audit.json'
           )
-          if ($backup -and (Test-Path -LiteralPath $backup)) { $auditArgs += @('--backup', $backup) }
-          else { Write-Output "::notice::the installed app recorded no purchasing archive to compare" }
           python @auditArgs
           exit $LASTEXITCODE
       - name: Verify native screenshots, installer checksum and lifecycle evidence
