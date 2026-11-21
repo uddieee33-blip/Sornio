@@ -527,19 +527,37 @@ def close_dialog(
         if require_verified_entry and not evidence.entry_verified:
             time.sleep(poll)
             continue
-        button = find_button(dialog, wanted)
-        try:
-            if button is not None:
-                button.click_input()
-            else:
-                send_keys("{ENTER}", pause=0.1)
-            evidence.pressed += 1
-        except Exception:
+        if mode == "open" and require_verified_entry:
+            # Submit the default Open command from the actual filename edit.
+            # A mouse click on a loosely matched shell button can leave the
+            # chooser visible even when the correct path is fully selected.
+            edit, _ = find_filename_edit(dialog)
             try:
+                if edit is None:
+                    raise ValueError("filename edit disappeared")
+                edit.set_focus()
+                if not edit.has_keyboard_focus() or os.path.normcase(edit.get_value()) != os.path.normcase(str(path)):
+                    raise ValueError("filename focus or value changed before Open")
                 send_keys("{ENTER}", pause=0.1)
                 evidence.pressed += 1
             except Exception as error:
                 evidence.error = f"{type(error).__name__}: {error}"
+                evidence.entry_verified = False
+                continue
+        else:
+            button = find_button(dialog, wanted)
+            try:
+                if button is not None:
+                    button.click_input()
+                else:
+                    send_keys("{ENTER}", pause=0.1)
+                evidence.pressed += 1
+            except Exception:
+                try:
+                    send_keys("{ENTER}", pause=0.1)
+                    evidence.pressed += 1
+                except Exception as error:
+                    evidence.error = f"{type(error).__name__}: {error}"
         # Poll: the dialog must be gone. A fixed sleep would hide both a fast
         # dismissal and a dialog that never leaves.
         try:

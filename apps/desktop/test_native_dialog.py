@@ -51,6 +51,9 @@ class FakeElement:
     def set_focus(self):
         self.focused = True
 
+    def has_keyboard_focus(self):
+        return self.focused
+
     def parent(self):
         if self._owner is None:
             raise RuntimeError("no owner")
@@ -330,6 +333,31 @@ class DriverTests(unittest.TestCase):
         self.close(FakeDesktop([dialog]), dialog.title, "C:\\Temp\\x.sorniobackup", mode="open")
         self.assertEqual(dialog.presses, 1)
 
+
+    def test_strict_open_submits_from_the_verified_edit(self):
+        path = "chosen.sorniobackup"
+        dialog = ScriptedDialog("Choose encrypted Sornio backup")
+        dialog.buttons.insert(0, FakeButton("Open navigation pane", lambda: self.fail("decoy clicked")))
+        def keys(sequence, **kwargs):
+            if kwargs.get("with_spaces"):
+                dialog.edit.value = path
+            if sequence == "{ENTER}":
+                self.assertTrue(dialog.edit.has_keyboard_focus())
+                self.assertEqual(dialog.edit.get_value(), path)
+                dialog.press()
+        self.keys = keys
+        self.assertTrue(self.close(FakeDesktop([dialog]), dialog.title, path,
+                                   mode="open", require_verified_entry=True))
+        self.assertEqual(dialog.presses, 1)
+
+    def test_strict_open_refuses_enter_when_focus_was_lost(self):
+        dialog = ScriptedDialog("Choose encrypted Sornio backup")
+        dialog.edit.value = "chosen.sorniobackup"
+        dialog.edit.has_keyboard_focus = lambda: False
+        with self.assertRaises(nd.DialogNotClosed):
+            self.close(FakeDesktop([dialog]), dialog.title, dialog.edit.value,
+                       mode="open", require_verified_entry=True, attempts=1)
+        self.assertNotIn("{ENTER}", self.log)
 
     def test_a_replace_confirmation_is_answered_and_recorded(self):
         # The measured sequence: the requested name never landed, Save was
