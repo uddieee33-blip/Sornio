@@ -742,11 +742,14 @@ try:
     enter_password()
     assert_balances("95.64", "0.00", "1.75")
     focus_control("Role for native-cashier", "ComboBox")
-    send_keys("{HOME}{ENTER}", pause=0.2)
+    # Select by the option label. Positional navigation saved Assistant Manager
+    # on Windows job 136955652688, which correctly hid stock corrections.
+    send_keys("m{TAB}", pause=0.2, vk_packet=False)
     activate("Save role for native-cashier")
     wait_until(30, 0.5, lambda: message_visible("Staff updated."))
     activate("Lock workspace")
     enter_password(account="native-cashier")
+    wait_until(30, 0.5, lambda: any(text.rsplit(" · ", 1)[-1].strip() == "manager" for text in ui_texts()))
     focus_control("Quantity change", "Edit")
     assert_balances("95.64", "0.00", "1.75")
     activate("Lock workspace")
@@ -765,7 +768,7 @@ try:
     fill("Quantity for Sample native rice (pcs)", "0.250")
     fill("Tax (%)", "0")
     focus_control("Transaction type", "ComboBox")
-    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    send_keys("u{TAB}", pause=0.2, vk_packet=False)
     fill("Split cash amount (₹)", "5.00")
     fill("Split UPI amount (₹)", "5.63")
     activate("Review sale")
@@ -843,7 +846,7 @@ try:
     fill("Quantity for Sample native rice (pcs)", "0.250")
     fill("Tax (%)", "0")
     focus_control("Transaction type", "ComboBox")
-    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    send_keys("u{TAB}", pause=0.2, vk_packet=False)
     fill("Split cash amount (₹)", "6.00")
     fill("Split customer credit amount (₹)", "4.63")
     # A split that includes customer credit must name a customer the store has
@@ -913,7 +916,7 @@ try:
     fill("Quantity for Phase 5 acceptance ghee (pcs)", "1.000")
     fill("Tax (%)", "0")
     focus_control("Transaction type", "ComboBox")
-    send_keys("{HOME}{DOWN}{ENTER}", pause=0.2)
+    send_keys("u{TAB}", pause=0.2, vk_packet=False)
     fill("Split cash amount (₹)", "600.00")
     fill("Split customer credit amount (₹)", "400.00")
     # The same rule as the Phase 4 split: the credit part of a split needs a
