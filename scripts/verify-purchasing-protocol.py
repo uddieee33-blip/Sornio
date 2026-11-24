@@ -352,8 +352,8 @@ def main() -> int:
 
     print("--- the mobile surface adds no new schema phase ---")
     lib = (SRC / "lib.rs").read_text()
-    check("SCHEMA_VERSION: i64 = 23" in lib,
-          "the schema ceiling is still v23, so Phase 21B introduces no migration")
+    check("SCHEMA_VERSION: i64 = 24" in lib,
+          "the schema version matches the current v24 ceiling and Phase 21B introduces no migration")
     check("purchasing_hub" in lib, "the purchasing hub module is compiled")
     check(
         "purchasing_hub::migrate" not in lib and "purchasing_hub::migrate" not in HUB,

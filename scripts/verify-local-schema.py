@@ -71,6 +71,7 @@ MIGRATION_ORDER = [
     "responsibility_access",
     "session_signout",
     "purchasing",
+    "workstation_settings",
 ]
 
 # Schema version each module leaves behind, read off lib.rs's `if version < N`
@@ -97,6 +98,7 @@ MODULE_VERSION = {
     "responsibility_access": 21,
     "session_signout": 22,
     "purchasing": 23,
+    "workstation_settings": 24,
 }
 
 failures: list[str] = []

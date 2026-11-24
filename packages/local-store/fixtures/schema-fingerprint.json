@@ -28,6 +28,9 @@
    "local_held_bills_owner"
   ],
   [
+   "local_products_name_nocase"
+  ],
+  [
    "local_products_sku"
   ],
   [
@@ -720,6 +723,17 @@
    "notes:TEXT:NOTNULL:0",
    "archived:INTEGER:NOTNULL:0",
    "revision:INTEGER:NOTNULL:0"
+  ],
+  "local_workstation_settings": [
+   "singleton:INTEGER:null:1",
+   "receipt_layout:TEXT:NOTNULL:0",
+   "receipt_language:TEXT:NOTNULL:0",
+   "printer_name:TEXT:NOTNULL:0",
+   "barcode_suffix:TEXT:NOTNULL:0",
+   "cash_drawer_mode:TEXT:NOTNULL:0",
+   "backup_destination_note:TEXT:NOTNULL:0",
+   "revision:INTEGER:NOTNULL:0",
+   "updated_at:TEXT:NOTNULL:0"
   ],
   "workspace_access": [
    "singleton:INTEGER:null:1",

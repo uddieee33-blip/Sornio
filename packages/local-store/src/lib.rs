@@ -33,9 +33,12 @@ mod schema_rollback;
 pub mod security_history;
 mod session_signout;
 pub mod staff_access;
+pub mod workstation_settings;
 
 #[cfg(test)]
 mod phase22_reliability_tests;
+#[cfg(test)]
+mod phase23_reliability_tests;
 
 #[cfg(any(windows, target_os = "macos"))]
 pub mod device;
@@ -170,10 +173,42 @@ pub enum StoreError {
     ProductMissing,
     #[error("The stock change would leave an invalid quantity. Check the count.")]
     InvalidStock,
-    #[error("This review supports up to 5,000 items.")]
+    #[error("This workspace supports up to 25,000 items.")]
     CatalogFull,
+    #[error("A pre-migration safety backup could not be written. Free disk space and reopen Sornio; your existing database was not modified.")]
+    MigrationBackupFailed,
     #[error("The saved draft could not be read. Keep the original files for recovery.")]
     InvalidData(#[from] serde_json::Error),
+}
+
+impl StoreError {
+    /// Actionable operator-facing message that surfaces storage full, busy/locked,
+    /// read-only, and corruption conditions clearly without leaking SQL internals.
+    pub fn user_message(&self) -> String {
+        if let Self::Database(rusqlite::Error::SqliteFailure(err, _)) = self {
+            use rusqlite::ErrorCode;
+            return match err.code {
+                ErrorCode::DiskFull => {
+                    "Disk storage is full on this PC. Free space and retry; previous saved records were not overwritten."
+                        .into()
+                }
+                ErrorCode::DatabaseBusy | ErrorCode::DatabaseLocked => {
+                    "The local workspace database is busy. Wait a moment and retry, or close any other Sornio window."
+                        .into()
+                }
+                ErrorCode::ReadOnly => {
+                    "The local workspace folder is read-only. Check Windows folder permissions and retry."
+                        .into()
+                }
+                ErrorCode::DatabaseCorrupt | ErrorCode::NotADatabase => {
+                    "The local workspace file could not be verified. Do not delete the database; keep a copy and restore from a verified encrypted backup."
+                        .into()
+                }
+                _ => self.to_string(),
+            };
+        }
+        self.to_string()
+    }
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
@@ -197,7 +232,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 23;
+const SCHEMA_VERSION: i64 = 24;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -208,6 +243,65 @@ impl Store {
     pub fn open(path: &Path, key: &str) -> Result<Self, StoreError> {
         if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
             return Err(StoreError::InvalidKey);
+        }
+        Self::open_secret(path, key)
+    }
+
+    /// Open a workspace database, creating an atomic encrypted ciphertext safety
+    /// snapshot in `backup_dir` before running any schema upgrade on an existing
+    /// database. Fails closed before migration if the safety copy cannot be written,
+    /// and never touches a database created by a newer Sornio schema version.
+    pub fn open_with_migration_backup(
+        path: &Path,
+        key: &str,
+        backup_dir: &Path,
+    ) -> Result<Self, StoreError> {
+        if key.len() != 64 || !key.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return Err(StoreError::InvalidKey);
+        }
+        if path != Path::new(":memory:") && path.is_file() {
+            let probe = Connection::open(path)?;
+            probe.busy_timeout(Duration::from_secs(5))?;
+            probe.pragma_update(None, "key", key)?;
+            let cipher: Option<String> = probe
+                .query_row("PRAGMA cipher_version", [], |row| row.get(0))
+                .optional()?;
+            if cipher.as_deref().unwrap_or("").is_empty() {
+                return Err(StoreError::EncryptionUnavailable);
+            }
+            let version: i64 = probe.pragma_query_value(None, "user_version", |row| row.get(0))?;
+            if version > SCHEMA_VERSION {
+                return Err(StoreError::NewerSchema);
+            }
+            if version > 0 && version < SCHEMA_VERSION {
+                // Fold any pending WAL frames into the main encrypted file before
+                // copying the ciphertext snapshot so the backup is self-contained.
+                let _ = probe.query_row("PRAGMA wal_checkpoint(TRUNCATE)", [], |_| Ok(()));
+                drop(probe);
+                std::fs::create_dir_all(backup_dir)
+                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+                let nonce = crate::recovery::random_id()
+                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+                let target = backup_dir.join(format!(
+                    "pre-migration-v{version}-to-v{SCHEMA_VERSION}-{}.db",
+                    &nonce[..16]
+                ));
+                let mut temp = tempfile::Builder::new()
+                    .prefix(".sornio-pre-migration-")
+                    .tempfile_in(backup_dir)
+                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+                let mut src =
+                    std::fs::File::open(path).map_err(|_| StoreError::MigrationBackupFailed)?;
+                std::io::copy(&mut src, &mut temp)
+                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+                temp.as_file()
+                    .sync_all()
+                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+                temp.persist_noclobber(&target)
+                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+            } else {
+                drop(probe);
+            }
         }
         Self::open_secret(path, key)
     }
@@ -336,6 +430,9 @@ impl Store {
             }
             if locked_version < 23 {
                 purchasing::migrate(&tx)?;
+            }
+            if locked_version < 24 {
+                workstation_settings::migrate(&tx)?;
             }
             tx.commit()?;
         }

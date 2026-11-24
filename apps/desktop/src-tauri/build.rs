@@ -1,6 +1,9 @@
 fn main() {
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
         tauri_build::AppManifest::new().commands(&[
+            "read_workstation_settings",
+            "save_workstation_settings",
+            "list_local_printers",
             "restaurant_live",
             "hub_live",
             "hub_admin",

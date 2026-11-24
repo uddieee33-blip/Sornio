@@ -24,9 +24,11 @@ on:
       - '.github/workflows/windows-local.yml'
       - '.github/workflows/macos-desktop.yml'
       - 'docs/reviews/2026-11-16-phase22d-execution-report.md'
+      - 'docs/reviews/phase23-windows-pilot-readiness.md'
   workflow_dispatch:
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: windows-local-${{ github.workflow }}-${{ github.ref }}
@@ -202,6 +204,14 @@ jobs:
             { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /' || true
           fi
           exit "$code"
+      - name: Sign installer when configured and record Phase 23 release manifest
+        shell: pwsh
+        run: |
+          $setup = @(Get-ChildItem 'apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe')
+          if ($setup.Count -ne 1) { throw "Expected 1 built NSIS installer, found $($setup.Count)" }
+          ./scripts/sign-windows-installer.ps1 `
+            -InstallerPath $setup[0].FullName `
+            -OutputManifestPath 'dist/native-review/phase23-release-manifest.json'
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
@@ -276,6 +286,7 @@ jobs:
           path: |
             apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe
             dist/native-review/installer-manifest.json
+            dist/native-review/phase23-release-manifest.json
           if-no-files-found: error
           retention-days: 7
       - name: Upload actual native screenshots
@@ -284,6 +295,108 @@ jobs:
         with:
           name: Sornio-Local-Native-Captures
           path: dist/native-review/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  phase23-upgrade-offline-scale:
+    name: Phase 23 upgrade (0.3.0 -> 0.4.0), offline install & 10k/50k scale
+    needs: local-windows
+    runs-on: windows-latest
+    timeout-minutes: 90
+    env:
+      CARGO_TERM_COLOR: never
+      CARGO_BUILD_JOBS: '2'
+      SORNIO_ACCEPTANCE_SOURCE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@b725eda525362e7cf34af9a7243cac1e3f01a7ec # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          cache-on-failure: true
+          workspaces: |
+            packages/local-store
+            apps/desktop/src-tauri
+      - name: Select Strawberry Perl for vendored OpenSSL
+        shell: pwsh
+        run: |
+          $perl = 'C:\Strawberry\perl\bin\perl.exe'
+          if (-not (Test-Path -LiteralPath $perl -PathType Leaf)) {
+            throw "Required Strawberry Perl was not found: $perl"
+          }
+          "OPENSSL_SRC_PERL=$perl" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          (Split-Path -Parent $perl) | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: '3.12'
+      - name: Install Python test and measurement tooling
+        run: python -m pip install pywinauto==0.6.9 Pillow==12.0.0 psutil==7.0.0
+      - name: Download newly built 0.4.0 installer
+        uses: actions/download-artifact@v8
+        with:
+          name: Sornio-Local-Workspace-Review
+          path: artifacts/new-0.4.0
+      - name: Download verified Phase 22 baseline 0.3.0 installer (run 44943752020)
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          New-Item -ItemType Directory -Force -Path 'artifacts/baseline-0.3.0' | Out-Null
+          gh run download 44943752020 -n Sornio-Local-Workspace-Review -D 'artifacts/baseline-0.3.0'
+          $old = @(Get-ChildItem 'artifacts/baseline-0.3.0' -Filter '*-setup.exe' -Recurse)
+          if ($old.Count -ne 1) { throw "Expected 1 baseline 0.3.0 installer, found $($old.Count)" }
+          Write-Output "Baseline 0.3.0 installer: $($old[0].FullName) ($($old[0].Length) bytes)"
+      - name: Build native audit bridge and Phase 23 release benchmark binary
+        shell: pwsh
+        run: |
+          cargo build --release --locked --manifest-path packages/local-store/Cargo.toml --example cashier_review_bridge --target-dir apps/desktop/src-tauri/target
+          if ($LASTEXITCODE -ne 0) { throw "cashier_review_bridge build failed: $LASTEXITCODE" }
+          $jsonLines = cargo test --release --locked --no-run --message-format=json --manifest-path packages/local-store/Cargo.toml --lib --target-dir apps/desktop/src-tauri/target
+          if ($LASTEXITCODE -ne 0) { throw "benchmark binary build failed: $LASTEXITCODE" }
+          $exe = $null
+          foreach ($line in $jsonLines) {
+            try {
+              $obj = $line | ConvertFrom-Json
+              if ($obj.reason -eq 'compiler-artifact' -and $obj.target.name -eq 'sornio_local_store' -and $obj.executable) {
+                $exe = $obj.executable
+              }
+            } catch {}
+          }
+          if (-not $exe) { throw 'Could not locate compiled sornio_local_store unit-test executable.' }
+          "PHASE23_BENCH_BIN=$exe" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          Write-Output "Benchmark binary: $exe"
+      - name: Verify genuine 0.3.0 -> 0.4.0 Windows in-place upgrade, vault preservation, instance lock & downgrade refusal
+        shell: pwsh
+        env:
+          SORNIO_DIALOG_EVIDENCE: dist/phase23-evidence/upgrade-dialog.jsonl
+        run: |
+          $old = @(Get-ChildItem 'artifacts/baseline-0.3.0' -Filter '*-setup.exe' -Recurse)[0].FullName
+          $new = @(Get-ChildItem 'artifacts/new-0.4.0' -Filter '*-setup.exe' -Recurse)[0].FullName
+          ./apps/desktop/check-upgrade.ps1 `
+            -OldInstallerPath $old `
+            -NewInstallerPath $new `
+            -AuditBridgePath 'apps/desktop/src-tauri/target/release/examples/cashier_review_bridge.exe' `
+            -OutputDir 'dist/phase23-evidence'
+      - name: Audit offline Windows installation and WebView2 runtime behavior
+        shell: pwsh
+        run: |
+          $new = @(Get-ChildItem 'artifacts/new-0.4.0' -Filter '*-setup.exe' -Recurse)[0].FullName
+          ./apps/desktop/check-offline-install.ps1 `
+            -InstallerPath $new `
+            -OutputDir 'dist/phase23-evidence'
+      - name: Measure Phase 23 native SQLCipher 10,000-product / 50,000-invoice workload on Windows
+        shell: pwsh
+        run: |
+          python scripts/run-phase23-workload.py `
+            --binary $env:PHASE23_BENCH_BIN `
+            --output dist/phase23-evidence/phase23-workload.json
+      - name: Upload Phase 23 Windows upgrade, offline install & scale evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Sornio-Phase23-Evidence
+          path: dist/phase23-evidence/
           if-no-files-found: ignore
           retention-days: 7
 

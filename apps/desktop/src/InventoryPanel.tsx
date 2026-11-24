@@ -5,6 +5,7 @@ import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-d
 import { errorCode, errorMessage } from './access';
 import { money, quantity } from './billing-types';
 import type { Product } from './billing-types';
+import { parseProductCatalogCsv } from './csv-import';
 
 type AddProduct = { operationId: string; name: string; sku: string; unit: string; unitPricePaise: number; openingStockMilli: number };
 type AdjustStock = { operationId: string; productId: string; expectedRevision: number; deltaMilli: number; reason: string };
@@ -20,6 +21,8 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');
   const [search, setSearch] = useState('');
+  const [csvText, setCsvText] = useState('');
+  const [csvStatus, setCsvStatus] = useState('');
   const [ready, setReady] = useState(false);
   const [openedToken, setOpenedToken] = useState(-1);
   const [busy, setBusy] = useState(false);
@@ -139,6 +142,58 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
     void submit({ command: 'adjust_local_stock', request: { operationId: crypto.randomUUID(), productId: item.id, expectedRevision: item.revision, deltaMilli: amount, reason } });
   }
 
+  async function importCsv() {
+    if (!canAdd || blocked || pending || submitting.current) return;
+    const parsed = parseProductCatalogCsv(csvText);
+    if (parsed.errors.length > 0) {
+      setFailed(true);
+      setCsvStatus(`Fix ${parsed.errors.length} CSV error(s) before importing. First: line ${parsed.errors[0].lineNumber} — ${parsed.errors[0].message}`);
+      return;
+    }
+    submitting.current = true; setBusy(true); onBusyChange(true); setFailed(false);
+    let imported = 0;
+    const skipped: string[] = [];
+    try {
+      for (const row of parsed.rows) {
+        const operationId = crypto.randomUUID();
+        try {
+          await invoke<Product>('add_local_product', {
+            request: {
+              operationId,
+              name: row.name,
+              sku: row.sku,
+              unit: row.unit,
+              unitPricePaise: row.unitPricePaise,
+              openingStockMilli: row.openingStockMilli,
+            },
+          });
+          await invoke('acknowledge_local_inventory', { operationId });
+          imported += 1;
+        } catch (rowError: unknown) {
+          if (errorCode(rowError) === 'locked') { onLocked(); return; }
+          skipped.push(`Line ${row.lineNumber} (${row.name}): ${errorMessage(rowError, 'could not be saved')}`);
+        }
+      }
+      const items = await invoke<Product[]>('list_local_products');
+      if (!current.current) return;
+      setProducts(items);
+      setReady(true);
+      setOpenedToken(refreshToken);
+      if (imported > 0) onSaved();
+      if (skipped.length === 0) {
+        setCsvText('');
+        setCsvStatus(`Imported ${imported} item(s) into this PC's catalog.`);
+        setMessage(`Imported ${imported} item(s) from CSV.`);
+      } else {
+        setFailed(true);
+        setCsvStatus(`Imported ${imported} item(s); skipped ${skipped.length}: ${skipped.slice(0, 3).join(' | ')}`);
+      }
+    } finally {
+      submitting.current = false;
+      if (current.current) { setBusy(false); onBusyChange(false); }
+    }
+  }
+
   const blocked = disabled || busy || !ready || openedToken !== refreshToken;
   const matching = products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
   const shown = matching.slice(0, 100);
@@ -166,6 +221,16 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
         <button type="submit">Save stock change</button>
       </fieldset></form> : null}
     </div>
+    {canAdd ? <details className="csv-import-details">
+      <summary>Bulk CSV product import (for shop setup)</summary>
+      <p className="muted">Columns: <code>name,sku,unit,price_rupees,opening_stock</code>. Example: <code>26in Inner Tube,0089012345678,pcs,185.00,20</code>. Every row is validated by the native store.</p>
+      <label htmlFor="csv-catalog-input">Paste CSV rows</label>
+      <textarea id="csv-catalog-input" rows={4} value={csvText} disabled={blocked || pending !== null} placeholder={'name,sku,unit,price_rupees,opening_stock\n26in Inner Tube,0089012345678,pcs,185.00,20'} onChange={e => setCsvText(e.target.value)}/>
+      <div className="form-footer">
+        <p role="status" aria-live="polite">{csvStatus || 'Existing items are preserved; duplicate SKUs are rejected safely.'}</p>
+        <button type="button" disabled={blocked || pending !== null || !csvText.trim()} onClick={() => void importCsv()}>Import CSV rows</button>
+      </div>
+    </details> : null}
     <div className="inventory-list"><label htmlFor="item-search">Find an item</label><input id="item-search" type="search" value={search} onChange={e => setSearch(e.target.value)}/>
       <button className="quiet-button" type="button" disabled={busy || disabled || pending !== null} onClick={() => void reload()}>Reload item counts</button>
       {matching.length > shown.length ? <p className="muted">Showing the first 100 matches. Refine your search to find a specific item.</p> : null}
