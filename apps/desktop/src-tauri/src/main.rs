@@ -117,7 +117,9 @@ impl From<StoreError> for CommandError {
 struct WorkspaceInstanceLock;
 
 #[cfg(not(any(windows, target_os = "macos")))]
-fn initialize_desktop(_directory: &std::path::Path) -> Result<(Store, WorkspaceInstanceLock), String> {
+fn initialize_desktop(
+    _directory: &std::path::Path,
+) -> Result<(Store, WorkspaceInstanceLock), String> {
     Err("This local review build requires Windows Credential Manager or macOS Keychain.".into())
 }
 

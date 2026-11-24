@@ -280,8 +280,8 @@ impl Store {
                 drop(probe);
                 std::fs::create_dir_all(backup_dir)
                     .map_err(|_| StoreError::MigrationBackupFailed)?;
-                let nonce = crate::recovery::random_id()
-                    .map_err(|_| StoreError::MigrationBackupFailed)?;
+                let nonce =
+                    crate::recovery::random_id().map_err(|_| StoreError::MigrationBackupFailed)?;
                 let target = backup_dir.join(format!(
                     "pre-migration-v{version}-to-v{SCHEMA_VERSION}-{}.db",
                     &nonce[..16]

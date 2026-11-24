@@ -230,11 +230,13 @@ fn v23_upgrade_creates_encrypted_safety_backup_and_preserves_all_records() {
     .unwrap();
     drop(w);
 
-    let mut reopened = Workspace::new(
-        Store::open_with_migration_backup(&path, KEY, &backup_dir).unwrap(),
-    );
+    let mut reopened =
+        Workspace::new(Store::open_with_migration_backup(&path, KEY, &backup_dir).unwrap());
     reopened.login("owner", PASSWORD).unwrap();
-    assert_eq!(reopened.read_workstation_settings().unwrap().printer_name, "TVS RP-3200");
+    assert_eq!(
+        reopened.read_workstation_settings().unwrap().printer_name,
+        "TVS RP-3200"
+    );
     // Reopening an already-v24 workspace must not create another migration backup.
     assert_eq!(
         std::fs::read_dir(&backup_dir).unwrap().count(),
@@ -287,9 +289,8 @@ fn failed_migration_safety_backup_aborts_cleanly_without_modifying_v23_database(
     // Original v23 database is untouched and still migrates cleanly once storage is fixed.
     assert_eq!(std::fs::read(&path).unwrap(), before);
     let good_backup_dir = dir.path().join("valid-backups");
-    let mut recovered = Workspace::new(
-        Store::open_with_migration_backup(&path, KEY, &good_backup_dir).unwrap(),
-    );
+    let mut recovered =
+        Workspace::new(Store::open_with_migration_backup(&path, KEY, &good_backup_dir).unwrap());
     recovered.login("owner", PASSWORD).unwrap();
     assert_eq!(recovered.list_products().unwrap()[0].stock_milli, 23_000);
 }
@@ -425,7 +426,10 @@ fn restart_during_checkout_and_supplier_payment_prevents_duplicates() {
     let replayed_payment = w.post_supplier_payment(payment_req).unwrap();
     assert_eq!(replayed_payment.amount_paise, 25_000);
     assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_invoices"), 1);
-    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_supplier_payments"), 1);
+    assert_eq!(
+        scalar(&w, "SELECT COUNT(*) FROM local_supplier_payments"),
+        1
+    );
     assert_eq!(
         w.list_products().unwrap()[0].stock_milli,
         8_000,

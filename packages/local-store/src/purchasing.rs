@@ -13,7 +13,6 @@ use crate::{
 };
 use rusqlite::{params, Connection, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use std::path::Path;
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -2775,11 +2774,8 @@ fn adopt_experimental_v13(tx: &Transaction<'_>) -> Result<(), StoreError> {
             .ok_or(StoreError::ExperimentalSchema)?;
         tx.execute_batch(ddl)?;
     }
-    let reference = Store::open(
-        Path::new(":memory:"),
-        "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-    )?;
-    let reference_schema = live_schema(&reference.0)?;
+    let reference_schema: Vec<(String, String, String)> =
+        serde_json::from_str(include_str!("../fixtures/recovery-v23-schema.json"))?;
     if live_schema(tx)? != reference_schema {
         return Err(StoreError::ExperimentalSchema);
     }
