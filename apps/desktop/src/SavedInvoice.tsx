@@ -82,7 +82,7 @@ export function SavedInvoice({ invoice, payments, username, workstationSettings,
       <label>Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ <select aria-label="Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ" disabled={busy} value={language} onChange={e => { clearPrintReceipt(paper.current); setLanguage(e.target.value as 'en' | 'pa'); }}><option value="en">English</option><option value="pa">ਪੰਜਾਬੀ</option></select></label>
       <label>{translate('Paper layout')} <select aria-label="Paper layout" disabled={busy} value={layout} onChange={e => { clearPrintReceipt(paper.current); setLayout(e.target.value as ReceiptLayout); }}><option value="a4">A4</option><option value="58mm">58 mm</option><option value="80mm">80 mm</option></select></label>
       <button type="button" disabled={busy || creditDue === null || (invoice.tender === 'retail' && !username)} onClick={() => void print()}>
-        {busy ? translate('Opening print…') : showReprintBadge ? translate('Reprint saved receipt') : translate('Print saved receipt')}
+        {busy ? translate('Opening print…') : translate('Print saved receipt')}
       </button>
       <button type="button" className="quiet-button" disabled={busy} onClick={() => setPreviewOpen(open => !open)}>
         {previewOpen ? translate('Hide print preview') : translate('Show print preview')}

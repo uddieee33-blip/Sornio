@@ -180,29 +180,58 @@ try {
   $evidence.postUpgradeStoreAuditPassed = $true
 
   # Verify new v24 workstation settings read/write through the native bridge under the real device key
-  $prevDeviceDir = $env:SORNIO_REVIEW_DEVICE_DIR
-  try {
-    $env:SORNIO_REVIEW_DEVICE_DIR = $dataDir
-    $wsCalls = @(
-      '{"command":"unlock_workspace","args":{"username":"owner","password":"SornioReviewAccess2026"}}',
-      '{"command":"read_workstation_settings","args":{}}',
-      '{"command":"save_workstation_settings","args":{"r":{"expectedRevision":1,"receiptLayout":"58mm","receiptLanguage":"pa","printerName":"TVS RP-3200","barcodeSuffix":"enter_or_tab","cashDrawerMode":"escpos_pin2","backupDestinationNote":"Shop USB E:\\Backups"}}}',
-      '{"command":"read_workstation_settings","args":{}}'
-    ) -join "`n"
-    $wsResp = $wsCalls | & $auditBridge 'unused-in-device-mode'
-    if ($LASTEXITCODE -ne 0) { throw "Workstation settings bridge check failed: $LASTEXITCODE" }
-    $lines = @($wsResp)
-    if ($lines.Count -lt 4) { throw "Unexpected bridge response line count: $($lines.Count)" }
-    $finalRead = $lines[3] | ConvertFrom-Json
-    if (-not $finalRead.ok -or $finalRead.value.receiptLayout -ne '58mm' -or $finalRead.value.printerName -ne 'TVS RP-3200') {
-      throw "Upgraded workstation settings did not persist: $($lines[3])"
-    }
-    $evidence.workstationSettingsPersisted = $true
+  $wsAuditPy = @'
+import json, os, subprocess, sys
+bridge, data_dir = sys.argv[1], sys.argv[2]
+proc = subprocess.Popen(
+    [bridge, "unused-in-device-mode"],
+    stdin=subprocess.PIPE,
+    stdout=subprocess.PIPE,
+    stderr=subprocess.PIPE,
+    encoding="utf-8",
+    env={**os.environ, "SORNIO_REVIEW_DEVICE_DIR": data_dir},
+)
+def call(cmd, args):
+    proc.stdin.write(json.dumps({"command": cmd, "args": args}) + "\n")
+    proc.stdin.flush()
+    line = proc.stdout.readline()
+    if not line:
+        raise RuntimeError(f"{cmd}: bridge closed stdout; stderr={proc.stderr.read().strip()}")
+    resp = json.loads(line)
+    if not resp.get("ok"):
+        raise RuntimeError(f"{cmd} failed: {resp}")
+    return resp["value"]
+try:
+    unlocked = call("unlock_workspace", {"username": "owner", "password": "SornioReviewAccess2026"})
+    assert unlocked.get("unlocked") is True, unlocked
+    session = call("read_local_session", {})
+    scope = session["scope"]
+    initial = call("read_workstation_settings", {"scope": scope})
+    assert initial["revision"] == 1 and initial["receiptLayout"] == "80mm", initial
+    saved = call("save_workstation_settings", {
+        "scope": scope,
+        "r": {
+            "expectedRevision": 1,
+            "receiptLayout": "58mm",
+            "receiptLanguage": "pa",
+            "printerName": "TVS RP-3200",
+            "barcodeSuffix": "enter_or_tab",
+            "cashDrawerMode": "escpos_pin2",
+            "backupDestinationNote": "Shop USB E:\\Backups",
+        },
+    })
+    assert saved["revision"] == 2 and saved["receiptLayout"] == "58mm", saved
+    reread = call("read_workstation_settings", {"scope": scope})
+    assert reread["receiptLayout"] == "58mm" and reread["printerName"] == "TVS RP-3200" and reread["revision"] == 2, reread
+finally:
+    proc.stdin.close()
+    proc.wait(timeout=10)
+'@
+  $wsAuditPy | python - $auditBridge $dataDir
+  if ($LASTEXITCODE -ne 0) {
+    throw "Upgraded v24 workstation settings audit failed (exit $LASTEXITCODE)."
   }
-  finally {
-    if ($null -eq $prevDeviceDir) { Remove-Item Env:SORNIO_REVIEW_DEVICE_DIR -ErrorAction SilentlyContinue }
-    else { $env:SORNIO_REVIEW_DEVICE_DIR = $prevDeviceDir }
-  }
+  $evidence.workstationSettingsPersisted = $true
 
   # 7. Single-instance workspace lock verification
   Write-Stage 'upgrade-7: single-instance workspace lock check'
@@ -231,8 +260,11 @@ try {
   }
   finally {
     if (-not $firstProc.HasExited) {
-      Stop-Process -Id $firstProc.Id -Force -ErrorAction SilentlyContinue
-      $firstProc.WaitForExit(10000) | Out-Null
+      $null = $firstProc.CloseMainWindow()
+      if (-not $firstProc.WaitForExit(5000)) {
+        Stop-Process -Id $firstProc.Id -Force -ErrorAction SilentlyContinue
+        $firstProc.WaitForExit(10000) | Out-Null
+      }
     }
   }
 

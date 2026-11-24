@@ -12,7 +12,7 @@ import type { ResolvedCreditCustomer } from './CustomerLookup';
 import { allocationPreview, paymentMethods, remainingForMethod } from './payment-allocation';
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
-import { findCode, isRapidDuplicateScan, matchesBarcodeSuffix, normalizeScannedBarcode, scanNeedsQuantity } from './scan';
+import { findCode, matchesBarcodeSuffix, normalizeScannedBarcode, scanNeedsQuantity } from './scan';
 import type { LocalPrinterInfo, WorkstationSettings } from './workstation-types';
 import { cashierNavigationKey, deliberateCheckoutConfirm } from './desktop-shortcuts';
 import { heldDraftInput } from './held-bills';
@@ -656,13 +656,11 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           if (event.key === 'Tab' && !normalizedSearch) return;
           event.preventDefault();
           const cleaned = normalizeScannedBarcode(search);
-          if (!cleaned) { setFailed(true); setMessage('Enter an item name or exact code.'); return; }
           const nowMs = Date.now();
-          if (isRapidDuplicateScan(lastScanRef.current.code, lastScanRef.current.atMs, cleaned, nowMs)) {
-            setSearch('');
-            setFailed(false);
-            setMessage('Ignored duplicate rapid scanner trigger. Scan again to add another unit.');
-            return;
+          if (!cleaned) {
+            // Silently ignore a trailing CR/LF/Tab suffix emitted immediately after a HID scan.
+            if (lastScanRef.current.atMs > 0 && nowMs - lastScanRef.current.atMs < 80) return;
+            setFailed(true); setMessage('Enter an item name or exact code.'); return;
           }
           const exact = findCode(products, cleaned);
           if (exact.length === 1) {
