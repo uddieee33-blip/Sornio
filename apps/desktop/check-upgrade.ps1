@@ -235,26 +235,32 @@ finally:
 
   # 7. Single-instance workspace lock verification
   Write-Stage 'upgrade-7: single-instance workspace lock check'
+  $lockPath = Join-Path $dataDir 'workspace.lock'
+  if (Test-Path -LiteralPath $lockPath) {
+    Remove-Item -LiteralPath $lockPath -Force
+  }
   $firstProc = Start-Process -FilePath $newApp -PassThru
   try {
-    $lockPath = Join-Path $dataDir 'workspace.lock'
-    $deadline = (Get-Date).AddSeconds(20)
-    while (-not (Test-Path -LiteralPath $lockPath) -and (Get-Date) -lt $deadline) {
+    $deadline = (Get-Date).AddSeconds(25)
+    $lockedAsExpected = $false
+    while ((Get-Date) -lt $deadline) {
+      if ($firstProc.HasExited) {
+        throw "0.4.0 desktop process exited unexpectedly with code $($firstProc.ExitCode) before acquiring workspace.lock."
+      }
+      if (Test-Path -LiteralPath $lockPath) {
+        try {
+          $fs = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+          $fs.Close()
+        }
+        catch [System.IO.IOException] {
+          $lockedAsExpected = $true
+          break
+        }
+      }
       Start-Sleep -Milliseconds 250
     }
-    if (-not (Test-Path -LiteralPath $lockPath)) {
-      throw "Running 0.4.0 desktop process did not create workspace.lock at $lockPath"
-    }
-    $lockedAsExpected = $false
-    try {
-      $fs = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
-      $fs.Close()
-    }
-    catch [System.IO.IOException] {
-      $lockedAsExpected = $true
-    }
     if (-not $lockedAsExpected) {
-      throw 'workspace.lock was not exclusively locked while 0.4.0 was running.'
+      throw "workspace.lock was not exclusively locked while 0.4.0 was running (exists=$(Test-Path -LiteralPath $lockPath))."
     }
     $evidence.singleInstanceLockVerified = $true
   }
@@ -267,6 +273,36 @@ finally:
       }
     }
   }
+  # Confirm OS released the lock cleanly after process exit and quiesce WAL before downgrade hash check
+  $released = $false
+  $releaseDeadline = (Get-Date).AddSeconds(10)
+  while ((Get-Date) -lt $releaseDeadline) {
+    try {
+      $fs = [System.IO.File]::Open($lockPath, [System.IO.FileMode]::Open, [System.IO.FileAccess]::ReadWrite, [System.IO.FileShare]::None)
+      $fs.Close()
+      $released = $true
+      break
+    }
+    catch [System.IO.IOException] {
+      Start-Sleep -Milliseconds 200
+    }
+  }
+  if (-not $released) {
+    throw 'workspace.lock remained locked after 0.4.0 exited.'
+  }
+  $quiescePy = @'
+import json, os, subprocess, sys
+bridge, data_dir = sys.argv[1], sys.argv[2]
+p = subprocess.Popen([bridge, "unused"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, encoding="utf-8", env={**os.environ, "SORNIO_REVIEW_DEVICE_DIR": data_dir})
+p.stdin.write(json.dumps({"command": "workspace_access_status", "args": {}}) + "\n")
+p.stdin.flush()
+line = p.stdout.readline()
+p.stdin.close()
+p.wait(timeout=10)
+assert json.loads(line).get("ok") is True, line
+'@
+  $quiescePy | python - $auditBridge $dataDir
+  if ($LASTEXITCODE -ne 0) { throw "Failed to quiesce upgraded database before downgrade test." }
 
   # 8. Downgrade refusal check: launch old 0.3.0 executable against upgraded v24 workspace
   Write-Stage 'upgrade-8: downgrade refusal check (0.3.0 binary vs v24 database)'

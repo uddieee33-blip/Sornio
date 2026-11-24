@@ -132,8 +132,11 @@ try {
   }
   $evidence.offlineFirstLaunchPassed = $true
   if (-not $launch.HasExited) {
-    Stop-Process -Id $launch.Id -Force -ErrorAction SilentlyContinue
-    $launch.WaitForExit(10000) | Out-Null
+    $null = $launch.CloseMainWindow()
+    if (-not $launch.WaitForExit(5000)) {
+      Stop-Process -Id $launch.Id -Force -ErrorAction SilentlyContinue
+      $launch.WaitForExit(10000) | Out-Null
+    }
   }
 
   # Uninstall and verify local workspace data is preserved byte-for-byte
