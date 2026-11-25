@@ -1,6 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseProductCatalogCsv } from './src/csv-import.ts';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 test('parses valid bicycle and spare-parts catalog CSV with exact integer paise and leading zeroes', () => {
   const csv = [
@@ -50,6 +55,22 @@ test('parses realistic bicycle, toys, tricycles, walkers and accessories pilot c
   assert.equal(result.rows[4].unitPricePaise, 32000);
   assert.equal(result.rows[5].sku, '');
   assert.equal(result.rows[5].unitPricePaise, 850);
+});
+
+test('validates shipped physical acceptance package pilot-starter-catalog.csv fixture', () => {
+  const fixturePath = path.resolve(
+    __dirname,
+    '../../docs/pilot/windows-physical-acceptance-package/pilot-starter-catalog.csv',
+  );
+  const csv = fs.readFileSync(fixturePath, 'utf8');
+  const result = parseProductCatalogCsv(csv);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows.length, 11);
+  assert.equal(result.rows[0].sku, '0089011100001');
+  assert.equal(result.rows[0].unitPricePaise, 745000);
+  assert.equal(result.rows[9].unit, 'metre');
+  assert.equal(result.rows[9].sku, '');
+  assert.equal(result.rows[10].unitPricePaise, 850);
 });
 
 test('rejects duplicate SKUs, bad units, and malformed amounts with exact line numbers', () => {

@@ -1,0 +1,30 @@
+# External USB Backup, Restore & Controlled Power-Loss Recovery Procedure
+
+**MANDATORY SAFETY RULE:** Run all power-loss / termination tests **ONLY** in a disposable Windows bench profile with test data — **NEVER** on live shop data and **NEVER** by pulling live AC mains power in an unsafe electrical setup. Use controlled abrupt Windows process termination (`Stop-Process -Name "sornio-desktop" -Force`) for repeatable crash boundaries.
+
+---
+
+## Part A — External USB Backup & Clean-PC Restore (`BR1`–`BR4`)
+
+| ID | Scenario | Exact Execution Steps | Required Pass Criteria | Result (`PASS`/`FAIL`/`BLOCKED`/`NOT RUN`) | Notes |
+|---|---|---|---|---|---|
+| **BR1** | **Mid-shift encrypted USB backup during normal operation** | Open a live shift float (`₹2,000.00`), post a Cash sale and a split Cash+Credit sale, leave the day open, plug in removable USB drive (`E:\SornioBackups`), export `.sorniobackup` with a strong recovery passphrase. Inspect the exported file header in PowerShell (`Get-Content -Encoding Byte -TotalCount 16`). | Export succeeds cleanly during live shift; file size > 0; first 16 bytes do **NOT** equal `SQLite format 3` (encrypted ciphertext verified). | `NOT RUN` | |
+| **BR2** | **Wrong-key & truncated-archive rejection** | Copy `.sorniobackup` to a test copy, truncate half its bytes; run **Preview backup** with (a) wrong passphrase on valid file and (b) correct passphrase on truncated file. | Both fail closed with actionable error; live `%LOCALAPPDATA%\com.sornio.localreview\workspace.db` SHA-256 is completely unchanged. | `NOT RUN` | |
+| **BR3** | **Clean Windows profile / second PC restore & post-recovery audit** | Install Sornio offline on a clean Windows user profile (or second test PC), preview the USB `.sorniobackup` with valid passphrase, type exact `RESTORE <12 hex>` confirmation, restore, unlock as Owner, verify Cashier is disabled until Owner re-enables (`recovery.staff_disabled`), and reconcile all balances. | Exact mid-shift invoices, stock, customer credit, supplier payables, and expected drawer cash match 100%; non-owner staff disabled until explicit Owner review; normal billing and daily closing resume cleanly after restart. | `NOT RUN` | |
+| **BR4** | **Unplugged / read-only USB failure safety** | Attempt export to a disconnected or write-protected USB path (or unplug USB before clicking Save). | Sornio reports actionable storage error without crashing; live `workspace.db` SHA-256 is untouched. | `NOT RUN` | |
+
+---
+
+## Part B — Controlled Power-Loss & Interruption Recovery (`PL1`–`PL7`)
+
+Run each drill in a **disposable test Windows user profile** with Wi-Fi and Ethernet disconnected. Record `workspace.db` SHA-256 before and after where applicable.
+
+| ID | Interruption Boundary | Exact Execution Steps | Required Pass Criteria | Result (`PASS`/`FAIL`/`BLOCKED`/`NOT RUN`) | Notes |
+|---|---|---|---|---|---|
+| **PL1** | **Abrupt termination right after posted sale (WAL recovery)** | Post a Cash sale, immediately run `Stop-Process -Name "sornio-desktop" -Force`, relaunch Sornio, unlock. | App starts cleanly, SQLCipher WAL recovers cleanly, posted sale and stock decrement are intact. | `NOT RUN` | |
+| **PL2** | **Termination during prepared checkout (before confirm completes)** | Add item, confirm/prepare checkout, force-kill `sornio-desktop.exe` mid-flight, relaunch Sornio, unlock, press `F8` (**Retry same sale**). | Same `operationId` is preserved across restart; retrying commits **exactly once** (zero duplicate invoices, exact 1× stock deduction). | `NOT RUN` | |
+| **PL3** | **Termination during 3-way split Cash + UPI + Credit sale** | Prepare a `₹2,500` split sale (`₹1,000 Cash + ₹750 UPI + ₹750 Credit`), force-kill before completion, reopen, inspect before retry, then retry via `F8`. | Zero partial payment rows or partial customer credit entries exist if uncommitted; idempotent retry commits all 3 tender parts atomically once. | `NOT RUN` | |
+| **PL4** | **Duplicate retry prevention after restart** | After a recovered sale commits, verify clicking **Start next sale** clears checkpoint and cannot re-post the prior `operationId`. | Invoice count, cash balance, stock, and customer credit increment strictly once. | `NOT RUN` | |
+| **PL5** | **Single-instance `workspace.lock` recovery after crash** | With Sornio open, attempt launching a second Sornio instance (confirm refusal dialog). Force-kill the first instance (`Stop-Process -Name "sornio-desktop" -Force`), then launch Sornio again. | Second concurrent launch is refused cleanly; after abrupt kill, OS immediately releases `workspace.lock` and relaunch succeeds without manual file cleanup. | `NOT RUN` | |
+| **PL6** | **Interrupted external backup debris safety** | Leave a truncated partial `.sorniobackup` file on USB, reopen Sornio, verify live database integrity and export a fresh clean backup. | Live DB untouched; truncated file rejected by preview; fresh backup exports and restores cleanly. | `NOT RUN` | |
+| **PL7** | **Restart & full financial reconciliation after recovery** | Reboot the bench Windows PC completely offline after `PL1`–`PL6`, unlock Sornio, and complete [`transaction-reconciliation-checklist.md`](transaction-reconciliation-checklist.md). | Zero discrepancies across integer-paise cash, UPI/card pending, customer credit, stock quantities, supplier payables, and append-only audit history. | `NOT RUN` | |

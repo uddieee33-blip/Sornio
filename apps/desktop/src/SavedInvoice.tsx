@@ -39,13 +39,17 @@ export function SavedInvoice({ invoice, payments, username, workstationSettings,
   const [previewOpen, setPreviewOpen] = useState(false);
   const [printCount, setPrintCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [livePrinters, setLivePrinters] = useState<readonly LocalPrinterInfo[] | null>(null);
   const [notice, setNotice] = useState('Printing does not change the saved sale.');
   const translate = (text: string) => language === 'pa' ? (punjabi as Record<string, string>)[text] ?? text : text;
   const showReprintBadge = isReprint || printCount > 0;
+  const activePrinters = livePrinters ?? printers;
   const preferredPrinter = workstationSettings?.printerName?.trim() ?? '';
-  const matchedPrinter = preferredPrinter ? printers?.find(p => p.name === preferredPrinter) : undefined;
+  const matchedPrinter = preferredPrinter ? activePrinters?.find(p => p.name === preferredPrinter) : undefined;
+  const printerMissing = Boolean(preferredPrinter && activePrinters && activePrinters.length > 0 && !matchedPrinter);
   const printerUnavailable = Boolean(
-    matchedPrinter && (matchedPrinter.workOffline || matchedPrinter.status === 'offline' || matchedPrinter.status === 'stopped'),
+    printerMissing
+    || (matchedPrinter && (matchedPrinter.workOffline || matchedPrinter.status === 'offline' || matchedPrinter.status === 'stopped')),
   );
   useEffect(() => {
     heading.current?.focus();
@@ -73,7 +77,17 @@ export function SavedInvoice({ invoice, payments, username, workstationSettings,
       }
     } catch {
       if (source.isConnected) setNotice('Printing could not open. Reopen the saved receipt, check access and your printer, then retry.');
-    } finally { printing.current = false; if (source.isConnected) setBusy(false); }
+    } finally {
+      printing.current = false;
+      if (source.isConnected) {
+        setBusy(false);
+        if (preferredPrinter) {
+          void invoke<LocalPrinterInfo[]>('list_local_printers')
+            .then(list => { if (source.isConnected) setLivePrinters(list); })
+            .catch(() => {});
+        }
+      }
+    }
   }
   return <section onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); if (!event.repeat) void print(); }

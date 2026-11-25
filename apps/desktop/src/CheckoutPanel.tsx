@@ -12,7 +12,7 @@ import type { ResolvedCreditCustomer } from './CustomerLookup';
 import { allocationPreview, paymentMethods, remainingForMethod } from './payment-allocation';
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
-import { findCode, matchesBarcodeSuffix, normalizeScannedBarcode, scanNeedsQuantity } from './scan';
+import { buildSkuIndex, detectBarcodeInQuantityField, findCodeIndexed, matchesBarcodeSuffix, normalizeScannedBarcode, scanNeedsQuantity } from './scan';
 import type { LocalPrinterInfo, WorkstationSettings } from './workstation-types';
 import { cashierNavigationKey, deliberateCheckoutConfirm } from './desktop-shortcuts';
 import { heldDraftInput } from './held-bills';
@@ -41,6 +41,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
 }) {
   const searchInput = useRef<HTMLInputElement>(null);
   const lastScanRef = useRef<{ code: string; atMs: number }>({ code: '', atMs: 0 });
+  const quantityBeforeFocusRef = useRef<{ productId: string; value: string } | null>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const retryButton = useRef<HTMLButtonElement>(null);
   const receiptLookupInput = useRef<HTMLInputElement>(null);
@@ -403,6 +404,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   }
 
   const productMap = useMemo(() => new Map(products.map(product => [product.id, product])), [products]);
+  const skuIndex = useMemo(() => buildSkuIndex(products), [products]);
   const taxBasisPoints = parseFixedDecimal(tax, 2);
   const { preview, problem, problemFieldId } = useMemo(() => {
     if (!cart.length) return { preview: null as ReturnType<typeof calculateNativeInvoice> | null, problem: '', problemFieldId: '' };
@@ -662,7 +664,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
             if (lastScanRef.current.atMs > 0 && nowMs - lastScanRef.current.atMs < 80) return;
             setFailed(true); setMessage('Enter an item name or exact code.'); return;
           }
-          const exact = findCode(products, cleaned);
+          const exact = findCodeIndexed(skuIndex, cleaned);
           if (exact.length === 1) {
             lastScanRef.current = { code: cleaned, atMs: nowMs };
             add(exact[0], true);
@@ -680,7 +682,99 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           const product = productMap.get(line.productId);
           return <li key={line.productId}><strong>{product?.name ?? line.productId}</strong><div className="checkout-quantity">
             <div><label htmlFor={`sale-quantity-${index}`}>Quantity for {product?.name ?? line.productId} ({product?.unit ?? 'units'})</label>
-              <input onFocus={event => event.currentTarget.select()} onKeyDown={event => { if (event.key === 'Enter' && !event.repeat && !event.nativeEvent.isComposing) { event.preventDefault(); searchInput.current?.focus(); } }} id={`sale-quantity-${index}`} inputMode="decimal" maxLength={24} value={line.typedQuantity} onChange={event => setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: event.target.value } : entry))}/>
+              <input onFocus={event => { quantityBeforeFocusRef.current = { productId: line.productId, value: line.typedQuantity }; event.currentTarget.select(); }} onKeyDown={event => {
+                const suffixMode = workstationSettings?.barcodeSuffix ?? 'enter_or_tab';
+                if (event.repeat || event.nativeEvent.isComposing) return;
+                if (event.key !== 'Enter' && !(event.key === 'Tab' && matchesBarcodeSuffix(event.key, suffixMode) && detectBarcodeInQuantityField(line.typedQuantity, skuIndex).length > 0)) return;
+                const accidentalScan = detectBarcodeInQuantityField(line.typedQuantity, skuIndex);
+                if (accidentalScan.length > 0) {
+                  event.preventDefault();
+                  const restored = quantityBeforeFocusRef.current?.productId === line.productId
+                    ? quantityBeforeFocusRef.current.value
+                    : quantity(Math.min(1000, product?.stockMilli ?? 1000));
+                  if (accidentalScan.length > 1) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('This code matches more than one item. Choose the item manually.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  const scanned = accidentalScan[0];
+                  lastScanRef.current = { code: normalizeScannedBarcode(line.typedQuantity), atMs: Date.now() };
+                  if (scanned.stockMilli <= 0) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('This item is out of stock.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  if (scanned.id === line.productId) {
+                    if (scanNeedsQuantity(scanned)) {
+                      setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                      setFailed(false); setMessage('Enter the quantity for this item.');
+                    } else {
+                      const prevMilli = parseFixedDecimal(restored, 3);
+                      if (prevMilli === null || prevMilli + 1000 > scanned.stockMilli) {
+                        setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                        setFailed(true); setMessage('Check quantity against available stock.');
+                      } else {
+                        setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: quantity(prevMilli + 1000) } : entry));
+                        setFailed(false); setMessage('Scanned barcode moved from quantity field to sale.');
+                      }
+                      searchInput.current?.focus();
+                    }
+                    return;
+                  }
+                  const existingScanned = cart.findIndex(entry => entry.productId === scanned.id);
+                  if (existingScanned >= 0) {
+                    if (scanNeedsQuantity(scanned)) {
+                      setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                      pendingFocus.current = { kind: 'quantity', index: existingScanned };
+                      setFailed(false); setMessage('Enter the quantity for this item.');
+                      return;
+                    }
+                    const currentScanned = parseFixedDecimal(cart[existingScanned].typedQuantity, 3);
+                    if (currentScanned === null || currentScanned + 1000 > scanned.stockMilli) {
+                      setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                      setFailed(true); setMessage('Check quantity against available stock.');
+                      searchInput.current?.focus();
+                      return;
+                    }
+                    setCart(lines => lines.map((entry, i) => i === index
+                      ? { ...entry, typedQuantity: restored }
+                      : i === existingScanned
+                        ? { ...entry, typedQuantity: quantity(currentScanned + 1000) }
+                        : entry));
+                    setFailed(false); setMessage('Scanned barcode moved from quantity field to sale.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  if (cart.length >= 100) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('A sale supports up to 100 items.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  if (!scanNeedsQuantity(scanned) && scanned.stockMilli < 1000) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('Not enough stock for one item.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  const needsQuantity = scanNeedsQuantity(scanned);
+                  setCart(lines => [
+                    ...lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry),
+                    { productId: scanned.id, typedQuantity: needsQuantity ? '' : quantity(Math.min(1000, scanned.stockMilli)) },
+                  ]);
+                  if (needsQuantity) {
+                    pendingFocus.current = { kind: 'quantity', index: cart.length };
+                    setFailed(false); setMessage('Enter the quantity for this item.');
+                  } else {
+                    setFailed(false); setMessage('Scanned barcode moved from quantity field to sale.');
+                    searchInput.current?.focus();
+                  }
+                  return;
+                }
+                if (event.key === 'Enter') { event.preventDefault(); searchInput.current?.focus(); }
+              }} id={`sale-quantity-${index}`} inputMode="decimal" maxLength={24} value={line.typedQuantity} onChange={event => setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: event.target.value } : entry))}/>
               <small>Up to 3 decimals · {product ? `${quantity(product.stockMilli)} ${product.unit} available · ${money(product.unitPricePaise)} / ${product.unit}` : 'Reload items'}</small></div>
             <button type="button" className="quiet-button" aria-label={`Remove ${product?.name ?? line.productId} from sale`} onClick={() => { pendingFocus.current = { kind: 'search', select: false }; setCart(lines => lines.filter(entry => entry.productId !== line.productId)); }}>Remove</button>
           </div></li>;

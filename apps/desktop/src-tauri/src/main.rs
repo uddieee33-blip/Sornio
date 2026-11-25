@@ -136,20 +136,61 @@ struct LocalPrinterInfo {
 
 #[cfg(windows)]
 fn detect_local_printers() -> Vec<LocalPrinterInfo> {
+    use std::io::Read;
     use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
     const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
     let script = concat!(
         "$items = @(Get-CimInstance -ClassName Win32_Printer -ErrorAction SilentlyContinue | ",
-        "Select-Object Name, Default, WorkOffline, PrinterStatus); ",
+        "Select-Object Name, Default, WorkOffline, PrinterStatus, DetectedErrorState); ",
         "if ($items.Count -eq 0) { '[]' } else { ConvertTo-Json -InputObject $items -Compress }"
     );
-    let output = match std::process::Command::new("powershell.exe")
+    let mut child = match std::process::Command::new("powershell.exe")
         .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
-        .output()
+        .spawn()
     {
-        Ok(out) if out.status.success() => out.stdout,
-        _ => return Vec::new(),
+        Ok(child) => child,
+        Err(_) => return Vec::new(),
+    };
+    let stdout_handle = child.stdout.take().map(|mut stdout| {
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = stdout.read_to_end(&mut buf);
+            buf
+        })
+    });
+    let deadline = Instant::now() + DISCOVERY_TIMEOUT;
+    let exited_ok = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Vec::new();
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Vec::new();
+            }
+        }
+    };
+    if !exited_ok {
+        return Vec::new();
+    }
+    let output = match stdout_handle.and_then(|h| h.join().ok()) {
+        Some(buf) => buf,
+        None => return Vec::new(),
     };
     let raw = String::from_utf8_lossy(&output);
     let trimmed = raw.trim();
@@ -180,14 +221,20 @@ fn detect_local_printers() -> Vec<LocalPrinterInfo> {
                 .get("WorkOffline")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
-            let status = match item.get("PrinterStatus").and_then(|v| v.as_u64()) {
-                Some(3) => "ready",
-                Some(4) => "printing",
-                Some(5) => "warmup",
-                Some(6) => "stopped",
-                Some(7) => "offline",
-                _ if work_offline => "offline",
-                _ => "unknown",
+            let error_state = item.get("DetectedErrorState").and_then(|v| v.as_u64());
+            let status = match error_state {
+                Some(4 | 7 | 8) => "stopped", // No Paper, Door Open, Jammed
+                Some(9) => "offline",         // Offline
+                _ => match item.get("PrinterStatus").and_then(|v| v.as_u64()) {
+                    Some(1) => "stopped", // Other / Error
+                    Some(3) => "ready",
+                    Some(4) => "printing",
+                    Some(5) => "warmup",
+                    Some(6) => "stopped",
+                    Some(7) => "offline",
+                    _ if work_offline => "offline",
+                    _ => "unknown",
+                },
             }
             .to_string();
             Some(LocalPrinterInfo {

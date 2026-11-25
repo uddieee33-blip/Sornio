@@ -999,6 +999,182 @@ fn controlled_interruption_across_split_retail_backup_and_rbac_preserves_invaria
 }
 
 #[test]
+fn backup_during_active_shift_and_post_recovery_reconciliation_preserves_all_invariants() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("midshift-backup.db");
+    let day = "2026-11-25".to_string();
+
+    let mut w = open(&path);
+    w.provision_owner(
+        OwnerSetup {
+            business_name: "Punjab Cycle & Toys Counter".into(),
+            business_type: "general".into(),
+            display_name: "Owner".into(),
+            username: "owner".into(),
+        },
+        PASSWORD,
+    )
+    .unwrap();
+    w.add_product(AddProduct {
+        operation_id: "walker-8w".into(),
+        name: "Musical Folding Baby Walker".into(),
+        sku: "0089011100003".into(),
+        unit: "pcs".into(),
+        unit_price_paise: 185_050,
+        opening_stock_milli: 10_000,
+    })
+    .unwrap();
+    w.acknowledge_inventory("walker-8w").unwrap();
+    w.save_customer(SaveCustomer {
+        operation_id: "cust-midshift".into(),
+        id: "cust-mid".into(),
+        name: "Midshift Credit Customer".into(),
+        phone: Some("9814055555".into()),
+        credit_limit_paise: Some(500_000),
+        credit_days: 15,
+        expected_revision: None,
+    })
+    .unwrap();
+
+    // Open live shift float (Rs 2,000) and post a mid-shift Cash + Credit sale.
+    let float_req = Request {
+        operation_id: "mid-float".into(),
+        action: Action::Float {
+            day: day.clone(),
+            username: "owner".into(),
+            amount_paise: 200_000,
+        },
+    };
+    w.prepare_retail(float_req.clone()).unwrap();
+    w.post_retail(float_req).unwrap();
+    w.clear_retail("mid-float", true).unwrap();
+
+    let sale_before_backup = Request {
+        operation_id: "mid-sale-1".into(),
+        action: Action::Sale {
+            invoice: PostInvoice {
+                operation_id: "mid-sale-1".into(),
+                lines: vec![BillLine {
+                    product_id: "walker-8w".into(),
+                    expected_revision: 1,
+                    quantity_milli: 2_000,
+                }],
+                tax_basis_points: 0,
+                tender: Tender::Retail,
+                customer_id: Some("cust-mid".into()),
+            },
+            payments: vec![
+                PaymentPart {
+                    id: "mid-pay-cash".into(),
+                    method: "cash".into(),
+                    amount_paise: 200_000,
+                    reference: String::new(),
+                },
+                PaymentPart {
+                    id: "mid-pay-credit".into(),
+                    method: "credit".into(),
+                    amount_paise: 170_100,
+                    reference: String::new(),
+                },
+            ],
+        },
+    };
+    w.prepare_retail(sale_before_backup.clone()).unwrap();
+    w.post_retail(sale_before_backup).unwrap();
+    w.clear_retail("mid-sale-1", true).unwrap();
+
+    // Export encrypted backup during active open shift (normal retail operation).
+    let backup_file = dir.path().join("midshift-external-usb.sorniobackup");
+    let recovery = "Midshift external USB passphrase 2026";
+    let exported = w.export_backup(&backup_file, PASSWORD, recovery).unwrap();
+    assert!(!exported.file_sha256.is_empty());
+    let backup_raw = std::fs::read(&backup_file).unwrap();
+    assert!(!backup_raw.starts_with(b"SQLite format 3"));
+
+    // Continue normal operation after backup (additional cash sale).
+    let rev_after_first = w.list_products().unwrap()[0].revision;
+    let sale_after_backup = Request {
+        operation_id: "mid-sale-2".into(),
+        action: Action::Sale {
+            invoice: PostInvoice {
+                operation_id: "mid-sale-2".into(),
+                lines: vec![BillLine {
+                    product_id: "walker-8w".into(),
+                    expected_revision: rev_after_first,
+                    quantity_milli: 1_000,
+                }],
+                tax_basis_points: 0,
+                tender: Tender::Retail,
+                customer_id: None,
+            },
+            payments: vec![PaymentPart {
+                id: "mid-pay-cash-2".into(),
+                method: "cash".into(),
+                amount_paise: 185_050,
+                reference: String::new(),
+            }],
+        },
+    };
+    w.prepare_retail(sale_after_backup.clone()).unwrap();
+    w.post_retail(sale_after_backup).unwrap();
+    w.clear_retail("mid-sale-2", true).unwrap();
+    assert_eq!(w.list_products().unwrap()[0].stock_milli, 7_000);
+
+    // Restore the mid-shift backup cleanly, simulate full app restart, and
+    // reconcile every financial invariant back to the exact mid-shift point.
+    let preview = w
+        .preview_backup(&backup_file, PASSWORD, recovery, PASSWORD)
+        .unwrap();
+    w.restore_backup(
+        &backup_file,
+        &dir.path().join("midshift-safety"),
+        PASSWORD,
+        recovery,
+        PASSWORD,
+        &preview,
+        &preview.confirmation,
+    )
+    .unwrap();
+    drop(w);
+
+    let mut w = open(&path);
+    w.login("owner", PASSWORD).unwrap();
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_invoices"), 1);
+    assert_eq!(w.list_products().unwrap()[0].stock_milli, 8_000);
+    assert_eq!(
+        w.read_customer("cust-mid").unwrap().balance_paise,
+        "170100"
+    );
+    let view = w.retail_view(&day, "owner", None).unwrap();
+    assert_eq!(view.summary.expected_cash_paise, "400000");
+
+    // Resume normal operation after recovery and post daily cash closing cleanly.
+    let close_req = Request {
+        operation_id: "mid-close-after-restore".into(),
+        action: Action::Close {
+            day: day.clone(),
+            username: "owner".into(),
+            through: view.summary.through,
+            counted_paise: 400_000,
+        },
+    };
+    w.prepare_retail(close_req.clone()).unwrap();
+    w.post_retail(close_req).unwrap();
+    w.clear_retail("mid-close-after-restore", true).unwrap();
+    assert_eq!(
+        scalar(&w, "SELECT COUNT(*) FROM pragma_foreign_key_check"),
+        0
+    );
+    assert_eq!(
+        scalar(
+            &w,
+            "SELECT COUNT(*) FROM (SELECT invoice_id FROM local_billing_ledger GROUP BY invoice_id HAVING SUM(amount_paise)<>0)"
+        ),
+        0
+    );
+}
+
+#[test]
 #[ignore = "Explicit Phase 23 10k products / 50k invoices workload; run via scripts/run-phase23-workload.py"]
 fn phase23_ten_thousand_products_and_fifty_thousand_invoices_benchmark() {
     let started = Instant::now();

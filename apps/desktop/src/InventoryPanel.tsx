@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from './native';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
@@ -195,8 +195,18 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   }
 
   const blocked = disabled || busy || !ready || openedToken !== refreshToken;
-  const matching = products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
-  const shown = matching.slice(0, 100);
+  const matching = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query
+      ? products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(query))
+      : products;
+  }, [products, search]);
+  const shown = useMemo(() => matching.slice(0, 100), [matching]);
+  const selectableProducts = useMemo(() => {
+    if (!selection || shown.some(item => item.id === selection)) return shown;
+    const selected = products.find(item => item.id === selection);
+    return selected ? [selected, ...shown] : shown;
+  }, [products, selection, shown]);
   return <section className="panel inventory-panel" aria-labelledby="inventory-heading" aria-busy={busy}>
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
     <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
@@ -214,7 +224,7 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
       </fieldset></form> : null}
       {canCorrect ? <form onSubmit={adjust} aria-label="Adjust local stock"><fieldset disabled={blocked || pending !== null || products.length === 0}>
         <legend>Record a stock change</legend>
-        <label htmlFor="stock-item">Item to adjust</label><select id="stock-item" required value={selection} onChange={e => setSelection(e.target.value)}><option value="">Choose an item</option>{products.map(item => <option key={item.id} value={item.id}>{item.name} ({quantity(item.stockMilli)} {item.unit})</option>)}</select>
+        <label htmlFor="stock-item">Item to adjust</label><select id="stock-item" required value={selection} onChange={e => setSelection(e.target.value)}><option value="">Choose an item</option>{selectableProducts.map(item => <option key={item.id} value={item.id}>{item.name} ({quantity(item.stockMilli)} {item.unit})</option>)}</select>
         <label htmlFor="stock-change">Quantity change</label><input id="stock-change" inputMode="text" maxLength={24} required aria-describedby="stock-change-help" value={delta} onChange={e => setDelta(e.target.value)}/>
         <p id="stock-change-help" className="muted">Use a positive count for a delivery or a negative count for damage or a correction. Up to 3 decimals.</p>
         <label htmlFor="stock-reason">Reason for stock change</label><input id="stock-reason" maxLength={200} required value={reason} onChange={e => setReason(e.target.value)}/>
