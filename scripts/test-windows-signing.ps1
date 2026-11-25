@@ -42,7 +42,7 @@ function Invoke-SignExpectFailure {
   $threw = $false
   $combined = ''
   try {
-    $out = & $Action 2>&1 | Out-String
+    $out = (& $Action | Out-String)
     $combined = $out
   }
   catch {
@@ -126,7 +126,7 @@ try {
   }
 
   # 5. Wrong password for a real PFX -> fail closed, password never leaked
-  $wrongPassCert = New-SelfSignedCertificate -Subject 'CN=Sornio Negative Test Only' -Type CodeSigningCert -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2)
+  $wrongPassCert = New-SelfSignedCertificate -Subject 'CN=Sornio Negative Test Only' -Type CodeSigningCert -KeyExportPolicy Exportable -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2)
   $wrongPassB64 = Export-TempCertBase64 -Cert $wrongPassCert -Password 'CorrectTestPassword123!'
   Clear-SigningEnv
   $env:WINDOWS_SIGNING_CERT_PFX_BASE64 = $wrongPassB64
@@ -136,7 +136,7 @@ try {
   }
 
   # 6. Certificate lacking Code Signing EKU (ServerAuth only) -> rejected before signing
-  $noEkuCert = New-SelfSignedCertificate -Subject 'CN=Sornio No-EKU Negative Test' -Type SSLServerAuthentication -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2)
+  $noEkuCert = New-SelfSignedCertificate -Subject 'CN=Sornio No-EKU Negative Test' -Type SSLServerAuthentication -KeyExportPolicy Exportable -CertStoreLocation 'Cert:\CurrentUser\My' -NotAfter (Get-Date).AddDays(2)
   $noEkuB64 = Export-TempCertBase64 -Cert $noEkuCert -Password $secretSentinel
   Clear-SigningEnv
   $env:WINDOWS_SIGNING_CERT_PFX_BASE64 = $noEkuB64
@@ -146,7 +146,7 @@ try {
   }
 
   # 7. Expired Code Signing certificate -> rejected before signing
-  $expiredCert = New-SelfSignedCertificate -Subject 'CN=Sornio Expired Negative Test' -Type CodeSigningCert -CertStoreLocation 'Cert:\CurrentUser\My' -NotBefore (Get-Date).AddDays(-10) -NotAfter (Get-Date).AddDays(-1)
+  $expiredCert = New-SelfSignedCertificate -Subject 'CN=Sornio Expired Negative Test' -Type CodeSigningCert -KeyExportPolicy Exportable -CertStoreLocation 'Cert:\CurrentUser\My' -NotBefore (Get-Date).AddDays(-10) -NotAfter (Get-Date).AddDays(-1)
   $expiredB64 = Export-TempCertBase64 -Cert $expiredCert -Password $secretSentinel
   Clear-SigningEnv
   $env:WINDOWS_SIGNING_CERT_PFX_BASE64 = $expiredB64
@@ -204,6 +204,15 @@ try {
   }
 
   Write-Output 'ALL 11 WINDOWS SIGNING NEGATIVE & CONTRACT TESTS PASSED'
+  if ($savedEnv['GITHUB_ACTIONS'] -eq 'true') {
+    Write-Output '::notice::WINDOWS_SIGNING_TESTS_PASSED 11/11'
+  }
+}
+catch {
+  if ($savedEnv['GITHUB_ACTIONS'] -eq 'true') {
+    Write-Output "::error::WINDOWS_SIGNING_TEST_FAILURE: $($_.Exception.Message)"
+  }
+  throw
 }
 finally {
   foreach ($tp in $createdThumbprints) {

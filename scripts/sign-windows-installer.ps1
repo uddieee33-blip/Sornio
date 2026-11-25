@@ -218,15 +218,29 @@ if ($hasCert -and $hasPass) {
   $tempPfx = Join-Path ([System.IO.Path]::GetTempPath()) ('sornio-sign-' + [Guid]::NewGuid().ToString('N') + '.pfx')
   try {
     [System.IO.File]::WriteAllBytes($tempPfx, $pfxBytes)
-    $signOutput = & $signtoolPath sign /f $tempPfx /p $certPass /fd SHA256 /tr $timestampUrl /td SHA256 $item.FullName 2>&1
-    $signExit = $LASTEXITCODE
+    $prevEap = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $signOutput = & $signtoolPath sign /f $tempPfx /p $certPass /fd SHA256 /tr $timestampUrl /td SHA256 $item.FullName 2>&1
+      $signExit = $LASTEXITCODE
+    }
+    finally {
+      $ErrorActionPreference = $prevEap
+    }
     if ($signExit -ne 0) {
       $safeOut = Remove-SecretText -Text (($signOutput | Out-String).Trim()) -Secrets $secretsToRedact
       throw "signtool.exe sign failed (exit $signExit): $safeOut"
     }
 
-    $verifyOutput = & $signtoolPath verify /pa /tw $item.FullName 2>&1
-    $verifyExit = $LASTEXITCODE
+    $prevEap = $ErrorActionPreference
+    try {
+      $ErrorActionPreference = 'Continue'
+      $verifyOutput = & $signtoolPath verify /pa /tw $item.FullName 2>&1
+      $verifyExit = $LASTEXITCODE
+    }
+    finally {
+      $ErrorActionPreference = $prevEap
+    }
     if ($verifyExit -ne 0) {
       $safeOut = Remove-SecretText -Text (($verifyOutput | Out-String).Trim()) -Secrets $secretsToRedact
       throw "signtool.exe verify /pa /tw failed (exit $verifyExit; untrusted chain or missing RFC 3161 timestamp): $safeOut"
