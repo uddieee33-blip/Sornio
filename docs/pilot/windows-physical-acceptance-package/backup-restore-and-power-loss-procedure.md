@@ -1,17 +1,17 @@
 # External USB Backup, Restore & Controlled Power-Loss Recovery Procedure
 
-**MANDATORY SAFETY RULE:** Run all power-loss / termination tests **ONLY** in a disposable Windows bench profile with test data — **NEVER** on live shop data and **NEVER** by pulling live AC mains power in an unsafe electrical setup. Use controlled abrupt Windows process termination (`Stop-Process -Name "sornio-desktop" -Force`) for repeatable crash boundaries.
+**MANDATORY SAFETY RULE:** Run all power-loss / termination tests **ONLY** in a disposable Windows bench profile with test data — **NEVER** on live shop data and **NEVER** by pulling live AC mains power in an unsafe electrical setup. Use controlled abrupt Windows process termination (`Stop-Process -Name "sornio-desktop" -Force`) for repeatable crash boundaries; if your bench includes a surge-protected switched UPS dedicated to disposable QA, record any optional physical power-cut drill separately in `PL7` notes. Capture all hashes, screenshots, and timestamps per [`EVIDENCE-CAPTURE-GUIDE.md`](EVIDENCE-CAPTURE-GUIDE.md).
 
 ---
 
 ## Part A — External USB Backup & Clean-PC Restore (`BR1`–`BR4`)
 
-| ID | Scenario | Exact Execution Steps | Required Pass Criteria | Result (`PASS`/`FAIL`/`BLOCKED`/`NOT RUN`) | Notes |
+| ID | Scenario | Exact Execution Steps | Required Pass Criteria | Result (`PASS`/`FAIL`/`BLOCKED`/`NOT RUN`) | Evidence Ref (Hash / Screenshot) |
 |---|---|---|---|---|---|
-| **BR1** | **Mid-shift encrypted USB backup during normal operation** | Open a live shift float (`₹2,000.00`), post a Cash sale and a split Cash+Credit sale, leave the day open, plug in removable USB drive (`E:\SornioBackups`), export `.sorniobackup` with a strong recovery passphrase. Inspect the exported file header in PowerShell (`Get-Content -Encoding Byte -TotalCount 16`). | Export succeeds cleanly during live shift; file size > 0; first 16 bytes do **NOT** equal `SQLite format 3` (encrypted ciphertext verified). | `NOT RUN` | |
-| **BR2** | **Wrong-key & truncated-archive rejection** | Copy `.sorniobackup` to a test copy, truncate half its bytes; run **Preview backup** with (a) wrong passphrase on valid file and (b) correct passphrase on truncated file. | Both fail closed with actionable error; live `%LOCALAPPDATA%\com.sornio.localreview\workspace.db` SHA-256 is completely unchanged. | `NOT RUN` | |
+| **BR1** | **Mid-shift encrypted USB backup during normal operation** | Open a live shift float (`₹2,000.00`), post a Cash sale and a split Cash+Credit sale, leave the day open, plug in removable USB drive (`E:\SornioBackups`), export `.sorniobackup` (`sornio-business.sorniobackup`) with a strong recovery passphrase. Inspect the first 16 bytes in PowerShell (works on both Windows PowerShell 5.1 and PowerShell 7): `[System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes("E:\SornioBackups\sornio-business.sorniobackup")[0..15])`. | Export succeeds cleanly during live shift; file size > 0; first 16 bytes do **NOT** equal `SQLite format 3` (encrypted ciphertext verified). Record file SHA-256 without recording the passphrase. | `NOT RUN` | |
+| **BR2** | **Wrong-key & truncated-archive rejection** | Copy `.sorniobackup` to a test copy, truncate half its bytes; record `workspace.db` SHA-256 (`Get-FileHash "$env:LOCALAPPDATA\com.sornio.localreview\workspace.db" -Algorithm SHA256`); run **Preview backup** with (a) wrong passphrase on valid file and (b) correct passphrase on truncated file. | Both fail closed with actionable error; live `%LOCALAPPDATA%\com.sornio.localreview\workspace.db` SHA-256 is completely unchanged. | `NOT RUN` | |
 | **BR3** | **Clean Windows profile / second PC restore & post-recovery audit** | Install Sornio offline on a clean Windows user profile (or second test PC), preview the USB `.sorniobackup` with valid passphrase, type exact `RESTORE <12 hex>` confirmation, restore, unlock as Owner, verify Cashier is disabled until Owner re-enables (`recovery.staff_disabled`), and reconcile all balances. | Exact mid-shift invoices, stock, customer credit, supplier payables, and expected drawer cash match 100%; non-owner staff disabled until explicit Owner review; normal billing and daily closing resume cleanly after restart. | `NOT RUN` | |
-| **BR4** | **Unplugged / read-only USB failure safety** | Attempt export to a disconnected or write-protected USB path (or unplug USB before clicking Save). | Sornio reports actionable storage error without crashing; live `workspace.db` SHA-256 is untouched. | `NOT RUN` | |
+| **BR4** | **Unplugged / read-only USB failure safety** | Record `workspace.db` SHA-256; attempt export to a disconnected or write-protected USB path (or unplug USB before clicking Save). | Sornio reports actionable storage error without crashing; live `workspace.db` SHA-256 is untouched. | `NOT RUN` | |
 
 ---
 
@@ -19,7 +19,7 @@
 
 Run each drill in a **disposable test Windows user profile** with Wi-Fi and Ethernet disconnected. Record `workspace.db` SHA-256 before and after where applicable.
 
-| ID | Interruption Boundary | Exact Execution Steps | Required Pass Criteria | Result (`PASS`/`FAIL`/`BLOCKED`/`NOT RUN`) | Notes |
+| ID | Interruption Boundary | Exact Execution Steps | Required Pass Criteria | Result (`PASS`/`FAIL`/`BLOCKED`/`NOT RUN`) | Evidence Ref (Hash / Screenshot) |
 |---|---|---|---|---|---|
 | **PL1** | **Abrupt termination right after posted sale (WAL recovery)** | Post a Cash sale, immediately run `Stop-Process -Name "sornio-desktop" -Force`, relaunch Sornio, unlock. | App starts cleanly, SQLCipher WAL recovers cleanly, posted sale and stock decrement are intact. | `NOT RUN` | |
 | **PL2** | **Termination during prepared checkout (before confirm completes)** | Add item, confirm/prepare checkout, force-kill `sornio-desktop.exe` mid-flight, relaunch Sornio, unlock, press `F8` (**Retry same sale**). | Same `operationId` is preserved across restart; retrying commits **exactly once** (zero duplicate invoices, exact 1× stock deduction). | `NOT RUN` | |
