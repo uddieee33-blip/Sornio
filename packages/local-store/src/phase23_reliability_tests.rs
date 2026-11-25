@@ -940,6 +940,22 @@ fn controlled_interruption_across_split_retail_backup_and_rbac_preserves_invaria
         Err(StoreError::InvalidBackup)
     ));
 
+    // Verify RBAC before restore: cashier cannot modify workstation settings.
+    w.login("cashier1", PASSWORD).unwrap();
+    assert!(matches!(
+        w.save_workstation_settings(SaveWorkstationSettings {
+            expected_revision: 1,
+            receipt_layout: "58mm".into(),
+            receipt_language: "en".into(),
+            printer_name: String::new(),
+            barcode_suffix: "enter".into(),
+            cash_drawer_mode: "none".into(),
+            backup_destination_note: String::new(),
+        }),
+        Err(StoreError::Forbidden)
+    ));
+    w.login("owner", PASSWORD).unwrap();
+
     let clean_backup = dir.path().join("clean-after-interruption.sorniobackup");
     w.export_backup(&clean_backup, PASSWORD, recovery).unwrap();
     let preview = w
@@ -956,21 +972,19 @@ fn controlled_interruption_across_split_retail_backup_and_rbac_preserves_invaria
     )
     .unwrap();
 
-    // Verify RBAC, append-only audit trail, foreign keys, and balanced journal after recovery.
-    w.login("cashier1", PASSWORD).unwrap();
+    // Recovery disables non-owner staff until explicit Owner review; verify
+    // append-only audit trail, foreign keys, and balanced journal after restore.
     assert!(matches!(
-        w.save_workstation_settings(SaveWorkstationSettings {
-            expected_revision: 1,
-            receipt_layout: "58mm".into(),
-            receipt_language: "en".into(),
-            printer_name: String::new(),
-            barcode_suffix: "enter".into(),
-            cash_drawer_mode: "none".into(),
-            backup_destination_note: String::new(),
-        }),
-        Err(StoreError::Forbidden)
+        w.login("cashier1", PASSWORD),
+        Err(StoreError::IncorrectPassword)
     ));
-    assert!(scalar(&w, "SELECT COUNT(*) FROM local_identity_audit") > 0);
+    w.login("owner", PASSWORD).unwrap();
+    assert!(
+        scalar(
+            &w,
+            "SELECT COUNT(*) FROM local_identity_audit WHERE action='recovery.staff_disabled'"
+        ) > 0
+    );
     assert_eq!(
         scalar(&w, "SELECT COUNT(*) FROM pragma_foreign_key_check"),
         0
