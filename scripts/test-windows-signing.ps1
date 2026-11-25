@@ -207,6 +207,7 @@ try {
   if ($savedEnv['GITHUB_ACTIONS'] -eq 'true') {
     Write-Output '::notice::WINDOWS_SIGNING_TESTS_PASSED 11/11'
   }
+  $global:LASTEXITCODE = 0
 }
 catch {
   if ($savedEnv['GITHUB_ACTIONS'] -eq 'true') {
