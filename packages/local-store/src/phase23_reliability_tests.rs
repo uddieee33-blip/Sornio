@@ -808,6 +808,180 @@ fn synthetic_bicycle_retail_pilot_reconciles_end_to_end() {
 }
 
 #[test]
+fn controlled_interruption_across_split_retail_backup_and_rbac_preserves_invariants() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("power-loss-recovery.db");
+
+    let split_req = Request {
+        operation_id: "split-interrupted-1".into(),
+        action: Action::Sale {
+            invoice: PostInvoice {
+                operation_id: "split-interrupted-1".into(),
+                lines: vec![BillLine {
+                    product_id: "tricycle-kids".into(),
+                    expected_revision: 1,
+                    quantity_milli: 1_000,
+                }],
+                tax_basis_points: 0,
+                tender: Tender::Retail,
+                customer_id: Some("cust-pilot".into()),
+            },
+            payments: vec![
+                PaymentPart {
+                    id: "pay-split-cash".into(),
+                    method: "cash".into(),
+                    amount_paise: 100_000,
+                    reference: String::new(),
+                },
+                PaymentPart {
+                    id: "pay-split-upi".into(),
+                    method: "upi".into(),
+                    amount_paise: 75_000,
+                    reference: "UPI-RECOVER-01".into(),
+                },
+                PaymentPart {
+                    id: "pay-split-credit".into(),
+                    method: "credit".into(),
+                    amount_paise: 75_000,
+                    reference: String::new(),
+                },
+            ],
+        },
+    };
+
+    {
+        let mut w = open(&path);
+        w.provision_owner(
+            OwnerSetup {
+                business_name: "Ludhiana Kids & Cycle Mart".into(),
+                business_type: "general".into(),
+                display_name: "Shop Owner".into(),
+                username: "owner".into(),
+            },
+            PASSWORD,
+        )
+        .unwrap();
+        w.create_staff(
+            StaffDetails {
+                username: "cashier1".into(),
+                display_name: "Counter Cashier".into(),
+                role: Role::Cashier,
+            },
+            PASSWORD,
+        )
+        .unwrap();
+        w.add_product(AddProduct {
+            operation_id: "tricycle-kids".into(),
+            name: "Kids Steel Tricycle with Bell".into(),
+            sku: "0089022200011".into(),
+            unit: "pcs".into(),
+            unit_price_paise: 250_000,
+            opening_stock_milli: 6_000,
+        })
+        .unwrap();
+        w.acknowledge_inventory("tricycle-kids").unwrap();
+        w.save_customer(SaveCustomer {
+            operation_id: "cust-pilot-save".into(),
+            id: "cust-pilot".into(),
+            name: "Regular Family Customer".into(),
+            phone: Some("9814012345".into()),
+            credit_limit_paise: Some(200_000),
+            credit_days: 15,
+            expected_revision: None,
+        })
+        .unwrap();
+        // Prepare split Cash+UPI+Credit checkout, then simulate abrupt crash
+        // before posting commits.
+        w.prepare_retail(split_req.clone()).unwrap();
+    }
+
+    // Confirm ciphertext at rest before reopen.
+    let raw = std::fs::read(&path).unwrap();
+    assert!(!raw.starts_with(b"SQLite format 3"));
+
+    // Reopen after simulated termination: WAL recovers cleanly, zero partial
+    // invoices/payments/credit/stock mutations exist before retry.
+    let mut w = open(&path);
+    w.login("owner", PASSWORD).unwrap();
+    let integrity: String = w
+        .store_for_test()
+        .0
+        .query_row("PRAGMA integrity_check", [], |r| r.get(0))
+        .unwrap();
+    assert_eq!(integrity, "ok");
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_invoices"), 0);
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_retail_payments"), 0);
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_credit_entries"), 0);
+    assert_eq!(w.list_products().unwrap()[0].stock_milli, 6_000);
+    assert_eq!(w.read_customer("cust-pilot").unwrap().balance_paise, "0");
+
+    // Idempotent retry commits atomically once; duplicate replay never double-posts.
+    let first = w.post_retail(split_req.clone()).unwrap();
+    let replay = w.post_retail(split_req).unwrap();
+    assert_eq!(first.data.invoice, replay.data.invoice);
+    w.clear_retail("split-interrupted-1", true).unwrap();
+
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_invoices"), 1);
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_retail_payments"), 3);
+    assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_credit_entries"), 1);
+    assert_eq!(w.list_products().unwrap()[0].stock_milli, 5_000);
+    assert_eq!(w.read_customer("cust-pilot").unwrap().balance_paise, "75000");
+
+    // Simulated interrupted backup export leaves truncated debris on external media:
+    // original database stays intact, truncated archive is rejected, clean export succeeds.
+    let interrupted_backup = dir.path().join("interrupted-partial.sorniobackup");
+    std::fs::write(&interrupted_backup, b"partial-truncated-bytes").unwrap();
+    let recovery = "Power loss recovery passphrase 2026";
+    assert!(matches!(
+        w.preview_backup(&interrupted_backup, PASSWORD, recovery, PASSWORD),
+        Err(StoreError::InvalidBackup)
+    ));
+
+    let clean_backup = dir.path().join("clean-after-interruption.sorniobackup");
+    w.export_backup(&clean_backup, PASSWORD, recovery).unwrap();
+    let preview = w
+        .preview_backup(&clean_backup, PASSWORD, recovery, PASSWORD)
+        .unwrap();
+    w.restore_backup(
+        &clean_backup,
+        &dir.path().join("restore-safety"),
+        PASSWORD,
+        recovery,
+        PASSWORD,
+        &preview,
+        &preview.confirmation,
+    )
+    .unwrap();
+
+    // Verify RBAC, append-only audit trail, foreign keys, and balanced journal after recovery.
+    w.login("cashier1", PASSWORD).unwrap();
+    assert!(matches!(
+        w.save_workstation_settings(SaveWorkstationSettings {
+            expected_revision: 1,
+            receipt_layout: "58mm".into(),
+            receipt_language: "en".into(),
+            printer_name: String::new(),
+            barcode_suffix: "enter".into(),
+            cash_drawer_mode: "none".into(),
+            backup_destination_note: String::new(),
+        }),
+        Err(StoreError::Forbidden)
+    ));
+    assert!(scalar(&w, "SELECT COUNT(*) FROM local_identity_audit") > 0);
+    assert_eq!(
+        scalar(&w, "SELECT COUNT(*) FROM pragma_foreign_key_check"),
+        0
+    );
+    assert_eq!(
+        scalar(
+            &w,
+            "SELECT COUNT(*) FROM (SELECT invoice_id FROM local_billing_ledger GROUP BY invoice_id HAVING SUM(amount_paise)<>0)"
+        ),
+        0
+    );
+}
+
+#[test]
 #[ignore = "Explicit Phase 23 10k products / 50k invoices workload; run via scripts/run-phase23-workload.py"]
 fn phase23_ten_thousand_products_and_fifty_thousand_invoices_benchmark() {
     let started = Instant::now();

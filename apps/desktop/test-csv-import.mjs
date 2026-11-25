@@ -29,6 +29,29 @@ test('parses valid bicycle and spare-parts catalog CSV with exact integer paise 
   });
 });
 
+test('parses realistic bicycle, toys, tricycles, walkers and accessories pilot catalog CSV', () => {
+  const csv = [
+    'name,sku,unit,price_rupees,opening_stock',
+    'Hero Ranger 26T Mountain Bicycle,0089011100001,pcs,7450.00,4',
+    'Kids Steel Tricycle with Canopy & Bell,0089011100002,pcs,2499.00,6',
+    'Musical Folding Baby Walker (8-Wheel),0089011100003,pcs,1850.50,8',
+    'Battery Ride-On Toy Jeep 12V,0089011100004,pcs,9200.00,2',
+    'Alloy Bicycle Bell & LED Tail Light Combo,0089011100005,pcs,320.00,25',
+    'Loose Galvanised Spokes Bundle,,pcs,8.50,200',
+  ].join('\n');
+  const result = parseProductCatalogCsv(csv);
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.rows.length, 6);
+  assert.equal(result.rows[0].sku, '0089011100001');
+  assert.equal(result.rows[0].unitPricePaise, 745000);
+  assert.equal(result.rows[1].unitPricePaise, 249900);
+  assert.equal(result.rows[2].unitPricePaise, 185050);
+  assert.equal(result.rows[3].unitPricePaise, 920000);
+  assert.equal(result.rows[4].unitPricePaise, 32000);
+  assert.equal(result.rows[5].sku, '');
+  assert.equal(result.rows[5].unitPricePaise, 850);
+});
+
 test('rejects duplicate SKUs, bad units, and malformed amounts with exact line numbers', () => {
   const csv = [
     'name,sku,unit,price_rupees,opening_stock',

@@ -77,6 +77,9 @@ jobs:
       - name: Verify blueprints, theme, security and localisation
         run: npm run verify
 
+      - name: Verify Windows signing script and manifest contract
+        run: python3 scripts/test-signing-manifest-contract.py -v
+
       - name: Build
         run: npm run build
 

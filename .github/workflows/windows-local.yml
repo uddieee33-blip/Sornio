@@ -25,6 +25,7 @@ on:
       - '.github/workflows/macos-desktop.yml'
       - 'docs/reviews/2026-11-16-phase22d-execution-report.md'
       - 'docs/reviews/phase23-windows-pilot-readiness.md'
+      - 'docs/reviews/windows-physical-bench-and-pilot-readiness.md'
   workflow_dispatch:
 permissions:
   contents: read
@@ -204,14 +205,25 @@ jobs:
             { tail -50 "$log.clean" | esc; } | sed 's/^/::error::installer log tail: /' || true
           fi
           exit "$code"
+      - name: Test Windows Authenticode signing fail-closed contract
+        shell: pwsh
+        run: ./scripts/test-windows-signing.ps1
       - name: Sign installer when configured and record Phase 23 release manifest
         shell: pwsh
+        env:
+          WINDOWS_SIGNING_CERT_PFX_BASE64: ${{ secrets.WINDOWS_SIGNING_CERT_PFX_BASE64 }}
+          WINDOWS_SIGNING_CERT_PASSWORD: ${{ secrets.WINDOWS_SIGNING_CERT_PASSWORD }}
+          WINDOWS_SIGNING_TIMESTAMP_URL: ${{ vars.WINDOWS_SIGNING_TIMESTAMP_URL }}
         run: |
           $setup = @(Get-ChildItem 'apps/desktop/src-tauri/target/release/bundle/nsis/*-setup.exe')
           if ($setup.Count -ne 1) { throw "Expected 1 built NSIS installer, found $($setup.Count)" }
           ./scripts/sign-windows-installer.ps1 `
             -InstallerPath $setup[0].FullName `
             -OutputManifestPath 'dist/native-review/phase23-release-manifest.json'
+          ./scripts/sign-windows-installer.ps1 `
+            -InstallerPath $setup[0].FullName `
+            -OutputManifestPath 'dist/native-review/phase23-release-manifest.json' `
+            -VerifyManifest
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: '3.12'
