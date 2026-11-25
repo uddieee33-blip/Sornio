@@ -80,12 +80,12 @@ const POST_V11_TABLES: &[&str] = &[
     "local_purchase_returns",
     "local_purchase_return_lines",
     "local_purchase_stock_events",
+    // v24: workstation_settings-schema.sql
+    "local_workstation_settings",
 ];
 
-/// Tables the v23 purchasing phase creates, on their own, so a test can mint the
-/// archive a pre-Phase-21 (Phase 20 / v22) release would have produced: drop only
-/// these and stamp `user_version = 22`. Kept next to `POST_V11_TABLES` and
-/// asserted to be a subset of it by the drift test so the two cannot drift.
+/// Tables created after v22, so a test can mint the archive a Phase 20 (v22)
+/// release would have produced: drop these and stamp `user_version = 22`.
 const POST_V22_TABLES: &[&str] = &[
     "local_suppliers",
     "local_supplier_ops",
@@ -103,7 +103,11 @@ const POST_V22_TABLES: &[&str] = &[
     "local_purchase_returns",
     "local_purchase_return_lines",
     "local_purchase_stock_events",
+    "local_workstation_settings",
 ];
+
+/// Tables created by v24, so a test can mint a v23 (Phase 22) fixture.
+const POST_V23_TABLES: &[&str] = &["local_workstation_settings"];
 
 /// Tables that exist at v11 or earlier, plus tables that are not created by a
 /// schema phase at all. The per-test frozen literals remove the former, and the
@@ -163,8 +167,19 @@ const PRE_V13_TABLES: &[&str] = &[
 /// manufacture the backup a Phase 20 release would have produced. Nothing here
 /// touches row data: the purchasing tables are empty in a database that never
 /// reached v23.
+pub(crate) fn drop_post_v23_tables(db: &rusqlite::Connection) {
+    let mut sql = String::from("DROP INDEX IF EXISTS local_products_name_nocase;");
+    for table in POST_V23_TABLES {
+        sql.push_str("DROP TABLE IF EXISTS ");
+        sql.push_str(table);
+        sql.push(';');
+    }
+    db.execute_batch(&sql)
+        .unwrap_or_else(|e| panic!("removing post-v23 fixture tables failed: {e}"));
+}
+
 pub(crate) fn drop_post_v22_tables(db: &rusqlite::Connection) {
-    let mut sql = String::new();
+    let mut sql = String::from("DROP INDEX IF EXISTS local_products_name_nocase;");
     for table in POST_V22_TABLES {
         sql.push_str("DROP TABLE IF EXISTS ");
         sql.push_str(table);
@@ -181,7 +196,7 @@ pub(crate) fn drop_post_v22_tables(db: &rusqlite::Connection) {
 /// that a migration test asserts on: these are empty tables belonging to phases
 /// the fixture never reached.
 pub(crate) fn drop_post_v11_tables(db: &rusqlite::Connection) {
-    let mut sql = String::new();
+    let mut sql = String::from("DROP INDEX IF EXISTS local_products_name_nocase;");
     for table in POST_V11_TABLES {
         sql.push_str("DROP TABLE IF EXISTS ");
         sql.push_str(table);

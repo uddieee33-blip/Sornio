@@ -16,6 +16,9 @@ import { SupplierPanel } from './SupplierPanel';
 import { StaffPanel } from './StaffPanel';
 import { BackupPanel } from './BackupPanel';
 import { CredentialsPanel } from './CredentialsPanel';
+import { WorkstationSettingsPanel } from './WorkstationSettingsPanel';
+import { defaultWorkstationSettings } from './workstation-types';
+import type { LocalPrinterInfo, WorkstationSettings } from './workstation-types';
 import type { LocalSession } from './native';
 import { CheckoutPanel } from './CheckoutPanel';
 import { AccessGate } from './AccessGate';
@@ -72,6 +75,10 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
   const [supplierBusy, setSupplierBusy] = useState(false);
   const [supplierDirty, setSupplierDirty] = useState(false);
   const [supplierRefresh, setSupplierRefresh] = useState(0);
+  const [workstationBusy, setWorkstationBusy] = useState(false);
+  const [workstationDirty, setWorkstationDirty] = useState(false);
+  const [workstationSettings, setWorkstationSettings] = useState<WorkstationSettings>(defaultWorkstationSettings);
+  const [printers, setPrinters] = useState<LocalPrinterInfo[]>([]);
   const [retailBusy, setRetailBusy] = useState(false), [retailDirty, setRetailDirty] = useState(false), [retailRefresh, setRetailRefresh] = useState(0);
   const [customerRefresh, setCustomerRefresh] = useState(0);
   const [inventoryRefresh, setInventoryRefresh] = useState(0);
@@ -80,7 +87,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
   const refreshCheckout = useCallback(() => { setCheckoutRefresh(value => value + 1); setRetailRefresh(value => value + 1); }, []);
   const retailChanged = useCallback(() => { setCheckoutRefresh(value => value + 1); setInventoryRefresh(value => value + 1); setCustomerRefresh(value => value + 1); }, []);
   const draftDirty = snapshot !== null && JSON.stringify(draft) !== JSON.stringify(snapshot.draft ?? empty);
-  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty;
+  const otherDirty = backupDirty || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty || workstationDirty;
   const dirty = otherDirty || credentialDirty;
 
   useEffect(() => {
@@ -90,6 +97,12 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
       if (!current) return;
       setSnapshot(saved); setDraft(saved.draft ?? empty); setStatus('ready');
       setMessage(saved.draft ? 'Your saved draft is ready on this PC.' : 'Your local workspace is ready.');
+      void invoke<WorkstationSettings>('read_workstation_settings').then((ws) => {
+        if (current) setWorkstationSettings(ws);
+      }).catch(() => undefined);
+      void invoke<LocalPrinterInfo[]>('list_local_printers').then((detected) => {
+        if (current) setPrinters(detected);
+      }).catch(() => undefined);
     }).catch((error: unknown) => {
       if (current) {
         if (errorCode(error) === 'locked') { onLocked(); return; }
@@ -143,7 +156,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
     } finally { saving.current = false; }
   }
 
-  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || supplierBusy || status === 'opening' || status === 'saving';
+  const busy = backupBusy || staffBusy || credentialBusy || retailBusy || customerBusy || checkoutBusy || catalogBusy || supplierBusy || workstationBusy || status === 'opening' || status === 'saving';
 
   async function lock(discard = false) {
     if (!native || saving.current || busy) return;
@@ -171,7 +184,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
           const target = id === 'counter' ? document.getElementById('checkout-search') : document.getElementById(`area-${id}`);
           target?.focus({ preventScroll: true }); target?.scrollIntoView({ block: 'start', behavior: 'instant' });
         }}>{label}</a>)}</nav>
-      <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.3.0</p></div>
+      <div className="rail-bottom"><span className="status-dot"/> Built for your counter.<p>Local review · 0.4.0</p></div>
     </aside>
     <main id="main">
       <header className="topbar"><span>{session.businessName} · {session.principal.displayName} · {session.principal.role.replaceAll("_", " ")}</span><div className="topbar-actions"><span className="chip"><span className="status-dot"/> On this PC</span><button type="button" className="quiet-button" disabled={busy} onClick={() => void lock()}>Lock workspace</button></div></header>
@@ -180,7 +193,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
         <section className="status-panel" aria-label="Local storage status"><span className="status-icon" aria-hidden="true">↳</span><div><strong>{status === 'opening' ? 'Opening local storage' : snapshot ? 'Your draft stays on this device' : native ? 'Local storage needs attention' : 'Installed app required'}</strong><p role={status === 'error' ? 'alert' : 'status'} aria-live="polite">{message}</p></div><span className="revision">{snapshot ? `Revision ${snapshot.revision}` : 'Local only'}</span></section>
         {lockPrompt ? <section className="panel lock-prompt" role="group" aria-label="Lock unsaved workspace" onKeyDown={event => { if (event.key === 'Escape' && !busy) { event.preventDefault(); dismissPrompt('lock'); } }}><p>Locking will discard your unsaved edits. Save them first, or discard them to lock.</p><button ref={continueLockRef} className="quiet-button" type="button" disabled={busy} onClick={() => dismissPrompt('lock')}>Continue editing</button><button type="button" disabled={busy} onClick={() => void lock(true)}>Discard edits and lock</button></section> : null}
         {native && snapshot?.draft?.businessType === 'cafe' ? <section id="area-restaurant" tabIndex={-1} aria-label="Restaurant"><RestaurantPanel username={session.principal.username} owner={owner} disabled={busy}/></section> : null}
-        <section id="area-counter" tabIndex={-1} aria-label="Counter">{native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}</section>
+        <section id="area-counter" tabIndex={-1} aria-label="Counter">{native && snapshot ? <CheckoutPanel username={session.principal.username} customerRefreshToken={customerRefresh} disabled={busy} refreshToken={checkoutRefresh} workstationSettings={workstationSettings} printers={printers} onLocked={onLocked} onDirtyChange={setCheckoutDirty} onBusyChange={setCheckoutBusy} onPosted={refreshInventory}/> : null}</section>
         <section id="area-stock" tabIndex={-1} aria-label="Items and stock">{native && snapshot && hasCapability(draft.businessType, 'stockReview') ? <GroceryStockPanel refreshToken={inventoryRefresh} onLocked={onLocked}/> : null}{native && snapshot ? <InventoryPanel canAdd={canAdd} canCorrect={canCorrect} refreshToken={inventoryRefresh} onSaved={refreshCheckout} disabled={busy} onLocked={onLocked} onDirtyChange={setCatalogDirty} onBusyChange={setCatalogBusy}/> : null}</section>
         <section id="area-customers" tabIndex={-1} aria-label="Customers and udhaar">{native && snapshot ? <CustomerPanel role={session.principal.role} disabled={busy} refreshToken={customerRefresh} onChanged={refreshCheckout} onBusyChange={setCustomerBusy} onDirtyChange={setCustomerDirty}/> : null}</section>
         <section id="area-suppliers" tabIndex={-1} aria-label="Suppliers and purchases">{native && snapshot ? <SupplierPanel role={session.principal.role} disabled={busy} refreshToken={supplierRefresh} onChanged={refreshInventory} onBusyChange={setSupplierBusy} onDirtyChange={setSupplierDirty}/> : null}</section>
@@ -207,6 +220,7 @@ function App({ onLocked, session }: { onLocked: (detail?: string) => void; sessi
           </form> : null}
           <aside className="side-panel"><p className="eyebrow">A STRONGER FOUNDATION</p><h2>A home on<br/>your desktop.</h2><p>The app screens are included in the Windows package. Opening this workspace does not load the public website.</p><div className="divider"/><h3>What this review includes</h3><ul><li>Local draft save and reopen</li><li>Encrypted device storage</li><li>Password lock and unlock</li><li>Local item and stock entry</li><li>Cash and credit checkout</li></ul><p className="footnote">Owner and staff access is enforced on this PC. LAN pairing and cloud backup are not enabled. This review does not replace your current business records.</p></aside>
         </div>
+        {native && snapshot ? <WorkstationSettingsPanel owner={owner} disabled={busy} settings={workstationSettings} printers={printers} onSaved={setWorkstationSettings} onPrintersChanged={setPrinters} onLocked={onLocked} onBusyChange={setWorkstationBusy} onDirtyChange={setWorkstationDirty}/> : null}
         {native && snapshot && owner ? <StaffPanel disabled={busy || credentialDirty} refreshToken={staffRefresh} onBusyChange={setStaffBusy} onDirtyChange={setStaffDirty}/> : null}
         {native && snapshot ? <CredentialsPanel owner={owner} disabled={busy} blockedByDraft={otherDirty} onLocked={onLocked} onBusyChange={setCredentialBusy} onDirtyChange={setCredentialDirty} onStaffChanged={staffChanged}/> : null}
         {native && snapshot && owner ? <BackupPanel configured disabled={busy || staffDirty || catalogDirty || draftDirty || checkoutDirty || customerDirty || retailDirty || supplierDirty || credentialDirty} onBusyChange={setBackupBusy} onDirtyChange={setBackupDirty} onRestored={onLocked} onLocked={onLocked}/> : null}

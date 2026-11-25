@@ -1,10 +1,11 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { FormEvent } from 'react';
 import { invoke } from './native';
 import { parseFixedDecimal } from '../../../packages/business-domain/src/fixed-decimal';
 import { errorCode, errorMessage } from './access';
 import { money, quantity } from './billing-types';
 import type { Product } from './billing-types';
+import { parseProductCatalogCsv } from './csv-import';
 
 type AddProduct = { operationId: string; name: string; sku: string; unit: string; unitPricePaise: number; openingStockMilli: number };
 type AdjustStock = { operationId: string; productId: string; expectedRevision: number; deltaMilli: number; reason: string };
@@ -20,6 +21,8 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
   const [delta, setDelta] = useState('');
   const [reason, setReason] = useState('');
   const [search, setSearch] = useState('');
+  const [csvText, setCsvText] = useState('');
+  const [csvStatus, setCsvStatus] = useState('');
   const [ready, setReady] = useState(false);
   const [openedToken, setOpenedToken] = useState(-1);
   const [busy, setBusy] = useState(false);
@@ -139,9 +142,71 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
     void submit({ command: 'adjust_local_stock', request: { operationId: crypto.randomUUID(), productId: item.id, expectedRevision: item.revision, deltaMilli: amount, reason } });
   }
 
+  async function importCsv() {
+    if (!canAdd || blocked || pending || submitting.current) return;
+    const parsed = parseProductCatalogCsv(csvText);
+    if (parsed.errors.length > 0) {
+      setFailed(true);
+      setCsvStatus(`Fix ${parsed.errors.length} CSV error(s) before importing. First: line ${parsed.errors[0].lineNumber} — ${parsed.errors[0].message}`);
+      return;
+    }
+    submitting.current = true; setBusy(true); onBusyChange(true); setFailed(false);
+    let imported = 0;
+    const skipped: string[] = [];
+    try {
+      for (const row of parsed.rows) {
+        const operationId = crypto.randomUUID();
+        try {
+          await invoke<Product>('add_local_product', {
+            request: {
+              operationId,
+              name: row.name,
+              sku: row.sku,
+              unit: row.unit,
+              unitPricePaise: row.unitPricePaise,
+              openingStockMilli: row.openingStockMilli,
+            },
+          });
+          await invoke('acknowledge_local_inventory', { operationId });
+          imported += 1;
+        } catch (rowError: unknown) {
+          if (errorCode(rowError) === 'locked') { onLocked(); return; }
+          skipped.push(`Line ${row.lineNumber} (${row.name}): ${errorMessage(rowError, 'could not be saved')}`);
+        }
+      }
+      const items = await invoke<Product[]>('list_local_products');
+      if (!current.current) return;
+      setProducts(items);
+      setReady(true);
+      setOpenedToken(refreshToken);
+      if (imported > 0) onSaved();
+      if (skipped.length === 0) {
+        setCsvText('');
+        setCsvStatus(`Imported ${imported} item(s) into this PC's catalog.`);
+        setMessage(`Imported ${imported} item(s) from CSV.`);
+      } else {
+        setFailed(true);
+        setCsvStatus(`Imported ${imported} item(s); skipped ${skipped.length}: ${skipped.slice(0, 3).join(' | ')}`);
+      }
+    } finally {
+      submitting.current = false;
+      if (current.current) { setBusy(false); onBusyChange(false); }
+    }
+  }
+
   const blocked = disabled || busy || !ready || openedToken !== refreshToken;
-  const matching = products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(search.toLowerCase()));
-  const shown = matching.slice(0, 100);
+  const matching = useMemo(() => {
+    const query = search.trim().toLowerCase();
+    return query
+      ? products.filter(item => `${item.name} ${item.sku}`.toLowerCase().includes(query))
+      : products;
+  }, [products, search]);
+  const shown = useMemo(() => matching.slice(0, 100), [matching]);
+  const selectableProducts = useMemo(() => {
+    if (!selection || shown.some(item => item.id === selection)) return shown;
+    const selected = products.find(item => item.id === selection);
+    return selected ? [selected, ...shown] : shown;
+  }, [products, selection, shown]);
   return <section className="panel inventory-panel" aria-labelledby="inventory-heading" aria-busy={busy}>
     <div className="panel-heading"><div><p className="eyebrow">LOCAL STOCK REVIEW</p><h2 id="inventory-heading">Items & stock</h2></div><span className="small-chip">{products.length} items</span></div>
     <p className="muted">Add sample items and record counted stock. These records belong to this PC’s review workspace. Use Checkout to record a cash or credit sale.</p>
@@ -159,13 +224,23 @@ export function InventoryPanel({ canAdd, canCorrect, disabled, onLocked, onDirty
       </fieldset></form> : null}
       {canCorrect ? <form onSubmit={adjust} aria-label="Adjust local stock"><fieldset disabled={blocked || pending !== null || products.length === 0}>
         <legend>Record a stock change</legend>
-        <label htmlFor="stock-item">Item to adjust</label><select id="stock-item" required value={selection} onChange={e => setSelection(e.target.value)}><option value="">Choose an item</option>{products.map(item => <option key={item.id} value={item.id}>{item.name} ({quantity(item.stockMilli)} {item.unit})</option>)}</select>
+        <label htmlFor="stock-item">Item to adjust</label><select id="stock-item" required value={selection} onChange={e => setSelection(e.target.value)}><option value="">Choose an item</option>{selectableProducts.map(item => <option key={item.id} value={item.id}>{item.name} ({quantity(item.stockMilli)} {item.unit})</option>)}</select>
         <label htmlFor="stock-change">Quantity change</label><input id="stock-change" inputMode="text" maxLength={24} required aria-describedby="stock-change-help" value={delta} onChange={e => setDelta(e.target.value)}/>
         <p id="stock-change-help" className="muted">Use a positive count for a delivery or a negative count for damage or a correction. Up to 3 decimals.</p>
         <label htmlFor="stock-reason">Reason for stock change</label><input id="stock-reason" maxLength={200} required value={reason} onChange={e => setReason(e.target.value)}/>
         <button type="submit">Save stock change</button>
       </fieldset></form> : null}
     </div>
+    {canAdd ? <details className="csv-import-details">
+      <summary>Bulk CSV product import (for shop setup)</summary>
+      <p className="muted">Columns: <code>name,sku,unit,price_rupees,opening_stock</code>. Example: <code>26in Inner Tube,0089012345678,pcs,185.00,20</code>. Every row is validated by the native store.</p>
+      <label htmlFor="csv-catalog-input">Paste CSV rows</label>
+      <textarea id="csv-catalog-input" rows={4} value={csvText} disabled={blocked || pending !== null} placeholder={'name,sku,unit,price_rupees,opening_stock\n26in Inner Tube,0089012345678,pcs,185.00,20'} onChange={e => setCsvText(e.target.value)}/>
+      <div className="form-footer">
+        <p role="status" aria-live="polite">{csvStatus || 'Existing items are preserved; duplicate SKUs are rejected safely.'}</p>
+        <button type="button" disabled={blocked || pending !== null || !csvText.trim()} onClick={() => void importCsv()}>Import CSV rows</button>
+      </div>
+    </details> : null}
     <div className="inventory-list"><label htmlFor="item-search">Find an item</label><input id="item-search" type="search" value={search} onChange={e => setSearch(e.target.value)}/>
       <button className="quiet-button" type="button" disabled={busy || disabled || pending !== null} onClick={() => void reload()}>Reload item counts</button>
       {matching.length > shown.length ? <p className="muted">Showing the first 100 matches. Refine your search to find a specific item.</p> : null}

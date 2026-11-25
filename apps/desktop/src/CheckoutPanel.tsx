@@ -12,7 +12,8 @@ import type { ResolvedCreditCustomer } from './CustomerLookup';
 import { allocationPreview, paymentMethods, remainingForMethod } from './payment-allocation';
 import { SavedInvoice } from './SavedInvoice';
 import type { ReceiptPayment } from './SavedInvoice';
-import { findCode, scanNeedsQuantity } from './scan';
+import { buildSkuIndex, detectBarcodeInQuantityField, findCodeIndexed, matchesBarcodeSuffix, normalizeScannedBarcode, scanNeedsQuantity } from './scan';
+import type { LocalPrinterInfo, WorkstationSettings } from './workstation-types';
 import { cashierNavigationKey, deliberateCheckoutConfirm } from './desktop-shortcuts';
 import { heldDraftInput } from './held-bills';
 import type { HeldBill, HeldMutation, HeldPrepare, ResumedBill } from './held-bills';
@@ -33,11 +34,14 @@ function formatBasisPointsInput(bps: number): string {
   return `${whole}.${String(remainder).padStart(2, '0').replace(/0$/, '')}`;
 }
 
-export function CheckoutPanel({ username, disabled, refreshToken, customerRefreshToken, onLocked, onDirtyChange, onBusyChange, onPosted }: {
-  username: string; disabled: boolean; refreshToken: number; customerRefreshToken: number; onLocked: () => void;
-  onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; onPosted: () => void;
+export function CheckoutPanel({ username, disabled, refreshToken, customerRefreshToken, workstationSettings, printers, onLocked, onDirtyChange, onBusyChange, onPosted }: {
+  username: string; disabled: boolean; refreshToken: number; customerRefreshToken: number;
+  workstationSettings?: WorkstationSettings; printers?: readonly LocalPrinterInfo[];
+  onLocked: () => void; onDirtyChange: (dirty: boolean) => void; onBusyChange: (busy: boolean) => void; onPosted: () => void;
 }) {
   const searchInput = useRef<HTMLInputElement>(null);
+  const lastScanRef = useRef<{ code: string; atMs: number }>({ code: '', atMs: 0 });
+  const quantityBeforeFocusRef = useRef<{ productId: string; value: string } | null>(null);
   const confirmButton = useRef<HTMLButtonElement>(null);
   const retryButton = useRef<HTMLButtonElement>(null);
   const receiptLookupInput = useRef<HTMLInputElement>(null);
@@ -400,6 +404,7 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
   }
 
   const productMap = useMemo(() => new Map(products.map(product => [product.id, product])), [products]);
+  const skuIndex = useMemo(() => buildSkuIndex(products), [products]);
   const taxBasisPoints = parseFixedDecimal(tax, 2);
   const { preview, problem, problemFieldId } = useMemo(() => {
     if (!cart.length) return { preview: null as ReturnType<typeof calculateNativeInvoice> | null, problem: '', problemFieldId: '' };
@@ -636,21 +641,34 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
       <label htmlFor="receipt-lookup">Receipt ID to reopen</label><input ref={receiptLookupInput} id="receipt-lookup" maxLength={80} value={receiptId} disabled={busy || disabled} onChange={e => setReceiptId(e.target.value)} onKeyDown={e => { if (e.key === 'Enter' && !e.repeat && !e.nativeEvent.isComposing && receiptId.trim()) { e.preventDefault(); void openReceipt(receiptId); } }}/>
       <button type="button" disabled={busy || disabled || !receiptId.trim()} onClick={() => void openReceipt(receiptId)}>Open saved receipt</button>
       {reportsAllowed ? <button type="button" disabled={busy || disabled} onClick={() => void receipts()}>Browse saved receipts</button> : <p>Enter the exact ID of a receipt you saved. Other staff receipts require report permission.</p>}
-      {historicInvoice ? <SavedInvoice key={historicInvoice.id} invoice={historicInvoice} payments={historicPayments} username={username}/> : null}
+      {historicInvoice ? <SavedInvoice key={historicInvoice.id} invoice={historicInvoice} payments={historicPayments} username={username} workstationSettings={workstationSettings} printers={printers} isReprint/> : null}
       {reportsAllowed && history.length ? <><p>Saved receipts, oldest first. Opening or printing does not create a sale.</p><ul>{history.map(record => <li key={record.invoice.id}><button type="button" disabled={busy || disabled} onClick={() => void openReceipt(record.invoice.id)}>{record.invoice.id} · {money(record.invoice.totalPaise)}</button></li>)}</ul>{history.length === 100 ? <button type="button" disabled={busy || disabled} onClick={() => void receipts(history[history.length - 1].sequence)}>Next receipts</button> : null}</> : null}
     </section> : null}
-    {invoice ? <><SavedInvoice key={invoice.id} invoice={invoice} payments={invoicePayments} username={username}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
+    {invoice ? <><SavedInvoice key={invoice.id} invoice={invoice} payments={invoicePayments} username={username} workstationSettings={workstationSettings} printers={printers}/><button type="button" disabled={busy || disabled || !ready} onClick={() => void release(true)}>Start next sale</button></> : <>
       {pending ? <div className="pending-stock"><p>Confirmation ID: <span className="operation-id">{pending.operationId}</span></p><p>The exact request is kept on this PC. Locking or reopening the app preserves it (press F8 to retry).</p>
         <button ref={retryButton} aria-keyshortcuts="Alt+Enter Meta+Enter" type="button" disabled={busy || disabled} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); if (deliberateCheckoutConfirm({key:event.key,altKey:event.altKey,metaKey:event.metaKey,ctrlKey:event.ctrlKey,shiftKey:event.shiftKey,repeat:event.repeat,isComposing:event.nativeEvent.isComposing})) void confirm(pending); } }} onClick={() => void confirm(pending)}>Retry same sale</button>
         {refused ? <button type="button" className="quiet-button" disabled={busy || disabled} onClick={() => void release(false)}>Edit refused sale</button> : null}
       </div> : null}
       <fieldset disabled={blocked || review}>
         <label htmlFor="checkout-search">Search items for sale</label><input ref={searchInput} id="checkout-search" onKeyDown={event => {
-          if (event.key !== 'Enter' || event.repeat || event.nativeEvent.isComposing || blocked || review) return;
+          const suffixMode = workstationSettings?.barcodeSuffix ?? 'enter_or_tab';
+          if (event.repeat || event.nativeEvent.isComposing || blocked || review) return;
+          if (!matchesBarcodeSuffix(event.key, suffixMode)) return;
+          // Preserve standard Tab navigation when the scan/search field is empty.
+          if (event.key === 'Tab' && !normalizedSearch) return;
           event.preventDefault();
-          if (!normalizedSearch) { setFailed(true); setMessage('Enter an item name or exact code.'); return; }
-          const exact = findCode(products, search);
-          if (exact.length === 1) add(exact[0], true);
+          const cleaned = normalizeScannedBarcode(search);
+          const nowMs = Date.now();
+          if (!cleaned) {
+            // Silently ignore a trailing CR/LF/Tab suffix emitted immediately after a HID scan.
+            if (lastScanRef.current.atMs > 0 && nowMs - lastScanRef.current.atMs < 80) return;
+            setFailed(true); setMessage('Enter an item name or exact code.'); return;
+          }
+          const exact = findCodeIndexed(skuIndex, cleaned);
+          if (exact.length === 1) {
+            lastScanRef.current = { code: cleaned, atMs: nowMs };
+            add(exact[0], true);
+          }
           else if (exact.length > 1) { setFailed(true); setMessage('This code matches more than one item. Choose the item manually.'); }
           else { setFailed(true); setMessage('No exact item code found. Choose a matching item manually.'); }
         }} type="search" value={search} onChange={event => setSearch(event.target.value)} placeholder="Item name or code"/>
@@ -664,7 +682,99 @@ export function CheckoutPanel({ username, disabled, refreshToken, customerRefres
           const product = productMap.get(line.productId);
           return <li key={line.productId}><strong>{product?.name ?? line.productId}</strong><div className="checkout-quantity">
             <div><label htmlFor={`sale-quantity-${index}`}>Quantity for {product?.name ?? line.productId} ({product?.unit ?? 'units'})</label>
-              <input onFocus={event => event.currentTarget.select()} onKeyDown={event => { if (event.key === 'Enter' && !event.repeat && !event.nativeEvent.isComposing) { event.preventDefault(); searchInput.current?.focus(); } }} id={`sale-quantity-${index}`} inputMode="decimal" maxLength={24} value={line.typedQuantity} onChange={event => setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: event.target.value } : entry))}/>
+              <input onFocus={event => { quantityBeforeFocusRef.current = { productId: line.productId, value: line.typedQuantity }; event.currentTarget.select(); }} onKeyDown={event => {
+                const suffixMode = workstationSettings?.barcodeSuffix ?? 'enter_or_tab';
+                if (event.repeat || event.nativeEvent.isComposing) return;
+                if (event.key !== 'Enter' && !(event.key === 'Tab' && matchesBarcodeSuffix(event.key, suffixMode) && detectBarcodeInQuantityField(line.typedQuantity, skuIndex).length > 0)) return;
+                const accidentalScan = detectBarcodeInQuantityField(line.typedQuantity, skuIndex);
+                if (accidentalScan.length > 0) {
+                  event.preventDefault();
+                  const restored = quantityBeforeFocusRef.current?.productId === line.productId
+                    ? quantityBeforeFocusRef.current.value
+                    : quantity(Math.min(1000, product?.stockMilli ?? 1000));
+                  if (accidentalScan.length > 1) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('This code matches more than one item. Choose the item manually.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  const scanned = accidentalScan[0];
+                  lastScanRef.current = { code: normalizeScannedBarcode(line.typedQuantity), atMs: Date.now() };
+                  if (scanned.stockMilli <= 0) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('This item is out of stock.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  if (scanned.id === line.productId) {
+                    if (scanNeedsQuantity(scanned)) {
+                      setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                      setFailed(false); setMessage('Enter the quantity for this item.');
+                    } else {
+                      const prevMilli = parseFixedDecimal(restored, 3);
+                      if (prevMilli === null || prevMilli + 1000 > scanned.stockMilli) {
+                        setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                        setFailed(true); setMessage('Check quantity against available stock.');
+                      } else {
+                        setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: quantity(prevMilli + 1000) } : entry));
+                        setFailed(false); setMessage('Scanned barcode moved from quantity field to sale.');
+                      }
+                      searchInput.current?.focus();
+                    }
+                    return;
+                  }
+                  const existingScanned = cart.findIndex(entry => entry.productId === scanned.id);
+                  if (existingScanned >= 0) {
+                    if (scanNeedsQuantity(scanned)) {
+                      setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                      pendingFocus.current = { kind: 'quantity', index: existingScanned };
+                      setFailed(false); setMessage('Enter the quantity for this item.');
+                      return;
+                    }
+                    const currentScanned = parseFixedDecimal(cart[existingScanned].typedQuantity, 3);
+                    if (currentScanned === null || currentScanned + 1000 > scanned.stockMilli) {
+                      setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                      setFailed(true); setMessage('Check quantity against available stock.');
+                      searchInput.current?.focus();
+                      return;
+                    }
+                    setCart(lines => lines.map((entry, i) => i === index
+                      ? { ...entry, typedQuantity: restored }
+                      : i === existingScanned
+                        ? { ...entry, typedQuantity: quantity(currentScanned + 1000) }
+                        : entry));
+                    setFailed(false); setMessage('Scanned barcode moved from quantity field to sale.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  if (cart.length >= 100) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('A sale supports up to 100 items.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  if (!scanNeedsQuantity(scanned) && scanned.stockMilli < 1000) {
+                    setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry));
+                    setFailed(true); setMessage('Not enough stock for one item.');
+                    searchInput.current?.focus();
+                    return;
+                  }
+                  const needsQuantity = scanNeedsQuantity(scanned);
+                  setCart(lines => [
+                    ...lines.map((entry, i) => i === index ? { ...entry, typedQuantity: restored } : entry),
+                    { productId: scanned.id, typedQuantity: needsQuantity ? '' : quantity(Math.min(1000, scanned.stockMilli)) },
+                  ]);
+                  if (needsQuantity) {
+                    pendingFocus.current = { kind: 'quantity', index: cart.length };
+                    setFailed(false); setMessage('Enter the quantity for this item.');
+                  } else {
+                    setFailed(false); setMessage('Scanned barcode moved from quantity field to sale.');
+                    searchInput.current?.focus();
+                  }
+                  return;
+                }
+                if (event.key === 'Enter') { event.preventDefault(); searchInput.current?.focus(); }
+              }} id={`sale-quantity-${index}`} inputMode="decimal" maxLength={24} value={line.typedQuantity} onChange={event => setCart(lines => lines.map((entry, i) => i === index ? { ...entry, typedQuantity: event.target.value } : entry))}/>
               <small>Up to 3 decimals · {product ? `${quantity(product.stockMilli)} ${product.unit} available · ${money(product.unitPricePaise)} / ${product.unit}` : 'Reload items'}</small></div>
             <button type="button" className="quiet-button" aria-label={`Remove ${product?.name ?? line.productId} from sale`} onClick={() => { pendingFocus.current = { kind: 'search', select: false }; setCart(lines => lines.filter(entry => entry.productId !== line.productId)); }}>Remove</button>
           </div></li>;

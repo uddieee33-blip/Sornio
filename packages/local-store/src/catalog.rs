@@ -5,7 +5,7 @@ use rusqlite::{params, OptionalExtension, Transaction, TransactionBehavior};
 use serde::{Deserialize, Serialize};
 
 pub const MAX_VALUE: i64 = 9_000_000_000_000;
-const MAX_PRODUCTS: i64 = 5_000;
+const MAX_PRODUCTS: i64 = 25_000;
 
 #[derive(Clone, Debug, Deserialize, Serialize, PartialEq)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -143,7 +143,7 @@ impl Store {
     pub(crate) fn list_products(&self) -> Result<Vec<Product>, StoreError> {
         let mut query = self.0.prepare(
             "SELECT id, name, sku, unit, unit_price_paise, stock_milli, revision
-            FROM local_products ORDER BY name COLLATE NOCASE, id LIMIT 5001",
+            FROM local_products ORDER BY name COLLATE NOCASE, id LIMIT 25001",
         )?;
         let products = query
             .query_map([], product_row)?

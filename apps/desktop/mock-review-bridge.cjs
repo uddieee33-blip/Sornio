@@ -43,6 +43,16 @@ const state = {
   prepared: new Map(),
   creditEntries: [],
   retailPayments: {},
+  workstationSettings: {
+    receiptLayout: '80mm',
+    receiptLanguage: 'en',
+    printerName: '',
+    barcodeSuffix: 'enter',
+    cashDrawerMode: 'none',
+    backupDestinationNote: '',
+    revision: 1,
+    updatedAt: null,
+  },
   invoiceOwners: {},
   sequence: 0,
 };
@@ -381,6 +391,33 @@ const handlers = {
     html += '</tbody></table><p>Cash repayments only. Credit history is retained; corrections are separate entries.</p></article>';
     return html;
   },
+  read_workstation_settings: () => ({ ...(state.workstationSettings ?? {
+    receiptLayout: '80mm',
+    receiptLanguage: 'en',
+    printerName: '',
+    barcodeSuffix: 'enter',
+    cashDrawerMode: 'none',
+    backupDestinationNote: '',
+    revision: 1,
+    updatedAt: null,
+  }) }),
+  save_workstation_settings: args => {
+    const r = args.r;
+    const current = state.workstationSettings ?? { revision: 1 };
+    if (r.expectedRevision !== current.revision) throw fail('invalid_settings');
+    state.workstationSettings = {
+      receiptLayout: r.receiptLayout,
+      receiptLanguage: r.receiptLanguage,
+      printerName: r.printerName ?? '',
+      barcodeSuffix: r.barcodeSuffix,
+      cashDrawerMode: r.cashDrawerMode,
+      backupDestinationNote: r.backupDestinationNote ?? '',
+      revision: current.revision + 1,
+      updatedAt: new Date().toISOString(),
+    };
+    return { ...state.workstationSettings };
+  },
+  list_local_printers: () => [],
 };
 
 const OPEN_COMMANDS = new Set(['workspace_access_status', 'read_local_session', 'setup_local_access', 'unlock_workspace', 'lock_workspace']);

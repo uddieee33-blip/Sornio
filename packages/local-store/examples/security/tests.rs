@@ -421,6 +421,15 @@ fn cases() -> Vec<Case> {
         ALL
     );
 
+    // Workstation hardware settings and local printer discovery.
+    c!("read_workstation_settings", json!({}), ALL);
+    c!("list_local_printers", json!({}), ALL);
+    c!(
+        "save_workstation_settings",
+        json!({"r":{"expectedRevision":1,"receiptLayout":"80mm","receiptLanguage":"en","printerName":"","barcodeSuffix":"enter","cashDrawerMode":"none","backupDestinationNote":""}}),
+        SETTINGS
+    );
+
     out
 }
 fn owner(path: &std::path::Path) -> Workspace {

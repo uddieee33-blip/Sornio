@@ -871,7 +871,7 @@ fn experimental_v13_purchasing_database_is_adopted_on_upgrade() {
     assert_eq!(
         db.pragma_query_value(None, "user_version", |r| r.get::<_, i64>(0))
             .unwrap(),
-        23
+        crate::SCHEMA_VERSION
     );
     assert_eq!(
         db.query_row(
@@ -964,18 +964,16 @@ fn migration_to_v23_preserves_existing_data_and_enables_purchasing() {
         })
         .unwrap();
         // Simulate a genuine v22 database (current Phase 20 head): every phase-13..22
-        // table was created by its own phase and stays; only the v23 purchasing
-        // tables are removed and the version rolled back.
-        s.0.execute_batch(
-            "DROP TABLE local_purchase_return_lines; DROP TABLE local_purchase_returns; DROP TABLE local_supplier_payments; DROP TABLE local_supplier_invoices; DROP TABLE local_purchase_stock_events; DROP TABLE local_goods_receipt_lines; DROP TABLE local_goods_receipts; DROP TABLE local_purchase_order_lines; DROP TABLE local_purchase_orders; DROP TABLE local_supplier_journal; DROP TABLE local_supplier_entries; DROP TABLE local_supplier_outbox; DROP TABLE local_supplier_pending; DROP TABLE local_supplier_canceled; DROP TABLE local_supplier_ops; DROP TABLE local_suppliers; PRAGMA user_version = 22;",
-        )
-        .unwrap();
+        // table was created by its own phase and stays; only post-v22 tables/indexes
+        // are removed and the version rolled back.
+        crate::schema_rollback::drop_post_v22_tables(&s.0);
+        s.0.pragma_update(None, "user_version", 22).unwrap();
     }
     let mut s = Store::open(&path, KEY).unwrap();
     let version: i64 =
         s.0.pragma_query_value(None, "user_version", |r| r.get(0))
             .unwrap();
-    assert_eq!(version, 23);
+    assert_eq!(version, crate::SCHEMA_VERSION);
     assert_eq!(
         s.load().unwrap().draft.unwrap().business_name,
         "Existing shop"

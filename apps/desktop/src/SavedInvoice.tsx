@@ -8,6 +8,7 @@ import { indianDay } from './retail-types';
 import type { RetailView } from './retail-types';
 import punjabi from './locales/pa.json';
 import { originalCreditDue } from './payment-allocation';
+import type { LocalPrinterInfo, WorkstationSettings } from './workstation-types';
 
 export type ReceiptPayment = { id: string; method: string; amountPaise: number; reference: string };
 
@@ -23,16 +24,33 @@ function paymentSnapshot(payments: readonly ReceiptPayment[]) {
   return JSON.stringify(payments.map(part => [part.id, part.method, part.amountPaise]));
 }
 
-export function SavedInvoice({ invoice, payments, username }: {
-  invoice: Invoice; payments?: readonly ReceiptPayment[]; username?: string;
+export function SavedInvoice({ invoice, payments, username, workstationSettings, printers, isReprint = false }: {
+  invoice: Invoice;
+  payments?: readonly ReceiptPayment[];
+  username?: string;
+  workstationSettings?: WorkstationSettings;
+  printers?: readonly LocalPrinterInfo[];
+  isReprint?: boolean;
 }) {
   const creditDue = originalCreditDue(invoice.tender, invoice.totalPaise, invoice.customerId, payments);
   const paper = useRef<HTMLElement>(null), heading = useRef<HTMLHeadingElement>(null), printing = useRef(false);
-  const [layout, setLayout] = useState<ReceiptLayout>('80mm');
-  const [language, setLanguage] = useState<'en' | 'pa'>('en');
+  const [layout, setLayout] = useState<ReceiptLayout>(workstationSettings?.receiptLayout ?? '80mm');
+  const [language, setLanguage] = useState<'en' | 'pa'>(workstationSettings?.receiptLanguage ?? 'en');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [printCount, setPrintCount] = useState(0);
   const [busy, setBusy] = useState(false);
+  const [livePrinters, setLivePrinters] = useState<readonly LocalPrinterInfo[] | null>(null);
   const [notice, setNotice] = useState('Printing does not change the saved sale.');
   const translate = (text: string) => language === 'pa' ? (punjabi as Record<string, string>)[text] ?? text : text;
+  const showReprintBadge = isReprint || printCount > 0;
+  const activePrinters = livePrinters ?? printers;
+  const preferredPrinter = workstationSettings?.printerName?.trim() ?? '';
+  const matchedPrinter = preferredPrinter ? activePrinters?.find(p => p.name === preferredPrinter) : undefined;
+  const printerMissing = Boolean(preferredPrinter && activePrinters && activePrinters.length > 0 && !matchedPrinter);
+  const printerUnavailable = Boolean(
+    printerMissing
+    || (matchedPrinter && (matchedPrinter.workOffline || matchedPrinter.status === 'offline' || matchedPrinter.status === 'stopped')),
+  );
   useEffect(() => {
     heading.current?.focus();
     const source = paper.current;
@@ -53,10 +71,23 @@ export function SavedInvoice({ invoice, payments, username }: {
           }
         }
       });
-      if (source.isConnected) setNotice('Check the printer or PDF output. If printing failed or was cancelled, print this same receipt again.');
+      if (source.isConnected) {
+        setPrintCount(count => count + 1);
+        setNotice('Check the printer or PDF output. If printing failed or was cancelled, print this same receipt again.');
+      }
     } catch {
       if (source.isConnected) setNotice('Printing could not open. Reopen the saved receipt, check access and your printer, then retry.');
-    } finally { printing.current = false; if (source.isConnected) setBusy(false); }
+    } finally {
+      printing.current = false;
+      if (source.isConnected) {
+        setBusy(false);
+        if (preferredPrinter) {
+          void invoke<LocalPrinterInfo[]>('list_local_printers')
+            .then(list => { if (source.isConnected) setLivePrinters(list); })
+            .catch(() => {});
+        }
+      }
+    }
   }
   return <section onKeyDown={event => {
     if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'p') { event.preventDefault(); if (!event.repeat) void print(); }
@@ -64,10 +95,18 @@ export function SavedInvoice({ invoice, payments, username }: {
     <div className="receipt-controls">
       <label>Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ <select aria-label="Receipt language / ਰਸੀਦ ਦੀ ਭਾਸ਼ਾ" disabled={busy} value={language} onChange={e => { clearPrintReceipt(paper.current); setLanguage(e.target.value as 'en' | 'pa'); }}><option value="en">English</option><option value="pa">ਪੰਜਾਬੀ</option></select></label>
       <label>{translate('Paper layout')} <select aria-label="Paper layout" disabled={busy} value={layout} onChange={e => { clearPrintReceipt(paper.current); setLayout(e.target.value as ReceiptLayout); }}><option value="a4">A4</option><option value="58mm">58 mm</option><option value="80mm">80 mm</option></select></label>
-      <button type="button" disabled={busy || creditDue === null || (invoice.tender === 'retail' && !username)} onClick={() => void print()}>{busy ? translate('Opening print…') : translate('Print saved receipt')}</button>
+      <button type="button" disabled={busy || creditDue === null || (invoice.tender === 'retail' && !username)} onClick={() => void print()}>
+        {busy ? translate('Opening print…') : translate('Print saved receipt')}
+      </button>
+      <button type="button" className="quiet-button" disabled={busy} onClick={() => setPreviewOpen(open => !open)}>
+        {previewOpen ? translate('Hide print preview') : translate('Show print preview')}
+      </button>
+      {preferredPrinter ? <p className="muted">{translate('Preferred printer:')} <strong>{preferredPrinter}</strong></p> : null}
+      {printerUnavailable ? <p className="printer-warning" role="alert">{translate('Selected printer appears offline or stopped in Windows. The sale is already saved — do not re-bill. Check paper/power and use Reprint.')}</p> : null}
       <p role="status">{translate(notice)}</p><p>{translate('Choose matching paper in the Windows printer dialog. Margins and roll length depend on the driver.')}</p>
     </div>
-    <article ref={paper} lang={language === 'pa' ? 'pa-IN' : 'en-IN'} className="receipt-paper">
+    <article ref={paper} lang={language === 'pa' ? 'pa-IN' : 'en-IN'} className={`receipt-paper${previewOpen ? ` receipt-preview receipt-preview-${layout}` : ''}`}>
+      {showReprintBadge ? <p className="reprint-banner"><strong>{translate('REPRINT — Copy of original saved receipt')}</strong></p> : null}
       <h3 id="saved-invoice-heading" ref={heading} tabIndex={-1}>{translate('Sale saved on this PC')}</h3>
       <p><strong>{invoice.businessName ?? translate('Legacy receipt — shop name was not stored')}</strong></p>
       <p>{translate('Sale number:')} {invoice.invoiceNumber ?? translate('Legacy record — use saved invoice ID')}</p>

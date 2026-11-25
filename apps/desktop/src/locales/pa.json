@@ -33,5 +33,11 @@
   "· Tax:": "· ਟੈਕਸ:",
   "Saved total:": "ਸੰਭਾਲਿਆ ਕੁੱਲ:",
   "Amount due at sale:": "ਵਿਕਰੀ ਵੇਲੇ ਬਕਾਇਆ:",
-  "Payment breakdown unavailable. Reopen this receipt before printing.": "ਭੁਗਤਾਨ ਦਾ ਵੇਰਵਾ ਉਪਲਬਧ ਨਹੀਂ ਹੈ। ਛਾਪਣ ਤੋਂ ਪਹਿਲਾਂ ਇਹ ਰਸੀਦ ਦੁਬਾਰਾ ਖੋਲ੍ਹੋ।"
+  "Payment breakdown unavailable. Reopen this receipt before printing.": "ਭੁਗਤਾਨ ਦਾ ਵੇਰਵਾ ਉਪਲਬਧ ਨਹੀਂ ਹੈ। ਛਾਪਣ ਤੋਂ ਪਹਿਲਾਂ ਇਹ ਰਸੀਦ ਦੁਬਾਰਾ ਖੋਲ੍ਹੋ।",
+  "Reprint saved receipt": "ਸੰਭਾਲੀ ਰਸੀਦ ਦੁਬਾਰਾ ਛਾਪੋ",
+  "REPRINT — Copy of original saved receipt": "ਦੁਬਾਰਾ ਛਪਾਈ — ਮੂਲ ਸੰਭਾਲੀ ਰਸੀਦ ਦੀ ਕਾਪੀ",
+  "Show print preview": "ਛਪਾਈ ਪ੍ਰੀਵਿਊ ਦਿਖਾਓ",
+  "Hide print preview": "ਛਪਾਈ ਪ੍ਰੀਵਿਊ ਲੁਕਾਓ",
+  "Preferred printer:": "ਚੁਣਿਆ ਪ੍ਰਿੰਟਰ:",
+  "Selected printer appears offline or stopped in Windows. The sale is already saved — do not re-bill. Check paper/power and use Reprint.": "ਚੁਣਿਆ ਪ੍ਰਿੰਟਰ ਵਿੰਡੋਜ਼ ਵਿੱਚ ਆਫ਼ਲਾਈਨ ਜਾਂ ਰੁਕਿਆ ਹੋਇਆ ਹੈ। ਵਿਕਰੀ ਪਹਿਲਾਂ ਹੀ ਸੰਭਾਲੀ ਗਈ ਹੈ — ਦੁਬਾਰਾ ਬਿੱਲ ਨਾ ਬਣਾਓ। ਕਾਗਜ਼/ਬਿਜਲੀ ਚੈੱਕ ਕਰੋ ਅਤੇ ਦੁਬਾਰਾ ਛਾਪੋ।"
 }

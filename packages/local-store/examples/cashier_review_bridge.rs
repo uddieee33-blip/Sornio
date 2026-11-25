@@ -427,6 +427,16 @@ fn dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
                 sornio_local_store::purchasing::PostPurchaseReturn,
             >(a, "r")?)?)?
         }
+        "read_workstation_settings" => serde_json::to_value(w.read_workstation_settings()?)?,
+        "save_workstation_settings" => {
+            serde_json::to_value(w.save_workstation_settings(argument::<
+                sornio_local_store::workstation_settings::SaveWorkstationSettings,
+            >(a, "r")?)?)?
+        }
+        "list_local_printers" => {
+            w.require(sornio_local_store::identity::Permission::View)?;
+            json!([])
+        }
         // hub_control and hub_import_tls are native-runtime commands: they drive the hub
         // listener and the OS file dialog, so there is no store-level equivalent to call.
         // hub_control's real handler performs verify_scope followed by a Settings require, and

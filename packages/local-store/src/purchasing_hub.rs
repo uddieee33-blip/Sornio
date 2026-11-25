@@ -48,7 +48,7 @@ const MAX_INVOICES: usize = 200;
 const MAX_PAYMENTS: usize = 200;
 const MAX_RETURNS: usize = 200;
 /// The catalogue ceiling the desktop already enforces (`catalog::MAX_PRODUCTS`).
-const MAX_PRODUCTS: i64 = 5_000;
+const MAX_PRODUCTS: i64 = 25_000;
 
 fn digest(raw: &str) -> String {
     format!("{:x}", Sha256::digest(raw.as_bytes()))

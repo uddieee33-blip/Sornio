@@ -1156,6 +1156,20 @@ impl Workspace {
         self.store.restore_generation()
     }
 
+    pub fn read_workstation_settings(
+        &self,
+    ) -> Result<crate::workstation_settings::WorkstationSettings, StoreError> {
+        self.read(Permission::View, |s| s.read_workstation_settings())
+    }
+
+    pub fn save_workstation_settings(
+        &mut self,
+        request: crate::workstation_settings::SaveWorkstationSettings,
+    ) -> Result<crate::workstation_settings::WorkstationSettings, StoreError> {
+        self.require(Permission::Settings)?;
+        self.store.save_workstation_settings(request)
+    }
+
     fn read<T>(
         &self,
         permission: Permission,

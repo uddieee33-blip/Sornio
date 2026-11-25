@@ -4,10 +4,11 @@ mod hub_discovery;
 mod hub_server;
 use sornio_local_store::customers as crate_types;
 #[cfg(any(windows, target_os = "macos"))]
-use sornio_local_store::device::initialize;
+use sornio_local_store::device::{initialize_desktop, WorkspaceInstanceLock};
 use sornio_local_store::payments as retail;
 use sornio_local_store::purchasing as purchase_types;
 use sornio_local_store::recovery::BackupPreview;
+use sornio_local_store::workstation_settings::{SaveWorkstationSettings, WorkstationSettings};
 use sornio_local_store::{
     access::{AccessStatus, Workspace},
     catalog::{AddProduct, AdjustStock, Product},
@@ -101,18 +102,154 @@ impl From<StoreError> for CommandError {
             StoreError::InvalidPayable => "invalid_payable",
             StoreError::InvalidReturn => "invalid_return",
             StoreError::InvalidPurchase => "invalid_purchase",
+            StoreError::NewerSchema => "newer_schema",
+            StoreError::MigrationBackupFailed => "migration_backup_failed",
             _ => "workspace_error",
         };
         Self {
             code,
-            message: error.to_string(),
+            message: error.user_message(),
         }
     }
 }
 
 #[cfg(not(any(windows, target_os = "macos")))]
-fn initialize(_directory: &std::path::Path) -> Result<Store, String> {
+struct WorkspaceInstanceLock;
+
+#[cfg(not(any(windows, target_os = "macos")))]
+fn initialize_desktop(
+    _directory: &std::path::Path,
+) -> Result<(Store, WorkspaceInstanceLock), String> {
     Err("This local review build requires Windows Credential Manager or macOS Keychain.".into())
+}
+
+struct ManagedInstanceLock(#[allow(dead_code)] Option<WorkspaceInstanceLock>);
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+struct LocalPrinterInfo {
+    name: String,
+    is_default: bool,
+    work_offline: bool,
+    status: String,
+}
+
+#[cfg(windows)]
+fn detect_local_printers() -> Vec<LocalPrinterInfo> {
+    use std::io::Read;
+    use std::os::windows::process::CommandExt;
+    use std::process::Stdio;
+    use std::time::{Duration, Instant};
+
+    const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+    const DISCOVERY_TIMEOUT: Duration = Duration::from_secs(5);
+    let script = concat!(
+        "$items = @(Get-CimInstance -ClassName Win32_Printer -ErrorAction SilentlyContinue | ",
+        "Select-Object Name, Default, WorkOffline, PrinterStatus, DetectedErrorState); ",
+        "if ($items.Count -eq 0) { '[]' } else { ConvertTo-Json -InputObject $items -Compress }"
+    );
+    let mut child = match std::process::Command::new("powershell.exe")
+        .args(["-NoProfile", "-NonInteractive", "-Command", script])
+        .stdin(Stdio::null())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+    {
+        Ok(child) => child,
+        Err(_) => return Vec::new(),
+    };
+    let stdout_handle = child.stdout.take().map(|mut stdout| {
+        std::thread::spawn(move || {
+            let mut buf = Vec::new();
+            let _ = stdout.read_to_end(&mut buf);
+            buf
+        })
+    });
+    let deadline = Instant::now() + DISCOVERY_TIMEOUT;
+    let exited_ok = loop {
+        match child.try_wait() {
+            Ok(Some(status)) => break status.success(),
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Vec::new();
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            Err(_) => {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Vec::new();
+            }
+        }
+    };
+    if !exited_ok {
+        return Vec::new();
+    }
+    let output = match stdout_handle.and_then(|h| h.join().ok()) {
+        Some(buf) => buf,
+        None => return Vec::new(),
+    };
+    let raw = String::from_utf8_lossy(&output);
+    let trimmed = raw.trim();
+    if trimmed.is_empty() {
+        return Vec::new();
+    }
+    let parsed: serde_json::Value = match serde_json::from_str(trimmed) {
+        Ok(value) => value,
+        Err(_) => return Vec::new(),
+    };
+    let entries = match parsed {
+        serde_json::Value::Array(items) => items,
+        serde_json::Value::Object(item) => vec![serde_json::Value::Object(item)],
+        _ => return Vec::new(),
+    };
+    entries
+        .into_iter()
+        .filter_map(|item| {
+            let name = item.get("Name")?.as_str()?.trim().to_string();
+            if name.is_empty() {
+                return None;
+            }
+            let is_default = item
+                .get("Default")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let work_offline = item
+                .get("WorkOffline")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+            let error_state = item.get("DetectedErrorState").and_then(|v| v.as_u64());
+            let status = match error_state {
+                Some(4 | 7 | 8) => "stopped", // No Paper, Door Open, Jammed
+                Some(9) => "offline",         // Offline
+                _ => match item.get("PrinterStatus").and_then(|v| v.as_u64()) {
+                    Some(1) => "stopped", // Other / Error
+                    Some(3) => "ready",
+                    Some(4) => "printing",
+                    Some(5) => "warmup",
+                    Some(6) => "stopped",
+                    Some(7) => "offline",
+                    _ if work_offline => "offline",
+                    _ => "unknown",
+                },
+            }
+            .to_string();
+            Some(LocalPrinterInfo {
+                name,
+                is_default,
+                work_offline,
+                status,
+            })
+        })
+        .collect()
+}
+
+#[cfg(not(windows))]
+fn detect_local_printers() -> Vec<LocalPrinterInfo> {
+    Vec::new()
 }
 
 // Password hashing and SQLite waits run off the native UI thread. Authorization
@@ -1301,21 +1438,61 @@ async fn hub_import_tls(
     }
     result
 }
+#[tauri::command]
+async fn read_workstation_settings(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<WorkstationSettings, CommandError> {
+    with_scoped_workspace(state, scope, |w| w.read_workstation_settings()).await
+}
+
+#[tauri::command]
+async fn save_workstation_settings(
+    scope: Scope,
+    r: SaveWorkstationSettings,
+    state: tauri::State<'_, LocalState>,
+) -> Result<WorkstationSettings, CommandError> {
+    with_scoped_workspace(state, scope, move |w| w.save_workstation_settings(r)).await
+}
+
+#[tauri::command]
+async fn list_local_printers(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<Vec<LocalPrinterInfo>, CommandError> {
+    with_scoped_workspace(state, scope, |w| {
+        w.require(sornio_local_store::identity::Permission::View)?;
+        Ok(())
+    })
+    .await?;
+    tauri::async_runtime::spawn_blocking(detect_local_printers)
+        .await
+        .map_err(|_| CommandError::unavailable("Local printer discovery stopped. Retry shortly."))
+}
+
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
+            let mut instance_lock = None;
             let workspace = app
                 .path()
                 .app_local_data_dir()
                 .map_err(|_| "The device data directory is unavailable.".to_string())
-                .and_then(|path| initialize(&path))
-                .map(Workspace::new);
+                .and_then(|path| initialize_desktop(&path))
+                .map(|(store, lock)| {
+                    instance_lock = Some(lock);
+                    Workspace::new(store)
+                });
+            app.manage(ManagedInstanceLock(instance_lock));
             app.manage(Arc::new(Mutex::new(workspace)));
             app.manage(Arc::new(Mutex::new(hub_server::Runtime::default())));
             app.manage(Arc::new(Mutex::new(RecoverySelection::default())));
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            read_workstation_settings,
+            save_workstation_settings,
+            list_local_printers,
             restaurant_live,
             hub_live,
             hub_admin,
