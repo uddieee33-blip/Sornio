@@ -1141,10 +1141,7 @@ fn backup_during_active_shift_and_post_recovery_reconciliation_preserves_all_inv
     w.login("owner", PASSWORD).unwrap();
     assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_invoices"), 1);
     assert_eq!(w.list_products().unwrap()[0].stock_milli, 8_000);
-    assert_eq!(
-        w.read_customer("cust-mid").unwrap().balance_paise,
-        "170100"
-    );
+    assert_eq!(w.read_customer("cust-mid").unwrap().balance_paise, "170100");
     let view = w.retail_view(&day, "owner", None).unwrap();
     assert_eq!(view.summary.expected_cash_paise, "400000");
 
