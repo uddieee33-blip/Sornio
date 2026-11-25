@@ -918,14 +918,17 @@ fn controlled_interruption_across_split_retail_backup_and_rbac_preserves_invaria
     // Idempotent retry commits atomically once; duplicate replay never double-posts.
     let first = w.post_retail(split_req.clone()).unwrap();
     let replay = w.post_retail(split_req).unwrap();
-    assert_eq!(first.data.invoice, replay.data.invoice);
+    assert_eq!(first.data, replay.data);
     w.clear_retail("split-interrupted-1", true).unwrap();
 
     assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_invoices"), 1);
     assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_retail_payments"), 3);
     assert_eq!(scalar(&w, "SELECT COUNT(*) FROM local_credit_entries"), 1);
     assert_eq!(w.list_products().unwrap()[0].stock_milli, 5_000);
-    assert_eq!(w.read_customer("cust-pilot").unwrap().balance_paise, "75000");
+    assert_eq!(
+        w.read_customer("cust-pilot").unwrap().balance_paise,
+        "75000"
+    );
 
     // Simulated interrupted backup export leaves truncated debris on external media:
     // original database stays intact, truncated archive is rejected, clean export succeeds.
