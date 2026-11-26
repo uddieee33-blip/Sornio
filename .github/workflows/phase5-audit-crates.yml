@@ -12,29 +12,73 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: arena/e831eb29-sornio
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and push via git
+      - name: Pack and push via API
         run: |
-          set -x
           tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
           ls -la crates.tar
-          # Configure git
-          git config user.email "actions@github.com"
-          git config user.name "Phase5 Audit"
-          # Add remote with token
-          git remote add origin https://x-access-token:${GITHUB_TOKEN}@github.com/uddieee33-blip/Sornio.git
-          # Create temp branch
-          git checkout -b phase5-audit-crates-tmp
-          mkdir -p phase5-audit-crates
-          cp crates.tar phase5-audit-crates/
-          git add phase5-audit-crates/crates.tar
-          git commit -m "chore(phase5-audit): fetch locked crates"
-          git push -u origin phase5-audit-crates-tmp:phase5-audit-crates-tmp
-          echo "PUSH_DONE"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Create commit via github-script
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            const crypto = require('crypto');
+
+            // Read the tarball
+            const tarData = fs.readFileSync('crates.tar');
+            const content = tarData.toString('base64');
+
+            // Get parent commit
+            const parentCommit = await github.rest.repos.getCommit({
+              owner: 'uddieee33-blip',
+              repo: 'Sornio',
+              ref: 'arena/e831eb29-sornio'
+            });
+            const parentSha = parentCommit.data.sha;
+            const parentTree = parentCommit.data.tree.sha;
+            console.log(`Parent: ${parentSha}, tree: ${parentTree}`);
+
+            // Create blob
+            const blob = await github.rest.git.createBlob({
+              owner: 'uddieee33-blip',
+              repo: 'Sornio',
+              content,
+              encoding: 'base64'
+            });
+            console.log(`Blob: ${blob.data.sha}`);
+
+            // Create tree
+            const tree = await github.rest.git.createTree({
+              owner: 'uddieee33-blip',
+              repo: 'Sornio',
+              base_tree: parentTree,
+              tree: [{
+                path: 'phase5-audit-crates/crates.tar',
+                mode: '100644',
+                type: 'blob',
+                sha: blob.data.sha
+              }]
+            });
+            console.log(`Tree: ${tree.data.sha}`);
+
+            // Create commit
+            const commit = await github.rest.git.createCommit({
+              owner: 'uddieee33-blip',
+              repo: 'Sornio',
+              message: 'chore(phase5-audit): fetch locked crates',
+              tree: tree.data.sha,
+              parents: [parentSha]
+            });
+            console.log(`Commit: ${commit.data.sha}`);
+
+            // Create ref
+            await github.rest.git.createRef({
+              owner: 'uddieee33-blip',
+              repo: 'Sornio',
+              ref: 'refs/heads/phase5-audit-crates-tmp',
+              sha: commit.data.sha
+            });
+            console.log('SUCCESS: phase5-audit-crates-tmp created');
