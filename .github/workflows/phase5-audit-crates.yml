@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      issues: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -20,17 +19,10 @@ jobs:
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
       - name: Pack and push
-        id: push
-        continue-on-error: true
         run: |
-          set -x
+          set -ex
           CRATE_FILES=$(find ~/.cargo/registry/cache -name "*.crate" 2>/dev/null)
-          COUNT=$(echo "$CRATE_FILES" | wc -l)
-          echo "FOUND_CRATES=$COUNT"
-          
           tar cf crates.tar $CRATE_FILES
-          SIZE=$(stat -c%s crates.tar)
-          echo "TAR_SIZE=$SIZE"
           
           git config user.email "actions@github.com"
           git config user.name "Phase5 Audit"
@@ -39,23 +31,6 @@ jobs:
           cp crates.tar phase5-audit-crates/
           git add phase5-audit-crates/crates.tar
           git commit -m "chore(phase5-audit): fetch locked crates"
-          git remote -v
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/uddieee33-blip/Sornio.git phase5-audit-crates-tmp:phase5-audit-crates-tmp
-          echo "PUSH_EXIT=$?"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/uddieee33-blip/Sornio.git HEAD:phase5-audit-crates-tmp
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Report result
-        if: always()
-        run: |
-          echo "Push step outcome: ${{ steps.push.outcome }}"
-          echo "Push step exit code: ${{ steps.push.exit-code }}"
-          if [ "${{ steps.push.outcome }}" != "success" ]; then
-            gh issue comment 202 --body "Phase 5 crate fetch workflow run ${{ github.run_id }} FAILED.
-
-**Push step outcome:** ${{ steps.push.outcome }}
-**Push step exit code:** ${{ steps.push.exit-code }}
-
-The cargo fetch and tar steps should have succeeded. The git push step failed. Since workflow logs redirect to a TLS-blocked Azure blob, the error is reported here." 2>&1
-          else
-            gh issue comment 202 --body "Phase 5 crate fetch workflow run ${{ github.run_id }} SUCCEEDED. phase5-audit-crates-tmp branch should be available." 2>&1
-          fi
