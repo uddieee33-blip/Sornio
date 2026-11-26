@@ -38,6 +38,9 @@ push_diagnostics() {
   git commit -m "chore(phase5): relay payload/diagnostics (temporary)" >> "$LOG" 2>&1
   git push origin HEAD:arena/76ac88ca-sornio >> "$LOG" 2>&1
   echo "== push exit: $?" >> "$LOG"
+  if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+    { echo '## Phase 5 relay log'; echo '```'; tail -c 60000 "$LOG"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+  fi
 }
 trap push_diagnostics EXIT
 
