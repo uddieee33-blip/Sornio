@@ -18,14 +18,13 @@ jobs:
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and push to temp branch
+      - name: Pack and push to branch
         run: |
           mkdir -p phase5-audit-crates
           tar cf phase5-audit-crates/crates.tar -C ~/.cargo/registry/cache/ crates/*/
           sha256sum phase5-audit-crates/crates.tar > phase5-audit-crates/crates.tar.sha256
           git config user.name "phase5-audit-crate-fetch"
           git config user.email "actions@github.com"
-          git checkout -b phase5-audit-crates-tmp
           git add phase5-audit-crates
           git commit -m "chore(phase5-audit): fetch locked crates for independent audit"
-          git push origin phase5-audit-crates-tmp --force
+          git push origin arena/e831eb29-sornio
