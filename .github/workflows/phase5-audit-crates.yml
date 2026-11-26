@@ -1,7 +1,9 @@
 name: Phase 5 Audit Crate Fetch
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [arena/e831eb29-sornio]
+    paths: ['.github/workflows/phase5-audit-crates.yml']
 
 jobs:
   fetch-crates:
