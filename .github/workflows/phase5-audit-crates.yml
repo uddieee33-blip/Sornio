@@ -16,10 +16,12 @@ jobs:
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and upload as release
-        run: |
-          tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
-          sha256sum crates.tar > crates.tar.sha256
-          gh release create phase5-audit-crates --title "Phase 5 Audit Crates" --notes "Locked crate dependencies for independent audit" crates.tar crates.tar.sha256
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          echo "CARGO_FETCH_OK" > fetch-status.txt
+          ls ~/.cargo/registry/cache/*/ | head -5 >> fetch-status.txt
+          ls ~/.cargo/registry/cache/*/ | wc -l >> fetch-status.txt
+      - name: Upload status
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-audit-fetch-status
+          path: fetch-status.txt
+          retention-days: 1
