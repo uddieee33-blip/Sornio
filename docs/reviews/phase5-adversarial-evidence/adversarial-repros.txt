@@ -1,0 +1,29 @@
+COMMAND: cargo test --locked --manifest-path packages/local-store/Cargo.toml --lib audit_ -- --nocapture
+DATE_UTC: 2026-11-26T15:18:29Z
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-audit/workspace/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.82s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 18 tests
+test access::tests::audit_is_append_only_including_sqlite_replace_after_reopen ... ok
+test access::tests::owner_creation_is_serialized_and_audit_failure_rolls_back_provisioning ... ok
+test billing::reliability_tests::commit_time_failure_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test billing::tests::full_disk_rolls_back_invoice_stock_ledger_audit_and_outbox ... ok
+test customers::tests::privileged_audit_failure_rolls_back_the_whole_collection ... ok
+test inventory_recovery::tests::deferred_commit_failure_rolls_back_stock_receipt_audit_and_outbox ... ok
+test access::credential_tests::credential_writes_and_required_audit_roll_back_on_statement_and_commit_failure ... ok
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+test recovery::phase5_tests::audit_a2_normal_login_locks_out_after_five_failures ... ok
+test recovery::phase5_tests::audit_b1_unfenced_metadata_writable_while_fenced ... ok
+test recovery::phase5_tests::audit_b2_startup_fails_closed_on_business_substitution ... ok
+test recovery::phase5_tests::audit_d1_verifier_misses_deleted_credit_sale_entry ... ok
+test recovery::phase5_tests::audit_a1_resolve_interrupted_has_no_bruteforce_lockout ... ok
+test recovery::phase5_tests::audit_d2_verifier_misses_tampered_repayment_entry ... ok
+test recovery::phase5_tests::audit_d3_verifier_misses_balanced_ledger_tamper ... ok
+test recovery::phase5_tests::audit_d4_verifier_misses_duplicated_retail_journal ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+test recovery::tests::recovery_refuses_ignored_audit_writes_and_substituted_archives_without_losing_live_data ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 218 filtered out; finished in 41.33s
+
+EXIT_CODE=0
