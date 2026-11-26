@@ -48,6 +48,8 @@ pub enum StoreError {
     RecoveryOwnership,
     #[error("Recovery records are inconsistent. Keep the original files; do not reset them.")]
     RecoveryCorrupt,
+    #[error("That saved copy has inconsistent financial records. Keep the original database and choose a different backup.")]
+    FinancialInconsistency,
     #[error("Check payment amounts, references, return quantities and closing values.")]
     InvalidPayment,
     #[error("Payment or closing changed. Refresh it before continuing.")]

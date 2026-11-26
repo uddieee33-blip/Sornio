@@ -227,6 +227,11 @@ fn financial_violations(db: &Connection) -> Vec<String> {
             v.push("latest completed recovery generation != current generation".into());
         }
     }
+    // Additive: also exercise the PRODUCTION restore-boundary verifier, so every
+    // healthy-state assertion in this suite proves the production gate accepts
+    // valid data (and the corruption tests below cover its detections). Existing
+    // assertions are unchanged.
+    v.extend(super::financial::violations(db).unwrap());
     v
 }
 

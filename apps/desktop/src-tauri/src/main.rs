@@ -56,6 +56,7 @@ impl From<StoreError> for CommandError {
             StoreError::RecoveryInterrupted => "recovery_interrupted",
             StoreError::RecoveryOwnership => "recovery_ownership",
             StoreError::RecoveryCorrupt => "recovery_corrupt",
+            StoreError::FinancialInconsistency => "financial_inconsistency",
             StoreError::InvalidPayment => "invalid_payment",
             StoreError::PaymentConflict => "payment_conflict",
             StoreError::DuplicateSettlement => "duplicate_settlement",

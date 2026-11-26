@@ -1,4 +1,5 @@
 //! Versioned SQLCipher snapshots. No plaintext database, device key export, or password reset.
+pub(crate) mod financial;
 use crate::{Store, StoreError, SCHEMA_VERSION};
 use rusqlite::{
     params, types::ValueRef, Connection, OpenFlags, OptionalExtension, TransactionBehavior,
@@ -1443,8 +1444,13 @@ fn restore_owned(
         }
         crate::lan_authority::disable_after_restore(&tx, actor_ref.unwrap_or(archived_actor))?;
         // T3: structural verification of the imported image inside the same tx.
-        // Deep financial-invariant verification is test-only by design.
         integrity(&tx)?;
+        // T3b: financial verification of the imported image, in the SAME
+        // transaction and before the completion transition. A backup whose
+        // financial records do not reconcile with their source business records
+        // is rejected here, so the import rolls back and the original database
+        // plus the recovery fence survive untouched. (P5-ADV-003)
+        financial::verify(&tx)?;
         // T4: completion. The only durable success point is this transaction's commit.
         transition(
             &tx,
