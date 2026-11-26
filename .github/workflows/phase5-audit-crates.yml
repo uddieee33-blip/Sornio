@@ -12,26 +12,72 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: arena/e831eb29-sornio
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and push
+      - name: Create commit via API
         run: |
           tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
           ls -la crates.tar
-          # Set up git auth
-          git config --global user.email "actions@github.com"
-          git config --global user.name "Phase5 Audit"
-          # Create a commit with the tarball on a temp branch
-          git checkout -b phase5-audit-crates-tmp
-          mkdir -p phase5-audit-crates
-          cp crates.tar phase5-audit-crates/
-          git add phase5-audit-crates/crates.tar
-          git commit -m "chore(phase5-audit): fetch locked crates"
-          git push https://x-access-token:${GITHUB_TOKEN}@github.com/uddieee33-blip/Sornio.git phase5-audit-crates-tmp:phase5-audit-crates-tmp
-          git checkout arena/e831eb29-sornio
+          python3 - <<'PYEOF'
+import json, base64, subprocess, os, sys
+
+token = os.environ["GITHUB_TOKEN"]
+repo = "uddieee33-blip/Sornio"
+
+def api(path, data=None, method="POST"):
+    headers = ["-H", f"Authorization: Bearer {token}", "-H", "Accept: application/vnd.github+json"]
+    if data:
+        with open("/tmp/api_body.json", "w") as f:
+            json.dump(data, f)
+        r = subprocess.run(["curl", "-s", "-X", method] + headers +
+                          ["-d", json.dumps(data),
+                           f"https://api.github.com/repos/{repo}/{path}"],
+                          capture_output=True, text=True)
+    else:
+        r = subprocess.run(["curl", "-s", "-X", method] + headers +
+                          [f"https://api.github.com/repos/{repo}/{path}"],
+                          capture_output=True, text=True)
+    if r.returncode != 0:
+        print(f"CURL ERROR: {r.stderr}")
+        raise RuntimeError(f"API call to {path} failed")
+    return r.stdout.strip()
+
+# Get parent commit
+parent = api("commits/arena/e831eb29-sornio", method="GET")
+parent = json.loads(parent)["sha"]
+print(f"Parent: {parent}")
+
+# Get parent tree
+commit_info = api(f"git/commits/{parent}", method="GET")
+parent_tree = json.loads(commit_info)["tree"]["sha"]
+print(f"Parent tree: {parent_tree}")
+
+# Read tar and create blob
+with open("crates.tar", "rb") as f:
+    data = base64.b64encode(f.read()).decode()
+
+blob_resp = api("git/blobs", {"content": data, "encoding": "base64"})
+blob = json.loads(blob_resp)["sha"]
+print(f"Blob: {blob}")
+
+# Create tree
+tree_resp = api("git/trees", {"base_tree": parent_tree,
+                             "tree": [{"path": "phase5-audit-crates/crates.tar", "mode": "100644", "type": "blob", "sha": blob}]})
+tree = json.loads(tree_resp)["sha"]
+print(f"Tree: {tree}")
+
+# Create commit
+commit_resp = api("git/commits", {"message": "chore(phase5-audit): fetch locked crates",
+                                 "tree": tree, "parents": [parent]})
+commit_sha = json.loads(commit_resp)["sha"]
+print(f"Commit: {commit_sha}")
+
+# Create branch ref
+ref_resp = api("git/refs", {"ref": "refs/heads/phase5-audit-crates-tmp", "sha": commit_sha})
+print(f"Ref created: {ref_resp[:50]}")
+print("SUCCESS: crates.tar committed to phase5-audit-crates-tmp")
+PYEOF
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
