@@ -20,6 +20,9 @@
 //! * credit entry delta                     <-> customer journal receivables leg
 //! * retail return source totals            <-> retail journal revenue/tax legs
 //! * retail journal operation               <-> `local_retail_activity` source
+//! * retail sale cash payment parts         <-> retail journal cash/receivables
+//!   legs, **and** exactly one posting set per sale operation
+//! * retail sale activity                   <-> an existing source invoice
 //!
 //! # Deliberate limitations (documented, not invented rules)
 //!
@@ -31,6 +34,17 @@
 //!   detected *relationally*: duplicating a return's postings doubles its
 //!   revenue/tax legs, which then disagree with `local_retail_returns`, and an
 //!   operation with no source activity row is rejected as an orphan.
+//!
+//!   A **sale** is different: `invoice_posted` writes exactly one
+//!   `("cash", C)` / `("receivables", -C)` pair, where `C` is the sum of the
+//!   invoice's cash payment parts and zero legs are omitted. Because a sale's
+//!   accounts never legitimately repeat, the sale side asserts both the amount
+//!   relationship to `local_retail_payments` and a cardinality of exactly one
+//!   posting set. This closes the independently reproduced duplicate-sale-journal
+//!   defect (IV-NEW-001): duplicating both legs kept the operation zero-sum and
+//!   left the activity row intact, so neither the balance check nor the orphan
+//!   check could see it. The cardinality rule is scoped to sale operations only,
+//!   so valid multi-part returns are still accepted.
 //! * **Customer outstanding is derived, not stored.** `local_customers` has no
 //!   balance column; `customers::balance` sums `local_credit_entries`. There is
 //!   therefore no stored balance to reconcile against. Integrity is established
@@ -303,6 +317,75 @@ pub(crate) fn violations(db: &Connection) -> Result<Vec<String>, StoreError> {
              OR COALESCE((SELECT SUM(j.amount) FROM local_retail_journal j
                           WHERE j.operation_id=r.id AND j.account='tax_payable'),0) <> r.tax)",
         "retail return journal disagrees with return totals",
+    )?;
+    // A retail SALE posts exactly one cash/receivables pair whose value is the
+    // sum of that invoice's recorded CASH payment parts (payments.rs
+    // `invoice_posted`: `journal(.., [("cash", cash), ("receivables", -cash)])`,
+    // where zero-valued legs are not written at all). Zero-sum plus "has some
+    // activity row" cannot see a duplicated pair, because duplicating both legs
+    // keeps the operation balanced and the activity row still exists. The sale
+    // side therefore needs the same source-record relationship the return side
+    // already has. Returns are deliberately NOT covered by these checks: they
+    // post one journal batch per refund part, so accounts legitimately repeat.
+    //
+    // Amount relationship: the cash and receivables legs must equal the recorded
+    // cash payments. Catches altered, missing and doubled amounts.
+    push(
+        db,
+        &mut v,
+        "SELECT i.id FROM local_invoices i
+         WHERE json_extract(i.payload,'$.tender')='retail'
+           AND (COALESCE((SELECT SUM(j.amount) FROM local_retail_journal j
+                          WHERE j.operation_id=i.id AND j.account='cash'),0)
+                <> COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                             WHERE p.invoice_id=i.id AND p.method='cash'),0)
+             OR COALESCE((SELECT SUM(j.amount) FROM local_retail_journal j
+                          WHERE j.operation_id=i.id AND j.account='receivables'),0)
+                <> -COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                              WHERE p.invoice_id=i.id AND p.method='cash'),0))",
+        "retail sale journal disagrees with recorded cash payments",
+    )?;
+    // Operation-level idempotency: exactly one posting set per sale operation.
+    // This also catches a duplication that halves each leg to keep the sums
+    // correct, which the amount relationship alone would miss.
+    push(
+        db,
+        &mut v,
+        "SELECT i.id FROM local_invoices i
+         WHERE json_extract(i.payload,'$.tender')='retail'
+           AND ((SELECT COUNT(*) FROM local_retail_journal j
+                 WHERE j.operation_id=i.id AND j.account='cash')
+                <> (CASE WHEN COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                                        WHERE p.invoice_id=i.id AND p.method='cash'),0)<>0
+                         THEN 1 ELSE 0 END)
+             OR (SELECT COUNT(*) FROM local_retail_journal j
+                 WHERE j.operation_id=i.id AND j.account='receivables')
+                <> (CASE WHEN COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                                        WHERE p.invoice_id=i.id AND p.method='cash'),0)<>0
+                         THEN 1 ELSE 0 END))",
+        "retail sale journal is not exactly one posting set",
+    )?;
+    // A sale operation may only carry the two settlement accounts, unattributed.
+    // Injected revenue/tax/refund legs (or a customer attribution) on a sale are
+    // semantically wrong even when the operation stays balanced.
+    push(
+        db,
+        &mut v,
+        "SELECT DISTINCT j.operation_id FROM local_retail_journal j
+         JOIN local_invoices i ON i.id=j.operation_id
+         WHERE json_extract(i.payload,'$.tender')='retail'
+           AND (j.account NOT IN ('cash','receivables') OR j.customer_id IS NOT NULL)",
+        "retail sale journal has unexpected account or customer",
+    )?;
+    // A recorded sale activity must reference an existing source invoice, so a
+    // synthetic sale (activity + balanced journal, but no invoice) is rejected.
+    push(
+        db,
+        &mut v,
+        "SELECT a.operation_id FROM local_retail_activity a
+         WHERE a.kind='invoice'
+           AND NOT EXISTS(SELECT 1 FROM local_invoices i WHERE i.id=a.operation_id)",
+        "retail sale activity without source invoice",
     )?;
 
     // ------------------------------------------------------------------

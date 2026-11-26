@@ -1,0 +1,61 @@
+//! BEFORE/AFTER probe: prints the production restore outcome for the exact
+//! duplicated-sale-journal corruption, without asserting, so the same probe can
+//! be run against the pre-fix and post-fix trees.
+use super::*;
+use crate::billing::{BillLine, PostInvoice, Tender};
+use crate::payments::{Action, PaymentPart, Request};
+use crate::recovery::financial::{verify as prod_verify, violations as prod_violations};
+use crate::recovery::phase5_tests::{seeded, LOGIN, SECRET};
+use crate::recovery::{export, fence_active, preview, restore};
+
+#[test]
+fn ba01_duplicate_sale_journal_restore_outcome() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let revision = s.list_products().unwrap()[0].revision;
+    let req = Request {
+        operation_id: "ba-sale".into(),
+        action: Action::Sale {
+            invoice: PostInvoice {
+                operation_id: "ba-sale".into(),
+                lines: vec![BillLine { product_id: "rice".into(), expected_revision: revision, quantity_milli: 1000 }],
+                tax_basis_points: 0, tender: Tender::Retail, customer_id: None,
+            },
+            payments: vec![PaymentPart { id: "ba-sale-p-0".into(), method: "cash".into(), amount_paise: 4250, reference: String::new() }],
+        },
+    };
+    s.prepare_retail(req.clone()).unwrap();
+    s.post_retail(req.clone()).unwrap();
+    s.clear_retail("ba-sale", true).unwrap();
+
+    let legs = |st: &Store| -> Vec<(String, i64)> {
+        let mut q = st.0.prepare("SELECT account,amount FROM local_retail_journal WHERE operation_id='ba-sale' ORDER BY sequence").unwrap();
+        let r = q.query_map([], |x| Ok((x.get(0)?, x.get(1)?))).unwrap();
+        r.collect::<Result<_, _>>().unwrap()
+    };
+    println!("BA01 BEFORE corruption: {:?}", legs(&s));
+    let existing = legs(&s);
+    let mut next: i64 = s.0.query_row("SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal", [], |r| r.get(0)).unwrap();
+    for (a, n) in &existing {
+        s.0.execute("INSERT INTO local_retail_journal(sequence,operation_id,customer_id,account,amount) VALUES(?1,'ba-sale',NULL,?2,?3)", rusqlite::params![next, a, n]).unwrap();
+        next += 1;
+    }
+    let after = legs(&s);
+    let cash: i64 = after.iter().filter(|(a, _)| a == "cash").map(|(_, n)| n).sum();
+    let recv: i64 = after.iter().filter(|(a, _)| a == "receivables").map(|(_, n)| n).sum();
+    let zero: i64 = s.0.query_row("SELECT SUM(amount) FROM local_retail_journal WHERE operation_id='ba-sale'", [], |r| r.get(0)).unwrap();
+    println!("BA01 AFTER corruption : {after:?}");
+    println!("BA01 cash={cash} receivables={recv} zero_sum={zero}");
+    println!("BA01 violations() => {:?}", prod_violations(&s.0).unwrap());
+    println!("BA01 verify()     => {:?}", prod_verify(&s.0));
+
+    let archive = d.path().join("ba.sorniobackup");
+    export(&mut s, &archive, SECRET).unwrap();
+    let invoices_before: i64 = s.0.query_row("SELECT COUNT(*) FROM local_invoices", [], |r| r.get(0)).unwrap();
+    let p = preview(&mut s, &archive, SECRET, LOGIN).unwrap();
+    let r = restore(&mut s, &archive, d.path(), SECRET, LOGIN, &p, &p.confirmation);
+    println!("BA01 PRODUCTION RESTORE => {r:?}");
+    let invoices_after: i64 = s.0.query_row("SELECT COUNT(*) FROM local_invoices", [], |r| r.get(0)).unwrap();
+    println!("BA01 invoices before={invoices_before} after={invoices_after} fence={}", fence_active(&s.0).unwrap());
+    println!("BA01 VERDICT: {}", if r.is_ok() { "CORRUPTED BACKUP ACCEPTED (defect present)" } else { "CORRUPTED BACKUP REJECTED (defect fixed)" });
+}

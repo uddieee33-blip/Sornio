@@ -1,0 +1,53 @@
+=== POSTGRESQL DURABLE DEDUPLICATION REGRESSION (real server) ===
+DATE_UTC: 2026-11-26T17:32:21Z
+SERVER: disposable PostgreSQL 16.2, fresh db sornio_verify
+COMMAND: node pg-durable-verify.mjs /home/user/phase5-verify/pg-out-final packages/replication-cloud/sql/20261103000000_native_financial_replication.sql
+MIGRATION APPLIED to real PostgreSQL
+SERVER: PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 10.2.1 20210130 (Red Hat 10.2.1-11), 64-bit
+PASS: gen-1 first invoice is not a duplicate (got false, want false)
+PASS: gen-1 second invoice is not a duplicate (got false, want false)
+gen-1 outstanding rows: {"netFromRows":"5000","lineCount":1,"hydratedOutstanding":"5000"}
+PASS: same-generation redelivery is a duplicate (delayed ack) (got true, want true)
+PASS: retry returns the ORIGINAL cursor (got 3, want 3)
+PASS: retry of a seen sequence does NOT advance the head (got 2, want 2)
+PASS: reusing an operation id with a different payload is CONFLICT (got CONFLICT, want CONFLICT)
+events after conflict: 5
+PASS: old generation envelope is fenced after restore (got STALE_GENERATION, want STALE_GENERATION)
+PASS: CROSS-GENERATION replay of bill-1 is a duplicate (durable) (got true, want true)
+PASS: cross-generation duplicate returns the original business cursor (got 3, want 3)
+PASS: CROSS-GENERATION replay of bill-2 is a duplicate (durable) (got true, want true)
+PASS: duplicates ADVANCE the new generation stream head (got 2, want 2)
+PASS: first NEW post-restore operation is accepted (no GAP) (got , want )
+PASS: new post-restore operation is not a duplicate (got false, want false)
+PASS: replayed credit entry is a cross-generation duplicate (durable) (got true, want true)
+gen-2 outstanding rows: {"netFromRows":"5000","lineCount":1,"hydratedOutstanding":"5000"}
+PASS: customer outstanding is NOT double-counted after restore replay (got "{\"netFromRows\":\"5000\",\"lineCount\":1,\"hydratedOutstanding\":\"5000\"}", want "{\"netFromRows\":\"5000\",\"lineCount\":1,\"hydratedOutstanding\":\"5000\"}")
+PASS: gen-2 has its own ack rows (4)
+PASS: gen-2 ack points at the original cursor (got 3, want 3)
+PASS: exactly ONE event row exists for a cross-generation duplicate (got 1, want 1)
+CONCURRENT results: [{"operationId":"v-bill-1","cursor":"3","duplicate":true},{"operationId":"v-bill-1","cursor":"3","duplicate":true},{"operationId":"v-bill-1","cursor":"3","duplicate":true},{"operationId":"v-bill-1","cursor":"3","duplicate":true}]
+PASS: all 4 concurrent duplicate ingests succeed (no deadlock/serialization failure) (got 4, want 4)
+PASS: all concurrent duplicates report duplicate=true
+PASS: all concurrent duplicates return the same original cursor
+PASS: concurrent duplicates still produce exactly ONE event row (got 1, want 1)
+PASS: concurrent duplicate ingestion does not double-count outstanding (got "{\"netFromRows\":\"5000\",\"lineCount\":1,\"hydratedOutstanding\":\"5000\"}", want "{\"netFromRows\":\"5000\",\"lineCount\":1,\"hydratedOutstanding\":\"5000\"}")
+gen-3 billing head before race: 1 -> racing for sequence 2
+CONCURRENT NEW results: [{"operationId":"v-conc-0","cursor":"7","duplicate":false},{"error":"DUPLICATE_SEQUENCE"},{"error":"DUPLICATE_SEQUENCE"},{"error":"DUPLICATE_SEQUENCE"}]
+PASS: exactly ONE concurrent NEW operation wins the sequence race (got 1, want 1)
+PASS: losers fail with ordering codes: ["DUPLICATE_SEQUENCE","DUPLICATE_SEQUENCE","DUPLICATE_SEQUENCE"]
+PASS: head advanced exactly once after the race (got 2, want 2)
+PASS: exactly one racing event row was committed (got 1, want 1)
+PASS: out-of-order new operation is rejected GAP (got GAP, want GAP)
+PASS: ROLLBACK leaves no partial event row (got 7, want 7)
+PASS: ROLLBACK leaves no partial ack row (got 11, want 11)
+PASS: ROLLBACK does not advance the stream head (got 2, want 2)
+PASS: connection is not left inside an aborted transaction
+hydrated outstanding: 5000
+PASS: snapshot from real Postgres returns activity
+PASS: publisher credentials cannot read companion snapshots (durable authz) (got FORBIDDEN, want FORBIDDEN)
+snapshot billing ids: ["v-bill-1","v-bill-2","v-bill-3-NEW"]
+PASS: snapshot contains both replayed and new post-restore invoices exactly once
+PASS: replayed invoice appears exactly once in the durable snapshot (got 1, want 1)
+
+DURABLE POSTGRES VERIFY: 36 passed, 0 failed
+EXIT_CODE=0

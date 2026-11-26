@@ -1,0 +1,196 @@
+=== BEFORE-FIX REPRODUCTION: d79a6e8 + the SAME new adversarial tests ===
+DATE_UTC: 2026-11-26T17:33:02Z
+SOURCE: git archive d79a6e8 (pre-fix financial.rs) + final_financial_tests.rs
+COMMAND: cargo test --lib --manifest-path packages/local-store/Cargo.toml recovery::final_financial_tests -- --nocapture --test-threads=2
+   Compiling libc v0.2.191
+   Compiling version_check v0.9.5
+   Compiling find-msvc-tools v0.1.15
+   Compiling shlex v2.0.1
+   Compiling cc v1.10.0
+   Compiling generic-array v0.14.7
+   Compiling proc-macro2 v1.0.107
+   Compiling cfg-if v1.0.5
+   Compiling quote v1.0.47
+   Compiling typenum v1.20.1
+   Compiling unicode-ident v1.0.27
+   Compiling vcpkg v0.2.15
+   Compiling pkg-config v0.3.34
+   Compiling rand_core v0.10.1
+   Compiling openssl-src v300.6.1+3.6.3
+   Compiling getrandom v0.4.3
+   Compiling openssl-sys v0.9.117
+   Compiling rustix v1.1.5
+   Compiling bitflags v2.13.2
+   Compiling subtle v2.6.1
+   Compiling syn v3.0.9
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling serde_core v1.0.229
+   Compiling linux-raw-sys v0.12.1
+   Compiling autocfg v1.5.1
+   Compiling num-traits v0.2.19
+   Compiling digest v0.10.7
+   Compiling libsqlite3-sys v0.35.0
+   Compiling fastrand v2.5.0
+   Compiling foldhash v0.1.5
+   Compiling once_cell v1.21.4
+   Compiling zmij v1.0.23
+   Compiling tempfile v3.27.0
+   Compiling hashbrown v0.15.5
+   Compiling wait-timeout v0.2.1
+   Compiling base64ct v1.8.3
+   Compiling cpufeatures v0.3.1
+   Compiling cpufeatures v0.2.17
+   Compiling fnv v1.0.7
+   Compiling getrandom v0.3.4
+   Compiling serde v1.0.229
+   Compiling bit-vec v0.10.1
+   Compiling serde_json v1.0.154
+   Compiling quick-error v1.2.3
+   Compiling rand_core v0.6.4
+   Compiling thiserror v2.0.21
+   Compiling password-hash v0.5.0
+   Compiling rusty-fork v0.3.1
+   Compiling bit-set v0.11.1
+   Compiling chacha20 v0.10.2
+   Compiling hashlink v0.10.0
+   Compiling blake2 v0.10.6
+   Compiling rand v0.10.3
+   Compiling thiserror-impl v2.0.21
+   Compiling serde_derive v1.0.229
+   Compiling rand_xorshift v0.5.0
+   Compiling memchr v2.8.3
+   Compiling core_detect v1.0.0
+   Compiling unarray v0.1.4
+   Compiling smallvec v1.16.4
+   Compiling itoa v1.0.18
+   Compiling fallible-iterator v0.3.0
+   Compiling regex-syntax v0.8.11
+   Compiling zeroize v1.9.1
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling argon2 v0.5.3
+   Compiling proptest v1.12.0
+   Compiling sha2 v0.10.9
+   Compiling rusqlite v0.37.0
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-final/before/packages/local-store)
+warning: variable does not need to be mutable
+   --> src/recovery/final_financial_tests.rs:656:9
+    |
+656 |     let mut s = sale_4250(&d);
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5m 15s
+     Running unittests src/lib.rs (/home/user/phase5-final/target-before/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 16 tests
+fin01 BEFORE: [("cash", 4250), ("receivables", -4250)]
+fin01 duplicated 2 legs; AFTER: [("cash", 4250), ("receivables", -4250), ("cash", 4250), ("receivables", -4250)]
+fin01 ledger still zero-sum: 0
+[fin01] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin01_duplicate_sale_journal_4250_scenario' (206082) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin01] expected a violation containing "retail sale journal", got []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test recovery::final_financial_tests::fin01_duplicate_sale_journal_4250_scenario ... FAILED
+fin02 removed 2 sale journal legs
+[fin02] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin02_missing_sale_journal' (206083) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin02] expected a violation containing "retail sale journal", got []
+test recovery::final_financial_tests::fin02_missing_sale_journal ... FAILED
+fin03 legs: [("cash", 4950), ("receivables", -4950)] (balanced)
+[fin03] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin03_incorrect_cash_posting' (206204) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin03] expected a violation containing "disagrees with recorded cash payments", got []
+test recovery::final_financial_tests::fin03_incorrect_cash_posting ... FAILED
+fin02b legs now: [("cash", 4250)]
+[fin02b] verifier violations: ["retail journal imbalance: final-sale"]
+
+thread 'recovery::final_financial_tests::fin02b_partial_missing_sale_journal' (206203) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin02b] expected a violation containing "retail sale journal", got ["retail journal imbalance: final-sale"]
+test recovery::final_financial_tests::fin02b_partial_missing_sale_journal ... FAILED
+fin04 legs: [("cash", 9999), ("receivables", -9999)]
+[fin04] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin04_incorrect_receivables_posting' (206271) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin04] expected a violation containing "disagrees with recorded cash payments", got []
+test recovery::final_financial_tests::fin04_incorrect_receivables_posting ... FAILED
+fin05 legs: [("cash", 4250), ("receivables", -4250), ("revenue", -4250), ("refund_payable", 4250)]
+[fin05] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin05_incorrect_revenue_posting_on_sale' (206311) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin05] expected a violation containing "unexpected account or customer", got []
+test recovery::final_financial_tests::fin05_incorrect_revenue_posting_on_sale ... FAILED
+fin06 legs: [("cash", 4250), ("receivables", -4250), ("tax_payable", -500), ("refund_payable", 500)]
+[fin06] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin06_incorrect_tax_posting_on_sale' (206335) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin06] expected a violation containing "unexpected account or customer", got []
+test recovery::final_financial_tests::fin06_incorrect_tax_posting_on_sale ... FAILED
+fin06b valid taxed sale violations: []
+fin06b recorded tax leg = -765
+[fin06b] verifier violations: ["billing ledger imbalance: taxed-sale", "invoice tax disagrees with invoice tax: taxed-sale"]
+fin07 API reuse of operation id with altered payload => Err(OperationConflict)
+fin07 retained outbox rows for the sale: 1
+fin07 duplicated outbox rows with altered payload: 1
+fin07 verifier violations: ["retail outbox duplicate operation: final-sale"]
+fin07 export of schema-damaged database => Err(InvalidBackup)
+test recovery::final_financial_tests::fin07_duplicate_operation_with_altered_payload ... ok
+fin07b legs: [("cash", 2125), ("receivables", -2125), ("cash", 2125), ("receivables", -2125)] (sums correct, cardinality doubled)
+[fin07b] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin07b_duplicate_with_halved_amounts_keeps_sums' (206574) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin07b] expected a violation containing "not exactly one posting set", got []
+test recovery::final_financial_tests::fin07b_duplicate_with_halved_amounts_keeps_sums ... FAILED
+fin08 repeated (operation,account) groups in VALID history = 2
+fin08 violations on valid multipart history: []
+[fin06b] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin06b_taxed_sale_is_accepted_and_tax_tamper_detected ... ok
+fin09 violations on four valid sales: []
+fin09 digital-only sale legs (expected none): []
+fin08 production restore of VALID multipart history => Ok("/tmp/.tmpfSMQHM/sornio-before-restore-5a911b37479409bff7584a6f0e5b5fa3b305576945cc619ab66aaa10236f9df4.sorniobackup")
+test recovery::final_financial_tests::fin08_legitimate_multipart_return_accepted ... ok
+fin09b duplicated only sale-b; sale-a legs: [("cash", 4250), ("receivables", -4250)]
+[fin09b] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin09b_duplicate_one_of_many_sales_rejected' (207112) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin09b] expected a violation containing "retail sale journal", got []
+test recovery::final_financial_tests::fin09b_duplicate_one_of_many_sales_rejected ... FAILED
+fin09 production restore of valid multi-sale history => Ok("/tmp/.tmpVUbzFw/sornio-before-restore-ca12fab4e6f94d131f5614cddd2bfe8ba2e21937c4966f13c46330d6b390f576.sorniobackup")
+test recovery::final_financial_tests::fin09_multiple_legitimate_sales_accepted ... ok
+fin10 violations with legacy (field-less) payload: []
+fin10 violations after orphan injection: ["retail journal without source operation: legacy-ghost"]
+test recovery::final_financial_tests::fin10_historical_legacy_payload_compatibility ... ok
+fin11 synthetic sale has activity + balanced journal but no invoice
+[fin11] verifier violations: []
+
+thread 'recovery::final_financial_tests::fin11_synthetic_sale_without_invoice_rejected' (207303) panicked at src/recovery/final_financial_tests.rs:161:5:
+[fin11] expected a violation containing "without source invoice", got []
+test recovery::final_financial_tests::fin11_synthetic_sale_without_invoice_rejected ... FAILED
+fin10b healthy history restore => Ok("/tmp/.tmp7tSKwA/sornio-before-restore-17241d8e5ce70465ac5c0420d7c43954d7fe26556c6ef99dec65c19a4f470c81.sorniobackup")
+test recovery::final_financial_tests::fin10b_valid_history_restore_is_not_rejected ... ok
+
+failures:
+
+failures:
+    recovery::final_financial_tests::fin01_duplicate_sale_journal_4250_scenario
+    recovery::final_financial_tests::fin02_missing_sale_journal
+    recovery::final_financial_tests::fin02b_partial_missing_sale_journal
+    recovery::final_financial_tests::fin03_incorrect_cash_posting
+    recovery::final_financial_tests::fin04_incorrect_receivables_posting
+    recovery::final_financial_tests::fin05_incorrect_revenue_posting_on_sale
+    recovery::final_financial_tests::fin06_incorrect_tax_posting_on_sale
+    recovery::final_financial_tests::fin07b_duplicate_with_halved_amounts_keeps_sums
+    recovery::final_financial_tests::fin09b_duplicate_one_of_many_sales_rejected
+    recovery::final_financial_tests::fin11_synthetic_sale_without_invoice_rejected
+
+test result: FAILED. 6 passed; 10 failed; 0 ignored; 0 measured; 244 filtered out; finished in 28.30s
+
+error: test failed, to rerun pass `--lib`
+EXIT_CODE=101

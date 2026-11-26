@@ -1,0 +1,31 @@
+=== BEFORE/AFTER PROBE: BEFORE (d79a6e8, pre-fix) ===
+DATE_UTC: 2026-11-26T17:39:18Z
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-final/before/packages/local-store)
+warning: variable does not need to be mutable
+   --> src/recovery/final_financial_tests.rs:656:9
+    |
+656 |     let mut s = sale_4250(&d);
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.74s
+     Running unittests src/lib.rs (/home/user/phase5-final/target-before/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 1 test
+test recovery::ba_probe::ba01_duplicate_sale_journal_restore_outcome ... BA01 BEFORE corruption: [("cash", 4250), ("receivables", -4250)]
+BA01 AFTER corruption : [("cash", 4250), ("receivables", -4250), ("cash", 4250), ("receivables", -4250)]
+BA01 cash=8500 receivables=-8500 zero_sum=0
+BA01 violations() => []
+BA01 verify()     => Ok(())
+BA01 PRODUCTION RESTORE => Ok("/tmp/.tmpugUyYO/sornio-before-restore-5f88951b91ce253da35ba264123c30bd5f2a82ec578d03d55e802306b77d4946.sorniobackup")
+BA01 invoices before=1 after=1 fence=false
+BA01 VERDICT: CORRUPTED BACKUP ACCEPTED (defect present)
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 260 filtered out; finished in 5.66s
+
+EXIT_CODE=0

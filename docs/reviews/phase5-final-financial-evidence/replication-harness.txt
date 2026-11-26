@@ -1,0 +1,5 @@
+=== REPLICATION GOVERNANCE HARNESS ===
+DATE_UTC: 2026-11-26T17:32:29Z
+COMMAND: node scripts/verify-replication.mjs
+verify-replication: 129 checks passed
+EXIT_CODE=0

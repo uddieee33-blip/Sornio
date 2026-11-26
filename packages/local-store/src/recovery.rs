@@ -1485,6 +1485,9 @@ fn restore_owned(
     Ok(safety.to_string_lossy().into_owned())
 }
 #[cfg(test)]
+#[path = "recovery/final_financial_tests.rs"]
+mod final_financial_tests;
+#[cfg(test)]
 #[path = "recovery/phase5_tests.rs"]
 mod phase5_tests;
 #[cfg(test)]
