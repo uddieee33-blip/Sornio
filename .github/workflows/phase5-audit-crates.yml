@@ -1,0 +1,21 @@
+name: Phase 5 Audit Crate Fetch
+
+on:
+  workflow_dispatch:
+
+jobs:
+  fetch-crates:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Fetch all locked crates
+        run: |
+          cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
+      - name: Upload crate files
+        uses: actions/upload-artifact@v4
+        with:
+          name: phase5-audit-crates
+          path: |
+            ~/.cargo/registry/cache/*/
+          retention-days: 1
