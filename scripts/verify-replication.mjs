@@ -278,7 +278,18 @@ try {
   const productionFlag = readFileSync(join(root, 'apps/mobile/app.json'), 'utf8');
   check(productionFlag.includes('"productionSyncEnabled": false'), 'companion production sync stays disabled');
   const schema = readFileSync(join(root, 'packages/local-store/src/lib.rs'), 'utf8');
-  check(/const SCHEMA_VERSION: i64 = 12;/.test(schema), 'financial schema remains 12');
+  // Purpose preserved: pin the financial schema so unintended drift is caught.
+  // v13 equivalent: the durable-recovery schema, its wired migration, and the
+  // fail-closed startup reconciliation that must run on every open.
+  check(/const SCHEMA_VERSION: i64 = 13;/.test(schema), 'financial schema is pinned at v13');
+  check(
+    /if locked_version < 13 \{\s*recovery::migrate_v13\(&tx\)\?;/.test(schema),
+    'v13 recovery migration is wired into the upgrade path',
+  );
+  check(
+    schema.includes('recovery::reconcile_startup(&mut db)?'),
+    'startup reconciliation runs on every database open',
+  );
   check(schema.includes('pub mod replication;'), 'sidecar publisher module is declared');
   const rust = readFileSync(join(root, 'packages/local-store/src/replication.rs'), 'utf8');
   check(rust.includes('unpublished_replication'), 'native unpublished outbox reader is wired');
@@ -289,7 +300,60 @@ try {
   check(!rust.includes('map.get(*key)'), 'timestamp walk borrows map keys');
   check(rust.includes('validate_ack'), 'native publisher validates cloud acknowledgements');
   const desktopMain = readFileSync(join(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8');
-  check(desktopMain.includes('reset_sidecar_file'), 'desktop restore discards sidecar acks');
+  // Purpose preserved: a restore must never leave stale acknowledgements that
+  // suppress republishing. v13 achieves this by generation-keying instead of
+  // destructive deletion, so the assertion is inverted and paired with the
+  // generation-reset mechanism that now provides the guarantee.
+  check(
+    !desktopMain.includes('reset_sidecar_file'),
+    'desktop restore never deletes sidecar ack history (destructive cleanup disabled)',
+  );
+  check(
+    desktopMain.includes('No sidecar deletion'),
+    'restore documents generation-keyed sidecar reuse',
+  );
+  check(
+    rust.includes('pub fn on_restore(&mut self, generation: &str)'),
+    'sidecar acks reset when the restore generation changes',
+  );
+  check(
+    rust.includes('ack.on_restore(&generation)'),
+    'publisher applies the generation reset before reading unpublished rows',
+  );
+  check(
+    rust.includes('if generation != identity.restore_generation'),
+    'publisher rejects a stale restore generation',
+  );
+
+  // v13 recovery fencing and financial-verification expectations.
+  const recovery = readFileSync(join(root, 'packages/local-store/src/recovery.rs'), 'utf8');
+  check(recovery.includes('const FENCED_TABLES'), 'recovery declares the fenced business tables');
+  check(
+    recovery.includes('recovery_fence_{table}_{suffix}'),
+    'every fenced table gets engine-level barrier triggers',
+  );
+  check(
+    recovery.includes('Sornio recovery is in progress; business writes are paused'),
+    'the fence rejects business writes on every connection, including raw SQL',
+  );
+  check(
+    recovery.includes('pub(crate) fn reconcile_startup'),
+    'fail-closed startup reconciliation is implemented',
+  );
+  check(recovery.includes('RecoveryCorrupt'), 'ambiguous recovery metadata fails closed');
+  check(
+    recovery.includes('pub(crate) mod financial;'),
+    'the financial verifier is a production module',
+  );
+  check(
+    recovery.includes('financial::verify(&tx)?'),
+    'restore verifies financial invariants inside the transaction before completion',
+  );
+  const financial = readFileSync(join(root, 'packages/local-store/src/recovery/financial.rs'), 'utf8');
+  check(
+    financial.includes('pub(crate) fn verify(db: &Connection)'),
+    'financial verification is callable from production restore code',
+  );
 
   const classified = classifyPayments(
     [
