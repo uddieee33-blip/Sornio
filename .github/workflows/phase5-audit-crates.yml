@@ -1,13 +1,17 @@
 name: Phase 5 Audit Crate Fetch
 
 on:
-  workflow_dispatch:
+  push:
+    branches: [arena/e831eb29-sornio]
+    paths: ['.github/workflows/phase5-audit-crates.yml']
 
 jobs:
   fetch-crates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
