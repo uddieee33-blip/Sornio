@@ -10,94 +10,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-      issues: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: arena/e831eb29-sornio
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Create commit via API
+      - name: Pack and push
         run: |
           tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
           ls -la crates.tar
-          python3 - <<'PYEOF'
-          import json, base64, subprocess, tempfile, os, sys
-
-          def api_call(endpoint, payload, method="POST"):
-              with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                  f.write(json.dumps(payload))
-                  fpath = f.name
-              r = subprocess.run(["gh", "api", endpoint, "-X", method, "--input", fpath],
-                               capture_output=True, text=True)
-              os.unlink(fpath)
-              return r.stdout.strip(), r.stderr.strip(), r.returncode
-
-          errors = []
-
-          # Get parent commit
-          r = subprocess.run(["gh", "api", "repos/uddieee33-blip/Sornio/commits/arena/e831eb29-sornio", "--jq", ".sha"], capture_output=True, text=True)
-          if r.returncode != 0:
-              errors.append(f"Failed to get parent commit: {r.stderr}")
-              print("ERROR: " + "; ".join(errors))
-              raise SystemExit(1)
-          parent = r.stdout.strip()
-
-          # Get parent tree
-          r = subprocess.run(["gh", "api", f"repos/uddieee33-blip/Sornio/git/commits/{parent}", "--jq", ".tree.sha"], capture_output=True, text=True)
-          if r.returncode != 0:
-              errors.append(f"Failed to get parent tree: {r.stderr}")
-              print("ERROR: " + "; ".join(errors))
-              raise SystemExit(1)
-          parent_tree = r.stdout.strip()
-
-          # Read tar and create blob
-          with open("crates.tar", "rb") as f:
-              data = base64.b64encode(f.read()).decode()
-
-          out, err, code = api_call("repos/uddieee33-blip/Sornio/git/blobs",
-                                  {"content": data, "encoding": "base64"})
-          if code != 0:
-              errors.append(f"Failed to create blob: {err}")
-              print("ERROR: " + "; ".join(errors))
-              raise SystemExit(1)
-          blob = json.loads(out)["sha"]
-
-          # Create tree
-          out, err, code = api_call("repos/uddieee33-blip/Sornio/git/trees",
-                                  {"base_tree": parent_tree,
-                                   "tree": [{"path": "phase5-audit-crates/crates.tar", "mode": "100644", "type": "blob", "sha": blob}]})
-          if code != 0:
-              errors.append(f"Failed to create tree: {err}")
-              print("ERROR: " + "; ".join(errors))
-              raise SystemExit(1)
-          tree = json.loads(out)["sha"]
-
-          # Create commit
-          out, err, code = api_call("repos/uddieee33-blip/Sornio/git/commits",
-                                  {"message": "chore(phase5-audit): fetch locked crates",
-                                   "tree": tree, "parents": [parent]})
-          if code != 0:
-              errors.append(f"Failed to create commit: {err}")
-              print("ERROR: " + "; ".join(errors))
-              raise SystemExit(1)
-          commit_sha = json.loads(out)["sha"]
-
-          # Create branch ref
-          out, err, code = api_call("repos/uddieee33-blip/Sornio/git/refs",
-                                  {"ref": "refs/heads/phase5-audit-crates-tmp", "sha": commit_sha})
-          if code != 0:
-              errors.append(f"Failed to create ref: {err}")
-              print("ERROR: " + "; ".join(errors))
-              raise SystemExit(1)
-
-          print(f"SUCCESS: Created phase5-audit-crates-tmp with crates.tar, commit {commit_sha}")
-          PYEOF
-        continue-on-error: true
-      - name: Report error via issue
-        if: steps['Create commit via API'].outcome == 'failure'
-        run: |
-          gh issue create --title "Phase 5 crate fetch workflow error - ${{ github.run_id }}" \
-            --body "The 'Create commit via API' step failed in workflow run ${{ github.run_id }}.
-
-This is an automated diagnostic. The cargo fetch step succeeded but the GitHub API commit creation failed. Please check the workflow logs for details." 2>&1
+          # Set up git auth
+          git config --global user.email "actions@github.com"
+          git config --global user.name "Phase5 Audit"
+          # Create a commit with the tarball on a temp branch
+          git checkout -b phase5-audit-crates-tmp
+          mkdir -p phase5-audit-crates
+          cp crates.tar phase5-audit-crates/
+          git add phase5-audit-crates/crates.tar
+          git commit -m "chore(phase5-audit): fetch locked crates"
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/uddieee33-blip/Sornio.git phase5-audit-crates-tmp:phase5-audit-crates-tmp
+          git checkout arena/e831eb29-sornio
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
