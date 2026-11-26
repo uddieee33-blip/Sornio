@@ -7,8 +7,63 @@
   "schema_version": 13,
   "verdict": "NO-GO",
   "verdict_rationale": "A critical security invariant (authentication lockout) is violated on a reachable, session-less recovery command (P5-ADV-001). The candidate also fails the existing required verify:replication governance gate (P5-ADV-002) and does not enforce financial-integrity verification at the production restore boundary (P5-ADV-003), with four reproduced detector false negatives. Business-data ownership fencing, crash consistency, and fail-closed startup reconciliation were independently verified and are sound; they are not the basis for NO-GO. No finding was downgraded to reach this verdict.",
-  "severity_counts": { "Critical": 0, "High": 1, "Medium": 8, "Low": 1, "Informational": 1 },
-  "independently_verified_invariants": 12,
+  "severity_counts": {
+    "Critical": 0,
+    "High": 1,
+    "Medium": 8,
+    "Low": 1,
+    "Informational": 1
+  },
+  "independently_verified_invariants": [
+    {
+      "invariant": "Business-table fence blocks session-less raw SQL writes",
+      "evidence": "audit_b1 positive control + candidate fence test (candidate-full-suite.txt)"
+    },
+    {
+      "invariant": "No dual live ownership at startup",
+      "evidence": "audit_f2_startup_rejects_two_live_operations"
+    },
+    {
+      "invariant": "Pre-commit crash retains original financial data and durable fence",
+      "evidence": "pristine-crash.txt (crash_at_every_transition_is_fail_closed_and_consistent)"
+    },
+    {
+      "invariant": "Completed crash is the sole durable success point",
+      "evidence": "pristine-crash.txt"
+    },
+    {
+      "invariant": "Startup rejects unknown recovery audit action",
+      "evidence": "audit_f1_startup_rejects_unknown_audit_action"
+    },
+    {
+      "invariant": "Startup rejects fence referencing a terminal operation",
+      "evidence": "audit_f3_startup_rejects_fence_on_terminal_operation"
+    },
+    {
+      "invariant": "Startup rejects completed operation without result generation",
+      "evidence": "audit_f4_startup_rejects_completed_without_generation"
+    },
+    {
+      "invariant": "Startup rejects business-identity substitution",
+      "evidence": "audit_b2_startup_fails_closed_on_business_substitution"
+    },
+    {
+      "invariant": "Normal login lockout engages after five failures",
+      "evidence": "audit_a2_normal_login_locks_out_after_five_failures"
+    },
+    {
+      "invariant": "Cloud same-generation redelivery is idempotent",
+      "evidence": "cloud-behavioral-probe.txt"
+    },
+    {
+      "invariant": "Cloud rejects operation-identity payload reuse with CONFLICT",
+      "evidence": "cloud-behavioral-probe.txt"
+    },
+    {
+      "invariant": "Cloud rejects stale restore generation with STALE_GENERATION",
+      "evidence": "cloud-behavioral-probe.txt"
+    }
+  ],
   "failed_invariants": 3,
   "toolchain": {
     "rustc": "1.100.0 (0ef1bc386 2026-11-09)",
@@ -41,7 +96,26 @@
       "impact": "Security: removal of the authentication rate-limit safeguard for the root Owner credential in the recovery scenario; unlimited online guessing (Argon2-bounded per attempt) plus full Owner session grant on success.",
       "recommended_remediation": "Mirror login_at: increment global and principal failed_attempts, set retry_after at the threshold, audit failed resolution attempts, and add a regression test asserting lockout engages through the resolution path.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "895ec34",
+        "rule": "RULE 2",
+        "root_cause": "Recovery Owner-password verification called Argon2 directly and never consulted or updated the durable workspace_access failure budget used by access::login_at, so the session-less command was an unlimited password oracle and a correct guess released the fence even during an active login lockout.",
+        "fix": "resolve_interrupted_at shares the existing login lockout policy: active lockout (principal or global) returns RateLimited even with the correct password; failures durably increment failed_attempts (cap 5) and set retry_after=clock+60 with reset-to-1 after expiry; accounting is explicitly committed inside the IMMEDIATE writer transaction so it is restart-persistent and concurrency-safe; success clears the budget, audits session.unlocked, then releases the fence. StoreError::InvalidPassword preserved. No second password policy was introduced.",
+        "files_changed": [
+          "packages/local-store/src/recovery.rs",
+          "packages/local-store/src/recovery/phase5_tests.rs",
+          "packages/local-store/src/recovery/remediation_tests.rs"
+        ],
+        "tests_added": 6,
+        "verification": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::remediation_tests => 6 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-auth-remediation.txt",
+          "rule6-full-suite-final.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-002",
@@ -57,7 +131,24 @@
       "impact": "Release-blocking governance regression; the candidate's verification suite fails. The audit did not weaken assertions.",
       "recommended_remediation": "Update the harness to v13 invariants (schema 13; sidecar reset removed) without weakening assertions, and make verify:replication pass.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "0ccae3c",
+        "rule": "RULE 4",
+        "root_cause": "The harness pinned financial schema 12 and asserted the presence of a sidecar-deletion reset path that v13 replaced with generation-keyed reset, so the required governance gate exited 1.",
+        "fix": "Every obsolete assertion replaced with a meaningful v13 equivalent, none removed or weakened: schema pin 13 plus migrate_v13 and reconcile_startup wiring; sidecar-deletion presence inverted to absence plus on_restore / ack.on_restore(&generation) / stale-generation checks; added recovery-fencing and financial-module assertions. Full harness executed, not bypassed.",
+        "files_changed": [
+          "scripts/verify-replication.mjs"
+        ],
+        "tests_added": 0,
+        "verification": "node scripts/verify-replication.mjs => 120 checks passed exit 0 at this commit; 129 checks passed exit 0 after RULE 5 added dedup-contract checks",
+        "evidence": [
+          "rule4-replication-harness.txt",
+          "rule5-replication-harness.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-003",
@@ -73,7 +164,28 @@
       "impact": "Financial-integrity guarantee is not enforced at the production boundary; the test oracle that underpins the claim is incomplete.",
       "recommended_remediation": "Promote a hardened financial verifier out of #[cfg(test)] and run it inside the restore transaction before completion; reject backups that violate financial invariants.",
       "independently_reproduced": false,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "financial_violations had zero production callers; it existed only as a test oracle, so a restore could install a semantically corrupt ledger.",
+        "fix": "New packages/local-store/src/recovery/financial.rs exposes violations() and verify(). verify() is called inside the single IMMEDIATE restore transaction after integrity() and before completion, raising StoreError::FinancialInconsistency; rejection rolls back the whole transaction, preserving the original database and fence. Desktop adapter maps the error to financial_inconsistency. The phase5 test oracle additionally calls the production verifier (additive).",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery.rs",
+          "packages/local-store/src/lib.rs",
+          "apps/desktop/src-tauri/src/main.rs",
+          "packages/local-store/src/recovery/phase5_tests.rs"
+        ],
+        "tests_added": 4,
+        "verification": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::financial::financial_tests => 10 passed / 0 failed, exit 0 (includes end-to-end restore rejection and valid-backup-still-restores) | RULE 3 tests: rem_r3_detects_missing_postings_and_broken_stock_arithmetic, rem_r3_restore_rejects_financially_inconsistent_backup, rem_r3_tampered_backup_file_is_rejected_at_preview, rem_r3_valid_backup_still_restores",
+        "evidence": [
+          "rule6-financial-corruption.txt",
+          "rule6-full-suite-final.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-004",
@@ -89,7 +201,24 @@
       "impact": "Financial: understated receivables/outstanding undetected by the integrity oracle.",
       "recommended_remediation": "Add a check that every credit invoice has a corresponding credit entry (LEFT JOIN / NOT EXISTS), independent of ledger balance.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "The verifier checked aggregate balance only, which is unchanged when a credit-sale entry is deleted, so customer outstanding was understated without any violation.",
+        "fix": "Credit invariant now requires credit sale <-> credit entry correspondence in BOTH directions, plus derived outstanding >= 0. Outstanding is recomputed from entries because local_customers has no stored balance column (documented limitation).",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 1,
+        "verification": "rem_r3_detects_deleted_credit_sale_entry passes; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-005",
@@ -105,7 +234,24 @@
       "impact": "Financial: outstanding balance manipulation undetected for non-sale credit kinds.",
       "recommended_remediation": "Cross-check every credit kind against the customer journal and recompute outstanding balances.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "Tampered repayment/opening_due amounts preserved zero-sum journal balance, so the totals-only verifier accepted them.",
+        "fix": "For non-sale credit entries the entry delta must equal the journal receivables movement, establishing the source-record to financial-consequence relationship rather than aggregate balance.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 1,
+        "verification": "rem_r3_detects_tampered_repayment_entry passes; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-006",
@@ -121,7 +267,24 @@
       "impact": "Financial: revenue/cash misstatement undetected when balance is preserved.",
       "recommended_remediation": "Reconcile ledger legs to the stored invoice total/tax and tender breakdown.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "A balanced revenue-to-cash shift kept SUM(postings)=0, so the totals-only verifier accepted a ledger that contradicted the invoice.",
+        "fix": "Invoice-to-ledger invariants: postings exist, zero-sum, exactly one settlement leg matching total/tender/customer, revenue leg equals -subtotal, tax leg present iff tax>0, and subtotal+tax=total. The regression test asserts SUM is still 0 while the verifier rejects.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 1,
+        "verification": "rem_r3_detects_balanced_but_semantically_wrong_ledger passes; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-007",
@@ -137,7 +300,24 @@
       "impact": "Financial: double-counted revenue/cash undetected.",
       "recommended_remediation": "Add a duplicate-journal detector and a UNIQUE(operation_id,account) guard for local_retail_journal.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "A duplicated balanced retail journal preserved zero-sum totals and was accepted.",
+        "fix": "Every retail journal operation must be backed by local_retail_activity, and return revenue/tax legs must equal local_retail_returns. Duplication is detected relationally: a blanket UNIQUE(operation_id,account) was deliberately rejected because valid multi-part returns produce one journal batch per refund part. A false-positive guard test asserts repeated (operation_id,account) rows exist in valid history and are still accepted.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 3,
+        "verification": "rem_r3_detects_duplicated_return_journal, rem_r3_detects_orphan_retail_journal_operation and rem_r3_accepts_valid_history_including_multipart_returns pass; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": []
+      }
     },
     {
       "id": "P5-ADV-008",
@@ -153,7 +333,23 @@
       "impact": "Defense-in-depth gap: lockout reset and generation tamper between transactions; bounded by fail-closed startup for business substitution and by the writer lock during restore. Not a business-data ownership breach.",
       "recommended_remediation": "Extend fencing/immutability to local_recovery_identity and workspace_access, or document and bound the metadata trust model; cross-check generation consistency.",
       "independently_reproduced": true,
-      "classification": "FAILED"
+      "classification": "FAILED",
+      "remediation": {
+        "status": "STILL OPEN",
+        "remediation_commit": null,
+        "rule": null,
+        "root_cause": "Fence triggers cover only the 40 FENCED_TABLES; workspace_access and local_recovery_identity have no fence trigger and local_recovery_identity has no immutability trigger.",
+        "fix": "Not remediated in this pass. Bounded defense-in-depth gap: no raw-SQL command is exposed by the desktop adapter, and business-identity substitution is already fail-closed at startup (RecoveryCorrupt). Fencing workspace_access would break the login path that the P5-ADV-001 fix deliberately shares, so this requires a designed metadata trust-model change rather than an added trigger.",
+        "files_changed": [],
+        "tests_added": 0,
+        "verification": "No remediation verification performed; original audit reproduction remains valid.",
+        "evidence": [
+          "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt"
+        ],
+        "remaining_blockers": [
+          "Requires a designed metadata trust model that does not break the shared login lockout path."
+        ]
+      }
     },
     {
       "id": "P5-ADV-009",
@@ -169,7 +365,33 @@
       "impact": "Potential cloud-side double-projection of financial events after restore; requires production-path verification.",
       "recommended_remediation": "Align dedup semantics and verify projection idempotency for journals/credits across in-memory and Postgres paths.",
       "independently_reproduced": false,
-      "classification": "NOT VERIFIED"
+      "classification": "NOT VERIFIED",
+      "remediation": {
+        "status": "FIXED — NOT INDEPENDENTLY VERIFIED",
+        "remediation_commit": "272b492",
+        "rule": "RULE 5",
+        "root_cause": "In-memory dedup was keyed businessId|operationId (cross-generation) while durable Postgres dedup included restore_generation. Separately, the in-memory duplicate branch returned early without advancing the new generation stream head, so after a restore the first genuinely new operation was rejected GAP and could never be published.",
+        "fix": "Decision: cross-generation dedup is intentional and required; a restore generation is a transport epoch, not business identity, and bumpCustomer applies a delta so re-projection would double-count outstanding. postgres.ts duplicate lookup drops restore_generation and selects the earliest event, advances the current generation head under FOR UPDATE when contiguous, and inserts a per-generation ack ON CONFLICT DO NOTHING. ingest.ts advances the head when a duplicate is exactly last+1 via clone/adopt. Retries of a seen sequence stay idempotent with the original cursor. Full 9-clause contract documented.",
+        "files_changed": [
+          "packages/replication-cloud/src/ingest.ts",
+          "packages/replication-cloud/src/postgres.ts",
+          "scripts/verify-replication.mjs",
+          "docs/reviews/phase5-cloud-dedup-contract.md"
+        ],
+        "tests_added": 9,
+        "verification": "node scripts/verify-replication.mjs => 129 checks passed, exit 0 (in-memory contract executable-verified). tsc --strict exit 0. Before/after probe: GAP before, accepted after with outstanding preserved. DURABLE POSTGRES RUNTIME NOT EXECUTED.",
+        "evidence": [
+          "rule5-replication-harness.txt",
+          "rule5-probe-before.txt",
+          "rule5-probe-after.txt",
+          "rule6-cloud-tsc.txt",
+          "rule6-cloud-behavioral.txt"
+        ],
+        "remaining_blockers": [
+          "Durable PostgreSQL runtime verification BLOCKED: no postgres/initdb/psql/pg_ctl binaries, no server and no container runtime available. TypeScript compilation is not runtime verification. The Postgres dedup-key check is a source-level governance assertion only.",
+          "Must be re-verified on a real disposable PostgreSQL instance: ingest -> restore -> replay -> new operation, asserting no double-counted outstanding and no GAP."
+        ]
+      }
     },
     {
       "id": "P5-ADV-010",
@@ -185,7 +407,21 @@
       "impact": "Low; values are internal and pairing-checked.",
       "recommended_remediation": "Validate token/generation format (length/charset) at admission and reconciliation.",
       "independently_reproduced": false,
-      "classification": "NOT VERIFIED"
+      "classification": "NOT VERIFIED",
+      "remediation": {
+        "status": "STILL OPEN",
+        "remediation_commit": null,
+        "rule": null,
+        "root_cause": "random_id() produces 64-hex values but admit and reconcile_startup do not validate token/generation format or length.",
+        "fix": "Not remediated in this pass. The backup-manifest path already validates 64-hex identity (business_id and generation), but admission and reconciliation do not. Small, safe follow-up deliberately deferred to keep this pass reviewable.",
+        "files_changed": [],
+        "tests_added": 0,
+        "verification": "No remediation verification performed.",
+        "evidence": [],
+        "remaining_blockers": [
+          "Validate 64-hex format for owner_token and generation at admit and reconcile_startup."
+        ]
+      }
     },
     {
       "id": "P5-ADV-011",
@@ -201,33 +437,81 @@
       "impact": "None on security; code-quality only.",
       "recommended_remediation": "Optionally address style lints; not release-blocking.",
       "independently_reproduced": true,
-      "classification": "TESTED"
+      "classification": "TESTED",
+      "remediation": {
+        "status": "STILL OPEN",
+        "remediation_commit": null,
+        "rule": null,
+        "root_cause": "Pre-existing repo-wide style lints surface under clippy -D warnings.",
+        "fix": "Not remediated. The plain clippy gate passes (exit 0) with 17 pre-existing lib warnings; remediation code contributes zero warnings (verified by grepping the clippy log for the new files).",
+        "files_changed": [],
+        "tests_added": 0,
+        "verification": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml => exit 0; cargo fmt --check => exit 0",
+        "evidence": [
+          "rule6-clippy.txt",
+          "rule6-fmt.txt"
+        ],
+        "remaining_blockers": [
+          "Repo-wide style debt cleanup; -D warnings is not a passing gate."
+        ]
+      }
     }
   ],
-  "independently_verified_invariants": [
-    { "invariant": "Business-table fence blocks session-less raw SQL writes", "evidence": "audit_b1 positive control + candidate fence test (candidate-full-suite.txt)" },
-    { "invariant": "No dual live ownership at startup", "evidence": "audit_f2_startup_rejects_two_live_operations" },
-    { "invariant": "Pre-commit crash retains original financial data and durable fence", "evidence": "pristine-crash.txt (crash_at_every_transition_is_fail_closed_and_consistent)" },
-    { "invariant": "Completed crash is the sole durable success point", "evidence": "pristine-crash.txt" },
-    { "invariant": "Startup rejects unknown recovery audit action", "evidence": "audit_f1_startup_rejects_unknown_audit_action" },
-    { "invariant": "Startup rejects fence referencing a terminal operation", "evidence": "audit_f3_startup_rejects_fence_on_terminal_operation" },
-    { "invariant": "Startup rejects completed operation without result generation", "evidence": "audit_f4_startup_rejects_completed_without_generation" },
-    { "invariant": "Startup rejects business-identity substitution", "evidence": "audit_b2_startup_fails_closed_on_business_substitution" },
-    { "invariant": "Normal login lockout engages after five failures", "evidence": "audit_a2_normal_login_locks_out_after_five_failures" },
-    { "invariant": "Cloud same-generation redelivery is idempotent", "evidence": "cloud-behavioral-probe.txt" },
-    { "invariant": "Cloud rejects operation-identity payload reuse with CONFLICT", "evidence": "cloud-behavioral-probe.txt" },
-    { "invariant": "Cloud rejects stale restore generation with STALE_GENERATION", "evidence": "cloud-behavioral-probe.txt" }
-  ],
   "test_execution_ledger": [
-    { "command": "cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml", "result": "lib 221 passed / 0 failed / 7 ignored; security example 7 passed / 0 failed", "exit_code": 0, "evidence": "candidate-full-suite.txt" },
-    { "command": "cargo fmt --check --manifest-path packages/local-store/Cargo.toml", "result": "clean", "exit_code": 0, "evidence": "pristine-fmt.txt" },
-    { "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml", "result": "17 lib warnings (19 test cfg), no errors", "exit_code": 0, "evidence": "pristine-clippy-plain.txt" },
-    { "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml -- -D warnings", "result": "17 style lints promoted to errors", "exit_code": 101, "evidence": "pristine-clippy.txt" },
-    { "command": "cargo test --lib ... crash_at_every_transition_is_fail_closed_and_consistent -- --exact --nocapture", "result": "1 passed (subprocess crashes at 5 phases)", "exit_code": 0, "evidence": "pristine-crash.txt" },
-    { "command": "cargo test --lib ... recovery::phase5_tests::audit_ -- --nocapture", "result": "12 passed / 0 failed (audit-added)", "exit_code": 0, "evidence": "adversarial-all-12.txt" },
-    { "command": "node scripts/verify-replication.mjs", "result": "compiles; fails 'financial schema remains 12'", "exit_code": 1, "evidence": "cloud-verify-replication.txt" },
-    { "command": "tsc replication-cloud + mobile-contracts --strict (TS 6.0.3)", "result": "compiles clean", "exit_code": 0, "evidence": "compile step of verify-replication; cloud-out" },
-    { "command": "node cloud-probe.mjs", "result": "5 assertions passed", "exit_code": 0, "evidence": "cloud-behavioral-probe.txt" }
+    {
+      "command": "cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml",
+      "result": "lib 221 passed / 0 failed / 7 ignored; security example 7 passed / 0 failed",
+      "exit_code": 0,
+      "evidence": "candidate-full-suite.txt"
+    },
+    {
+      "command": "cargo fmt --check --manifest-path packages/local-store/Cargo.toml",
+      "result": "clean",
+      "exit_code": 0,
+      "evidence": "pristine-fmt.txt"
+    },
+    {
+      "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml",
+      "result": "17 lib warnings (19 test cfg), no errors",
+      "exit_code": 0,
+      "evidence": "pristine-clippy-plain.txt"
+    },
+    {
+      "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml -- -D warnings",
+      "result": "17 style lints promoted to errors",
+      "exit_code": 101,
+      "evidence": "pristine-clippy.txt"
+    },
+    {
+      "command": "cargo test --lib ... crash_at_every_transition_is_fail_closed_and_consistent -- --exact --nocapture",
+      "result": "1 passed (subprocess crashes at 5 phases)",
+      "exit_code": 0,
+      "evidence": "pristine-crash.txt"
+    },
+    {
+      "command": "cargo test --lib ... recovery::phase5_tests::audit_ -- --nocapture",
+      "result": "12 passed / 0 failed (audit-added)",
+      "exit_code": 0,
+      "evidence": "adversarial-all-12.txt"
+    },
+    {
+      "command": "node scripts/verify-replication.mjs",
+      "result": "compiles; fails 'financial schema remains 12'",
+      "exit_code": 1,
+      "evidence": "cloud-verify-replication.txt"
+    },
+    {
+      "command": "tsc replication-cloud + mobile-contracts --strict (TS 6.0.3)",
+      "result": "compiles clean",
+      "exit_code": 0,
+      "evidence": "compile step of verify-replication; cloud-out"
+    },
+    {
+      "command": "node cloud-probe.mjs",
+      "result": "5 assertions passed",
+      "exit_code": 0,
+      "evidence": "cloud-behavioral-probe.txt"
+    }
   ],
   "environmental_limitations": {
     "tauri_desktop_runtime": "NOT VERIFIED (offline; not compiled). Authorization verified at Rust boundary + static dispatch/permission/capability/build-manifest tracing.",
@@ -241,5 +525,168 @@
     "docs/reviews/phase5-independent-adversarial-audit.md",
     "docs/reviews/phase5-adversarial-findings.json",
     "docs/reviews/phase5-adversarial-evidence/"
-  ]
+  ],
+  "remediation": {
+    "phase": "Phase 5 Remediation",
+    "date_utc": "2026-11-26",
+    "branch": "arena/76ac88ca-sornio",
+    "branch_constraint": "Session pinned to arena/76ac88ca-sornio; a separately named remediation branch could not be created. Remediation commits are stacked on audit commit 5ab3a96, which is stacked on candidate 7f73ef0.",
+    "remediation_head": "c2adaa9c77b7b1fb2ffa4c6528b16d6e56afd71f",
+    "audit_commit": "5ab3a966219252c9e8cef1d3aa52829be72cafd4",
+    "candidate_commit": "7f73ef0a64c81d4d87cc983c8d410d390e01d04c",
+    "baseline_main_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+    "main_untouched": true,
+    "merged": false,
+    "verdict": "NO-GO",
+    "verdict_rationale": "Four finding groups remediated with executable evidence, but durable PostgreSQL runtime verification is BLOCKED, Windows/Tauri runtime is NOT VERIFIED, and P5-ADV-008/010/011 remain open. A passing remediation branch does not authorize release; independent reproduction is required.",
+    "status_legend": {
+      "FIXED": "Remediated and verified by execution in this environment",
+      "FIXED — NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
+      "STILL OPEN": "Not remediated in this pass",
+      "BLOCKED": "Verification cannot be performed in this environment"
+    },
+    "commits": [
+      {
+        "hash": "895ec34",
+        "scope": "RULE 2 / P5-ADV-001"
+      },
+      {
+        "hash": "14d5cc1",
+        "scope": "RULE 3 / P5-ADV-003..007"
+      },
+      {
+        "hash": "0ccae3c",
+        "scope": "RULE 4 / P5-ADV-002"
+      },
+      {
+        "hash": "272b492",
+        "scope": "RULE 5 / P5-ADV-009"
+      },
+      {
+        "hash": "30abdf8",
+        "scope": "cargo fmt"
+      },
+      {
+        "hash": "c2adaa9",
+        "scope": "remove unnecessary mut in remediation test"
+      }
+    ],
+    "status_counts": {
+      "FIXED": 7,
+      "STILL OPEN": 3,
+      "FIXED — NOT INDEPENDENTLY VERIFIED": 1
+    },
+    "test_execution_ledger": [
+      {
+        "command": "cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml",
+        "result": "237 passed / 0 failed / 7 ignored (360.22s) + security example 7 passed / 0 failed (9.65s)",
+        "exit_code": 0,
+        "evidence": "rule6-full-suite-final.txt"
+      },
+      {
+        "command": "cargo test --example cashier_review_bridge --locked --manifest-path packages/local-store/Cargo.toml",
+        "result": "7 passed / 0 failed",
+        "exit_code": 0,
+        "evidence": "rule6-security-governance.txt"
+      },
+      {
+        "command": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::",
+        "result": "59 passed / 0 failed / 3 ignored (131.86s)",
+        "exit_code": 0,
+        "evidence": "rule6-recovery-tests.txt"
+      },
+      {
+        "command": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml migrat",
+        "result": "14 passed / 0 failed (19.59s)",
+        "exit_code": 0,
+        "evidence": "rule6-migration-tests.txt"
+      },
+      {
+        "command": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::financial::financial_tests",
+        "result": "10 passed / 0 failed (11.93s)",
+        "exit_code": 0,
+        "evidence": "rule6-financial-corruption.txt"
+      },
+      {
+        "command": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::remediation_tests",
+        "result": "6 passed / 0 failed (12.41s)",
+        "exit_code": 0,
+        "evidence": "rule6-auth-remediation.txt"
+      },
+      {
+        "command": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::phase5_tests::crash_at_every_transition_is_fail_closed_and_consistent -- --exact",
+        "result": "1 passed / 0 failed (24.19s); five-phase subprocess crash consistency re-run after recovery changes",
+        "exit_code": 0,
+        "evidence": "rule6-crash-final.txt"
+      },
+      {
+        "command": "node scripts/verify-replication.mjs",
+        "result": "129 checks passed",
+        "exit_code": 0,
+        "evidence": "rule5-replication-harness.txt"
+      },
+      {
+        "command": "tsc --noEmit -p packages/mobile-contracts/tsconfig.json",
+        "result": "clean",
+        "exit_code": 0,
+        "evidence": "rule6-cloud-tsc.txt"
+      },
+      {
+        "command": "tsc --strict (replication-cloud + mobile-contracts, emit)",
+        "result": "clean",
+        "exit_code": 0,
+        "evidence": "rule6-cloud-tsc.txt"
+      },
+      {
+        "command": "node cloud-probe.mjs <fixed build>",
+        "result": "5 assertions passed (audit probe re-run)",
+        "exit_code": 0,
+        "evidence": "rule6-cloud-behavioral.txt"
+      },
+      {
+        "command": "cargo fmt --check --manifest-path packages/local-store/Cargo.toml",
+        "result": "clean",
+        "exit_code": 0,
+        "evidence": "rule6-fmt.txt"
+      },
+      {
+        "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml",
+        "result": "passes; 17 pre-existing lib warnings, 0 from remediation code",
+        "exit_code": 0,
+        "evidence": "rule6-clippy.txt"
+      }
+    ],
+    "baseline_comparison": {
+      "audit_candidate": "221 passed / 0 failed / 7 ignored + 7 / 0",
+      "remediation": "237 passed / 0 failed / 7 ignored + 7 / 0",
+      "tests_added": 16,
+      "tests_deleted": 0,
+      "regressions": 0
+    },
+    "environmental_limitations": {
+      "cloud_postgres_durable_path": "BLOCKED — no postgres/initdb/psql/pg_ctl binaries, no server, no container runtime. TypeScript compilation is NOT runtime verification and is not claimed as such.",
+      "windows": "NOT VERIFIED — Linux execution only; no Windows claims.",
+      "tauri_desktop_runtime": "NOT VERIFIED — offline; desktop adapter not compiled or run. Only the Rust boundary and error-code mapping changed.",
+      "clippy_d_warnings": "Pre-existing style lints remain; the plain clippy gate is the passing gate."
+    },
+    "remaining_release_blockers": [
+      "Durable PostgreSQL runtime verification of the dedup change (BLOCKED in this environment).",
+      "Windows / Tauri desktop runtime verification (NOT VERIFIED).",
+      "P5-ADV-008 (Medium) STILL OPEN.",
+      "P5-ADV-010 (Low) STILL OPEN.",
+      "P5-ADV-011 (Informational) STILL OPEN.",
+      "Independent reviewer must reproduce every fix on a clean checkout."
+    ],
+    "deliverables": [
+      "docs/reviews/phase5-remediation-report.md",
+      "docs/reviews/phase5-cloud-dedup-contract.md",
+      "docs/reviews/phase5-remediation-evidence/",
+      "docs/reviews/phase5-adversarial-findings.json (originals preserved; remediation added)"
+    ],
+    "tests_added_detail": {
+      "rust_executable_tests": 16,
+      "replication_harness_checks": 9,
+      "note": "Rust total matches the full-suite delta 221 -> 237. Harness checks are assertions inside scripts/verify-replication.mjs (120 -> 129)."
+    }
+  }
 }

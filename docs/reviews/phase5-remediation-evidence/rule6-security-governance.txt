@@ -1,0 +1,19 @@
+=== rule6-security-governance ===
+DATE_UTC: 2026-11-26T16:07:26Z
+COMMAND: cargo test --example cashier_review_bridge --locked --manifest-path packages/local-store/Cargo.toml
+   Compiling sornio-local-store v0.1.0 (/home/user/Sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.82s
+     Running unittests examples/cashier_review_bridge.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/0ca8c11afc594b47/out/cashier_review_bridge-0ca8c11afc594b47)
+
+running 7 tests
+test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+test security_command_tests::recovery_review_commands_enforce_scope_and_owner_password_while_lock_free ... ok
+test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.89s
+
+EXIT_CODE=0

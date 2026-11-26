@@ -1,0 +1,5 @@
+=== RULE 4+5: replication harness with dedup contract checks ===
+DATE_UTC: 2026-11-26T16:02:16Z
+COMMAND: node scripts/verify-replication.mjs
+verify-replication: 129 checks passed
+EXIT_CODE=0

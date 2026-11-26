@@ -1,0 +1,12 @@
+=== RULE 6: cloud behavioral probe (audit probe, fixed build) ===
+DATE_UTC: 2026-11-26T16:17:06Z
+COMMAND: node /home/user/phase5-audit/cloud-probe.mjs <fixed-build>/index.js
+PASS: first invoice ingest is not a duplicate
+PASS: same-generation redelivery is idempotent (duplicate=true, same cursor)
+PASS: error CONFLICT (got CONFLICT)
+PASS: error STALE_GENERATION (got STALE_GENERATION)
+CROSS-GENERATION re-publish of bill-1 => {"operationId":"bill-1","cursor":"3","duplicate":true}
+PASS: in-memory dedup is CROSS-generation (businessId|operationId): gen-2 redelivery of bill-1 returns duplicate=true
+
+AUDIT PROBE COMPLETE: 5 assertions passed.
+PROBE_EXIT=0

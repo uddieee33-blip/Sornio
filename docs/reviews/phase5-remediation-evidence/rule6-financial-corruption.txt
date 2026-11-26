@@ -1,0 +1,32 @@
+=== rule6-financial-corruption ===
+DATE_UTC: 2026-11-26T16:07:37Z
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::financial::financial_tests
+warning: variable does not need to be mutable
+   --> src/recovery/remediation_tests.rs:127:9
+    |
+127 |     let mut s = seeded(&path);
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 10 tests
+test recovery::financial::financial_tests::rem_r3_detects_balanced_but_semantically_wrong_ledger ... ok
+test recovery::financial::financial_tests::rem_r3_accepts_valid_history_including_multipart_returns ... ok
+test recovery::financial::financial_tests::rem_r3_detects_deleted_credit_sale_entry ... ok
+test recovery::financial::financial_tests::rem_r3_detects_duplicated_return_journal ... ok
+test recovery::financial::financial_tests::rem_r3_detects_missing_postings_and_broken_stock_arithmetic ... ok
+test recovery::financial::financial_tests::rem_r3_detects_orphan_retail_journal_operation ... ok
+test recovery::financial::financial_tests::rem_r3_detects_tampered_repayment_entry ... ok
+test recovery::financial::financial_tests::rem_r3_tampered_backup_file_is_rejected_at_preview ... ok
+test recovery::financial::financial_tests::rem_r3_restore_rejects_financially_inconsistent_backup ... ok
+test recovery::financial::financial_tests::rem_r3_valid_backup_still_restores ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 234 filtered out; finished in 11.93s
+
+EXIT_CODE=0
