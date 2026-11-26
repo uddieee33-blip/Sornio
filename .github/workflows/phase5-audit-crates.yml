@@ -13,99 +13,49 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: arena/e831eb29-sornio
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and deliver via API
+      - name: Pack and push
+        id: push
+        continue-on-error: true
         run: |
-          # Find all .crate files
+          set -x
           CRATE_FILES=$(find ~/.cargo/registry/cache -name "*.crate" 2>/dev/null)
-          echo "Found $(echo "$CRATE_FILES" | wc -l) .crate files"
+          COUNT=$(echo "$CRATE_FILES" | wc -l)
+          echo "FOUND_CRATES=$COUNT"
           
-          # Create a single tarball
           tar cf crates.tar $CRATE_FILES
           SIZE=$(stat -c%s crates.tar)
-          echo "Tarball size: $SIZE bytes"
+          echo "TAR_SIZE=$SIZE"
           
-          # Report size to issue
-          gh issue comment 202 --body "Workflow run ${{ github.run_id }}: tarball size = $SIZE bytes" 2>/dev/null || true
-          
-          # Use curl to create blob, tree, commit, ref
-          TOKEN="${GITHUB_TOKEN}"
-          REPO="uddieee33-blip/Sornio"
-          
-          # Get parent commit
-          parent=$(curl -s -H "Authorization: Bearer $TOKEN" \
-            "https://api.github.com/repos/$REPO/commits/arena/e831eb29-sornio" | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
-          echo "Parent: $parent"
-          
-          # Get parent tree
-          parent_tree=$(curl -s -H "Authorization: Bearer $TOKEN" \
-            "https://api.github.com/repos/$REPO/git/commits/$parent" | python3 -c "import sys,json; print(json.load(sys.stdin)['tree']['sha'])")
-          echo "Parent tree: $parent_tree"
-          
-          # Create blob
-          blob=$(python3 -c "
-import base64, json, subprocess, os
-token = os.environ['GITHUB_TOKEN']
-with open('crates.tar', 'rb') as f:
-    data = base64.b64encode(f.read()).decode()
-r = subprocess.run(['curl', '-s', '-X', 'POST',
-    '-H', f'Authorization: Bearer {token}',
-    '-H', 'Accept: application/vnd.github+json',
-    '-d', json.dumps({'content': data, 'encoding': 'base64'}),
-    f'https://api.github.com/repos/uddieee33-blip/Sornio/git/blobs'],
-    capture_output=True, text=True)
-print(json.loads(r.stdout)['sha'])
-")
-          echo "Blob: $blob"
-          
-          # Create tree
-          tree=$(python3 -c "
-import json, subprocess, os
-token = os.environ['GITHUB_TOKEN']
-payload = json.dumps({
-    'base_tree': os.environ['PARENT_TREE'],
-    'tree': [{'path': 'phase5-audit-crates/crates.tar', 'mode': '100644', 'type': 'blob', 'sha': os.environ['BLOB_SHA']}]
-})
-r = subprocess.run(['curl', '-s', '-X', 'POST',
-    '-H', f'Authorization: Bearer {token}',
-    '-H', 'Accept: application/vnd.github+json',
-    '-d', payload,
-    'https://api.github.com/repos/uddieee33-blip/Sornio/git/trees'],
-    capture_output=True, text=True)
-print(json.loads(r.stdout)['sha'])
-")
-          echo "Tree: $tree"
-          
-          # Create commit
-          commit=$(python3 -c "
-import json, subprocess, os
-token = os.environ['GITHUB_TOKEN']
-payload = json.dumps({
-    'message': 'chore(phase5-audit): fetch locked crates',
-    'tree': os.environ['TREE_SHA'],
-    'parents': [os.environ['PARENT_SHA']]
-})
-r = subprocess.run(['curl', '-s', '-X', 'POST',
-    '-H', f'Authorization: Bearer {token}',
-    '-H', 'Accept: application/vnd.github+json',
-    '-d', payload,
-    'https://api.github.com/repos/uddieee33-blip/Sornio/git/commits'],
-    capture_output=True, text=True)
-print(json.loads(r.stdout)['sha'])
-")
-          echo "Commit: $commit"
-          
-          # Create ref
-          curl -s -X PUT \
-            -H "Authorization: Bearer $TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -d "{\"ref\": \"refs/heads/phase5-audit-crates-tmp\", \"sha\": \"$commit\"}" \
-            "https://api.github.com/repos/$REPO/git/refs"
-          echo ""
-          echo "DONE: phase5-audit-crates-tmp created"
+          git config user.email "actions@github.com"
+          git config user.name "Phase5 Audit"
+          git checkout -b phase5-audit-crates-tmp
+          mkdir -p phase5-audit-crates
+          cp crates.tar phase5-audit-crates/
+          git add phase5-audit-crates/crates.tar
+          git commit -m "chore(phase5-audit): fetch locked crates"
+          git remote -v
+          git push https://x-access-token:${GITHUB_TOKEN}@github.com/uddieee33-blip/Sornio.git phase5-audit-crates-tmp:phase5-audit-crates-tmp
+          echo "PUSH_EXIT=$?"
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PARENT_SHA: ${{ github.sha }}
+      - name: Report result
+        if: always()
+        run: |
+          echo "Push step outcome: ${{ steps.push.outcome }}"
+          echo "Push step exit code: ${{ steps.push.exit-code }}"
+          if [ "${{ steps.push.outcome }}" != "success" ]; then
+            gh issue comment 202 --body "Phase 5 crate fetch workflow run ${{ github.run_id }} FAILED.
+
+**Push step outcome:** ${{ steps.push.outcome }}
+**Push step exit code:** ${{ steps.push.exit-code }}
+
+The cargo fetch and tar steps should have succeeded. The git push step failed. Since workflow logs redirect to a TLS-blocked Azure blob, the error is reported here." 2>&1
+          else
+            gh issue comment 202 --body "Phase 5 crate fetch workflow run ${{ github.run_id }} SUCCEEDED. phase5-audit-crates-tmp branch should be available." 2>&1
+          fi
