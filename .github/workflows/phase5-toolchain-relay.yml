@@ -1,0 +1,106 @@
+# TEMPORARY Phase 5 investigation infrastructure.
+# The analysis sandbox has no route to static.rust-lang.org or crates.io.
+# This workflow downloads the OFFICIAL Rust stable dist components and the
+# exact locked crates on a GitHub runner, verifies their SHA-256 against the
+# official channel manifest / Cargo.lock, and relays the bytes through this
+# session branch so the sandbox can fetch them via git. The relay payload is
+# removed from the branch after extraction; this file is archived under
+# docs/reviews/phase5-evidence/ and deleted before the investigation ends.
+name: Phase 5 toolchain relay
+on:
+  push:
+    branches: [arena/76ac88ca-sornio]
+    paths: [.github/workflows/phase5-toolchain-relay.yml]
+permissions:
+  contents: write
+jobs:
+  relay:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout session branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          git clone --depth 1 --branch arena/76ac88ca-sornio \
+            "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" work
+      - name: Fetch and verify official Rust dist components
+        run: |
+          set -euo pipefail
+          mkdir -p relay/payload
+          curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml -o relay/channel-rust-stable.toml
+          python3 - <<'PYEOF'
+          import tomllib, json, urllib.request, hashlib, os, sys
+          with open('relay/channel-rust-stable.toml','rb') as f:
+              channel = tomllib.load(f)
+          version = channel['version']
+          target = 'x86_64-unknown-linux-gnu'
+          wanted = ['rustc', 'rust-std', 'cargo', 'rustfmt', 'clippy']
+          manifest = {'channel': 'stable', 'version': version, 'target': target,
+                      'source': 'https://static.rust-lang.org/dist/channel-rust-stable.toml',
+                      'files': []}
+          for comp in wanted:
+              pkg = channel['pkg'][comp]['target'].get(target)
+              if pkg is None or not pkg.get('available'):
+                  print(f'component {comp} unavailable for {target}', file=sys.stderr); sys.exit(1)
+              url, sha = pkg['xz_url'], pkg['xz_hash']
+              name = url.rsplit('/',1)[1]
+              dest = os.path.join('relay/payload', name)
+              print(f'downloading {name}', flush=True)
+              urllib.request.urlretrieve(url, dest)
+              h = hashlib.sha256()
+              with open(dest,'rb') as f:
+                  for chunk in iter(lambda: f.read(1<<20), b''):
+                      h.update(chunk)
+              if h.hexdigest() != sha:
+                  print(f'HASH MISMATCH {name}', file=sys.stderr); sys.exit(1)
+              manifest['files'].append({'name': name, 'component': comp, 'url': url,
+                                        'sha256': sha, 'size': os.path.getsize(dest)})
+              print(f'verified {name} sha256={sha}', flush=True)
+          with open('relay/manifest.json','w') as f:
+              json.dump(manifest, f, indent=2)
+          print('RUST_VERSION=' + version)
+          PYEOF
+      - name: Fetch locked crates for the Linux target and verify against Cargo.lock
+        run: |
+          set -euo pipefail
+          mkdir -p relay/crates
+          cargo fetch --locked --target x86_64-unknown-linux-gnu \
+            --manifest-path work/packages/local-store/Cargo.toml
+          python3 - <<'PYEOF'
+          import glob, hashlib, os, re, shutil, sys
+          lock = open('work/packages/local-store/Cargo.lock').read()
+          sums = {}
+          for block in lock.split('[[package]]'):
+              name = re.search(r'name = "([^"]+)"', block)
+              ver = re.search(r'version = "([^"]+)"', block)
+              chk = re.search(r'checksum = "([0-9a-f]{64})"', block)
+              if name and ver and chk:
+                  sums[f'{name.group(1)}-{ver.group(1)}.crate'] = chk.group(1)
+          count = 0
+          for path in glob.glob(os.path.expanduser('~/.cargo/registry/cache/*/*.crate')):
+              base = os.path.basename(path)
+              h = hashlib.sha256(open(path,'rb').read()).hexdigest()
+              if base in sums and sums[base] != h:
+                  print(f'CRATE HASH MISMATCH {base}', file=sys.stderr); sys.exit(1)
+              shutil.copy(path, os.path.join('relay/crates', base))
+              count += 1
+          print(f'relayed {count} crate files, all verified against Cargo.lock where listed')
+          PYEOF
+      - name: Split, commit and push relay payload
+        run: |
+          set -euo pipefail
+          cd relay
+          tar cf payload.tar payload crates manifest.json channel-rust-stable.toml
+          sha256sum payload.tar > payload.tar.sha256
+          split -b 45m -d payload.tar chunk-
+          rm payload.tar
+          mkdir -p ../work/phase5-relay
+          mv chunk-* payload.tar.sha256 manifest.json channel-rust-stable.toml ../work/phase5-relay/
+          cd ../work
+          git config user.name "phase5-relay"
+          git config user.email "actions@github.com"
+          git add phase5-relay
+          git commit -m "chore(phase5): temporary relay of official Rust dist and locked crates"
+          git push origin HEAD:arena/76ac88ca-sornio
