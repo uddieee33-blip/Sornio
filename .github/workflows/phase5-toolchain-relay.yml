@@ -30,11 +30,11 @@ jobs:
           set -euo pipefail
           mkdir -p relay/payload
           curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml -o relay/channel-rust-stable.toml
-          python3 - <<'PYEOF'
+          python3 - <<'PYEOF' 2>&1 | tee relay-fetch.log
           import tomllib, json, urllib.request, hashlib, os, sys
           with open('relay/channel-rust-stable.toml','rb') as f:
               channel = tomllib.load(f)
-          version = channel['version']
+          version = channel['pkg']['rustc']['version']
           target = 'x86_64-unknown-linux-gnu'
           wanted = ['rustc', 'rust-std', 'cargo', 'rustfmt', 'clippy']
           manifest = {'channel': 'stable', 'version': version, 'target': target,
@@ -88,6 +88,19 @@ jobs:
               count += 1
           print(f'relayed {count} crate files, all verified against Cargo.lock where listed')
           PYEOF
+      - name: Relay failure logs for the sandbox (logs CDN is unreachable there)
+        if: failure()
+        run: |
+          set -euo pipefail
+          mkdir -p work/phase5-relay
+          cp relay-fetch.log work/phase5-relay/ 2>/dev/null || true
+          cp relay/channel-rust-stable.toml work/phase5-relay/ 2>/dev/null || true
+          cd work
+          git config user.name "phase5-relay"
+          git config user.email "actions@github.com"
+          git add phase5-relay
+          git commit -m "chore(phase5): relay failure diagnostics" || exit 0
+          git push origin HEAD:arena/76ac88ca-sornio
       - name: Split, commit and push relay payload
         run: |
           set -euo pipefail
