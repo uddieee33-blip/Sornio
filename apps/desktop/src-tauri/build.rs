@@ -6,6 +6,8 @@ fn main() {
             "export_local_backup",
             "preview_local_backup",
             "restore_local_backup",
+            "read_recovery_status",
+            "resolve_interrupted_recovery",
             "prepare_local_retail",
             "post_local_retail",
             "clear_local_retail",

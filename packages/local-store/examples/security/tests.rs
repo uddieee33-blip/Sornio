@@ -12,6 +12,13 @@ const PUBLIC: &[&str] = &[
     "unlock_workspace",
     "lock_workspace",
 ];
+// Phase 5: recovery review/resolution is a deliberately lock-free, scope-verified
+// category. A fenced workspace cannot establish a session (login is barred by the
+// fence), so these cannot use the session-guarded wrappers. They verify the
+// workspace scope read-only; resolution re-authenticates the Owner password and
+// writes only recovery metadata. They are covered by their own negative test
+// below rather than the session-based cases() role matrix.
+const RECOVERY_REVIEW: &[&str] = &["read_recovery_status", "resolve_interrupted_recovery"];
 const ALL: &[&str] = &["owner", "manager", "assistant_manager", "cashier"];
 const MANAGE: &[&str] = &["owner", "manager", "assistant_manager"];
 const REPORTS: &[&str] = &["owner", "manager"];
@@ -264,6 +271,7 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
         .iter()
         .map(|c| c.command)
         .chain(PUBLIC.iter().copied())
+        .chain(RECOVERY_REVIEW.iter().copied())
         .collect();
     assert_eq!(
         registered, covered,
@@ -305,7 +313,9 @@ fn every_registered_command_has_an_explicit_security_case_and_scoped_wrapper() {
                         "restore_local_backup"
                     ]
                     .contains(&name)
-                        && part.contains("with_recovery_workspace(")),
+                        && part.contains("with_recovery_workspace("))
+                    || (RECOVERY_REVIEW.contains(&name)
+                        && part.contains("with_recovery_review_workspace(")),
                 "{name} must use native scope enforcement"
             );
         }
@@ -329,7 +339,8 @@ fn capability_is_local_only_and_no_generic_database_or_reset_command_exists() {
             "local-identity",
             "local-customers",
             "local-retail",
-            "local-recovery"
+            "local-recovery",
+            "local-recovery-review"
         ])
     );
     let d = tempfile::tempdir().unwrap();
@@ -542,4 +553,60 @@ fn public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials
     w.login("owner", PASSWORD).unwrap();
     assert_eq!(w.local_session().unwrap().scope, scope);
     assert_eq!(w.list_staff().unwrap().len(), 1);
+}
+
+#[test]
+fn recovery_review_commands_enforce_scope_and_owner_password_while_lock_free() {
+    let d = tempfile::tempdir().unwrap();
+    let path = d.path().join("s.db");
+    let admin = owner(&path);
+    let scope = admin.local_session().unwrap().scope;
+    let wrong = Scope {
+        business_id: "other-business".into(),
+        workspace_id: scope.workspace_id.clone(),
+    };
+    let status_case = Case {
+        command: "read_recovery_status",
+        args: json!({}),
+        allowed: OWNER,
+    };
+    let resolve_case = Case {
+        command: "resolve_interrupted_recovery",
+        args: json!({"operationId":"nonexistent","currentPassword":PASSWORD}),
+        allowed: OWNER,
+    };
+    // A locked workspace (no session) can still read recovery status: it is
+    // lock-free operational metadata, but the scope boundary still applies.
+    let mut locked = Workspace::new(Store::open(&path, KEY).unwrap());
+    assert!(matches!(
+        invoke(&mut locked, &status_case, &wrong),
+        Err(StoreError::WorkspaceMismatch)
+    ));
+    let status = invoke(&mut locked, &status_case, &scope).unwrap();
+    assert_eq!(status["fenced"], json!(false));
+    assert_eq!(status["requiresResolution"], json!(false));
+    // Resolution always requires the Owner password, even with a correct scope.
+    let bad_password = Case {
+        command: "resolve_interrupted_recovery",
+        args: json!({"operationId":"nonexistent","currentPassword":"wrong synthetic password"}),
+        allowed: OWNER,
+    };
+    assert!(matches!(
+        invoke(&mut locked, &bad_password, &scope),
+        Err(StoreError::InvalidPassword)
+    ));
+    // Correct scope + correct Owner password, but no interrupted operation exists:
+    // the resolution must fail closed (nothing to resolve), never fabricate success.
+    assert!(matches!(
+        invoke(&mut locked, &resolve_case, &scope),
+        Err(StoreError::RecoveryOwnership)
+    ));
+    // Wrong scope is rejected for resolution too.
+    assert!(matches!(
+        invoke(&mut locked, &resolve_case, &wrong),
+        Err(StoreError::WorkspaceMismatch)
+    ));
+    // The store is unchanged and still has no fence.
+    let status = invoke(&mut locked, &status_case, &scope).unwrap();
+    assert_eq!(status["fenced"], json!(false));
 }

@@ -765,9 +765,18 @@ fn concurrent_credit_limit_never_exceeds_customer_cap() {
     barrier.wait();
     let b_result = b.post_invoice(right);
     let a_result = worker.join().unwrap();
+    // Phase 5 baseline repair: both sales touch the same product revision, so the
+    // loser can correctly fail with StockConflict (optimistic revision fence)
+    // instead of CreditLimit. The cap/debt/invoice invariants below are unchanged.
     match (a_result, b_result) {
-        (Ok(_), Err(StoreError::CreditLimit | StoreError::CreditConflict))
-        | (Err(StoreError::CreditLimit | StoreError::CreditConflict), Ok(_)) => {}
+        (
+            Ok(_),
+            Err(StoreError::CreditLimit | StoreError::CreditConflict | StoreError::StockConflict),
+        )
+        | (
+            Err(StoreError::CreditLimit | StoreError::CreditConflict | StoreError::StockConflict),
+            Ok(_),
+        ) => {}
         other => panic!("credit cap must serialize: {other:?}"),
     }
     let debt: i64 = b.find_customers("c1", false).unwrap()[0]

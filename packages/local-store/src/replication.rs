@@ -101,6 +101,17 @@ pub trait Transport {
     fn send(&self, envelope_json: &str) -> Result<PublishAck, StoreError>;
 }
 
+/// Process-local drain coordination between replication publishers and recovery.
+/// Recovery holds this from quiescence through the restore commit; publishers
+/// hold it per batch and re-check the durable fence + generation per row, so a
+/// batch aborts promptly once a recovery is admitted. Cross-process publishers
+/// are fenced by the durable barrier and generation checks, not by this mutex.
+static DRAIN: Mutex<()> = Mutex::new(());
+
+pub(crate) fn acquire_drain() -> Result<std::sync::MutexGuard<'static, ()>, StoreError> {
+    DRAIN.lock().map_err(|_| StoreError::AccessUnavailable)
+}
+
 /// Process-local flush mutex. Multi-worker safety is the cloud unique
 /// constraint, not this lock.
 pub struct FlushLock {
@@ -352,18 +363,37 @@ pub fn publish_unpublished<T: Transport>(
     flush: &FlushLock,
 ) -> Result<Vec<PublishAck>, StoreError> {
     let _guard = flush.acquire()?;
+    let _drain = acquire_drain()?;
     let generation = store.restore_generation()?;
     if generation != identity.restore_generation {
         return Err(StoreError::WorkspaceMismatch);
     }
+    crate::recovery::ensure_open(&store.0)?;
     let mut ack = sidecar.load(&generation)?;
     ack.on_restore(&generation);
     let rows = store.unpublished_replication(&ack)?;
     let mut out = Vec::new();
     for row in rows {
+        // Fence + generation re-check before every send: a recovery admitted
+        // mid-batch stops this publisher before it can publish or ack stale rows.
+        if crate::recovery::fence_active(&store.0)? {
+            return Err(StoreError::RecoveryActive);
+        }
+        if store.restore_generation()? != generation {
+            return Err(StoreError::WorkspaceMismatch);
+        }
         let envelope = envelope_from_row(identity, &row)?;
         let json = serde_json::to_string(&envelope)?;
         let remote = transport.send(&json)?;
+        // Re-check after the network send and before the durable ack: a restore
+        // that committed while the envelope was on the wire must not be acked
+        // against a generation that no longer exists.
+        if crate::recovery::fence_active(&store.0)? {
+            return Err(StoreError::RecoveryActive);
+        }
+        if store.restore_generation()? != generation {
+            return Err(StoreError::WorkspaceMismatch);
+        }
         commit_local_ack(
             sidecar,
             &mut ack,

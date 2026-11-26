@@ -80,7 +80,29 @@ fn recovery_dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
         })
     })
 }
+fn recovery_review_dispatch(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+    let a = &c.args;
+    Ok(match c.command.as_str() {
+        "read_recovery_status" => serde_json::to_value(w.recovery_status()?)?,
+        "resolve_interrupted_recovery" => {
+            w.resolve_interrupted_recovery(
+                &argument::<String>(a, "operationId")?,
+                &argument::<String>(a, "currentPassword")?,
+            )?;
+            Value::Null
+        }
+        _ => return Err(StoreError::InvalidInvoice),
+    })
+}
 fn call(w: &mut Workspace, c: Call) -> Result<Value, StoreError> {
+    // Phase 5 lock-free recovery review: scope is verified read-only because a
+    // fenced workspace cannot establish a session. Resolution re-authenticates
+    // the Owner password inside the library.
+    if ["read_recovery_status", "resolve_interrupted_recovery"].contains(&c.command.as_str()) {
+        let scope = argument::<Scope>(&c.args, "scope")?;
+        w.verify_scope_readonly(&scope)?;
+        return recovery_review_dispatch(w, c);
+    }
     if [
         "read_last_restore",
         "choose_local_backup",
