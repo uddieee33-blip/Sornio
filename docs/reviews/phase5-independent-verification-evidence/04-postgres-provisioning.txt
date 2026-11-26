@@ -1,0 +1,17 @@
+=== PostgreSQL version (real binary) ===
+postgres (PostgreSQL) 16.2
+initdb (PostgreSQL) 16.2
+=== initdb disposable cluster ===
+selecting default max_connections ... 100
+selecting default shared_buffers ... 128MB
+selecting default time zone ... Etc/UTC
+creating configuration files ... ok
+running bootstrap script ... ok
+performing post-bootstrap initialization ... ok
+syncing data to disk ... ok
+
+Success. You can now start the database server using:
+
+    /home/user/phase5-verify/pgenv/pgserver/pginstall/bin/pg_ctl -D /home/user/phase5-verify/pgdata -l logfile start
+
+INITDB_EXIT=0

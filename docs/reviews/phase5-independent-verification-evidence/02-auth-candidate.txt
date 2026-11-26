@@ -1,0 +1,56 @@
+=== INDEPENDENT AUTH TESTS (candidate 7f73ef0) ===
+DATE_UTC: 2026-11-26T16:53:07Z
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-verify/candidate/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.31s
+     Running unittests src/lib.rs (/home/user/phase5-verify/target-candidate/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 6 tests
+IV002 correct-password-during-lockout => Ok(())
+
+thread 'recovery::independent_auth_tests::iv002_correct_password_refused_during_lockout' (103943) panicked at src/recovery/independent_auth_tests.rs:128:5:
+correct password must be RateLimited during active lockout, got Ok(())
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test recovery::independent_auth_tests::iv002_correct_password_refused_during_lockout ... FAILED
+IV003 before=(0, 0) after_restart=(0, 0)
+
+thread 'recovery::independent_auth_tests::iv003_lockout_survives_restart' (103944) panicked at src/recovery/independent_auth_tests.rs:152:5:
+assertion `left == right` failed
+  left: 0
+ right: 5
+test recovery::independent_auth_tests::iv003_lockout_survives_restart ... FAILED
+IV004 after 3 recovery failures budget=(0, 0)
+
+thread 'recovery::independent_auth_tests::iv004_budget_shared_with_normal_login' (103945) panicked at src/recovery/independent_auth_tests.rs:175:5:
+assertion `left == right` failed: recovery failures must charge the shared workspace_access budget
+  left: 0
+ right: 3
+test recovery::independent_auth_tests::iv004_budget_shared_with_normal_login ... FAILED
+IV001 granted=0 rate_limited=0 attempts=0 retry=0
+
+thread 'recovery::independent_auth_tests::iv001_production_api_brute_force_is_rate_limited' (103942) panicked at src/recovery/independent_auth_tests.rs:107:5:
+ATTACK SUCCEEDS: 40 wrong-password attempts were never rate-limited (no durable lockout)
+test recovery::independent_auth_tests::iv001_production_api_brute_force_is_rate_limited ... FAILED
+IV005 32 concurrent attempts: rate_limited=0 attempts=0 retry=0
+
+thread 'recovery::independent_auth_tests::iv005_concurrent_attempts_cannot_bypass_budget' (103946) panicked at src/recovery/independent_auth_tests.rs:238:5:
+ATTACK SUCCEEDS: 32 concurrent wrong passwords were never rate-limited
+test recovery::independent_auth_tests::iv005_concurrent_attempts_cannot_bypass_budget ... FAILED
+
+thread 'recovery::independent_auth_tests::iv006_no_business_access_while_locked' (103960) panicked at src/recovery/independent_auth_tests.rs:260:5:
+got Ok(())
+test recovery::independent_auth_tests::iv006_no_business_access_while_locked ... FAILED
+
+failures:
+
+failures:
+    recovery::independent_auth_tests::iv001_production_api_brute_force_is_rate_limited
+    recovery::independent_auth_tests::iv002_correct_password_refused_during_lockout
+    recovery::independent_auth_tests::iv003_lockout_survives_restart
+    recovery::independent_auth_tests::iv004_budget_shared_with_normal_login
+    recovery::independent_auth_tests::iv005_concurrent_attempts_cannot_bypass_budget
+    recovery::independent_auth_tests::iv006_no_business_access_while_locked
+
+test result: FAILED. 0 passed; 6 failed; 0 ignored; 0 measured; 228 filtered out; finished in 24.04s
+
+error: test failed, to rerun pass `--lib`
+EXIT_CODE=101

@@ -1,0 +1,9 @@
+INDEPENDENT VERIFICATION WORKSPACE
+DATE_UTC: 2026-11-26T16:33:15Z
+REPO: uddieee33-blip/Sornio
+BRANCH: arena/76ac88ca-sornio
+VERIFIED_COMMIT: d79a6e89fd7590c2806efd2d9bd2d46d3dada537
+METHOD: git archive <commit> | tar -x  (committed tree only; author working dir NOT used)
+WORKSPACE: /home/user/phase5-verify/workspace
+HOST_OS: Linux 6.1.158+
+FILES: 798

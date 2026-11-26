@@ -115,6 +115,11 @@
           "rule6-full-suite-final.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IV001-IV006 drive the production API Workspace::resolve_interrupted_recovery. Candidate 0/6 (40 wrong passwords never rate-limited; correct password granted Ok(()) during would-be lockout; 32 concurrent never limited). Remediation 6/6: cap 5, RateLimited on correct password while locked, budget identical after reopen, shared with login, 28/32 concurrent limited, business write rejected by fence and login RecoveryActive."
       }
     },
     {
@@ -148,6 +153,11 @@
           "rule5-replication-harness.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "Official harness re-run independently: 129 checks, exit 0. Diff audit: exactly 2 obsolete assertions removed, 25 added; security/compatibility intent preserved by v13 equivalents."
       }
     },
     {
@@ -185,6 +195,11 @@
           "rule6-full-suite-final.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "financial::verify confirmed inside the single IMMEDIATE restore tx after integrity() and before completion. Independent IVF10: corrupt backup rejected FinancialInconsistency, 2 original invoices intact, no fence left behind. IVF11 healthy backup restores clean."
       }
     },
     {
@@ -218,6 +233,11 @@
           "rule6-financial-corruption.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF01 independently reproduced: credit sale missing matching credit entry + customer outstanding is negative."
       }
     },
     {
@@ -251,6 +271,11 @@
           "rule6-financial-corruption.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF02 independently reproduced: credit entry disagrees with customer journal."
       }
     },
     {
@@ -284,6 +309,11 @@
           "rule6-financial-corruption.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF03 independently reproduced with ledger SUM confirmed still 0: settlement leg and revenue leg disagreements detected."
       }
     },
     {
@@ -317,6 +347,11 @@
           "rule6-financial-corruption.txt"
         ],
         "remaining_blockers": []
+      },
+      "independent_verification": {
+        "status": "STILL OPEN",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "PARTIALLY FIXED. The author regression duplicates a RETURN operation (detected). Independent IVX01 duplicates a SALE operation: cash 4250->8500, receivables -4250->-8500, zero-sum preserved, production violations()=[], verify()=Ok(()), and PRODUCTION RESTORE returns Ok(...). This is exactly the original attack_scenario and expected_invariant. Reachable via INSERT with fresh sequence values (append-only triggers permit INSERT)."
       }
     },
     {
@@ -349,6 +384,11 @@
         "remaining_blockers": [
           "Requires a designed metadata trust model that does not break the shared login lockout path."
         ]
+      },
+      "independent_verification": {
+        "status": "STILL OPEN",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "CONFIRMED and bounded. With a live fence: lockout reset Ok(1) -> budget (0,0); generation tamper Ok(1); business_id substitution Ok(1); business write correctly fenced. After a raw-SQL budget reset, 4 further guesses admitted before re-lockout. Bounding independently verified: Store::open returns RecoveryCorrupt after business substitution, and none of 50 Tauri commands accepts raw SQL. Requires SQLCipher key possession. Recommend ACCEPT with documented threat-model rationale."
       }
     },
     {
@@ -391,6 +431,11 @@
           "Durable PostgreSQL runtime verification BLOCKED: no postgres/initdb/psql/pg_ctl binaries, no server and no container runtime available. TypeScript compilation is not runtime verification. The Postgres dedup-key check is a source-level governance assertion only.",
           "Must be re-verified on a real disposable PostgreSQL instance: ingest -> restore -> replay -> new operation, asserting no double-counted outstanding and no GAP."
         ]
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "DURABLE PATH NOW VERIFIED ON REAL POSTGRESQL 16.2 (previously BLOCKED). 36/36 independent assertions incl. 4-way concurrent duplicate ingestion (1 event row, same cursor), sequence race (exactly 1 winner, 3 DUPLICATE_SEQUENCE, head advances once), and rollback (no partial event/ack, head unchanged). Candidate proven defective on the same server: full ordered outbox replay doubled outstanding 5000->10000 with duplicate event rows; remediation preserved 5000 with all duplicates. In-memory contract 18/18."
       }
     },
     {
@@ -421,6 +466,11 @@
         "remaining_blockers": [
           "Validate 64-hex format for owner_token and generation at admit and reconcile_startup."
         ]
+      },
+      "independent_verification": {
+        "status": "STILL OPEN",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "PARTIALLY CONFIRMED. generation format unvalidated: reconcile_startup Ok(()) for \"short\", \"zzzz\", \"'; DROP TABLE x; --\" and \"\". owner_token concern FALSIFIED as written: UPDATE blocked by \"recovery fence is immutable while active\" and \"recovery operation identity is immutable\" triggers. Recommend small fix: 64-hex validation for generation at admit/reconcile."
       }
     },
     {
@@ -454,6 +504,11 @@
         "remaining_blockers": [
           "Repo-wide style debt cleanup; -D warnings is not a passing gate."
         ]
+      },
+      "independent_verification": {
+        "status": "STILL OPEN",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "CONFIRMED pre-existing. Plain clippy exit 0 (17 lib + 2 test-only warnings); -D warnings exit 101. ZERO warnings originate in remediation files. Style-only categories. Recommend ACCEPT."
       }
     }
   ],
@@ -688,5 +743,146 @@
       "replication_harness_checks": 9,
       "note": "Rust total matches the full-suite delta 221 -> 237. Harness checks are assertions inside scripts/verify-replication.mjs (120 -> 129)."
     }
+  },
+  "independent_verification": {
+    "phase": "Phase 5 Independent Remediation Verification & Release Gate",
+    "date_utc": "2026-11-26",
+    "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+    "branch": "arena/76ac88ca-sornio",
+    "baseline_main_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+    "main_untouched": true,
+    "merged": false,
+    "verdict": "NO-GO",
+    "verdict_rationale": "P5-ADV-007 was reported FIXED but its exact original scenario (duplicated balanced retail SALE journal) still passes the production verifier AND the production restore boundary. Separately, mandatory Windows acceptance evidence is absent and cannot be produced in this environment.",
+    "method": "Three isolated trees (pristine d79a6e8, workspace d79a6e8 + verifier tests, candidate 7f73ef0), each with its own CARGO_TARGET_DIR. All reproductions written independently by the verifier. Production code identical between pristine and workspace except added #[cfg(test)] mod lines.",
+    "new_defects": [
+      {
+        "id": "IV-NEW-001",
+        "severity": "Medium",
+        "title": "Duplicated balanced retail SALE journal accepted by production restore",
+        "related_finding": "P5-ADV-007",
+        "evidence": "cash 4250->8500, receivables -4250->-8500; zero-sum preserved; violations()=[]; verify()=Ok(()); restore()=Ok(...); fence released",
+        "recommended_fix": "Validate retail sale journal legs relationally against the operation recorded payments/activity amounts, mirroring the existing return-totals check. Do not add blanket UNIQUE(operation_id,account): valid multi-part returns repeat accounts.",
+        "evidence_file": "03-gap-duplicated-sale-journal.txt"
+      }
+    ],
+    "postgres_execution": {
+      "status": "VERIFIED",
+      "server": "PostgreSQL 16.2 (disposable, PyPI pgserver binaries)",
+      "endpoint": "127.0.0.1:55432 db sornio_verify, fsync=on",
+      "assertions": "36 passed / 0 failed, exit 0",
+      "covers": "cross-generation duplicates, new post-restore operations, stream advancement, outstanding, retries, conflicting payloads, delayed acks, 4-way concurrent duplicate ingestion, sequence race, rollback, durable authz",
+      "candidate_defect_proven": "full ordered outbox replay doubled outstanding 5000->10000 with duplicate event rows",
+      "note": "applyReplicationMigration is NOT idempotent (42P07 on re-apply); a fresh database was used per run"
+    },
+    "windows_execution": {
+      "status": "NOT PERFORMED - RELEASE BLOCKER",
+      "reason": "No Windows 10/11 host, no WSL/wine/qemu, no MSVC or mingw toolchain, no Windows Rust target, cargo-tauri and webkit2gtk absent, static.rust-lang.org unreachable",
+      "linux_substituted": false
+    },
+    "test_ledger": [
+      {
+        "gate": "complete Rust suite (pristine)",
+        "result": "237 passed / 0 failed / 7 ignored + example 7/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "security governance",
+        "result": "7/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "migration",
+        "result": "14/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "recovery",
+        "result": "59/0/3",
+        "exit_code": 0
+      },
+      {
+        "gate": "financial corruption (author)",
+        "result": "10/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "auth remediation (author)",
+        "result": "6/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "five-phase crash consistency",
+        "result": "1/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "cargo fmt --check",
+        "result": "clean",
+        "exit_code": 0
+      },
+      {
+        "gate": "cargo clippy --all-targets",
+        "result": "17 pre-existing, 0 new",
+        "exit_code": 0
+      },
+      {
+        "gate": "cargo clippy -D warnings",
+        "result": "pre-existing style lints",
+        "exit_code": 101
+      },
+      {
+        "gate": "verify:replication harness",
+        "result": "129 checks",
+        "exit_code": 0
+      },
+      {
+        "gate": "cloud tsc (project + strict)",
+        "result": "clean",
+        "exit_code": 0
+      },
+      {
+        "gate": "cloud behavioral (independent)",
+        "result": "18/18",
+        "exit_code": 0
+      },
+      {
+        "gate": "durable PostgreSQL (independent)",
+        "result": "36/36",
+        "exit_code": 0
+      },
+      {
+        "gate": "independent auth remediation",
+        "result": "6/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "independent auth CANDIDATE",
+        "result": "0 passed / 6 failed - attacks succeed",
+        "exit_code": 101
+      },
+      {
+        "gate": "independent financial",
+        "result": "11/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "independent open-findings probe",
+        "result": "4/0",
+        "exit_code": 0
+      }
+    ],
+    "remaining_release_blockers": [
+      "IV-NEW-001: duplicated retail SALE journal accepted at the production restore boundary (P5-ADV-007 re-opened).",
+      "Windows acceptance entirely unperformed and not performable here.",
+      "P5-ADV-008: accept only with an explicit documented threat-model statement.",
+      "P5-ADV-010: generation format validation recommended.",
+      "P5-ADV-011: pre-existing style debt, accept.",
+      "applyReplicationMigration is not idempotent (operational note)."
+    ],
+    "deliverables": [
+      "docs/reviews/phase5-independent-remediation-verification.md",
+      "docs/reviews/phase5-independent-verification-evidence/"
+    ]
   }
 }

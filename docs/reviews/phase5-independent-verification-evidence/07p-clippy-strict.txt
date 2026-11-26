@@ -1,0 +1,203 @@
+=== PRISTINE d79a6e8: clippy-strict ===
+DATE_UTC: 2026-11-26T17:15:15Z
+SOURCE: /home/user/phase5-verify/pristine (exact committed tree, no verifier additions)
+COMMAND: cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml -- -D warnings
+    Checking sornio-local-store v0.1.0 (/home/user/phase5-verify/pristine/packages/local-store)
+error: this pattern is unneeded as the `..` pattern can match that element
+    --> src/payments.rs:1516:17
+     |
+1516 | /                 reason: _,
+1517 | |                 ..
+     | |________________^ help: remove it
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#unneeded_wildcard_pattern
+     = note: `-D clippy::unneeded-wildcard-pattern` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::unneeded_wildcard_pattern)]`
+
+error: this function has too many arguments (8/7)
+   --> src/access.rs:166:5
+    |
+166 | /     pub fn restore_backup(
+167 | |         &mut self,
+168 | |         source: &std::path::Path,
+169 | |         safety_directory: &std::path::Path,
+...   |
+174 | |         confirmation: &str,
+175 | |     ) -> Result<String, StoreError> {
+    | |___________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#too_many_arguments
+    = note: `-D clippy::too-many-arguments` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_arguments)]`
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:162:9
+    |
+162 |         &tx,
+    |         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+    = note: `-D clippy::needless-borrow` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrow)]`
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:168:37
+    |
+168 |     crate::identity::checkout_actor(&tx, session)?;
+    |                                     ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:178:41
+    |
+178 |         crate::identity::invoice_reader(&tx, session, &request.operation_id)?;
+    |                                         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:276:9
+    |
+276 |         &tx,
+    |         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:281:9
+    |
+281 |         &tx,
+    |         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:302:20
+    |
+302 | ...   insert_one(&tx,"INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?...
+    |                  ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:309:16
+    |
+309 |     insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invo...
+    |                ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:311:9
+    |
+311 |         &tx,
+    |         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:316:20
+    |
+316 | ...   insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoic...
+    |                  ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:352:9
+    |
+352 |         &tx,
+    |         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> src/billing.rs:357:9
+    |
+357 |         &tx,
+    |         ^^^ help: change this to: `tx`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#needless_borrow
+
+error: very complex type used. Consider factoring parts into `type` definitions
+   --> src/customers.rs:301:13
+    |
+301 |     let row:Option<(String,Option<String>,Option<i64>,i64,i64)>=db.query_row("SELECT name,phone,credit_limit_paise,credit_days,revi...
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#type_complexity
+    = note: `-D clippy::type-complexity` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::type_complexity)]`
+
+error: this function has too many arguments (9/7)
+   --> src/customers.rs:330:1
+    |
+330 | / fn entry(
+331 | |     db: &Connection,
+332 | |     id: &str,
+333 | |     customer: &str,
+...   |
+339 | |     reason: &str,
+340 | | ) -> Result<(), StoreError> {
+    | |___________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#too_many_arguments
+
+error: this function has too many arguments (8/7)
+   --> src/payments.rs:769:1
+    |
+769 | / fn return_invoice(
+770 | |     db: &Transaction<'_>,
+771 | |     s: &Option<Session>,
+772 | |     op: &str,
+...   |
+777 | |     why: &str,
+778 | | ) -> Result<Value, StoreError> {
+    | |______________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#too_many_arguments
+
+error: this function has too many arguments (12/7)
+    --> src/payments.rs:1777:1
+     |
+1777 | / fn csv_row(
+1778 | |     out: &mut String,
+1779 | |     typ: &str,
+1780 | |     day: &str,
+...    |
+1789 | |     note: &str,
+1790 | | ) {
+     | |_^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#too_many_arguments
+
+error: could not compile `sornio-local-store` (lib) due to 17 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: redundant pattern matching
+   --> src/phase3_reliability_tests.rs:561:13
+    |
+561 |     assert!(matches!(s.post_retail(first.clone()), Ok(_)));
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#redundant_pattern_matching
+    = note: `-D clippy::redundant-pattern-matching` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_pattern_matching)]`
+help: consider using `is_ok()`
+    |
+561 -     assert!(matches!(s.post_retail(first.clone()), Ok(_)));
+561 +     assert!(s.post_retail(first.clone()).is_ok());
+    |
+
+error: manual `RangeInclusive::contains` implementation
+   --> src/phase3_reliability_tests.rs:708:9
+    |
+708 |         ok >= 1 && ok <= 2,
+    |         ^^^^^^^^^^^^^^^^^^ help: use: `(1..=2).contains(&ok)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/rust-1.100.0/index.html#manual_range_contains
+    = note: `-D clippy::manual-range-contains` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_range_contains)]`
+
+error: could not compile `sornio-local-store` (lib test) due to 19 previous errors
+EXIT_CODE=101

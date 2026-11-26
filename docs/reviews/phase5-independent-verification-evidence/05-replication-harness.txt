@@ -1,0 +1,5 @@
+=== RULE 5: OFFICIAL verify:replication HARNESS (independent run) ===
+DATE_UTC: 2026-11-26T16:55:20Z
+COMMAND: node scripts/verify-replication.mjs
+verify-replication: 129 checks passed
+EXIT_CODE=0

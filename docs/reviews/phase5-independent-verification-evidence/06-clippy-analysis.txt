@@ -1,0 +1,22 @@
+=== RULE 6 / FINDING 011: CLIPPY ANALYSIS (pristine d79a6e8) ===
+DATE_UTC: 2026-11-26T17:15:38Z
+--- plain clippy gate ---
+warning: `sornio-local-store` (lib) generated 17 warnings (run `cargo clippy --fix --lib -p sornio-local-store -- ` to apply 12 suggestions)
+warning: `sornio-local-store` (lib test) generated 19 warnings (17 duplicates) (run `cargo clippy --fix --lib -p sornio-local-store --tests -- ` to apply 2 suggestions)
+EXIT_CODE=0
+--- clippy -D warnings ---
+EXIT_CODE=101
+error count: 21
+--- do ANY warnings originate in remediation files? ---
+(empty = remediation adds no clippy warnings)
+--- warning categories ---
+     11 warning: this expression creates a reference which is immediately dereferenced by the compiler
+      2 warning: this function has too many arguments (8/7)
+      1 warning: very complex type used. Consider factoring parts into `type` definitions
+      1 warning: this pattern is unneeded as the `..` pattern can match that element
+      1 warning: this function has too many arguments (9/7)
+      1 warning: this function has too many arguments (12/7)
+      1 warning: redundant pattern matching
+      1 warning: manual `RangeInclusive::contains` implementation
+      1 warning: `sornio-local-store` (lib) generated 17 warnings (run `cargo clippy --fix --lib -p sornio-local-store -- ` to apply 12 suggestions)
+      1 warning: `sornio-local-store` (lib test) generated 19 warnings (17 duplicates) (run `cargo clippy --fix --lib -p sornio-local-store --tests -- ` to apply 2 suggestions)

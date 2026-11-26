@@ -1,0 +1,33 @@
+=== INDEPENDENT RESIDUAL-GAP PROBE: duplicated retail SALE journal ===
+DATE_UTC: 2026-11-26T16:54:03Z
+COMMAND: cargo test --lib --manifest-path packages/local-store/Cargo.toml recovery::independent_gap_probe -- --nocapture --test-threads=1
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-verify/workspace/packages/local-store)
+warning: unused variable: `live`
+   --> src/recovery/independent_financial_tests.rs:316:9
+    |
+316 |     let live = d.path().join("live");
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_live`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.66s
+     Running unittests src/lib.rs (/home/user/phase5-verify/target-workspace/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 1 test
+test recovery::independent_gap_probe::ivx01_duplicated_sale_journal_verifier_and_restore ... IVX01 duplicated 2 sale journal legs
+IVX01 account totals BEFORE: [("cash", 4250), ("receivables", -4250)]
+IVX01 account totals AFTER : [("cash", 8500), ("receivables", -8500)]
+IVX01 operation still zero-sum: 0
+IVX01 backing activity rows: 1
+IVX01 PRODUCTION VERIFIER violations: []
+IVX01 PRODUCTION verify() => Ok(())
+IVX01 PRODUCTION RESTORE of duplicated-sale-journal backup => Ok("/tmp/.tmpIjmwaQ/sornio-before-restore-02333668eead882b7a4c6886b24704e82246cc9fbdb43128deb69fc14538e6f3.sorniobackup")
+IVX01 backup id cf4d322372803016754ac72f0011bf4c9f9ee180fdb1deba4282f98e23a09f11
+IVX01 fence after restore attempt: false
+IVX01 RESULT: RESIDUAL GAP CONFIRMED — duplicated balanced retail SALE journal is ACCEPTED by both the verifier and the production restore boundary.
+ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 261 filtered out; finished in 4.46s
+
+EXIT_CODE=0

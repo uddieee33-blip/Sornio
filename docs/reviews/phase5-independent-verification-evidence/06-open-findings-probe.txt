@@ -1,0 +1,48 @@
+=== RULE 6: INDEPENDENT PROBE OF OPEN FINDINGS 008 / 010 (corrected) ===
+DATE_UTC: 2026-11-26T17:14:40Z
+COMMAND: cargo test --lib --manifest-path packages/local-store/Cargo.toml recovery::independent_findings_probe -- --nocapture --test-threads=1
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-verify/workspace/packages/local-store)
+warning: unused variable: `live`
+   --> src/recovery/independent_financial_tests.rs:316:9
+    |
+316 |     let live = d.path().join("live");
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_live`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.71s
+     Running unittests src/lib.rs (/home/user/phase5-verify/target-workspace/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 4 tests
+test recovery::independent_findings_probe::ivp008_unfenced_metadata_writable_while_fenced ... IVP008 business write while fenced => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("Sornio recovery is in progress; business writes are paused")))
+IVP008 lockout reset while fenced => Ok(1)
+IVP008 budget after reset attempt = (0, 0)
+IVP008 generation tamper while fenced => Ok(1)
+IVP008 business_id substitution while fenced => Ok(1)
+IVP008 OBSERVED: lockout_reset=true generation_tamper=true business_substitution=true
+ok
+test recovery::independent_findings_probe::ivp008b_startup_fails_closed_on_identity_substitution ... IVP008b Store::open after business substitution => Err(RecoveryCorrupt) (fails closed at OPEN)
+ok
+test recovery::independent_findings_probe::ivp008c_lockout_reset_reopens_password_oracle ... IVP008c after 5 failures budget=(5, 1795713348)
+IVP008c after raw-SQL budget reset: 4 of 20 further guesses were NOT rate-limited
+IVP008c OBSERVED: raw-SQL key holder can reset the budget and resume guessing (bounded by key possession)
+ok
+test recovery::independent_findings_probe::ivp010_malformed_generation_and_token_at_startup ... IVP010 generation="short" => reconcile_startup Ok(())
+IVP010 generation="zzzz" => reconcile_startup Ok(())
+IVP010 generation="'; DROP TABLE x; --" => reconcile_startup Ok(())
+IVP010 generation="" => reconcile_startup Ok(())
+IVP010 owner_token="short" fence UPDATE => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("recovery fence is immutable while active")))
+IVP010 owner_token="short" operations UPDATE => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("recovery operation identity is immutable")))
+IVP010 owner_token="short" => reconcile_startup Ok(())
+IVP010 owner_token="zzzz" fence UPDATE => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("recovery fence is immutable while active")))
+IVP010 owner_token="zzzz" operations UPDATE => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("recovery operation identity is immutable")))
+IVP010 owner_token="zzzz" => reconcile_startup Ok(())
+IVP010 owner_token="" fence UPDATE => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("recovery fence is immutable while active")))
+IVP010 owner_token="" operations UPDATE => Err(SqliteFailure(Error { code: ConstraintViolation, extended_code: 1811 }, Some("recovery operation identity is immutable")))
+IVP010 owner_token="" => reconcile_startup Ok(())
+ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 262 filtered out; finished in 19.67s
+
+EXIT_CODE=0

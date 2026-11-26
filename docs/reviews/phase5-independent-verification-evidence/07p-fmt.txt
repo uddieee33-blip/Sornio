@@ -1,0 +1,5 @@
+=== PRISTINE d79a6e8: fmt ===
+DATE_UTC: 2026-11-26T17:02:27Z
+SOURCE: /home/user/phase5-verify/pristine (exact committed tree, no verifier additions)
+COMMAND: cargo fmt --check --manifest-path packages/local-store/Cargo.toml
+EXIT_CODE=0

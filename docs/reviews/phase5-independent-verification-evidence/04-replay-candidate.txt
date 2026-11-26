@@ -1,0 +1,10 @@
+=== FULL ORDERED OUTBOX REPLAY: 7f73ef0-CANDIDATE (real PostgreSQL 16.2) ===
+DATE_UTC: 2026-11-26T16:44:19Z
+[7f73ef0-CANDIDATE] gen-1 outstanding: {"net":"5000","lines":1,"hydrated":"5000"}
+[7f73ef0-CANDIDATE] --- restore: replaying FULL ordered outbox under gen-2 ---
+[7f73ef0-CANDIDATE] replay acks: [{"op":"rp-prod","dup":false,"cursor":"5"},{"op":"rp-cust","dup":false,"cursor":"6"},{"op":"rp-bill","dup":false,"cursor":"7"},{"op":"rp-cred","dup":false,"cursor":"8"}]
+[7f73ef0-CANDIDATE] gen-2 outstanding: {"net":"10000","lines":2,"hydrated":"5000"}
+[7f73ef0-CANDIDATE] operations with MORE THAN ONE event row: [{"operation_id":"rp-bill","n":2},{"operation_id":"rp-cred","n":2},{"operation_id":"rp-cust","n":2},{"operation_id":"rp-prod","n":2}]
+[7f73ef0-CANDIDATE] OUTSTANDING_DOUBLE_COUNTED: true (before=5000 after=10000)
+[7f73ef0-CANDIDATE] EXPECTED_AFTER_FIX: before=5000 after=5000 doubled=false
+EXIT_CODE=0
