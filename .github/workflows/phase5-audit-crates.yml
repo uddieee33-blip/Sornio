@@ -16,24 +16,41 @@ jobs:
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Create blob and commit via API
+      - name: Create commit via API
         run: |
           tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
-          # Get current commit SHA on arena/e831eb29-sornio
-          PARENT=$(gh api repos/uddieee33-blip/Sornio/commits/arena/e831eb29-sornio --jq .sha)
-          PARENT_TREE=$(gh api repos/uddieee33-blip/Sornio/git/commits/$PARENT --jq .tree.sha)
-          # Create blob
-          BLOB=$(base64 -w0 crates.tar | gh api git/blobs -F content=@- -F encoding=base64 --jq .sha)
-          echo "BLOB=$BLOB" >> $GITHUB_ENV
-          echo "PARENT=$PARENT" >> $GITHUB_ENV
-          echo "PARENT_TREE=$PARENT_TREE" >> $GITHUB_ENV
-      - name: Create tree and commit
-        run: |
-          source $GITHUB_ENV
-          # Create tree with crates.tar
-          TREE=$(gh api git/trees -F tree="$PARENT_TREE" -F tree="[{\"path\":\"phase5-audit-crates/crates.tar\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$BLOB\"}]" --jq .sha)
-          COMMIT=$(gh api git/commits -F message="chore(phase5-audit): fetch locked crates" -F tree="$TREE" -F parents="[\"$PARENT\"]" --jq .sha)
-          # Create branch ref
-          gh api -X PUT repos/uddieee33-blip/Sornio/git/refs/heads/phase5-audit-crates-tmp -F sha="$COMMIT"
+          python3 - <<'PYEOF'
+          import base64, json, os, subprocess
+          # Get parent commit
+          parent = subprocess.check_output(
+              ["gh", "api", "repos/uddieee33-blip/Sornio/commits/arena/e831eb29-sornio", "--jq", ".sha"],
+              text=True, capture_output=True).strip()
+          # Get parent tree
+          parent_tree = subprocess.check_output(
+              ["gh", "api", f"repos/uddieee33-blip/Sornio/git/commits/{parent}", "--jq", ".tree.sha"],
+              text=True, capture_output=True).strip()
+          # Read tar and create blob
+          with open("crates.tar", "rb") as f:
+              data = base64.b64encode(f.read()).decode()
+          blob = subprocess.check_output(
+              ["gh", "api", "git/blobs", "-F", f"content={data}", "-F", "encoding=base64", "--jq", ".sha"],
+              text=True, capture_output=True).strip()
+          # Create tree
+          tree_payload = json.dumps([{"path": "phase5-audit-crates/crates.tar", "mode": "100644", "type": "blob", "sha": blob}])
+          tree = subprocess.check_output(
+              ["gh", "api", "git/trees", "-F", f"tree={parent_tree}", "-F", f"tree={tree_payload}", "--jq", ".sha"],
+              text=True, capture_output=True).strip()
+          # Create commit
+          commit = subprocess.check_output(
+              ["gh", "api", "git/commits", "-F", "message=chore(phase5-audit): fetch locked crates",
+               "-F", f"tree={tree}", "-F", f'parents=["{parent}"]', "--jq", ".sha"],
+              text=True, capture_output=True).strip()
+          # Create branch
+          subprocess.run(
+              ["gh", "api", "-X", "PUT", "repos/uddieee33-blip/Sornio/git/refs/heads/phase5-audit-crates-tmp",
+               "-F", f"sha={commit}"],
+              check=True, capture_output=True)
+          print(f"Created commit {commit} on phase5-audit-crates-tmp")
+          PYEOF
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
