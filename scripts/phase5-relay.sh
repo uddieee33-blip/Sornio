@@ -73,7 +73,7 @@ trap push_diagnostics EXIT
   echo "== curl manifest exit: $?"
   python3 -u scripts/phase5-fetch-dist.py
   echo "== dist exit: $?"
-  cargo fetch --locked --target x86_64-unknown-linux-gnu --manifest-path packages/local-store/Cargo.toml
+  cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
   echo "== cargo fetch exit: $?"
   python3 -u scripts/phase5-fetch-crates.py
   echo "== crates exit: $?"
