@@ -10,54 +10,102 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      issues: write
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack crates
+      - name: Pack and deliver via API
         run: |
-          echo "=== CARGO HOME ==="
-          echo "CARGO_HOME=$CARGO_HOME"
-          echo "=== Registry cache ==="
-          ls -la ~/.cargo/registry/ 2>/dev/null || echo "no ~/.cargo/registry"
-          ls -la ~/.cargo/registry/cache/ 2>/dev/null || echo "no cache dir"
-          ls ~/.cargo/registry/cache/*/ 2>/dev/null | head -5 || echo "no crates in cache"
-          echo "=== Find .crate files ==="
-          find ~/.cargo -name "*.crate" 2>/dev/null | head -5
-          echo "=== Find all registry files ==="
-          find ~/.cargo/registry -type f 2>/dev/null | head -10
-          # Try to find and tar all .crate files
-          find ~/.cargo -name "*.crate" -print0 2>/dev/null | tar cf crates.tar --null -T -
-          ls -la crates.tar
-          echo "TAR_EXIT=$?"
-      - name: Create commit via github-script
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const fs = require('fs');
-            const tarData = fs.readFileSync('crates.tar');
-            const content = tarData.toString('base64');
-            const parentCommit = await github.rest.repos.getCommit({
-              owner: 'uddieee33-blip', repo: 'Sornio', ref: 'arena/e831eb29-sornio'
-            });
-            const parentSha = parentCommit.data.sha;
-            const parentTree = parentCommit.data.tree.sha;
-            const blob = await github.rest.git.createBlob({
-              owner: 'uddieee33-blip', repo: 'Sornio', content, encoding: 'base64'
-            });
-            const tree = await github.rest.git.createTree({
-              owner: 'uddieee33-blip', repo: 'Sornio', base_tree: parentTree,
-              tree: [{ path: 'phase5-audit-crates/crates.tar', mode: '100644', type: 'blob', sha: blob.data.sha }]
-            });
-            const commit = await github.rest.git.createCommit({
-              owner: 'uddieee33-blip', repo: 'Sornio',
-              message: 'chore(phase5-audit): fetch locked crates',
-              tree: tree.data.sha, parents: [parentSha]
-            });
-            await github.rest.git.createRef({
-              owner: 'uddieee33-blip', repo: 'Sornio',
-              ref: 'refs/heads/phase5-audit-crates-tmp', sha: commit.data.sha
-            });
-            console.log('SUCCESS: phase5-audit-crates-tmp created with crates.tar');
+          # Find all .crate files
+          CRATE_FILES=$(find ~/.cargo/registry/cache -name "*.crate" 2>/dev/null)
+          echo "Found $(echo "$CRATE_FILES" | wc -l) .crate files"
+          
+          # Create a single tarball
+          tar cf crates.tar $CRATE_FILES
+          SIZE=$(stat -c%s crates.tar)
+          echo "Tarball size: $SIZE bytes"
+          
+          # Report size to issue
+          gh issue comment 202 --body "Workflow run ${{ github.run_id }}: tarball size = $SIZE bytes" 2>/dev/null || true
+          
+          # Use curl to create blob, tree, commit, ref
+          TOKEN="${GITHUB_TOKEN}"
+          REPO="uddieee33-blip/Sornio"
+          
+          # Get parent commit
+          parent=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://api.github.com/repos/$REPO/commits/arena/e831eb29-sornio" | python3 -c "import sys,json; print(json.load(sys.stdin)['sha'])")
+          echo "Parent: $parent"
+          
+          # Get parent tree
+          parent_tree=$(curl -s -H "Authorization: Bearer $TOKEN" \
+            "https://api.github.com/repos/$REPO/git/commits/$parent" | python3 -c "import sys,json; print(json.load(sys.stdin)['tree']['sha'])")
+          echo "Parent tree: $parent_tree"
+          
+          # Create blob
+          blob=$(python3 -c "
+import base64, json, subprocess, os
+token = os.environ['GITHUB_TOKEN']
+with open('crates.tar', 'rb') as f:
+    data = base64.b64encode(f.read()).decode()
+r = subprocess.run(['curl', '-s', '-X', 'POST',
+    '-H', f'Authorization: Bearer {token}',
+    '-H', 'Accept: application/vnd.github+json',
+    '-d', json.dumps({'content': data, 'encoding': 'base64'}),
+    f'https://api.github.com/repos/uddieee33-blip/Sornio/git/blobs'],
+    capture_output=True, text=True)
+print(json.loads(r.stdout)['sha'])
+")
+          echo "Blob: $blob"
+          
+          # Create tree
+          tree=$(python3 -c "
+import json, subprocess, os
+token = os.environ['GITHUB_TOKEN']
+payload = json.dumps({
+    'base_tree': os.environ['PARENT_TREE'],
+    'tree': [{'path': 'phase5-audit-crates/crates.tar', 'mode': '100644', 'type': 'blob', 'sha': os.environ['BLOB_SHA']}]
+})
+r = subprocess.run(['curl', '-s', '-X', 'POST',
+    '-H', f'Authorization: Bearer {token}',
+    '-H', 'Accept: application/vnd.github+json',
+    '-d', payload,
+    'https://api.github.com/repos/uddieee33-blip/Sornio/git/trees'],
+    capture_output=True, text=True)
+print(json.loads(r.stdout)['sha'])
+")
+          echo "Tree: $tree"
+          
+          # Create commit
+          commit=$(python3 -c "
+import json, subprocess, os
+token = os.environ['GITHUB_TOKEN']
+payload = json.dumps({
+    'message': 'chore(phase5-audit): fetch locked crates',
+    'tree': os.environ['TREE_SHA'],
+    'parents': [os.environ['PARENT_SHA']]
+})
+r = subprocess.run(['curl', '-s', '-X', 'POST',
+    '-H', f'Authorization: Bearer {token}',
+    '-H', 'Accept: application/vnd.github+json',
+    '-d', payload,
+    'https://api.github.com/repos/uddieee33-blip/Sornio/git/commits'],
+    capture_output=True, text=True)
+print(json.loads(r.stdout)['sha'])
+")
+          echo "Commit: $commit"
+          
+          # Create ref
+          curl -s -X PUT \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -d "{\"ref\": \"refs/heads/phase5-audit-crates-tmp\", \"sha\": \"$commit\"}" \
+            "https://api.github.com/repos/$REPO/git/refs"
+          echo ""
+          echo "DONE: phase5-audit-crates-tmp created"
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PARENT_SHA: ${{ github.sha }}
