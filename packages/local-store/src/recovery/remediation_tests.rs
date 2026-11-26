@@ -124,7 +124,7 @@ fn rem_r2_success_after_permitted_interval_clears_budget() {
 fn rem_r2_concurrent_attempts_do_not_bypass_accounting() {
     let d = tempfile::tempdir().unwrap();
     let path = d.path().join("live");
-    let mut s = seeded(&path);
+    let s = seeded(&path);
     let o = install_fence(&s.0);
     let operation_id = o.operation_id.clone();
     drop(s);
