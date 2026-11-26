@@ -57,12 +57,7 @@ use rusqlite::Connection;
 mod financial_tests;
 
 /// Append the first column of every row returned by `sql` as a violation.
-fn push(
-    db: &Connection,
-    out: &mut Vec<String>,
-    sql: &str,
-    label: &str,
-) -> Result<(), StoreError> {
+fn push(db: &Connection, out: &mut Vec<String>, sql: &str, label: &str) -> Result<(), StoreError> {
     let mut stmt = db.prepare(sql)?;
     let rows = stmt.query_map([], |r| r.get::<_, String>(0))?;
     for row in rows {
@@ -314,10 +309,26 @@ pub(crate) fn violations(db: &Connection) -> Result<Vec<String>, StoreError> {
     // 5. Replication outbox idempotency keys (defense against on-disk damage).
     // ------------------------------------------------------------------
     for (table, key, label) in [
-        ("local_billing_outbox", "invoice_id", "billing outbox duplicate operation"),
-        ("local_customer_outbox", "operation_id", "customer outbox duplicate operation"),
-        ("local_retail_outbox", "operation_id", "retail outbox duplicate operation"),
-        ("local_inventory_outbox", "operation_id", "inventory outbox duplicate operation"),
+        (
+            "local_billing_outbox",
+            "invoice_id",
+            "billing outbox duplicate operation",
+        ),
+        (
+            "local_customer_outbox",
+            "operation_id",
+            "customer outbox duplicate operation",
+        ),
+        (
+            "local_retail_outbox",
+            "operation_id",
+            "retail outbox duplicate operation",
+        ),
+        (
+            "local_inventory_outbox",
+            "operation_id",
+            "inventory outbox duplicate operation",
+        ),
     ] {
         push(
             db,

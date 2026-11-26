@@ -110,7 +110,10 @@ fn rem_r2_success_after_permitted_interval_clears_budget() {
     // One second past the window: authentication is allowed again.
     resolve_interrupted_at(&mut s, &o.operation_id, LOGIN, clock + 61).unwrap();
     assert_eq!(budget(&s.0), (0, 0), "success clears the shared budget");
-    assert!(!fence_active(&s.0).unwrap(), "resolution releases the fence");
+    assert!(
+        !fence_active(&s.0).unwrap(),
+        "resolution releases the fence"
+    );
     assert!(s.1.is_some(), "the Owner is unlocked after resolution");
 }
 
@@ -185,7 +188,10 @@ fn rem_r2_review_available_while_business_stays_blocked() {
     assert!(s.1.is_none());
     assert!(s
         .0
-        .execute("UPDATE local_products SET stock_milli=0 WHERE id='rice'", [])
+        .execute(
+            "UPDATE local_products SET stock_milli=0 WHERE id='rice'",
+            []
+        )
         .is_err());
     // Normal login is still barred by the fence, and the shared budget is spent.
     let mut w = Workspace::new(s);

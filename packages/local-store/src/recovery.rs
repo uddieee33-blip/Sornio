@@ -481,7 +481,11 @@ pub(crate) fn resolve_interrupted_at(
     if !verified || !enabled {
         // Identical policy to login_at: five failures, then a 60 second lockout.
         let attempts = (if global_retry > 0 { 0 } else { global_attempts } + 1).min(5);
-        let retry = if attempts == 5 { clock.saturating_add(60) } else { 0 };
+        let retry = if attempts == 5 {
+            clock.saturating_add(60)
+        } else {
+            0
+        };
         if tx.execute(
             "UPDATE workspace_access SET failed_attempts=?1,retry_after=?2 WHERE singleton=1",
             params![attempts, retry],

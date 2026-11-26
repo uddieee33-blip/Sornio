@@ -7,8 +7,8 @@
 //! history (including a multi-part return that legitimately repeats journal
 //! accounts) must be accepted.
 use super::*;
-use crate::recovery::{export, fence_active, preview, restore};
 use crate::recovery::phase5_tests::{sale, seeded, strip_triggers, LOGIN, SECRET};
+use crate::recovery::{export, fence_active, preview, restore};
 use crate::{
     access::Workspace,
     billing::{BillLine, PostInvoice, Tender},
@@ -116,8 +116,14 @@ fn multipart_return_store(d: &tempfile::TempDir) -> Store {
             expected_revision: q.revision,
             lines,
             refunds: vec![
-                RefundPart { payment_id: format!("{id}-p-0"), amount_paise: 2125 },
-                RefundPart { payment_id: format!("{id}-p-1"), amount_paise: 2125 },
+                RefundPart {
+                    payment_id: format!("{id}-p-0"),
+                    amount_paise: 2125,
+                },
+                RefundPart {
+                    payment_id: format!("{id}-p-1"),
+                    amount_paise: 2125,
+                },
             ],
             reason: "Two equal cash parts refunded".into(),
         },
@@ -136,10 +142,14 @@ fn rem_r3_accepts_valid_history_including_multipart_returns() {
     let s = multipart_return_store(&d);
     // Prove the scenario really does contain repeated journal accounts, so the
     // guard is meaningful (a blanket uniqueness rule would reject this).
-    let repeats: i64 = s.0.query_row(
-        "SELECT COUNT(*) FROM (SELECT operation_id,account FROM local_retail_journal
+    let repeats: i64 =
+        s.0.query_row(
+            "SELECT COUNT(*) FROM (SELECT operation_id,account FROM local_retail_journal
          GROUP BY operation_id,account HAVING COUNT(*)>1)",
-        [], |r| r.get(0)).unwrap();
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
     assert!(repeats > 0, "expected legitimate repeated journal accounts");
     assert!(clean(&s.0).is_empty(), "{:?}", clean(&s.0));
 
@@ -155,11 +165,24 @@ fn rem_r3_detects_deleted_credit_sale_entry() {
     let s = credit_store(&d);
     assert!(clean(&s.0).is_empty());
     strip_triggers(&s.0);
-    assert_eq!(s.0.execute(
-        "DELETE FROM local_credit_entries WHERE invoice_id='credit-sale' AND kind='sale'", []).unwrap(), 1);
+    assert_eq!(
+        s.0.execute(
+            "DELETE FROM local_credit_entries WHERE invoice_id='credit-sale' AND kind='sale'",
+            []
+        )
+        .unwrap(),
+        1
+    );
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("credit sale missing matching credit entry")), "{v:?}");
-    assert!(matches!(verify(&s.0), Err(StoreError::FinancialInconsistency)));
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("credit sale missing matching credit entry")),
+        "{v:?}"
+    );
+    assert!(matches!(
+        verify(&s.0),
+        Err(StoreError::FinancialInconsistency)
+    ));
 }
 
 /// P5-ADV-005: tampering a repayment entry breaks its journal relationship.
@@ -173,8 +196,15 @@ fn rem_r3_detects_tampered_repayment_entry() {
         "UPDATE local_credit_entries SET amount_paise=amount_paise+5000 WHERE operation_id='cash-collection'",
         []).unwrap();
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("credit entry disagrees with customer journal")), "{v:?}");
-    assert!(matches!(verify(&s.0), Err(StoreError::FinancialInconsistency)));
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("credit entry disagrees with customer journal")),
+        "{v:?}"
+    );
+    assert!(matches!(
+        verify(&s.0),
+        Err(StoreError::FinancialInconsistency)
+    ));
 }
 
 /// P5-ADV-006: a balanced ledger edit keeps SUM=0 but breaks the invoice link.
@@ -191,11 +221,25 @@ fn rem_r3_detects_balanced_but_semantically_wrong_ledger() {
     let imbalance: i64 = s.0.query_row(
         "SELECT COUNT(*) FROM (SELECT invoice_id FROM local_billing_ledger GROUP BY invoice_id HAVING SUM(amount_paise)<>0)",
         [], |r| r.get(0)).unwrap();
-    assert_eq!(imbalance, 0, "the tamper is deliberately balance-preserving");
+    assert_eq!(
+        imbalance, 0,
+        "the tamper is deliberately balance-preserving"
+    );
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("invoice revenue disagrees with invoice subtotal")), "{v:?}");
-    assert!(v.iter().any(|x| x.starts_with("invoice settlement leg disagrees with invoice")), "{v:?}");
-    assert!(matches!(verify(&s.0), Err(StoreError::FinancialInconsistency)));
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("invoice revenue disagrees with invoice subtotal")),
+        "{v:?}"
+    );
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("invoice settlement leg disagrees with invoice")),
+        "{v:?}"
+    );
+    assert!(matches!(
+        verify(&s.0),
+        Err(StoreError::FinancialInconsistency)
+    ));
 }
 
 /// P5-ADV-007: duplicating a real return's balanced postings is detected by
@@ -210,10 +254,20 @@ fn rem_r3_detects_duplicated_return_journal() {
     s.0.execute(
         "INSERT INTO local_retail_journal(operation_id,customer_id,account,amount)
          SELECT operation_id,customer_id,account,amount FROM local_retail_journal
-         WHERE operation_id='retail-return'", []).unwrap();
+         WHERE operation_id='retail-return'",
+        [],
+    )
+    .unwrap();
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("retail return journal disagrees with return totals")), "{v:?}");
-    assert!(matches!(verify(&s.0), Err(StoreError::FinancialInconsistency)));
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("retail return journal disagrees with return totals")),
+        "{v:?}"
+    );
+    assert!(matches!(
+        verify(&s.0),
+        Err(StoreError::FinancialInconsistency)
+    ));
 }
 
 /// P5-ADV-007: an orphan journal operation with no source activity is rejected.
@@ -227,7 +281,11 @@ fn rem_r3_detects_orphan_retail_journal_operation() {
         "INSERT INTO local_retail_journal(operation_id,customer_id,account,amount) VALUES('ghost-op',NULL,'revenue',-5000);
          INSERT INTO local_retail_journal(operation_id,customer_id,account,amount) VALUES('ghost-op',NULL,'cash',5000);").unwrap();
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("retail journal without source operation")), "{v:?}");
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("retail journal without source operation")),
+        "{v:?}"
+    );
 }
 
 /// Missing postings and broken inventory arithmetic are still detected.
@@ -237,12 +295,23 @@ fn rem_r3_detects_missing_postings_and_broken_stock_arithmetic() {
     let mut s = seeded(&d.path().join("live"));
     s.post_invoice(sale("sale-1", 1)).unwrap();
     strip_triggers(&s.0);
-    s.0.execute("DELETE FROM local_invoice_stock WHERE invoice_id='sale-1'", []).unwrap();
+    s.0.execute(
+        "DELETE FROM local_invoice_stock WHERE invoice_id='sale-1'",
+        [],
+    )
+    .unwrap();
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("invoice line missing matching stock movement")), "{v:?}");
+    assert!(
+        v.iter()
+            .any(|x| x.starts_with("invoice line missing matching stock movement")),
+        "{v:?}"
+    );
     s.0.execute("UPDATE local_billing_ledger SET amount_paise=amount_paise+1 WHERE invoice_id='sale-1' AND account='cash'", []).unwrap();
     let v = clean(&s.0);
-    assert!(v.iter().any(|x| x.starts_with("billing ledger imbalance")), "{v:?}");
+    assert!(
+        v.iter().any(|x| x.starts_with("billing ledger imbalance")),
+        "{v:?}"
+    );
 }
 
 /// END-TO-END: the production restore boundary must REJECT a financially
@@ -271,16 +340,32 @@ fn rem_r3_restore_rejects_financially_inconsistent_backup() {
     s.post_invoice(sale("later-sale", 2)).unwrap();
 
     let p = preview(&mut s, &archive, SECRET, LOGIN).unwrap();
-    let result = restore(&mut s, &archive, d.path(), SECRET, LOGIN, &p, &p.confirmation);
+    let result = restore(
+        &mut s,
+        &archive,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &p,
+        &p.confirmation,
+    );
     assert!(
         matches!(result, Err(StoreError::FinancialInconsistency)),
         "restore must reject the inconsistent backup: {result:?}"
     );
     // The original database is untouched by the rejected import.
     assert_eq!(s.list_invoices(0).unwrap().len(), 2);
-    let orphans: i64 = s.0.query_row(
-        "SELECT COUNT(*) FROM local_retail_journal WHERE operation_id='ghost-op'", [], |r| r.get(0)).unwrap();
-    assert_eq!(orphans, 2, "the rejected restore must not alter the live database");
+    let orphans: i64 =
+        s.0.query_row(
+            "SELECT COUNT(*) FROM local_retail_journal WHERE operation_id='ghost-op'",
+            [],
+            |r| r.get(0),
+        )
+        .unwrap();
+    assert_eq!(
+        orphans, 2,
+        "the rejected restore must not alter the live database"
+    );
     assert!(!fence_active(&s.0).unwrap(), "no fence may be left behind");
 }
 
@@ -316,7 +401,16 @@ fn rem_r3_valid_backup_still_restores() {
     export(&mut s, &archive, SECRET).unwrap();
     s.post_invoice(sale("later-sale", 2)).unwrap();
     let p = preview(&mut s, &archive, SECRET, LOGIN).unwrap();
-    restore(&mut s, &archive, d.path(), SECRET, LOGIN, &p, &p.confirmation).unwrap();
+    restore(
+        &mut s,
+        &archive,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &p,
+        &p.confirmation,
+    )
+    .unwrap();
     assert_eq!(s.list_invoices(0).unwrap().len(), 1);
     assert!(clean(&s.0).is_empty(), "{:?}", clean(&s.0));
 }
