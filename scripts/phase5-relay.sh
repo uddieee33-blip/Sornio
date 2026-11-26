@@ -41,6 +41,24 @@ push_diagnostics() {
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
     { echo '## Phase 5 relay log'; echo '```'; tail -c 60000 "$LOG"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
   fi
+  if [ -n "${PHASE5_ISSUE:-}" ] && [ -n "${GH_TOKEN:-}" ]; then
+    python3 - "$LOG" <<'PYEOF' >> "$LOG" 2>&1
+import json, os, sys, urllib.request
+log = open(sys.argv[1], errors="replace").read()[-55000:]
+body = "Relay run log (tail):\n```\n" + log + "\n```"
+req = urllib.request.Request(
+    f"https://api.github.com/repos/{os.environ['GITHUB_REPOSITORY']}/issues/{os.environ['PHASE5_ISSUE']}/comments",
+    data=json.dumps({"body": body}).encode(),
+    headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"],
+             "Accept": "application/vnd.github+json", "User-Agent": "phase5-relay"},
+    method="POST")
+try:
+    with urllib.request.urlopen(req) as r:
+        print("issue comment status:", r.status)
+except Exception as e:
+    print("issue comment failed:", e)
+PYEOF
+  fi
 }
 trap push_diagnostics EXIT
 

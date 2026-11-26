@@ -17,6 +17,7 @@ on:
       - scripts/phase5-fetch-crates.py
 permissions:
   contents: write
+  issues: write
 jobs:
   relay:
     runs-on: ubuntu-latest
@@ -30,4 +31,7 @@ jobs:
           git clone --depth 1 --branch arena/76ac88ca-sornio \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" work
       - name: Fetch, verify and relay (logs always pushed back to the branch)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PHASE5_ISSUE: "202"
         run: bash work/scripts/phase5-relay.sh
