@@ -10,7 +10,10 @@ name: Phase 5 toolchain relay
 on:
   push:
     branches: [arena/76ac88ca-sornio]
-    paths: [.github/workflows/phase5-toolchain-relay.yml]
+    paths:
+      - .github/workflows/phase5-toolchain-relay.yml
+      - scripts/phase5-fetch-dist.py
+      - scripts/phase5-fetch-crates.py
 permissions:
   contents: write
 jobs:
@@ -27,74 +30,48 @@ jobs:
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" work
       - name: Fetch and verify official Rust dist components
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p relay/payload
-          curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml -o relay/channel-rust-stable.toml
-          python3 - <<'PYEOF' 2>&1 | tee relay-fetch.log
-          import tomllib, json, urllib.request, hashlib, os, sys
-          with open('relay/channel-rust-stable.toml','rb') as f:
-              channel = tomllib.load(f)
-          version = channel['pkg']['rustc']['version']
-          target = 'x86_64-unknown-linux-gnu'
-          wanted = ['rustc', 'rust-std', 'cargo', 'rustfmt', 'clippy']
-          manifest = {'channel': 'stable', 'version': version, 'target': target,
-                      'source': 'https://static.rust-lang.org/dist/channel-rust-stable.toml',
-                      'files': []}
-          for comp in wanted:
-              pkg = channel['pkg'][comp]['target'].get(target)
-              if pkg is None or not pkg.get('available'):
-                  print(f'component {comp} unavailable for {target}', file=sys.stderr); sys.exit(1)
-              url, sha = pkg['xz_url'], pkg['xz_hash']
-              name = url.rsplit('/',1)[1]
-              dest = os.path.join('relay/payload', name)
-              print(f'downloading {name}', flush=True)
-              urllib.request.urlretrieve(url, dest)
-              h = hashlib.sha256()
-              with open(dest,'rb') as f:
-                  for chunk in iter(lambda: f.read(1<<20), b''):
-                      h.update(chunk)
-              if h.hexdigest() != sha:
-                  print(f'HASH MISMATCH {name}', file=sys.stderr); sys.exit(1)
-              manifest['files'].append({'name': name, 'component': comp, 'url': url,
-                                        'sha256': sha, 'size': os.path.getsize(dest)})
-              print(f'verified {name} sha256={sha}', flush=True)
-          with open('relay/manifest.json','w') as f:
-              json.dump(manifest, f, indent=2)
-          print('RUST_VERSION=' + version)
-          PYEOF
+          {
+            echo "== python: $(python3 --version 2>&1)"
+            echo "== curl channel manifest"
+            curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml \
+              -o relay/channel-rust-stable.toml
+            echo "== curl exit: $?"
+            python3 -u work/scripts/phase5-fetch-dist.py
+            echo "== dist fetch exit: $?"
+          } > relay-fetch.log 2>&1
+          tail -5 relay-fetch.log
+          grep -q DIST_FETCH_OK relay-fetch.log
       - name: Fetch locked crates for the Linux target and verify against Cargo.lock
         run: |
-          set -euo pipefail
+          set -uo pipefail
           mkdir -p relay/crates
-          cargo fetch --locked --target x86_64-unknown-linux-gnu \
-            --manifest-path work/packages/local-store/Cargo.toml
-          python3 - <<'PYEOF'
-          import glob, hashlib, os, re, shutil, sys
-          lock = open('work/packages/local-store/Cargo.lock').read()
-          sums = {}
-          for block in lock.split('[[package]]'):
-              name = re.search(r'name = "([^"]+)"', block)
-              ver = re.search(r'version = "([^"]+)"', block)
-              chk = re.search(r'checksum = "([0-9a-f]{64})"', block)
-              if name and ver and chk:
-                  sums[f'{name.group(1)}-{ver.group(1)}.crate'] = chk.group(1)
-          count = 0
-          for path in glob.glob(os.path.expanduser('~/.cargo/registry/cache/*/*.crate')):
-              base = os.path.basename(path)
-              h = hashlib.sha256(open(path,'rb').read()).hexdigest()
-              if base in sums and sums[base] != h:
-                  print(f'CRATE HASH MISMATCH {base}', file=sys.stderr); sys.exit(1)
-              shutil.copy(path, os.path.join('relay/crates', base))
-              count += 1
-          print(f'relayed {count} crate files, all verified against Cargo.lock where listed')
-          PYEOF
+          {
+            echo "== cargo: $(cargo --version 2>&1)"
+            cargo fetch --locked --target x86_64-unknown-linux-gnu \
+              --manifest-path work/packages/local-store/Cargo.toml
+            echo "== cargo fetch exit: $?"
+            python3 -u work/scripts/phase5-fetch-crates.py
+            echo "== crates fetch exit: $?"
+          } > relay-crates.log 2>&1
+          tail -5 relay-crates.log
+          grep -q CRATES_FETCH_OK relay-crates.log
       - name: Relay failure logs for the sandbox (logs CDN is unreachable there)
         if: failure()
         run: |
           set -euo pipefail
           mkdir -p work/phase5-relay
+          {
+            echo "== workspace listing"
+            ls -la
+            echo "== relay listing"
+            ls -la relay relay/payload relay/crates 2>&1
+          } > work/phase5-relay/diagnostics.txt 2>&1
           cp relay-fetch.log work/phase5-relay/ 2>/dev/null || true
+          cp relay-crates.log work/phase5-relay/ 2>/dev/null || true
           cp relay/channel-rust-stable.toml work/phase5-relay/ 2>/dev/null || true
+          cp relay/manifest.json work/phase5-relay/ 2>/dev/null || true
           cd work
           git config user.name "phase5-relay"
           git config user.email "actions@github.com"
@@ -111,6 +88,7 @@ jobs:
           rm payload.tar
           mkdir -p ../work/phase5-relay
           mv chunk-* payload.tar.sha256 manifest.json channel-rust-stable.toml ../work/phase5-relay/
+          cp ../relay-fetch.log ../relay-crates.log ../work/phase5-relay/
           cd ../work
           git config user.name "phase5-relay"
           git config user.email "actions@github.com"
