@@ -1,29 +1,24 @@
 name: Phase 5 Audit Crate Fetch
 
 on:
-  push:
-    branches: [arena/e831eb29-sornio]
-    paths: ['.github/workflows/phase5-audit-crates.yml']
+  workflow_dispatch:
 
 jobs:
   fetch-crates:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and push crates to branch
+      - name: Pack and push crates to temp branch
         run: |
           mkdir -p phase5-audit-crates
-          # Pack all .crate files into a tarball
           tar cf phase5-audit-crates/crates.tar -C ~/.cargo/registry/cache/ crates/*/
           sha256sum phase5-audit-crates/crates.tar > phase5-audit-crates/crates.tar.sha256
           git config user.name "phase5-audit-crate-fetch"
           git config user.email "actions@github.com"
           git add phase5-audit-crates
           git commit -m "chore(phase5-audit): fetch locked crates for independent audit"
-          git push origin HEAD:arena/e831eb29-sornio
+          git push origin HEAD:refs/heads/phase5-audit-crates-tmp
