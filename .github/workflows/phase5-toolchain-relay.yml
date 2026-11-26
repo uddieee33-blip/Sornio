@@ -12,6 +12,7 @@ on:
     branches: [arena/76ac88ca-sornio]
     paths:
       - .github/workflows/phase5-toolchain-relay.yml
+      - scripts/phase5-relay.sh
       - scripts/phase5-fetch-dist.py
       - scripts/phase5-fetch-crates.py
 permissions:
@@ -28,70 +29,5 @@ jobs:
           set -euo pipefail
           git clone --depth 1 --branch arena/76ac88ca-sornio \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" work
-      - name: Fetch and verify official Rust dist components
-        run: |
-          set -uo pipefail
-          mkdir -p relay/payload
-          {
-            echo "== python: $(python3 --version 2>&1)"
-            echo "== curl channel manifest"
-            curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml \
-              -o relay/channel-rust-stable.toml
-            echo "== curl exit: $?"
-            python3 -u work/scripts/phase5-fetch-dist.py
-            echo "== dist fetch exit: $?"
-          } > relay-fetch.log 2>&1
-          tail -5 relay-fetch.log
-          grep -q DIST_FETCH_OK relay-fetch.log
-      - name: Fetch locked crates for the Linux target and verify against Cargo.lock
-        run: |
-          set -uo pipefail
-          mkdir -p relay/crates
-          {
-            echo "== cargo: $(cargo --version 2>&1)"
-            cargo fetch --locked --target x86_64-unknown-linux-gnu \
-              --manifest-path work/packages/local-store/Cargo.toml
-            echo "== cargo fetch exit: $?"
-            python3 -u work/scripts/phase5-fetch-crates.py
-            echo "== crates fetch exit: $?"
-          } > relay-crates.log 2>&1
-          tail -5 relay-crates.log
-          grep -q CRATES_FETCH_OK relay-crates.log
-      - name: Relay failure logs for the sandbox (logs CDN is unreachable there)
-        if: failure()
-        run: |
-          set -euo pipefail
-          mkdir -p work/phase5-relay
-          {
-            echo "== workspace listing"
-            ls -la
-            echo "== relay listing"
-            ls -la relay relay/payload relay/crates 2>&1
-          } > work/phase5-relay/diagnostics.txt 2>&1
-          cp relay-fetch.log work/phase5-relay/ 2>/dev/null || true
-          cp relay-crates.log work/phase5-relay/ 2>/dev/null || true
-          cp relay/channel-rust-stable.toml work/phase5-relay/ 2>/dev/null || true
-          cp relay/manifest.json work/phase5-relay/ 2>/dev/null || true
-          cd work
-          git config user.name "phase5-relay"
-          git config user.email "actions@github.com"
-          git add phase5-relay
-          git commit -m "chore(phase5): relay failure diagnostics" || exit 0
-          git push origin HEAD:arena/76ac88ca-sornio
-      - name: Split, commit and push relay payload
-        run: |
-          set -euo pipefail
-          cd relay
-          tar cf payload.tar payload crates manifest.json channel-rust-stable.toml
-          sha256sum payload.tar > payload.tar.sha256
-          split -b 45m -d payload.tar chunk-
-          rm payload.tar
-          mkdir -p ../work/phase5-relay
-          mv chunk-* payload.tar.sha256 manifest.json channel-rust-stable.toml ../work/phase5-relay/
-          cp ../relay-fetch.log ../relay-crates.log ../work/phase5-relay/
-          cd ../work
-          git config user.name "phase5-relay"
-          git config user.email "actions@github.com"
-          git add phase5-relay
-          git commit -m "chore(phase5): temporary relay of official Rust dist and locked crates"
-          git push origin HEAD:arena/76ac88ca-sornio
+      - name: Fetch, verify and relay (logs always pushed back to the branch)
+        run: bash work/scripts/phase5-relay.sh

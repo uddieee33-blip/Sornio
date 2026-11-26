@@ -7,7 +7,7 @@ import re
 import shutil
 import sys
 
-lock = open("work/packages/local-store/Cargo.lock").read()
+lock = open("packages/local-store/Cargo.lock").read()
 sums = {}
 for block in lock.split("[[package]]"):
     name = re.search(r'name = "([^"]+)"', block)
