@@ -426,14 +426,22 @@ async function ingestDurableAttempt(
     if (envelope.restoreGeneration !== publisher.restoreGeneration) {
       throw new ReplicationError('STALE_GENERATION', 'Restore generation does not match the enrolled publisher.');
     }
+    // Operation identity is business-scoped and generation-independent, so the
+    // duplicate lookup deliberately omits restore_generation. A restore replays
+    // the snapshot's outbox under a new generation; without this, those rows
+    // would be treated as new events and re-projected, double-counting credit
+    // deltas (bumpCustomer applies a delta rather than recomputing a balance).
+    // The original event is authoritative; acks stay per-generation bookkeeping.
     const existing = await db.query<{ payload_sha256: string; cursor: string | null }>(
       `SELECT e.payload_sha256, a.cursor
        FROM native_replication.events e
        LEFT JOIN native_replication.acks a
          ON a.business_id = e.business_id AND a.restore_generation = e.restore_generation
         AND a.stream = e.stream AND a.operation_id = e.operation_id
-       WHERE e.business_id = $1 AND e.restore_generation = $2 AND e.stream = $3 AND e.operation_id = $4`,
-      [publisher.businessId, publisher.restoreGeneration, envelope.stream, envelope.operationId],
+       WHERE e.business_id = $1 AND e.stream = $2 AND e.operation_id = $3
+       ORDER BY e.event_pk ASC
+       LIMIT 1`,
+      [publisher.businessId, envelope.stream, envelope.operationId],
     );
     if (existing.rows[0]) {
       if (existing.rows[0].payload_sha256 !== envelope.payloadSha256) {
@@ -442,8 +450,41 @@ async function ingestDurableAttempt(
       if (!existing.rows[0].cursor) {
         throw new ReplicationError('CONFLICT', 'Event exists without a durable ack; ingest is incomplete.');
       }
+      const cursor = existing.rows[0].cursor;
+      // Advance THIS generation's head when the replay is the next expected
+      // sequence, so the first new operation after a restore is not rejected as
+      // a gap. A retry of an already-seen sequence leaves the head untouched.
+      await db.query(
+        `INSERT INTO native_replication.stream_heads (business_id, restore_generation, stream, last_sequence)
+         VALUES ($1,$2,$3,0)
+         ON CONFLICT (business_id, restore_generation, stream) DO NOTHING`,
+        [publisher.businessId, publisher.restoreGeneration, envelope.stream],
+      );
+      const dupHead = await db.query<{ last_sequence: unknown }>(
+        `SELECT last_sequence FROM native_replication.stream_heads
+         WHERE business_id = $1 AND restore_generation = $2 AND stream = $3
+         FOR UPDATE`,
+        [publisher.businessId, publisher.restoreGeneration, envelope.stream],
+      );
+      const dupLast = asBigInt(dupHead.rows[0]?.last_sequence ?? 0);
+      const dupSequence = BigInt(envelope.streamSequence);
+      if (dupSequence === dupLast + 1n) {
+        await db.query(
+          `UPDATE native_replication.stream_heads SET last_sequence = $4
+           WHERE business_id = $1 AND restore_generation = $2 AND stream = $3`,
+          [publisher.businessId, publisher.restoreGeneration, envelope.stream, dupSequence.toString()],
+        );
+      }
+      // Record the duplicate against the current generation too, so this
+      // publisher's ack history is complete. The cursor is business-scoped.
+      await db.query(
+        `INSERT INTO native_replication.acks (business_id, restore_generation, stream, operation_id, cursor)
+         VALUES ($1,$2,$3,$4,$5)
+         ON CONFLICT (business_id, restore_generation, stream, operation_id) DO NOTHING`,
+        [publisher.businessId, publisher.restoreGeneration, envelope.stream, envelope.operationId, cursor],
+      );
       await db.exec('COMMIT');
-      return { operationId: envelope.operationId, cursor: existing.rows[0].cursor, duplicate: true };
+      return { operationId: envelope.operationId, cursor, duplicate: true };
     }
     await db.query(
       `INSERT INTO native_replication.stream_heads (business_id, restore_generation, stream, last_sequence)

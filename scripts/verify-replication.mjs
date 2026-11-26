@@ -582,6 +582,66 @@ try {
     ),
   );
 
+  // --- P5-ADV-009: dedup semantic contract across restore generations.
+  // Operation identity is business-scoped and generation-independent; a restore
+  // generation is a transport epoch. Dedup must be cross-generation so a replayed
+  // snapshot row is never re-projected, while per-generation stream ordering must
+  // still advance so the first NEW operation after a restore is publishable.
+  {
+    const dd = new CloudStore();
+    const g1 = actor('publisher', { restoreGeneration: 'gen-1', deviceId: 'device-dedup-01' });
+    enroll(dd, g1);
+    const pub = (row, p) => ingestEnvelope(dd, p, buildEnvelope(p, row, digest), digest, NOW);
+    pub(productRow(1), g1);
+    pub(customerRow(1), g1);
+    pub(invoiceRow(1, { id: 'dd-bill-1' }), g1);
+    pub(invoiceRow(2, { id: 'dd-bill-2' }), g1);
+    const creditReplay = {
+      stream: 'customer', sequence: 2, operationId: 'dd-cred-1', occurredAtIso: ISO,
+      payload: {
+        version: 1, kind: 'credit.posted', operationId: 'dd-cred-1',
+        value: { operationId: 'dd-cred-1', customerId: 'cust-ravi', kind: 'sale', amountPaise: 5000, balancePaise: '5000' },
+      },
+    };
+    pub(creditReplay, g1);
+    const key = 'biz-kirana-01|cust-ravi';
+    const outstandingBefore = String(dd.customers.get(key).outstandingPaise);
+
+    const g2 = actor('publisher', { restoreGeneration: 'gen-2', deviceId: 'device-dedup-01' });
+    enroll(dd, g2);
+    const r1 = pub(invoiceRow(1, { id: 'dd-bill-1' }), g2);
+    check(r1.duplicate === true, 'post-restore replay is a cross-generation duplicate');
+    const r2 = pub(invoiceRow(2, { id: 'dd-bill-2' }), g2);
+    check(r2.duplicate === true, 'every replayed snapshot row is a cross-generation duplicate');
+    const fresh = pub(invoiceRow(3, { id: 'dd-bill-3-new' }), g2);
+    check(
+      fresh.duplicate === false,
+      'duplicates advance the generation head so a new post-restore operation is accepted',
+    );
+    const rc = pub(creditReplay, g2);
+    check(rc.duplicate === true, 'a replayed credit entry is a cross-generation duplicate');
+    check(
+      String(dd.customers.get(key).outstandingPaise) === outstandingBefore,
+      'cross-generation dedup never re-projects a credit delta (outstanding is not double-counted)',
+    );
+    const retry = pub(invoiceRow(1, { id: 'dd-bill-1' }), g2);
+    check(
+      retry.duplicate === true && retry.cursor === r1.cursor,
+      'retry of an already-seen sequence stays idempotent and keeps the original cursor',
+    );
+    expectCode('CONFLICT', () => pub(invoiceRow(4, { id: 'dd-bill-1', totalPaise: 999 }), g2));
+  }
+  const pgSrc = readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8');
+  check(
+    /WHERE e\.business_id = \$1 AND e\.stream = \$2 AND e\.operation_id = \$3/.test(pgSrc),
+    'durable Postgres dedup is keyed by business and operation, not restore generation',
+  );
+  const memSrc = readFileSync(join(root, 'packages/replication-cloud/src/ingest.ts'), 'utf8');
+  check(
+    memSrc.includes('${publisher.businessId}|${envelope.operationId}'),
+    'in-memory dedup uses the same business-scoped operation identity',
+  );
+
   const sidecar = new CloudStore();
   const pub = enroll(sidecar, actor('publisher', { deviceId: 'device-publisher-flush' }));
   enroll(sidecar, actor('owner', { deviceId: 'device-owner-flush' }));
