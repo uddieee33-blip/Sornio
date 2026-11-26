@@ -12,19 +12,28 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
       - uses: dtolnay/rust-toolchain@stable
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and push to branch
+      - name: Create blob and commit via API
         run: |
-          mkdir -p phase5-audit-crates
-          tar cf phase5-audit-crates/crates.tar -C ~/.cargo/registry/cache/ crates/*/
-          sha256sum phase5-audit-crates/crates.tar > phase5-audit-crates/crates.tar.sha256
-          git config user.name "phase5-audit-crate-fetch"
-          git config user.email "actions@github.com"
-          git add phase5-audit-crates
-          git commit -m "chore(phase5-audit): fetch locked crates for independent audit"
-          git push origin arena/e831eb29-sornio
+          tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
+          # Get current commit SHA on arena/e831eb29-sornio
+          PARENT=$(gh api repos/uddieee33-blip/Sornio/commits/arena/e831eb29-sornio --jq .sha)
+          PARENT_TREE=$(gh api repos/uddieee33-blip/Sornio/git/commits/$PARENT --jq .tree.sha)
+          # Create blob
+          BLOB=$(base64 -w0 crates.tar | gh api git/blobs -F content=@- -F encoding=base64 --jq .sha)
+          echo "BLOB=$BLOB" >> $GITHUB_ENV
+          echo "PARENT=$PARENT" >> $GITHUB_ENV
+          echo "PARENT_TREE=$PARENT_TREE" >> $GITHUB_ENV
+      - name: Create tree and commit
+        run: |
+          source $GITHUB_ENV
+          # Create tree with crates.tar
+          TREE=$(gh api git/trees -F tree="$PARENT_TREE" -F tree="[{\"path\":\"phase5-audit-crates/crates.tar\",\"mode\":\"100644\",\"type\":\"blob\",\"sha\":\"$BLOB\"}]" --jq .sha)
+          COMMIT=$(gh api git/commits -F message="chore(phase5-audit): fetch locked crates" -F tree="$TREE" -F parents="[\"$PARENT\"]" --jq .sha)
+          # Create branch ref
+          gh api -X PUT repos/uddieee33-blip/Sornio/git/refs/heads/phase5-audit-crates-tmp -F sha="$COMMIT"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
