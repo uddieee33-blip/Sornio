@@ -15,11 +15,11 @@ use crate::{
     Draft,
 };
 
-const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
-const LOGIN: &str = "Local test password!";
-const SECRET: &str = "Separate recovery passphrase 2026!";
+pub(super) const KEY: &str = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+pub(super) const LOGIN: &str = "Local test password!";
+pub(super) const SECRET: &str = "Separate recovery passphrase 2026!";
 
-fn seeded(path: &Path) -> Store {
+pub(super) fn seeded(path: &Path) -> Store {
     let mut w = Workspace::new(Store::open(path, KEY).unwrap());
     w.setup(LOGIN).unwrap();
     w.save(
@@ -43,7 +43,7 @@ fn seeded(path: &Path) -> Store {
     w.into_recovery_store()
 }
 
-fn sale(id: &str, revision: i64) -> PostInvoice {
+pub(super) fn sale(id: &str, revision: i64) -> PostInvoice {
     PostInvoice {
         operation_id: id.into(),
         lines: vec![BillLine {
@@ -59,7 +59,7 @@ fn sale(id: &str, revision: i64) -> PostInvoice {
 
 /// Install a durable admitted operation + fence directly (exactly what `admit`
 /// writes), used to exercise the fenced state without a full backup round-trip.
-fn install_fence(db: &Connection) -> Ownership {
+pub(super) fn install_fence(db: &Connection) -> Ownership {
     let business: String = db
         .query_row(
             "SELECT business_id FROM local_recovery_identity WHERE singleton=1",
@@ -89,7 +89,7 @@ fn install_fence(db: &Connection) -> Ownership {
 
 /// Remove every user trigger so a test can inject raw on-disk-style corruption.
 /// The financial verifier must detect bad state regardless of how it arose.
-fn strip_triggers(db: &Connection) {
+pub(super) fn strip_triggers(db: &Connection) {
     let names: Vec<String> = {
         let mut q = db
             .prepare(

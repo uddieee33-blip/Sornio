@@ -429,6 +429,18 @@ pub(crate) fn resolve_interrupted(
     operation_id: &str,
     password: &str,
 ) -> Result<(), StoreError> {
+    resolve_interrupted_at(store, operation_id, password, now()?)
+}
+
+/// Clock-injected form of [`resolve_interrupted`], mirroring `access::login_at`,
+/// so the lockout interval can be tested without waiting in real time. `clock`
+/// governs authentication policy only; record timestamps still use wall time.
+pub(crate) fn resolve_interrupted_at(
+    store: &mut Store,
+    operation_id: &str,
+    password: &str,
+    clock: i64,
+) -> Result<(), StoreError> {
     if password.is_empty() || password.len() > 512 {
         return Err(StoreError::InvalidPassword);
     }
@@ -436,10 +448,14 @@ pub(crate) fn resolve_interrupted(
         .0
         .transaction_with_behavior(TransactionBehavior::Immediate)?;
     // The store is fenced after an interrupted recovery, so the normal login
-    // (which writes attempt counters to fenced tables) cannot run. Authenticate
-    // the Owner read-only against the stored verifier, honoring the persistent
-    // lockout. Resolution itself writes only recovery metadata, never business
-    // tables, so it is the single authorized write path through a live fence.
+    // (which writes principal attempt counters to a fenced table) cannot run.
+    // Resolution therefore authenticates the Owner against the stored verifier
+    // while charging every failure to the SAME database-wide persistent budget
+    // that `access::login_at` uses (`workspace_access`, deliberately unfenced so
+    // the Owner can still be rate-limited through a live fence). The budget is
+    // shared with normal login, so alternating between the two paths cannot
+    // multiply the allowance, and it is committed durably so a restart cannot
+    // reset it. The IMMEDIATE transaction serializes concurrent attempts.
     let owner: Option<(String, String, i64, bool)> = tx
         .query_row(
             "SELECT id,password_hash,retry_after,enabled FROM local_principals WHERE role='owner' LIMIT 1",
@@ -448,21 +464,52 @@ pub(crate) fn resolve_interrupted(
         )
         .optional()?;
     let (id, hash, retry, enabled) = owner.ok_or(StoreError::AccessUnavailable)?;
-    let global_retry: i64 = tx.query_row(
-        "SELECT retry_after FROM workspace_access WHERE singleton=1",
+    let (global_attempts, global_retry): (i64, i64) = tx.query_row(
+        "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
         [],
-        |r| r.get(0),
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
-    let clock = now()?;
+    let scope = crate::identity::scope(&tx)?;
+    // An active lockout is never bypassed, not even by the correct password.
     if clock < retry || clock < global_retry {
         return Err(StoreError::RateLimited);
     }
-    if !enabled || !crate::access::verify_password(password, &hash)? {
-        return Err(StoreError::InvalidPassword);
+    // Always perform the bounded Argon2 work, even for a disabled Owner, so a
+    // disabled account is not a fast oracle (mirrors login_at).
+    let verified = crate::access::verify_password(password, &hash)?;
+    if !verified || !enabled {
+        // Identical policy to login_at: five failures, then a 60 second lockout.
+        let attempts = (if global_retry > 0 { 0 } else { global_attempts } + 1).min(5);
+        let retry = if attempts == 5 { clock.saturating_add(60) } else { 0 };
+        if tx.execute(
+            "UPDATE workspace_access SET failed_attempts=?1,retry_after=?2 WHERE singleton=1",
+            params![attempts, retry],
+        )? != 1
+        {
+            return Err(StoreError::AccessUnavailable);
+        }
+        crate::identity::audit(&tx, &scope, None, "session.denied", None)?;
+        // The accounting must survive the failed attempt: commit it explicitly.
+        tx.commit()?;
+        return Err(if retry > 0 {
+            StoreError::RateLimited
+        } else {
+            StoreError::InvalidPassword
+        });
     }
     let actor = crate::identity::principal(&tx, &id)?;
-    let scope = crate::identity::scope(&tx)?;
-    let session = crate::identity::session(&tx, scope, &actor)?;
+    let session = crate::identity::session(&tx, scope.clone(), &actor)?;
+    // A successful Owner authentication clears the shared budget, exactly as a
+    // successful normal login does. Principal counters stay untouched: their
+    // table is fenced, and leaving them intact is the conservative choice.
+    if tx.execute(
+        "UPDATE workspace_access SET failed_attempts=0,retry_after=0 WHERE singleton=1",
+        [],
+    )? != 1
+    {
+        return Err(StoreError::AccessUnavailable);
+    }
+    crate::identity::audit(&tx, &scope, Some(&actor), "session.unlocked", None)?;
     let changed = tx.execute(
         &format!(
             "UPDATE local_recovery_operations SET state='interrupted', detail=?2, updated_at=?3
@@ -1430,5 +1477,8 @@ fn restore_owned(
 #[cfg(test)]
 #[path = "recovery/phase5_tests.rs"]
 mod phase5_tests;
+#[cfg(test)]
+#[path = "recovery/remediation_tests.rs"]
+mod remediation_tests;
 #[cfg(test)]
 mod tests;
