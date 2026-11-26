@@ -20,37 +20,56 @@ jobs:
         run: |
           tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
           python3 - <<'PYEOF'
-          import base64, json, os, subprocess
+          import json, base64, subprocess, tempfile, os
+
+          def api_call(endpoint, payload, method="POST"):
+              with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                  f.write(json.dumps(payload))
+                  fpath = f.name
+              r = subprocess.run(["gh", "api", endpoint, "-X", method, "--input", fpath],
+                               capture_output=True, text=True)
+              os.unlink(fpath)
+              if r.returncode != 0:
+                  print(f"ERROR: {r.stderr}")
+                  raise RuntimeError(f"API call to {endpoint} failed: {r.stderr}")
+              return r.stdout.strip()
+
           # Get parent commit
-          parent = subprocess.check_output(
-              ["gh", "api", "repos/uddieee33-blip/Sornio/commits/arena/e831eb29-sornio", "--jq", ".sha"],
-              text=True, capture_output=True).strip()
+          r = subprocess.run(["gh", "api", "repos/uddieee33-blip/Sornio/commits/arena/e831eb29-sornio", "--jq", ".sha"], capture_output=True, text=True)
+          parent = r.stdout.strip()
+          print(f"Parent: {parent}")
+
           # Get parent tree
-          parent_tree = subprocess.check_output(
-              ["gh", "api", f"repos/uddieee33-blip/Sornio/git/commits/{parent}", "--jq", ".tree.sha"],
-              text=True, capture_output=True).strip()
+          r = subprocess.run(["gh", "api", f"repos/uddieee33-blip/Sornio/git/commits/{parent}", "--jq", ".tree.sha"], capture_output=True, text=True)
+          parent_tree = r.stdout.strip()
+          print(f"Parent tree: {parent_tree}")
+
           # Read tar and create blob
           with open("crates.tar", "rb") as f:
               data = base64.b64encode(f.read()).decode()
-          blob = subprocess.check_output(
-              ["gh", "api", "git/blobs", "-F", f"content={data}", "-F", "encoding=base64", "--jq", ".sha"],
-              text=True, capture_output=True).strip()
+
+          result = api_call("repos/uddieee33-blip/Sornio/git/blobs",
+                          {"content": data, "encoding": "base64"})
+          blob = json.loads(result)["sha"]
+          print(f"Blob: {blob}")
+
           # Create tree
-          tree_payload = json.dumps([{"path": "phase5-audit-crates/crates.tar", "mode": "100644", "type": "blob", "sha": blob}])
-          tree = subprocess.check_output(
-              ["gh", "api", "git/trees", "-F", f"tree={parent_tree}", "-F", f"tree={tree_payload}", "--jq", ".sha"],
-              text=True, capture_output=True).strip()
+          tree = api_call("repos/uddieee33-blip/Sornio/git/trees",
+                        {"base_tree": parent_tree,
+                         "tree": [{"path": "phase5-audit-crates/crates.tar", "mode": "100644", "type": "blob", "sha": blob}]})
+          print(f"Tree: {tree}")
+
           # Create commit
-          commit = subprocess.check_output(
-              ["gh", "api", "git/commits", "-F", "message=chore(phase5-audit): fetch locked crates",
-               "-F", f"tree={tree}", "-F", f'parents=["{parent}"]', "--jq", ".sha"],
-              text=True, capture_output=True).strip()
-          # Create branch
-          subprocess.run(
-              ["gh", "api", "-X", "PUT", "repos/uddieee33-blip/Sornio/git/refs/heads/phase5-audit-crates-tmp",
-               "-F", f"sha={commit}"],
-              check=True, capture_output=True)
-          print(f"Created commit {commit} on phase5-audit-crates-tmp")
+          commit = api_call("repos/uddieee33-blip/Sornio/git/commits",
+                          {"message": "chore(phase5-audit): fetch locked crates",
+                           "tree": tree, "parents": [parent]})
+          commit_sha = json.loads(commit)["sha"]
+          print(f"Commit: {commit_sha}")
+
+          # Create branch ref
+          api_call("repos/uddieee33-blip/Sornio/git/refs",
+                  {"ref": "refs/heads/phase5-audit-crates-tmp", "sha": commit_sha})
+          print(f"Successfully created phase5-audit-crates-tmp with crates.tar")
           PYEOF
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
