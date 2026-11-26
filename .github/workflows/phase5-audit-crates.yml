@@ -16,69 +16,48 @@ jobs:
       - name: Fetch all locked crates
         run: |
           cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-      - name: Pack and push via API
+      - name: Pack crates
         run: |
-          tar cf crates.tar -C ~/.cargo/registry/cache/ crates/*/
+          echo "=== CARGO HOME ==="
+          echo "CARGO_HOME=$CARGO_HOME"
+          echo "=== Registry cache ==="
+          ls -la ~/.cargo/registry/ 2>/dev/null || echo "no ~/.cargo/registry"
+          ls -la ~/.cargo/registry/cache/ 2>/dev/null || echo "no cache dir"
+          ls ~/.cargo/registry/cache/*/ 2>/dev/null | head -5 || echo "no crates in cache"
+          echo "=== Find .crate files ==="
+          find ~/.cargo -name "*.crate" 2>/dev/null | head -5
+          echo "=== Find all registry files ==="
+          find ~/.cargo/registry -type f 2>/dev/null | head -10
+          # Try to find and tar all .crate files
+          find ~/.cargo -name "*.crate" -print0 2>/dev/null | tar cf crates.tar --null -T -
           ls -la crates.tar
+          echo "TAR_EXIT=$?"
       - name: Create commit via github-script
         uses: actions/github-script@v7
         with:
           script: |
             const fs = require('fs');
-            const crypto = require('crypto');
-
-            // Read the tarball
             const tarData = fs.readFileSync('crates.tar');
             const content = tarData.toString('base64');
-
-            // Get parent commit
             const parentCommit = await github.rest.repos.getCommit({
-              owner: 'uddieee33-blip',
-              repo: 'Sornio',
-              ref: 'arena/e831eb29-sornio'
+              owner: 'uddieee33-blip', repo: 'Sornio', ref: 'arena/e831eb29-sornio'
             });
             const parentSha = parentCommit.data.sha;
             const parentTree = parentCommit.data.tree.sha;
-            console.log(`Parent: ${parentSha}, tree: ${parentTree}`);
-
-            // Create blob
             const blob = await github.rest.git.createBlob({
-              owner: 'uddieee33-blip',
-              repo: 'Sornio',
-              content,
-              encoding: 'base64'
+              owner: 'uddieee33-blip', repo: 'Sornio', content, encoding: 'base64'
             });
-            console.log(`Blob: ${blob.data.sha}`);
-
-            // Create tree
             const tree = await github.rest.git.createTree({
-              owner: 'uddieee33-blip',
-              repo: 'Sornio',
-              base_tree: parentTree,
-              tree: [{
-                path: 'phase5-audit-crates/crates.tar',
-                mode: '100644',
-                type: 'blob',
-                sha: blob.data.sha
-              }]
+              owner: 'uddieee33-blip', repo: 'Sornio', base_tree: parentTree,
+              tree: [{ path: 'phase5-audit-crates/crates.tar', mode: '100644', type: 'blob', sha: blob.data.sha }]
             });
-            console.log(`Tree: ${tree.data.sha}`);
-
-            // Create commit
             const commit = await github.rest.git.createCommit({
-              owner: 'uddieee33-blip',
-              repo: 'Sornio',
+              owner: 'uddieee33-blip', repo: 'Sornio',
               message: 'chore(phase5-audit): fetch locked crates',
-              tree: tree.data.sha,
-              parents: [parentSha]
+              tree: tree.data.sha, parents: [parentSha]
             });
-            console.log(`Commit: ${commit.data.sha}`);
-
-            // Create ref
             await github.rest.git.createRef({
-              owner: 'uddieee33-blip',
-              repo: 'Sornio',
-              ref: 'refs/heads/phase5-audit-crates-tmp',
-              sha: commit.data.sha
+              owner: 'uddieee33-blip', repo: 'Sornio',
+              ref: 'refs/heads/phase5-audit-crates-tmp', sha: commit.data.sha
             });
-            console.log('SUCCESS: phase5-audit-crates-tmp created');
+            console.log('SUCCESS: phase5-audit-crates-tmp created with crates.tar');
