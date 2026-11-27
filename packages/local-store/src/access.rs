@@ -163,6 +163,11 @@ impl Workspace {
         result
     }
 
+    /// Eight inputs (three credentials, two paths, the verified preview and its
+    /// confirmation) are the restore contract as exposed by the native IPC
+    /// command; grouping them into a struct would only move the same secrets into
+    /// a longer-lived value, so the flat signature is deliberate.
+    #[allow(clippy::too_many_arguments)]
     pub fn restore_backup(
         &mut self,
         source: &std::path::Path,

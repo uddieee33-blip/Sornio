@@ -558,7 +558,7 @@ fn split_credit_reused_canceled_and_customer_ids_conflict() {
     );
     perform(&mut s, first.clone());
     let committed = snapshots(&s);
-    assert!(matches!(s.post_retail(first.clone()), Ok(_)));
+    assert!(s.post_retail(first.clone()).is_ok());
     assert_eq!(snapshots(&s), committed);
     let mut changed = first;
     if let Action::Sale { payments, .. } = &mut changed.action {
@@ -705,7 +705,7 @@ fn three_cashiers_two_units_never_oversell() {
     let b_result = worker_b.join().unwrap();
     let ok = a_result.is_ok() as u8 + b_result.is_ok() as u8 + c_result.is_ok() as u8;
     assert!(
-        ok >= 1 && ok <= 2,
+        (1..=2).contains(&ok),
         "two units / three cashiers: {a_result:?} {b_result:?} {c_result:?}"
     );
     let product = c
