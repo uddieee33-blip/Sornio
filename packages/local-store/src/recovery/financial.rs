@@ -15,7 +15,7 @@
 //! **financial consequence**, rather than merely testing that totals balance:
 //!
 //! * invoice payload totals/tender/customer  <-> billing ledger legs
-//! * invoice payload line quantities        <-> `local_invoice_stock`
+//! * invoice payload line quantities (summed per product) <-> `local_invoice_stock`
 //! * credit-tender invoice                  <-> `local_credit_entries` sale row
 //! * credit entry delta                     <-> customer journal receivables leg
 //! * retail return source totals            <-> retail journal revenue/tax legs
@@ -193,22 +193,27 @@ pub(crate) fn violations(db: &Connection) -> Result<Vec<String>, StoreError> {
          WHERE after_milli<>before_milli-quantity_milli",
         "invoice stock arithmetic broken",
     )?;
-    // Every billed line must have a stock movement of exactly that quantity.
+    // Billed lines are compared against stock movements ONLY after aggregating
+    // by product. billing.rs::post_into sums the requested quantity per product
+    // (`quantities`), then writes exactly ONE movement per product, while the
+    // payload keeps every line. Comparing line-for-line therefore rejected every
+    // legitimate invoice that billed the same product twice, and the reverse
+    // direction could not see a movement that matched only one of the lines, so
+    // duplicate-line under-deduction went undetected.
     push(
         db,
         &mut v,
-        "SELECT i.id FROM local_invoices i
+        "SELECT i.id||'/'||json_extract(ln.value,'$.productId') FROM local_invoices i,
+              json_each(i.payload,'$.lines') ln
          WHERE json_extract(i.payload,'$.lines') IS NOT NULL
-           AND EXISTS(
-             SELECT 1 FROM json_each(i.payload,'$.lines') ln
-             WHERE NOT EXISTS(
-               SELECT 1 FROM local_invoice_stock s
-               WHERE s.invoice_id=i.id
-                 AND s.product_id=json_extract(ln.value,'$.productId')
-                 AND s.quantity_milli=CAST(json_extract(ln.value,'$.quantityMilli') AS INTEGER)))",
-        "invoice line missing matching stock movement",
+         GROUP BY i.id, json_extract(ln.value,'$.productId')
+         HAVING COALESCE((SELECT SUM(s.quantity_milli) FROM local_invoice_stock s
+                          WHERE s.invoice_id=i.id
+                            AND s.product_id=json_extract(ln.value,'$.productId')),0)
+                <> COALESCE(SUM(CAST(json_extract(ln.value,'$.quantityMilli') AS INTEGER)),0)",
+        "invoice line quantities disagree with stock movements",
     )?;
-    // ...and no stock movement may exist without its billed line.
+    // ...and no stock movement may exist for a product the invoice never billed.
     push(
         db,
         &mut v,
@@ -217,8 +222,7 @@ pub(crate) fn violations(db: &Connection) -> Result<Vec<String>, StoreError> {
          WHERE json_extract(i.payload,'$.lines') IS NOT NULL
            AND NOT EXISTS(
              SELECT 1 FROM json_each(i.payload,'$.lines') ln
-             WHERE json_extract(ln.value,'$.productId')=s.product_id
-               AND CAST(json_extract(ln.value,'$.quantityMilli') AS INTEGER)=s.quantity_milli)",
+             WHERE json_extract(ln.value,'$.productId')=s.product_id)",
         "stock movement without matching invoice line",
     )?;
 
@@ -247,7 +251,11 @@ pub(crate) fn violations(db: &Connection) -> Result<Vec<String>, StoreError> {
         "credit sale missing matching credit entry",
     )?;
     // The reverse direction: a sale receivable must belong to a credit invoice
-    // of exactly that value.
+    // of exactly that value, OR to a retail invoice whose "credit" payment parts
+    // total exactly that value for the same customer. The second form is the
+    // split cash+credit retail sale (billing.rs posts the parts, then
+    // customers::post_split_credit books only the credit part as debt), so
+    // requiring tender='credit' here rejected every legitimate split sale.
     push(
         db,
         &mut v,
@@ -256,26 +264,116 @@ pub(crate) fn violations(db: &Connection) -> Result<Vec<String>, StoreError> {
            AND NOT EXISTS(
              SELECT 1 FROM local_invoices i
              WHERE i.id=c.invoice_id
-               AND json_extract(i.payload,'$.tender')='credit'
-               AND CAST(json_extract(i.payload,'$.totalPaise') AS INTEGER)=c.amount_paise)",
+               AND ((json_extract(i.payload,'$.tender')='credit'
+                     AND CAST(json_extract(i.payload,'$.totalPaise') AS INTEGER)=c.amount_paise)
+                 OR (json_extract(i.payload,'$.tender')='retail'
+                     AND COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                                   WHERE p.invoice_id=i.id AND p.method='credit'),0)
+                         = c.amount_paise
+                     AND json_extract(i.payload,'$.customerId')=c.customer_id)))",
         "credit entry without matching credit invoice",
     )?;
-    // Every non-sale credit entry that posts to the customer journal must equal
-    // that journal's receivables leg. This holds for repayment, opening_due,
-    // write_off and reversal by construction (the entry stores the balance
-    // delta, which is exactly the receivables movement).
+    // The split-sale direction: a retail invoice whose credit parts are non-zero
+    // must have exactly one sale entry for that customer equal to the credit
+    // parts, and a retail invoice with no credit part must have none. Without
+    // this, deleting the split-credit entry silently understated outstanding
+    // because the tender='credit' rule above never looked at retail invoices.
+    push(
+        db,
+        &mut v,
+        "SELECT i.id FROM local_invoices i
+         WHERE json_extract(i.payload,'$.tender')='retail'
+           AND (SELECT COUNT(*) FROM local_credit_entries c
+                WHERE c.invoice_id=i.id AND c.kind='sale')
+               <> (CASE WHEN COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                                       WHERE p.invoice_id=i.id AND p.method='credit'),0)<>0
+                        THEN 1 ELSE 0 END)",
+        "retail split credit is not exactly one credit entry",
+    )?;
+    push(
+        db,
+        &mut v,
+        "SELECT i.id FROM local_invoices i
+         WHERE json_extract(i.payload,'$.tender')='retail'
+           AND COALESCE((SELECT SUM(p.amount) FROM local_retail_payments p
+                         WHERE p.invoice_id=i.id AND p.method='credit'),0)<>0
+           AND NOT EXISTS(
+             SELECT 1 FROM local_credit_entries c
+             WHERE c.invoice_id=i.id AND c.kind='sale'
+               AND c.amount_paise=(SELECT SUM(p.amount) FROM local_retail_payments p
+                                   WHERE p.invoice_id=i.id AND p.method='credit')
+               AND c.customer_id=json_extract(i.payload,'$.customerId'))",
+        "retail split credit disagrees with recorded credit parts",
+    )?;
+    // Every credit entry that posts to the customer journal must equal that
+    // journal's receivables leg. This holds for repayment, opening_due,
+    // write_off, reversal and both link kinds by construction (the entry stores
+    // the balance delta, which is exactly the receivables movement). The journal
+    // row is REQUIRED, not merely checked when present: a deleted journal row is
+    // corruption, and the previous EXISTS() guard skipped it (0 rows compared
+    // against nothing). COALESCE(...,0) makes a missing row visible because an
+    // entry amount is never zero.
     push(
         db,
         &mut v,
         "SELECT c.operation_id||'/'||c.customer_id FROM local_credit_entries c
-         WHERE c.kind<>'sale'
-           AND EXISTS(SELECT 1 FROM local_customer_journal j
-                      WHERE j.operation_id=c.operation_id AND j.customer_id=c.customer_id)
+         WHERE c.kind IN ('repayment','opening_due','write_off','reversal','link_in','link_out')
            AND COALESCE((SELECT SUM(j.amount_paise) FROM local_customer_journal j
                          WHERE j.operation_id=c.operation_id
                            AND j.customer_id=c.customer_id
                            AND j.account='receivables'),0) <> c.amount_paise",
         "credit entry disagrees with customer journal",
+    )?;
+    // A transferred (linked) receivable must move between two DIFFERENT
+    // customers with exactly offsetting deltas, so a deleted or unpaired side is
+    // detected rather than looking like a valid single-sided transfer.
+    push(
+        db,
+        &mut v,
+        "SELECT c.operation_id||'/'||c.customer_id FROM local_credit_entries c
+         WHERE c.kind IN ('link_in','link_out')
+           AND NOT EXISTS(
+             SELECT 1 FROM local_credit_entries o
+             WHERE o.operation_id=c.operation_id
+               AND o.customer_id<>c.customer_id
+               AND o.kind=CASE c.kind WHEN 'link_in' THEN 'link_out' ELSE 'link_in' END
+               AND o.amount_paise=-c.amount_paise)",
+        "linked credit entry is not paired with its counterpart",
+    )?;
+    // A return's customer-side debt reduction is recorded twice: as a
+    // `kind='return'` credit entry and as the `debt` column of each
+    // `local_retail_return_parts` row (payments.rs::return_invoice ->
+    // customers::invoice_return). Both directions are asserted, so neither a
+    // deleted entry nor an inflated part goes unnoticed, and the retail journal's
+    // attributed receivables leg must carry the same amount.
+    push(
+        db,
+        &mut v,
+        "SELECT r.id FROM local_retail_returns r
+         WHERE COALESCE((SELECT SUM(p.debt) FROM local_retail_return_parts p
+                         WHERE p.operation_id=r.id),0) <> 0
+           AND COALESCE((SELECT SUM(e.amount_paise) FROM local_credit_entries e
+                         WHERE e.operation_id=r.id AND e.kind='return'),0)
+               <> -COALESCE((SELECT SUM(p.debt) FROM local_retail_return_parts p
+                             WHERE p.operation_id=r.id),0)",
+        "retail return debt has no matching credit return entry",
+    )?;
+    push(
+        db,
+        &mut v,
+        "SELECT c.operation_id FROM local_credit_entries c
+         WHERE c.kind='return'
+           AND (COALESCE((SELECT SUM(e.amount_paise) FROM local_credit_entries e
+                          WHERE e.operation_id=c.operation_id AND e.kind='return'),0)
+                  <> -COALESCE((SELECT SUM(p.debt) FROM local_retail_return_parts p
+                                WHERE p.operation_id=c.operation_id),0)
+             OR COALESCE((SELECT SUM(j.amount) FROM local_retail_journal j
+                          WHERE j.operation_id=c.operation_id
+                            AND j.account='receivables'
+                            AND j.customer_id IS NOT NULL),0)
+                  <> COALESCE((SELECT SUM(e.amount_paise) FROM local_credit_entries e
+                               WHERE e.operation_id=c.operation_id AND e.kind='return'),0))",
+        "retail return credit entry disagrees with the return record",
     )?;
     // Derived outstanding must never be negative (write paths reject overpayment).
     push(
