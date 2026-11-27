@@ -1011,12 +1011,35 @@ try {
     );
     // It must move only the transport epoch; identity stays (business, stream, operation).
     const pgText = readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8');
-    const rotation = pgText.slice(pgText.indexOf('export async function rotatePublisherGeneration'));
+    // The rotation is split into a bounded-retry wrapper and a transactional
+    // body; the write lives in the body, so that is what must be inspected.
+    // Every statement of the transaction must be in one function, or the lock
+    // order that keeps rotation and ingest apart stops being reviewable.
+    check(
+      /async function rotateInTransaction\(/.test(pgText),
+      'the rotation body is a single named function',
+    );
+    const rotation = pgText.slice(pgText.indexOf('async function rotateInTransaction('));
     const rotationBody = rotation.slice(0, rotation.indexOf('\n}\n') + 3);
     check(
-      /SET restore_generation = \$2/.test(rotationBody) &&
+      /BEGIN/.test(rotationBody) && /COMMIT/.test(rotationBody) && /ROLLBACK/.test(rotationBody),
+      'the rotation body opens, commits and can roll back an explicit transaction',
+    );
+    check(
+      /SET restore_generation = \$3/.test(rotationBody) &&
         !/operation_id|stream_sequence|event_pk/.test(rotationBody),
       'rotation writes only the device generation, never stream or operation identity',
+    );
+    check(
+      /restore_generation = \$2/.test(rotationBody) && /RETURNING/.test(rotationBody),
+      'the write is conditional on the generation that was read, and reports what it replaced',
+    );
+    check(
+      (() => {
+        const order = ['businesses', 'devices'].map((table) => rotationBody.indexOf(`native_replication.${table}`));
+        return order[0] > 0 && order[1] > order[0] && /FOR UPDATE/.test(rotationBody);
+      })(),
+      'rotation locks the business row before the device row, the same order as ingestDurable',
     );
     check(
       /role = 'publisher'/.test(rotationBody) && /revoked = FALSE/.test(rotationBody),

@@ -100,6 +100,9 @@ export async function revokePrivileged(db: SqlDatabase, deviceId: string): Promi
 /** The `restore_generation` shape enforced by `native_replication.devices`. */
 const GENERATION = /^[A-Za-z0-9_-]{1,128}$/;
 
+/** SQLSTATE values raised when a statement loses a lock race. */
+const RETRYABLE_CONFLICT = new Set(['40001', '40P01']);
+
 export type RotateGenerationResult = {
   businessId: string;
   generation: string;
@@ -134,7 +137,33 @@ export type RotateGenerationResult = {
  *   accepted as a no-op, so a caller cannot believe a second restore happened.
  *
  * The returned `previousGeneration` lets the caller record the transition
- * without a second read.
+ * without a second read. It is read back from the row the UPDATE actually
+ * returned, not from an earlier SELECT, so a caller can never be told a stale
+ * predecessor.
+ *
+ * ## Atomicity
+ *
+ * The existence check, the locks, the validation and the update are one
+ * transaction, on the connection behind `db`. Without one, a `FOR UPDATE` lock
+ * is released when its statement completes, so the row could change between the
+ * read and the write and two concurrent restores could each report a transition
+ * that did not happen.
+ *
+ * Lock order matches `ingestDurable` exactly — business row, then the publisher
+ * device row — so a rotation and an ingest can never deadlock against each
+ * other. `SqlDatabase` is a connection-scoped facade (`pg.Client` in the
+ * harness, PGlite in-process), and this function issues every statement of the
+ * transaction on the `db` it was handed: it never acquires a second connection.
+ *
+ * Concurrency outcomes are explicit rather than accidental:
+ * * two restores racing for the same generation: the loser re-reads the row it
+ *   was blocked on, sees the winner's generation already in force, and fails
+ *   `CONFLICT` (its intended effect is already true — it did not rotate);
+ * * two restores racing for different generations: the second waits, then
+ *   reports the generation the first actually committed as its
+ *   `previousGeneration`, because that value comes from `RETURNING`;
+ * * a serialization or deadlock failure is retried a bounded number of times,
+ *   then surfaces as `CONFLICT` rather than a raw driver error.
  */
 export async function rotatePublisherGeneration(
   db: SqlDatabase,
@@ -147,40 +176,93 @@ export async function rotatePublisherGeneration(
       'Restore generation must be 1-128 characters of [A-Za-z0-9_-].',
     );
   }
-  const business = await db.query<{ business_id: string }>(
-    `SELECT business_id FROM native_replication.businesses WHERE business_id = $1`,
-    [businessId],
-  );
-  if (!business.rows[0]) {
-    throw new ReplicationError('UNAUTHENTICATED', 'This business is not enrolled.');
+  const MAX_ATTEMPTS = 3;
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await rotateInTransaction(db, businessId, generation);
+    } catch (error) {
+      // pgCode is the module's existing SQLSTATE reader (used by ingestDurable).
+      const state = pgCode(error);
+      if (RETRYABLE_CONFLICT.has(state) && attempt < MAX_ATTEMPTS) continue;
+      if (RETRYABLE_CONFLICT.has(state)) {
+        throw new ReplicationError(
+          'CONFLICT',
+          'A concurrent restore held this business; the rotation was not applied.',
+        );
+      }
+      throw error;
+    }
   }
-  // FOR UPDATE: a concurrent restore must not interleave with ingest reading
-  // the same device row inside its own transaction.
-  const publisher = await db.query<{ device_id: string; restore_generation: string }>(
-    `SELECT device_id, restore_generation FROM native_replication.devices
-     WHERE business_id = $1 AND role = 'publisher' AND revoked = FALSE
-     FOR UPDATE`,
-    [businessId],
-  );
-  const current = publisher.rows[0];
-  if (!current) {
-    throw new ReplicationError('FORBIDDEN', 'This business has no active publisher device.');
+}
+
+/**
+ * The transaction body of {@link rotatePublisherGeneration}. Separated so the
+ * retry wrapper cannot accidentally re-use a transaction that already rolled
+ * back.
+ */
+async function rotateInTransaction(
+  db: SqlDatabase,
+  businessId: string,
+  generation: string,
+): Promise<RotateGenerationResult> {
+  await db.exec('BEGIN');
+  try {
+    // Lock 1 — the business row, exactly as ingestDurable takes it first.
+    const business = await db.query<{ business_id: string }>(
+      `SELECT business_id FROM native_replication.businesses WHERE business_id = $1 FOR UPDATE`,
+      [businessId],
+    );
+    if (!business.rows[0]) {
+      throw new ReplicationError('UNAUTHENTICATED', 'This business is not enrolled.');
+    }
+    // Lock 2 — the active publisher device row.
+    const publisher = await db.query<{ device_id: string; restore_generation: string }>(
+      `SELECT device_id, restore_generation FROM native_replication.devices
+       WHERE business_id = $1 AND role = 'publisher' AND revoked = FALSE
+       FOR UPDATE`,
+      [businessId],
+    );
+    const current = publisher.rows[0];
+    if (!current) {
+      throw new ReplicationError('FORBIDDEN', 'This business has no active publisher device.');
+    }
+    if (current.restore_generation === generation) {
+      throw new ReplicationError('CONFLICT', 'The publisher is already on this restore generation.');
+    }
+    // Conditional update with RETURNING: the reported predecessor is the value
+    // the database actually replaced, and a row that changed under us yields no
+    // row rather than a fabricated success.
+    const updated = await db.query<{ device_id: string; restore_generation: string }>(
+      `UPDATE native_replication.devices
+       SET restore_generation = $3
+       WHERE business_id = $1 AND role = 'publisher' AND revoked = FALSE
+         AND restore_generation = $2
+       RETURNING device_id, restore_generation`,
+      [businessId, current.restore_generation, generation],
+    );
+    if (!updated.rows[0]) {
+      // The row is locked, so reaching this means it stopped being the active
+      // publisher between the read and the write.
+      throw new ReplicationError(
+        'CONFLICT',
+        'The publisher changed during the rotation; no transition was applied.',
+      );
+    }
+    await db.exec('COMMIT');
+    return {
+      businessId,
+      generation,
+      previousGeneration: current.restore_generation,
+      deviceId: updated.rows[0].device_id,
+    };
+  } catch (error) {
+    try {
+      await db.exec('ROLLBACK');
+    } catch {
+      // The transaction is already aborted; the original error is what matters.
+    }
+    throw error;
   }
-  if (current.restore_generation === generation) {
-    throw new ReplicationError('CONFLICT', 'The publisher is already on this restore generation.');
-  }
-  await db.query(
-    `UPDATE native_replication.devices
-     SET restore_generation = $2
-     WHERE business_id = $1 AND role = 'publisher' AND revoked = FALSE`,
-    [businessId, generation],
-  );
-  return {
-    businessId,
-    generation,
-    previousGeneration: current.restore_generation,
-    deviceId: current.device_id,
-  };
 }
 
 export async function hydrateFromPostgres(db: SqlDatabase, businessId: string): Promise<CloudStore> {

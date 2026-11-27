@@ -134,5 +134,11 @@ in the migration file).
 
 This is a benchmark on a laptop-class sandbox with a warm cache, synthetic rows and a single client.
 It is representative of plan shape and relative cost, not of absolute production latency. The
-concurrent-ingest path is covered functionally (79 → 100 checks including a two-connection race), not
-under production load.
+concurrent-ingest path is covered functionally (79 → 100 checks in the first pass, 139 in the second
+hardening pass, including a three-connection rotation race), not under production load.
+
+The plan shape is no longer evidenced only by this document: `verify:replication-postgres` asserts
+the index identity, the plan that uses it, the degradation when it is dropped inside a rolled-back
+transaction, and its restoration by re-applying the migration. See
+`docs/reviews/iv2-evidence/iv2-004-migration.txt`. The numbers here remain the recorded measurement;
+the gate is the plan, not the stopwatch.
