@@ -1,0 +1,1 @@
+verify-replication-native-https: 123 checks passed on SQLCipher TEXT -> TLS -> PostgreSQL

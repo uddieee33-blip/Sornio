@@ -1,0 +1,1 @@
+verify-replication-postgres: 79 checks passed on server PostgreSQL
