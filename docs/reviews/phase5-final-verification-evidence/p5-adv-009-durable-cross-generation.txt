@@ -1,0 +1,22 @@
+## Durable cross-generation restore semantics — INDEPENDENT PROBE
+# verify:replication-postgres never rotates the restore generation (every case
+# stays on gen-1), so this contract was unproven on the durable path before this
+# probe. Server: PostgreSQL 16.2. Rotation via rotatePublisherGeneration.
+
+### HEAD 830b9f0 (fixed)
+
+== durable cross-generation restore probe (real PostgreSQL) ==
+   gen-1 outstanding = 5000
+  ok    replayed billing row is a cross-generation duplicate
+  ok    every replayed billing row is a duplicate
+  ok    replayed credit entry is a duplicate
+  ok    credit delta is NOT double-counted (5000 == 5000)
+  ok    first NEW post-restore operation is accepted (no GAP)
+  ok    a gapped new operation is rejected (GAP)
+  ok    changed payload on a known id is CONFLICT (CONFLICT)
+  ok    exactly 4 durable events for 4 business operations (4)
+  ok    gen-2 acks recorded for replayed rows (4)
+  ok    every hydrated key is (business|stream|operation)
+
+probe passed
+EXIT=0

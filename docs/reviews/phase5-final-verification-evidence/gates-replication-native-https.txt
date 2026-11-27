@@ -1,0 +1,3 @@
+## verify:replication-native-https (SORNIO_NATIVE_OUTBOX_DIR=/tmp/phase5-env/outbox)
+verify-replication-native-https: 123 checks passed on SQLCipher TEXT -> TLS -> PostgreSQL
+EXIT=0

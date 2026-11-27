@@ -1,0 +1,3 @@
+## verify:replication-postgres  (independent, fresh schema)
+verify-replication-postgres: 79 checks passed on server PostgreSQL
+EXIT=0

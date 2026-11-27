@@ -1,0 +1,25 @@
+# Independent execution by the acceptance reviewer, not the author.
+# Git: repo uddieee33-blip/Sornio, branch arena/475a4866-sornio, HEAD 830b9f0f057f1aea7ac60535d779671add8211ec
+# Worktree: /tmp/verify-head (git worktree, detached at HEAD, clean tree at start)
+# 
+
+## cargo test --all-targets --locked --offline
+# result: 262 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 444.08s
+# then: Running unittests examples/cashier_review_bridge.rs -> 7 passed; 0 failed; 0 ignored
+# EXIT=0
+
+## full log tail
+
+     Running unittests examples/cashier_review_bridge.rs (/tmp/phase5-env/target-verify/debug/build/sornio-local-store/0ca8c11afc594b47/out/cashier_review_bridge-0ca8c11afc594b47)
+
+running 7 tests
+test security_command_tests::every_registered_command_has_an_explicit_security_case_and_scoped_wrapper ... ok
+test security_command_tests::capability_is_local_only_and_no_generic_database_or_reset_command_exists ... ok
+test security_command_tests::injection_is_data_and_spoofed_authority_is_rejected ... ok
+test security_command_tests::locked_wrong_business_and_disabled_staff_are_denied_for_every_sensitive_command ... ok
+test security_command_tests::public_bootstrap_cannot_replace_an_existing_owner_or_accept_wrong_credentials ... ok
+test security_command_tests::recovery_review_commands_enforce_scope_and_owner_password_while_lock_free ... ok
+test security_command_tests::role_denials_use_direct_backend_calls_including_all_financial_action_variants ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.76s
+

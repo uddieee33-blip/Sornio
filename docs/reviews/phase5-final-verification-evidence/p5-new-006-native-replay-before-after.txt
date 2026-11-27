@@ -1,0 +1,41 @@
+## Replay of the REAL native export (14 envelopes, 5 shared operation ids) through ingestEnvelope
+# fixed tree (/tmp/verify-head @ 830b9f0): every envelope commits
+  ok    inventory#1 rice
+  ok    customer#1 create-cust-ravi
+  ok    billing#1 bill-cash-1000
+  ok    retail#1 bill-upi-1000
+  ok    billing#2 bill-upi-1000
+  ok    retail#2 bill-card-1000
+  ok    billing#3 bill-card-1000
+  ok    retail#3 bill-cash-upi
+  ok    billing#4 bill-credit-1000
+  ok    retail#4 bill-cash-card
+  ok    billing#5 bill-cash-upi
+  ok    retail#5 bill-cash-credit
+  ok    billing#6 bill-cash-card
+  ok    billing#7 bill-cash-credit
+
+envelopes=14 shared-operation-ids=5
+committed events=14 byOperation identities=14
+14 passed, 0 failed
+
+# pre-fix tree (/tmp/prefix-tree @ f232348, parent of 221d1f3): the defect reproduced
+  ok    inventory#1 rice
+  ok    customer#1 create-cust-ravi
+  ok    billing#1 bill-cash-1000
+  ok    retail#1 bill-upi-1000
+  FAIL  billing#2 bill-upi-1000  -> CONFLICT
+  ok    retail#2 bill-card-1000
+  FAIL  billing#3 bill-card-1000  -> CONFLICT
+  ok    retail#3 bill-cash-upi
+  FAIL  billing#4 bill-credit-1000  -> GAP
+  ok    retail#4 bill-cash-card
+  FAIL  billing#5 bill-cash-upi  -> CONFLICT
+  ok    retail#5 bill-cash-credit
+  FAIL  billing#6 bill-cash-card  -> CONFLICT
+  FAIL  billing#7 bill-cash-credit  -> CONFLICT
+
+envelopes=14 shared-operation-ids=5
+committed events=8 byOperation identities=8
+8 passed, 6 failed
+EXIT=1

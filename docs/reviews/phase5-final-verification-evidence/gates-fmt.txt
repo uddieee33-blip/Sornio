@@ -1,0 +1,4 @@
+# cargo fmt --check
+# worktree: /tmp/verify-head @ 830b9f0f057f1aea7ac60535d779671add8211ec
+# 2026-11-27T18:54:11Z
+EXIT=0

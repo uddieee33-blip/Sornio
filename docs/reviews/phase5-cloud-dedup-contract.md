@@ -8,7 +8,9 @@
 
 | Aspect | In-memory (`ingest.ts`) before | Durable PostgreSQL (`postgres.ts`) before |
 |---|---|---|
-| Dedup key | `businessId \| operationId` (**cross-generation**) | `(business_id, restore_generation, stream, operation_id)` (**per-generation**) |
+| Dedup key, **in-memory** | `businessId \| operationId` — cross-generation but **stream-blind** (the P5-NEW-006 defect) | `(business_id, stream, operation_id)` — cross-generation, stream-scoped |
+| Dedup lookup, **durable query** | `business_id + stream + operation_id` (already stream-scoped) | unchanged, now matched by the in-memory key |
+| Durability constraint, **SQL** | `UNIQUE (business_id, restore_generation, stream, operation_id)` | unchanged — the physical constraint always carried the generation; the *semantic* key never did |
 | Restore-generation check | `envelope.restoreGeneration !== publisher.restoreGeneration` → `STALE_GENERATION` | same |
 | Operation identity | client-generated business operation id | same |
 | Payload reuse | `payloadSha256` mismatch → `CONFLICT` | same |
@@ -26,7 +28,10 @@ A restore generation is a **transport epoch**, not part of business identity. `o
 Therefore:
 
 * Dedup **must** be cross-generation. Otherwise the same credit entry is projected twice, and because `bumpCustomer` *applies a delta* rather than recomputing a balance, customer outstanding would be **double-counted**.
-* The per-generation key in the durable path was the **defect**.
+* The per-generation **semantic** key in the durable path was the defect (P5-ADV-009): the pre-fix lookup
+  matched on `restore_generation`, so replayed snapshot rows were re-projected. The physical `UNIQUE`
+  constraint still carries `restore_generation` and is not the defect — it only bounds what one
+  generation may write, it does not define business identity.
 
 ## 3. Second defect found while establishing the contract
 
