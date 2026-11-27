@@ -430,3 +430,40 @@ Conditions attached to that PASS:
 **BLOCKED** on the Windows gate (Section H) and the physical acceptance gate. The code is accepted; the
 product is **not** release-ready, and no deployment, merge to `main`, or release is authorised by this
 document.
+
+## Section J — Post-Phase-5 hardening (2026-11-27)
+
+Two items this report left open are now closed. Neither reopens a Phase 5 finding.
+
+**IV2-003 — restore-generation rotation.** Not merely a missing export: the operation was unsafe to
+publish as it stood. It silently succeeded when the business was unknown, when no live publisher
+existed, and when the target generation was already current (`UPDATE … WHERE` matched zero rows and
+resolved). It now validates the generation against the column CHECK (`INVALID_ENVELOPE`), refuses an
+unknown business (`UNAUTHENTICATED`), refuses a business with no active publisher (`FORBIDDEN`), refuses
+a no-op rotation (`CONFLICT`), locks the device row `FOR UPDATE`, and returns the transition it
+performed. It is exported from `index.ts` beside `enrollPrivileged`/`revokePrivileged` — the three are
+the privileged server-side operations of a restore — and is covered by 5 API-surface checks and 21
+lifecycle/refusal assertions on a real server. There is no in-repo caller, which is precisely why the
+failure modes had to stop being silent.
+
+**IV2-004 — duplicate-lookup plan.** Semantic identity excludes `restore_generation`; every unique
+constraint on `events` leads with it. No index could serve the lookup, so it was a sequential scan:
+1.32 ms at 10k events, 11.86 ms at 100k, **71.34 ms at 1M**, paid on every envelope before the insert.
+An additive `events_operation_identity (business_id, stream, operation_id, event_pk)` index was added to
+the re-runnable schema file: **0.092 ms at 1M events (775×)**, write cost inside noise, 13 MB per 200k
+events. Four index shapes were measured before choosing; `INCLUDE (payload_sha256)` was rejected as
+29 MB for 3 µs. Semantic identity was not touched. Details:
+`docs/reviews/iv2-004-replication-lookup-performance.md`.
+
+**Windows Foundation acceptance package.** `docs/windows/foundation-acceptance.md` defines 15 gates with
+procedures, evidence naming and a machine-readable schema. `npm run verify:windows-foundation` validates
+a submitted record and refuses paper passes: an un-run or failed gate, a "passed" gate with no evidence,
+a placeholder commit or installer hash, a commit that is not HEAD, money or stock drifting across the
+schema-12 → 13 upgrade, hardware claimed while its gate is blocked, or a missing non-claim about the
+unsigned build. A 31-check negative suite proves each refusal. **Windows execution has not been
+performed** — Section H stands unchanged.
+
+**Regression status after this work:** `cargo test` 262/0/7, fmt and `clippy -D warnings` clean (no Rust
+source was modified); 33/33 `verify:*` sub-gates; `verify:replication` 144; `verify:replication-postgres`
+**100**; `verify:replication-native-https` 123. `rem_r2` remains disclosed as a load-dependent flake and
+its assertions are unchanged (passing 3/3 in isolation here).

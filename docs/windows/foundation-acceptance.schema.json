@@ -1,0 +1,168 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sornio.local/schemas/windows-foundation-acceptance.json",
+  "title": "Sornio Windows Foundation acceptance record",
+  "description": "One record per Windows acceptance session. A record only validates when every required gate is 'passed' and every blocked gate carries a reason.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone",
+    "commitSha",
+    "recordedAt",
+    "recordedBy",
+    "environment",
+    "installer",
+    "gates",
+    "hardwareClaimed",
+    "nonClaims"
+  ],
+  "properties": {
+    "milestone": { "const": "foundation" },
+    "commitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The HEAD the installer was built from. The validator compares it with the checked-out HEAD."
+    },
+    "recordedAt": { "type": "string", "format": "date-time" },
+    "recordedBy": { "type": "string", "minLength": 1 },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workstation",
+        "windowsEdition",
+        "windowsBuild",
+        "accountType",
+        "webview2",
+        "databasePath",
+        "schemaBefore",
+        "schemaAfter"
+      ],
+      "properties": {
+        "workstation": { "type": "string", "minLength": 1 },
+        "windowsEdition": { "type": "string", "minLength": 1 },
+        "windowsBuild": { "type": "string", "minLength": 1 },
+        "cpu": { "type": "string" },
+        "ramGb": { "type": "number", "exclusiveMinimum": 0 },
+        "accountType": { "enum": ["standard", "administrator"] },
+        "webview2": {
+          "enum": ["present", "absent", "installed-by-bundled-installer"],
+          "description": "'absent' or 'installed-by-bundled-installer' is what makes W-02 meaningful. With a pre-existing runtime W-02 must be 'blocked'."
+        },
+        "webview2Version": { "type": "string" },
+        "databasePath": { "type": "string", "minLength": 1 },
+        "schemaBefore": { "type": "integer", "minimum": 1 },
+        "schemaAfter": { "type": "integer", "minimum": 1 }
+      }
+    },
+    "installer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["fileName", "sha256", "installedExeSha256", "signatureStatus"],
+      "properties": {
+        "fileName": { "type": "string", "minLength": 1 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "installedExeSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "signatureStatus": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Observed Authenticode state, e.g. 'unsigned' or 'valid'. Never invent 'signed'."
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "W-01-installation",
+        "W-02-webview2",
+        "W-03-startup-shutdown",
+        "W-04-sqlcipher-init",
+        "W-05-schema-upgrade",
+        "W-06-offline-billing",
+        "W-07-offline-inventory",
+        "W-08-recovery",
+        "W-09-restart",
+        "W-10-backup-restore",
+        "W-11-install-uninstall",
+        "W-12-ntfs-acls",
+        "H-13-barcode-scanner",
+        "H-14-thermal-printer",
+        "H-15-cash-drawer"
+      ],
+      "patternProperties": {
+        "^(W|H)-[0-9]{2}-[a-z0-9-]+$": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "evidence"],
+          "properties": {
+            "state": { "enum": ["passed", "failed", "not-run", "blocked"] },
+            "evidence": {
+              "type": "array",
+              "items": { "type": "string", "minLength": 1 },
+              "description": "Relative paths under the evidence directory, or a command transcript name."
+            },
+            "reason": {
+              "type": "string",
+              "description": "Required when state is 'blocked'. The validator enforces this."
+            },
+            "notes": { "type": "string" }
+          },
+          "allOf": [
+            {
+              "if": { "properties": { "state": { "const": "blocked" } }, "required": ["state"] },
+              "then": { "required": ["reason"], "properties": { "reason": { "minLength": 8 } } }
+            },
+            {
+              "if": { "properties": { "state": { "const": "passed" } }, "required": ["state"] },
+              "then": { "properties": { "evidence": { "minItems": 1 } } }
+            }
+          ]
+        }
+      }
+    },
+    "hardwareClaimed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["barcodeScanner", "thermalPrinter", "cashDrawer"],
+      "properties": {
+        "barcodeScanner": { "type": "boolean" },
+        "thermalPrinter": { "type": "boolean" },
+        "cashDrawer": { "type": "boolean" }
+      },
+      "description": "Must agree with the H-13..H-15 gate states: claiming hardware while the gate is blocked is rejected."
+    },
+    "financialParity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Snapshot proving the schema-12 -> 13 upgrade changed no money. Required by the validator for W-05.",
+      "required": ["before", "after"],
+      "properties": {
+        "before": { "$ref": "#/$defs/snapshot" },
+        "after": { "$ref": "#/$defs/snapshot" }
+      }
+    },
+    "nonClaims": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "What this record does NOT establish. The validator requires at least the signed-release non-claim."
+    }
+  },
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["cashPaise", "customerOutstandingPaise", "stockMilli", "lastInvoiceNumber"],
+      "properties": {
+        "cashPaise": { "type": "integer" },
+        "customerOutstandingPaise": { "type": "integer" },
+        "stockMilli": {
+          "type": "object",
+          "additionalProperties": { "type": "integer" },
+          "minProperties": 1
+        },
+        "lastInvoiceNumber": { "type": "string" }
+      }
+    }
+  }
+}

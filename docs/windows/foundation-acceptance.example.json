@@ -1,0 +1,78 @@
+{
+  "milestone": "foundation",
+  "commitSha": "0000000000000000000000000000000000000000",
+  "recordedAt": "2026-11-27T00:00:00Z",
+  "recordedBy": "REPLACE WITH TESTER NAME — this example is not evidence",
+  "environment": {
+    "workstation": "REPLACE: make/model",
+    "windowsEdition": "REPLACE: e.g. Windows 11 Pro",
+    "windowsBuild": "REPLACE: from winver",
+    "cpu": "REPLACE",
+    "ramGb": 8,
+    "accountType": "standard",
+    "webview2": "absent",
+    "webview2Version": "REPLACE or omit",
+    "databasePath": "C:\\Users\\<user>\\AppData\\Local\\com.sornio.localreview\\REPLACE.db",
+    "schemaBefore": 12,
+    "schemaAfter": 13
+  },
+  "installer": {
+    "fileName": "Sornio Local Review_0.3.0_x64-setup.exe",
+    "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "installedExeSha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "signatureStatus": "unsigned"
+  },
+  "gates": {
+    "W-01-installation": { "state": "not-run", "evidence": [] },
+    "W-02-webview2": { "state": "not-run", "evidence": [] },
+    "W-03-startup-shutdown": { "state": "not-run", "evidence": [] },
+    "W-04-sqlcipher-init": { "state": "not-run", "evidence": [] },
+    "W-05-schema-upgrade": { "state": "not-run", "evidence": [] },
+    "W-06-offline-billing": { "state": "not-run", "evidence": [] },
+    "W-07-offline-inventory": { "state": "not-run", "evidence": [] },
+    "W-08-recovery": { "state": "not-run", "evidence": [] },
+    "W-09-restart": { "state": "not-run", "evidence": [] },
+    "W-10-backup-restore": { "state": "not-run", "evidence": [] },
+    "W-11-install-uninstall": { "state": "not-run", "evidence": [] },
+    "W-12-ntfs-acls": { "state": "not-run", "evidence": [] },
+    "H-13-barcode-scanner": {
+      "state": "blocked",
+      "evidence": [],
+      "reason": "no scanner attached to this workstation in the foundation milestone"
+    },
+    "H-14-thermal-printer": {
+      "state": "blocked",
+      "evidence": [],
+      "reason": "no printer attached to this workstation in the foundation milestone"
+    },
+    "H-15-cash-drawer": {
+      "state": "blocked",
+      "evidence": [],
+      "reason": "no drawer attached to this workstation in the foundation milestone"
+    }
+  },
+  "hardwareClaimed": {
+    "barcodeScanner": false,
+    "thermalPrinter": false,
+    "cashDrawer": false
+  },
+  "financialParity": {
+    "before": {
+      "cashPaise": 0,
+      "customerOutstandingPaise": 0,
+      "stockMilli": { "REPLACE-product-id": 0 },
+      "lastInvoiceNumber": "REPLACE"
+    },
+    "after": {
+      "cashPaise": 0,
+      "customerOutstandingPaise": 0,
+      "stockMilli": { "REPLACE-product-id": 0 },
+      "lastInvoiceNumber": "REPLACE"
+    }
+  },
+  "nonClaims": [
+    "This record does not establish a signed consumer release; the build is an unsigned engineering build.",
+    "This record covers one workstation only.",
+    "Hardware gates are blocked, not passed."
+  ]
+}

@@ -1984,5 +1984,121 @@
     "baseline": "9274ddb8b3977cf52411cbb49c68e191a1c78c6d"
   },
   "remediation_author_record_note": "VERBATIM copy of the authoring session's remediation block, preserved for history. It contains stale metadata deliberately NOT corrected in place: remediation_head c2adaa9 (superseded by 830b9f0), the pre-normalization test counts (237 Rust / 129 harness), and remaining_release_blockers that still list P5-ADV-008/010/011 as STILL OPEN. See canonical_closure for the reconciled values.",
-  "candidate_commit_finding_note": "The top-level audit fields describe the ORIGINAL audit of candidate 7f73ef0 / branch arena/76ac88ca-sornio and remain correct as history (that audit's verdict was NO-GO). They are not the current verdict: see canonical_closure."
+  "candidate_commit_finding_note": "The top-level audit fields describe the ORIGINAL audit of candidate 7f73ef0 / branch arena/76ac88ca-sornio and remain correct as history (that audit's verdict was NO-GO). They are not the current verdict: see canonical_closure.",
+  "post_phase5_hardening": {
+    "phase": "Post-Phase-5 replication hardening & Windows acceptance preparation",
+    "date_utc": "2026-11-27",
+    "branch": "arena/475a4866-sornio",
+    "starting_head": "3bdd10c530738cfeb01dccb2e10aad84aba47cff",
+    "scope": "Closes the two non-blocking items the Phase 5 acceptance review left open (IV2-003, IV2-004) and adds a Windows Foundation acceptance package. No Phase 5 finding is reopened and no financial semantics change.",
+    "items": [
+      {
+        "id": "IV2-003",
+        "severity": "Info",
+        "previous_status": "noted, not fixed",
+        "title": "rotatePublisherGeneration was exported from postgres.ts but not from the package entry point, had no caller, and had no test",
+        "root_cause": "Not a missing export: the operation was also UNSAFE to publish as it stood. It silently did nothing when the business was unknown, when no live publisher existed, and when the target generation equalled the current one (the UPDATE matched zero rows and resolved). Its result was void. Exporting it as-is would have published a restore step that can report success without having rotated anything.",
+        "intended_public_api": "Yes. Enrollment, revocation and generation rotation are the three privileged server-side operations of a restore. enrollPrivileged and revokePrivileged were already exported; rotation is the missing third and is required for any restore that must reach the cloud under a new generation.",
+        "production_consumers": "No in-repo caller exists: there is no HTTP route for enrollment/rotation (https.ts serves /v1/replication/ingest only), and the desktop publisher rotates via DesktopPublisher.onRestore against its sidecar. The operation is therefore an operator/tooling surface applied directly to PostgreSQL, which is exactly why its failure modes had to be explicit rather than silently inert.",
+        "safety_analysis": "It moves a transport epoch, never business identity: it writes only devices.restore_generation for one non-revoked publisher. It cannot change an operation id, a stream, a sequence or a payload, so cross-generation dedup, stream-scoped identity, cursor behaviour and conflict detection are unaffected - all four are re-asserted at 100 durable checks.",
+        "resolution": "Hardened and exported: generation format validated against the column CHECK (INVALID_ENVELOPE); unknown business UNAUTHENTICATED; no active publisher FORBIDDEN; re-issuing the current generation CONFLICT; the device row is locked FOR UPDATE; the call returns {businessId, generation, previousGeneration, deviceId} so a caller cannot mistake a no-op for a rotation. Exported from index.ts beside enroll/revoke, with API-surface, lifecycle and refusal tests.",
+        "files_changed": [
+          "packages/replication-cloud/src/postgres.ts",
+          "packages/replication-cloud/src/index.ts",
+          "scripts/verify-replication.mjs",
+          "scripts/verify-replication-postgres.mjs"
+        ],
+        "tests": {
+          "in_memory_harness": "139 -> 144 checks",
+          "durable_postgres": "79 -> 100 checks",
+          "new_assertions": "5 API-surface + 21 rotation lifecycle/refusal assertions"
+        },
+        "verification": [
+          "verify:replication 144 checks exit 0",
+          "verify:replication-postgres 100 checks on PostgreSQL 16.2 exit 0"
+        ],
+        "evidence": [
+          "docs/reviews/iv2-evidence/iv2-003-api-surface.txt",
+          "docs/reviews/iv2-evidence/iv2-003-durable-rotation.txt"
+        ],
+        "status": "FIXED \u2014 verified"
+      },
+      {
+        "id": "IV2-004",
+        "severity": "Info",
+        "previous_status": "documented as a scale note",
+        "title": "The duplicate-operation lookup could not use any uniqueness index and degraded to a sequential scan",
+        "root_cause": "Semantic identity is (business_id, stream, operation_id) and deliberately excludes restore_generation, while every physical unique constraint on events leads with business_id, restore_generation. No index could serve the lookup.",
+        "measured_before": {
+          "10k_events_ms": 1.32,
+          "100k_events_ms": 11.86,
+          "1M_events_ms": 71.34,
+          "plan": "Seq Scan, one row returned, N-1 filtered"
+        },
+        "resolution": "Added CREATE INDEX IF NOT EXISTS events_operation_identity (business_id, stream, operation_id, event_pk) to the re-runnable schema file. Additive: no constraint, predicate, policy or identity changed. event_pk is a key column, not an INCLUDE payload, so the 'earliest event wins' ORDER BY is satisfied by index order and the Sort node disappears.",
+        "measured_after": {
+          "10k_events_ms": 0.051,
+          "100k_events_ms": 0.057,
+          "1M_events_ms": 0.092,
+          "plan": "Index Scan, flat in table size"
+        },
+        "alternatives_measured": {
+          "identity_only": "0.036 ms, 11 MB",
+          "identity_include_pk": "0.028 ms, 13 MB",
+          "identity_include_payload": "0.025 ms but 29 MB - rejected as redundant"
+        },
+        "write_cost": "20k-row single-transaction insert: 145 ms with the index vs 150 ms without (inside noise)",
+        "migration_safety": {
+          "idempotent_3_applies": "stable {tables:11,policies:7,rls:8,idx:15,view:1}",
+          "upgrade_from_pre_index_schema_with_data": "OK, pre-existing row preserved",
+          "rollback": "DROP INDEX restores the old plan, rows intact",
+          "reapply_after_rollback": "index restored"
+        },
+        "files_changed": [
+          "packages/replication-cloud/sql/20261103000000_native_financial_replication.sql",
+          "scripts/bench-replication-lookup.mjs",
+          "scripts/bench-replication-index-variants.mjs"
+        ],
+        "verification": [
+          "shipped schema at 200k events: 0.033 ms indexed vs 18.88 ms with the index dropped",
+          "migration 3x stable with idx 14 -> 15",
+          "docs/reviews/iv2-004-replication-lookup-performance.md"
+        ],
+        "evidence": [
+          "docs/reviews/iv2-004-replication-lookup-performance.md",
+          "docs/reviews/iv2-004-benchmark-results.json",
+          "docs/reviews/iv2-evidence/iv2-004-scale-proof.txt",
+          "docs/reviews/iv2-evidence/iv2-004-migration.txt"
+        ],
+        "residual": "Benchmark is a warm-cache, single-client, synthetic measurement on a sandbox: representative of plan shape and relative cost, not production latency. A very large existing table needs CREATE INDEX CONCURRENTLY out of band (documented, not automated).",
+        "status": "FIXED \u2014 verified"
+      }
+    ],
+    "windows_package": {
+      "deliverables": [
+        "docs/windows/foundation-acceptance.md",
+        "docs/windows/foundation-acceptance.schema.json",
+        "docs/windows/foundation-acceptance.example.json",
+        "scripts/verify-windows-foundation-evidence.mjs",
+        "scripts/test-windows-foundation-evidence.mjs"
+      ],
+      "gate": "npm run verify:windows-foundation (added to the aggregate verify chain): 31 checks",
+      "design": "15 gates. Every gate must be passed, or blocked with a written reason; 'not-run' and 'failed' both block the record. The validator refuses: a passing gate with no evidence, a placeholder commit or installer hash, a commit that is not HEAD, money or stock drifting across the schema-12 -> 13 upgrade, hardware claimed while its gate is blocked, and a missing non-claim about the unsigned build. A negative-test suite proves each refusal.",
+      "windows_execution": "NOT PERFORMED. No Windows host in this environment.",
+      "blocked_gates": [
+        "W-01..W-12 need a physical Windows workstation",
+        "H-13 barcode scanner",
+        "H-14 thermal printer",
+        "H-15 cash drawer"
+      ],
+      "note": "The package is a template and procedure. It cannot pass without a physical Windows workstation, and the validator is written to enforce that rather than allow a paper pass."
+    },
+    "unchanged_guarantees": [
+      "No Phase 5 finding reopened",
+      "No financial semantics changed",
+      "No Rust source touched (cargo test 262/0/7, fmt and clippy -D warnings still clean)",
+      "main untouched, no force push, no history rewrite",
+      "rem_r2 flake still disclosed, assertions unchanged"
+    ]
+  }
 }
