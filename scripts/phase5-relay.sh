@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
-# Temporary Phase 5 relay (archived under docs/reviews/phase5-evidence/).
-# Runs on a GitHub runner. Downloads official Rust dist + locked crates,
-# verifies SHA-256, and pushes the payload (or failure logs) to the session
-# branch so the network-restricted sandbox can fetch them via git.
+# Temporary Phase 5 relay for independent audit.
+# Downloads official Rust stable dist components on a GitHub runner,
+# verifies SHA-256, and pushes the payload to the session branch so the
+# network-restricted sandbox can fetch them via git.
 set -u
 cd "$(dirname "$0")/.."   # repository root (the clone)
 ROOT="$PWD"
@@ -15,7 +15,7 @@ push_diagnostics() {
     echo "== relay exit code: $rc"
     echo "== pwd: $PWD"
     echo "== ls root"; ls -la "$ROOT" 2>&1
-    echo "== ls relay"; ls -la "$ROOT/relay" "$ROOT/relay/payload" "$ROOT/relay/crates" 2>&1
+    echo "== ls relay"; ls -la "$ROOT/relay" "$ROOT/relay/payload" 2>&1
   } >> "$LOG" 2>&1
   git config user.name "phase5-relay"
   git config user.email "actions@github.com"
@@ -23,10 +23,10 @@ push_diagnostics() {
   cp "$LOG" phase5-relay/run.log 2>/dev/null
   cp relay/manifest.json phase5-relay/ 2>/dev/null
   cp relay/channel-rust-stable.toml phase5-relay/ 2>/dev/null
-  if [ -f relay/DIST_OK ] && [ -f relay/CRATES_OK ]; then
+  if [ -f relay/DIST_OK ]; then
     (
       cd relay
-      tar cf payload.tar payload crates manifest.json channel-rust-stable.toml
+      tar cf payload.tar payload manifest.json channel-rust-stable.toml
       sha256sum payload.tar > payload.tar.sha256
       split -b 45m -d payload.tar chunk-
       rm payload.tar
@@ -67,26 +67,23 @@ trap push_diagnostics EXIT
   echo "== python: $(python3 --version 2>&1)"
   echo "== cargo: $(cargo --version 2>&1)"
   echo "== curl: $(curl --version 2>&1 | head -1)"
-  mkdir -p relay/payload relay/crates
+  mkdir -p relay/payload
   echo "== fetching channel manifest"
   curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml -o relay/channel-rust-stable.toml
   echo "== curl manifest exit: $?"
   python3 -u scripts/phase5-fetch-dist.py
   echo "== dist exit: $?"
-  cargo fetch --locked --manifest-path packages/local-store/Cargo.toml
-  echo "== cargo fetch exit: $?"
-  python3 -u scripts/phase5-fetch-crates.py
-  echo "== crates exit: $?"
 } >> "$LOG" 2>&1
 
-# Markers based on actual artifacts, not exit codes of echo.
-[ -f relay/manifest.json ] && python3 -c "
-import json,hashlib,sys
+# Marker based on actual artifacts.
+if [ -f relay/manifest.json ]; then
+  python3 -c "
+import json,hashlib
 m=json.load(open('relay/manifest.json'))
 for f in m['files']:
     h=hashlib.sha256(open('relay/payload/'+f['name'],'rb').read()).hexdigest()
     assert h==f['sha256'], f['name']
 print('DIST_OK')" >> "$LOG" 2>&1 && touch relay/DIST_OK
-ls relay/crates/*.crate >/dev/null 2>&1 && python3 scripts/phase5-fetch-crates.py >> "$LOG" 2>&1 && touch relay/CRATES_OK
-echo "== markers: DIST_OK=$([ -f relay/DIST_OK ] && echo yes || echo no) CRATES_OK=$([ -f relay/CRATES_OK ] && echo yes || echo no)" >> "$LOG"
-if [ -f relay/DIST_OK ] && [ -f relay/CRATES_OK ]; then exit 0; else exit 1; fi
+fi
+echo "== markers: DIST_OK=$([ -f relay/DIST_OK ] && echo yes || echo no)" >> "$LOG"
+if [ -f relay/DIST_OK ]; then exit 0; else exit 1; fi
