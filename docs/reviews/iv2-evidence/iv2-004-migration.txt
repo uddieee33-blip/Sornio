@@ -1,0 +1,24 @@
+## Migration idempotency and additive upgrade (PostgreSQL 16.2)
+
+ROUND_1_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 15, "view" : 1}
+ROUND_2_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 15, "view" : 1}
+ROUND_3_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 15, "view" : 1}
+identity index present: 1
+plan:
+
+
+## additive upgrade from the pre-index schema, with data present
+apply OLD schema (pre-index), 1x: OK
+  idx count after OLD: 14
+  seeded 1 event before the upgrade
+apply NEW schema on top (upgrade), 1x: OK
+  idx count after NEW: 15
+  identity index: CREATE INDEX events_operation_identity ON native_replication.events USING btree (business_id, stream, operation_id, event_pk)
+  pre-existing row survived: 1
+apply NEW again (rerun), 1x: OK
+  idx count after rerun: 15
+rollback (drop the index only): OK
+  idx count after rollback: 14
+  rows still intact: 1
+re-apply NEW after rollback: OK
+  index restored: 1

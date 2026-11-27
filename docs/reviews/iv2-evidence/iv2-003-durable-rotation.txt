@@ -1,0 +1,26 @@
+## verify:replication-postgres on real PostgreSQL 16.2 (fresh schema)
+verify-replication-postgres: 100 checks passed on server PostgreSQL
+EXIT=0
+
+## rotation lifecycle assertions added by IV2-003:
+  - rotation refuses an empty generation
+  - rotation refuses whitespace in a generation
+  - rotation refuses a generation longer than the column allows
+  - rotation refuses an unenrolled business
+  - rotation refuses a business whose only publisher is revoked
+  - rotation refuses re-issuing the generation already in force
+  - rotation reports the transition it performed
+  - rotation reports the device it moved
+  - the enrolled device carries gen-2
+  - rotation itself writes no events
+  - the pre-restore generation can no longer publish
+  - the first new post-restore operation is accepted
+  - a replay after rotation keeps its original cursor
+  - a second rotation reports gen-2 -> gen-3
+  - an operation from an earlier generation is still a duplicate after a second restore
+  - the new generation continues from its own sequence
+  - a skipped sequence under the new generation is still a gap
+  - a reused operation id with a different payload is still a conflict after rotation
+  - each event keeps the generation that carried it; rotation rewrites no history
+  - a replay after rotation is acked against the new generation
+  - hydration after rotation keeps the stream-scoped identity

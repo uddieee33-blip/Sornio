@@ -1,0 +1,21 @@
+## Stage 5 gate ledger, 2026-11-27T19:19:35Z
+npm run verify (33 sub-gates): EXIT=0
+53 invariants hold.
+Team database: isolated RPC, one-time use, roles, rollback and authorization checks passed.
+18 invariants hold.
+all 110 schema checks passed
+37 desktop contract checks passed
+12 money contract checks passed
+40 Windows release-identity checks passed
+windows-foundation evidence gate: 31 checks passed
+Shared domain checks passed: invoice rounding, invalid/overflow amounts, immutable inputs and eight business workspaces.
+Checkout display checks passed: exact paise including balances beyond JS safe integers, negative/zero balances and fractional units.
+Mobile contracts: 63 checks passed (paise, sync, demo isolation, roles, cache, threats).
+verify-replication: 144 checks passed
+verify-replication-postgres: 100 checks passed
+verify-replication-native-https: 123 checks passed
+cargo test --all-targets: 262 passed; 0 failed; 7 ignored; + example 7 passed
+cargo fmt --check: exit 0
+cargo clippy --all-targets -- -D warnings: exit 0
+npm run typecheck / typecheck:native / lint: exit 0
+rem_r2_concurrent x3 in isolation: 3/3 pass (observation preserved, assertions unchanged)

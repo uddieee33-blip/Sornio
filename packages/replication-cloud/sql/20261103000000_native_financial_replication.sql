@@ -59,6 +59,26 @@ CREATE TABLE IF NOT EXISTS native_replication.events (
   UNIQUE (business_id, restore_generation, stream, stream_sequence)
 );
 
+-- Semantic operation identity is (business_id, stream, operation_id):
+-- restore_generation is deliberately NOT part of it, because a restore replays
+-- the same operations under a new transport epoch and those replays must be
+-- recognised as duplicates rather than re-projected.
+--
+-- The two UNIQUE constraints above lead with business_id, restore_generation,
+-- and so cannot serve a lookup that omits restore_generation. Without this
+-- index the duplicate check degrades to a sequential scan of every event of
+-- every business (measured on PostgreSQL 16.2: 16.6 ms at 200k events,
+-- 73-80 ms at 1M, versus 0.02-0.12 ms indexed — see
+-- docs/reviews/iv2-004-replication-lookup-performance.md).
+--
+-- event_pk is the fourth key column rather than an INCLUDE payload so the
+-- "earliest event wins" ORDER BY e.event_pk ASC LIMIT 1 is satisfied by the
+-- index order itself. Measured write cost is neutral (20k-row insert: 149 ms
+-- with, 173 ms without). It is additive: no constraint, predicate or identity
+-- changes, and dropping it only restores the previous plan.
+CREATE INDEX IF NOT EXISTS events_operation_identity
+  ON native_replication.events (business_id, stream, operation_id, event_pk);
+
 CREATE TABLE IF NOT EXISTS native_replication.stream_heads (
   business_id TEXT NOT NULL REFERENCES native_replication.businesses(business_id),
   restore_generation TEXT NOT NULL,

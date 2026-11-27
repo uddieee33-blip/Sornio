@@ -1,0 +1,133 @@
+{
+  "harness_environment": {
+    "postgres": "16.2",
+    "node": "22.22.3",
+    "port": 55432,
+    "schema": "scratch (iv2004_bench / iv2004_variants)"
+  },
+  "shipped_lookup_by_size": [
+    {
+      "events": 10000,
+      "plan_without_index": "Seq Scan",
+      "execution_ms_without_index": 1.318,
+      "duplicate_lookup_avg_ms_without_index": 1.357,
+      "absent_lookup_avg_ms_without_index": 1.361,
+      "plan_with_index": "Index Scan events_operation_identity",
+      "execution_ms_with_index": 0.051,
+      "duplicate_lookup_avg_ms_with_index": 0.3,
+      "write_2000_rows_ms": {
+        "withoutIndex": 731,
+        "withIndex": 699
+      },
+      "sizes": {
+        "table": "1952 kB",
+        "index": "656 kB"
+      }
+    },
+    {
+      "events": 100000,
+      "plan_without_index": "Seq Scan",
+      "execution_ms_without_index": 11.855,
+      "duplicate_lookup_avg_ms_without_index": 12.449,
+      "absent_lookup_avg_ms_without_index": 12.062,
+      "plan_with_index": "Index Scan events_operation_identity",
+      "execution_ms_with_index": 0.057,
+      "duplicate_lookup_avg_ms_with_index": 0.272,
+      "write_2000_rows_ms": {
+        "withoutIndex": 660,
+        "withIndex": 627
+      },
+      "sizes": {
+        "table": "19 MB",
+        "index": "6560 kB"
+      }
+    },
+    {
+      "events": 1000000,
+      "plan_without_index": "Seq Scan",
+      "execution_ms_without_index": 71.342,
+      "duplicate_lookup_avg_ms_without_index": 67.252,
+      "absent_lookup_avg_ms_without_index": 62.712,
+      "plan_with_index": "Index Scan events_operation_identity",
+      "execution_ms_with_index": 0.092,
+      "duplicate_lookup_avg_ms_with_index": 0.275,
+      "write_2000_rows_ms": {
+        "withoutIndex": 652,
+        "withIndex": 675
+      },
+      "sizes": {
+        "table": "191 MB",
+        "index": "65 MB"
+      }
+    }
+  ],
+  "index_variants_at_200k": [
+    {
+      "variant": "none",
+      "duplicate_lookup_median_ms": 16.458,
+      "older_generation_lookup_median_ms": 16.925,
+      "insert_20000_rows_median_ms": 150,
+      "insert_runs_ms": [
+        152,
+        143,
+        150
+      ],
+      "index_size": "-",
+      "table_size": "38 MB"
+    },
+    {
+      "variant": "identity_only",
+      "duplicate_lookup_median_ms": 0.036,
+      "older_generation_lookup_median_ms": 0.023,
+      "insert_20000_rows_median_ms": 147,
+      "insert_runs_ms": [
+        142,
+        179,
+        147
+      ],
+      "index_size": "11 MB",
+      "table_size": "38 MB"
+    },
+    {
+      "variant": "identity_with_pk",
+      "duplicate_lookup_median_ms": 0.022,
+      "older_generation_lookup_median_ms": 0.021,
+      "insert_20000_rows_median_ms": 145,
+      "insert_runs_ms": [
+        146,
+        144,
+        145
+      ],
+      "index_size": "13 MB",
+      "table_size": "38 MB"
+    },
+    {
+      "variant": "identity_include_pk",
+      "duplicate_lookup_median_ms": 0.028,
+      "older_generation_lookup_median_ms": 0.025,
+      "insert_20000_rows_median_ms": 146,
+      "insert_runs_ms": [
+        160,
+        144,
+        146
+      ],
+      "index_size": "13 MB",
+      "table_size": "38 MB"
+    },
+    {
+      "variant": "identity_include_payload",
+      "duplicate_lookup_median_ms": 0.025,
+      "older_generation_lookup_median_ms": 0.027,
+      "insert_20000_rows_median_ms": 147,
+      "insert_runs_ms": [
+        151,
+        147,
+        145
+      ],
+      "index_size": "29 MB",
+      "table_size": "38 MB"
+    }
+  ],
+  "decision": "CREATE INDEX events_operation_identity (business_id, stream, operation_id, event_pk)",
+  "rejected": "identity-only (slower sort), INCLUDE(event_pk) (equal size, slower), INCLUDE(payload_sha256) (29MB for 3 microseconds)"
+}
