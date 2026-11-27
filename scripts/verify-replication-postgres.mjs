@@ -370,6 +370,126 @@ try {
   const connLost = await admin.query(`SELECT COUNT(*)::int AS n FROM native_replication.events WHERE operation_id = 'bill-conn-lost'`);
   check(connLost.rows[0].n === 0, 'connection loss does not commit an event');
 
+  // A desktop retail checkout writes ONE operation id to two outbox streams: the
+  // `retail` envelope (payments/receipt) and the `billing` envelope (the invoice).
+  // Durable identity is (business, stream, operation) — the durable path must
+  // accept both, dedup each one independently, and never collapse them.
+  const sharedOp = 'checkout-shared-op';
+  const headRows = await admin.query(
+    `SELECT stream, last_sequence FROM native_replication.stream_heads
+     WHERE business_id = $1 AND restore_generation = 'gen-1'`,
+    [pub.businessId],
+  );
+  const nextFor = (stream) => {
+    const row = headRows.rows.find((r) => r.stream === stream);
+    return Number(row ? row.last_sequence : 0) + 1;
+  };
+  const retailSeq = nextFor('retail');
+  const billingSeq = nextFor('billing');
+  const sharedRetail = await ingestDurable(
+    dbA,
+    pub,
+    buildEnvelope(
+      pub,
+      {
+        stream: 'retail',
+        sequence: retailSeq,
+        operationId: sharedOp,
+        occurredAtIso: ISO,
+        payload: {
+          version: 1,
+          actorId: 'owner-1',
+          receipt: {
+            operationId: sharedOp,
+            kind: 'sale',
+            data: {
+              invoice: { id: sharedOp, totalPaise: 100000, customerId: null },
+              payments: [{ id: 'p-shared-cash', method: 'cash', amountPaise: 100000 }],
+            },
+          },
+        },
+      },
+      digest,
+    ),
+    digest,
+    NOW,
+  );
+  check(sharedRetail.duplicate === false, 'durable: shared operation id accepted on the retail stream');
+  const sharedBilling = await ingestDurable(
+    dbA,
+    pub,
+    buildEnvelope(pub, invoiceRow(billingSeq, { id: sharedOp, tender: 'retail', customerId: null, customerName: 'Walk-in' }), digest),
+    digest,
+    NOW,
+  );
+  check(sharedBilling.duplicate === false, 'durable: the same id on the billing stream is a distinct operation');
+  const sharedRows = await admin.query(
+    `SELECT stream, operation_id FROM native_replication.events WHERE operation_id = $1 ORDER BY stream`,
+    [sharedOp],
+  );
+  check(
+    sharedRows.rows.length === 2 &&
+      sharedRows.rows[0].stream === 'billing' &&
+      sharedRows.rows[1].stream === 'retail',
+    'durable: both stream rows of one checkout commit are stored',
+  );
+  const sharedRetailRetry = await ingestDurable(
+    dbB,
+    pub,
+    buildEnvelope(
+      pub,
+      {
+        stream: 'retail',
+        sequence: retailSeq,
+        operationId: sharedOp,
+        occurredAtIso: ISO,
+        payload: {
+          version: 1,
+          actorId: 'owner-1',
+          receipt: {
+            operationId: sharedOp,
+            kind: 'sale',
+            data: {
+              invoice: { id: sharedOp, totalPaise: 100000, customerId: null },
+              payments: [{ id: 'p-shared-cash', method: 'cash', amountPaise: 100000 }],
+            },
+          },
+        },
+      },
+      digest,
+    ),
+    digest,
+    NOW,
+  );
+  check(
+    sharedRetailRetry.duplicate === true && sharedRetailRetry.cursor === sharedRetail.cursor,
+    'durable: the retail stream retry keeps its own cursor',
+  );
+  const sharedBillingRetry = await ingestDurable(
+    dbB,
+    pub,
+    buildEnvelope(pub, invoiceRow(billingSeq, { id: sharedOp, tender: 'retail', customerId: null, customerName: 'Walk-in' }), digest),
+    digest,
+    NOW,
+  );
+  check(
+    sharedBillingRetry.duplicate === true && sharedBillingRetry.cursor === sharedBilling.cursor,
+    'durable: the billing stream retry keeps its own cursor',
+  );
+  let sharedConflict = false;
+  try {
+    await ingestDurable(
+      dbA,
+      pub,
+      buildEnvelope(pub, invoiceRow(billingSeq, { id: sharedOp, tender: 'cash', customerId: null, lines: [] }), digest),
+      digest,
+      NOW,
+    );
+  } catch (error) {
+    sharedConflict = error instanceof ReplicationError && error.code === 'CONFLICT';
+  }
+  check(sharedConflict, 'durable: a different payload on the same stream is still a CONFLICT');
+
   await revokePrivileged(db, pub.deviceId);
   let revoked = false;
   try {
@@ -404,7 +524,7 @@ try {
     ingestDurable(
       dbA,
       pub,
-      buildEnvelope(pub, invoiceRow(4, { id: 'bill-kirana-iso', tender: 'cash', lines: [] }), digest),
+      buildEnvelope(pub, invoiceRow(billingSeq + 1, { id: 'bill-kirana-iso', tender: 'cash', lines: [] }), digest),
       digest,
       NOW,
     ),
@@ -448,6 +568,27 @@ try {
   const restarted = new pg.Client({ connectionString: url });
   await restarted.connect();
   const hydrated = await hydrateFromPostgres(asDb(restarted), pub.businessId);
+  // `byOperation` is keyed by (business, stream, operation). Hydration used to
+  // collapse one checkout commit's retail and billing envelopes into a single
+  // entry, so a post-restart duplicate check could compare a billing payload
+  // against a retail envelope. Both keys must exist and point at their own row.
+  check(
+    hydrated.byOperation.size >= 2 &&
+      [...hydrated.byOperation.entries()].some(
+        ([key, event]) => key.endsWith(`|retail|${sharedOp}`) && event.stream === 'retail',
+      ) &&
+      [...hydrated.byOperation.entries()].some(
+        ([key, event]) => key.endsWith(`|billing|${sharedOp}`) && event.stream === 'billing',
+      ),
+    'restart hydrate keeps both stream identities of a shared operation id',
+  );
+  check(
+    [...hydrated.byOperation.entries()].every(
+      ([key, event]) =>
+        key === `${event.businessId}|${event.stream}|${event.operationId}`,
+    ),
+    'every hydrated operation key carries its own stream',
+  );
   const snap = parseCompanionSnapshot(buildCompanionSnapshot(hydrated, owner, ISO, NOW));
   check(snap.activity.some((row) => row.id === 'bill-later-retail'), 'restart hydrate reconstructs posted invoices');
   check(snap.activity.find((row) => row.id === 'bill-later-retail').digitalPaise === '100000', 'restarted UPI stays digital');
@@ -495,7 +636,7 @@ try {
       port: server.port,
       ca: readFileSync(certPath),
       token,
-      body: buildEnvelope(pub, invoiceRow(5, { id: 'bill-https-pg', tender: 'cash', lines: [] }), digest),
+      body: buildEnvelope(pub, invoiceRow(billingSeq + 2, { id: 'bill-https-pg', tender: 'cash', lines: [] }), digest),
     });
     check(httpsAck.duplicate === false, 'HTTPS ingest against real PostgreSQL commits');
     let stolen = false;
@@ -505,7 +646,7 @@ try {
         port: server.port,
         ca: readFileSync(certPath),
         token: issueStagingToken(secret, owner),
-        body: buildEnvelope(pub, invoiceRow(6, { id: 'bill-https-stolen', tender: 'cash', lines: [] }), digest),
+        body: buildEnvelope(pub, invoiceRow(billingSeq + 3, { id: 'bill-https-stolen', tender: 'cash', lines: [] }), digest),
       });
     } catch (error) {
       stolen = error instanceof ReplicationError && error.code === 'FORBIDDEN';
@@ -518,7 +659,7 @@ try {
         port: server.port,
         ca: readFileSync(certPath),
         token: issueStagingToken(secret, { ...pub, expiresAtMs: NOW - 1 }),
-        body: buildEnvelope(pub, invoiceRow(6, { id: 'bill-https-exp', tender: 'cash', lines: [] }), digest),
+        body: buildEnvelope(pub, invoiceRow(billingSeq + 3, { id: 'bill-https-exp', tender: 'cash', lines: [] }), digest),
       });
     } catch (error) {
       expired = error instanceof ReplicationError && error.code === 'EXPIRED';

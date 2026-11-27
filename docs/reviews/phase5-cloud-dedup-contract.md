@@ -1,6 +1,6 @@
 # Cloud replication deduplication — semantic contract
 
-**Remediation of P5-ADV-009 (Phase 5).** Status: in-memory path **FIXED and executable-verified**; durable PostgreSQL path **FIXED — runtime BLOCKED** (no PostgreSQL available in this environment).
+**Remediation of P5-ADV-009 and P5-NEW-006 (Phase 5).** Status: in-memory path **FIXED and executable-verified**; durable PostgreSQL path **FIXED and verified on real PostgreSQL 16.2**; operation identity **CORRECTED to `(business_id, stream, operation_id)`** after P5-NEW-006 found that the stream was missing from the in-memory key.
 
 ---
 
@@ -50,7 +50,9 @@ OUTSTANDING_PRESERVED: true
 
 ## 4. The contract (both paths must satisfy all of it)
 
-1. **Identity.** An operation is identified by `(business_id, operation_id)`. `restore_generation` is **not** part of identity.
+1. **Identity.** An operation is identified by `(business_id, stream, operation_id)`. `restore_generation` is **not** part of identity.
+   * `stream` **is** part of identity because one native commit legitimately emits the same `operationId` on several streams: a desktop retail sale writes `local_retail_outbox` (`stream='retail'`) and `local_billing_outbox` (`stream='billing'`) under one `operationId` (`CheckoutPanel.tsx`, `payments.rs::post_retail`, `replication_matrix_tests.rs`). The native outbox export proves it: `bill-cash-upi` appears as billing seq 5 **and** retail seq 3.
+   * Keying only on `(business_id, operation_id)` — the pre-P5-NEW-006 in-memory key (P5-ADV-009) — rejected the second envelope of **every** real retail sale with `CONFLICT` and let `hydrateFromPostgres` overwrite one stream's entry with another's. The durable schema already scoped identity with the stream (`UNIQUE (business_id, restore_generation, stream, operation_id)`), so the in-memory key was the defect, not the SQL.
 2. **Generation fence.** An envelope whose `restoreGeneration` differs from the enrolled publisher's is rejected `STALE_GENERATION`.
 3. **Dedup is cross-generation.** A known operation is never re-projected, in any generation.
 4. **Conflict.** Reusing a known `operation_id` with a different `payloadSha256` is rejected `CONFLICT`.
@@ -62,17 +64,18 @@ OUTSTANDING_PRESERVED: true
 
 ## 5. Implementation
 
-* `packages/replication-cloud/src/ingest.ts` — sequence/head are computed before the duplicate branch; a duplicate at `last + 1` advances the head via the same clone/adopt transaction used for normal ingest.
+* `packages/replication-cloud/src/store.ts` — `CloudStore.operationKey(businessId, stream, operationId)` is the single source of the identity string; `clone()` rebuilds `byOperation` from the copy's own event log with that key.
+* `packages/replication-cloud/src/ingest.ts` — duplicate lookup and insert both use `store.operationKey(...)`; sequence/head are computed before the duplicate branch; a duplicate at `last + 1` advances the head via the same clone/adopt transaction used for normal ingest.
 * `packages/replication-cloud/src/postgres.ts` — the duplicate lookup drops `restore_generation` and selects the **earliest** event (`ORDER BY e.event_pk ASC LIMIT 1`); on a duplicate it advances the current generation's head when contiguous (`FOR UPDATE`) and inserts a per-generation ack row `ON CONFLICT DO NOTHING`.
 
 ## 6. Verification status
 
 | Item | Status | Evidence |
 |---|---|---|
-| Contract checks 1–7, 9 (in-memory) | **FIXED — executable-verified** | `node scripts/verify-replication.mjs` → 129 checks passed, exit 0 |
-| Before/after behavioural probe | **executed** | `rule5-probe-before.txt`, `rule5-probe-after.txt` |
-| TypeScript strict compilation | **executed** | `tsc 6.0.3 --strict`, exit 0 |
-| Durable PostgreSQL runtime | **BLOCKED** | No `postgres`/`initdb`/`psql` binaries, no server, no container runtime in this environment |
-| Postgres dedup key shape | source-level governance assertion only | harness check "durable Postgres dedup is keyed by business and operation, not restore generation" |
-
-**No PostgreSQL runtime behaviour is claimed.** TypeScript compilation is not evidence of durable-path correctness. The SQL change must be re-verified against a real disposable PostgreSQL instance (ingest → restore → replay → new operation, asserting no double-counted outstanding and no `GAP`) before release.
+| Contract checks 1–9 (in-memory) | **FIXED — executable-verified** | `node scripts/verify-replication.mjs` → 139 checks passed, exit 0 |
+| Shared-`operationId` across `retail` + `billing` (P5-NEW-006) | **FIXED — executable-verified, before/after** | `p5-new-006-probe-before.txt` (candidate: `CONFLICT`) vs `p5-new-006-probe-after.txt` (accepted, distinct cursors, retries idempotent) |
+| Durable PostgreSQL runtime | **VERIFIED on real PostgreSQL 16.2** | `verify:replication-postgres` → 79 checks passed; `p5-new-006-postgres-after.txt` |
+| Native SQLCipher TEXT → TLS → PostgreSQL | **VERIFIED on real PostgreSQL 16.2** | `verify:replication-native-https` → 123 checks passed |
+| Durable hydration of a shared operation id | **FIXED — verified, before/after** | `p5-new-006-postgres-hydrate-before.txt` (candidate: "restart hydrate keeps both stream identities…" fails) vs `p5-new-006-postgres-after.txt` |
+| Migration re-run safety (P5-NEW-005) | **FIXED — verified on real PostgreSQL 16.2** | three consecutive applies succeed; candidate failed round 2 with `42P07 relation "businesses" already exists` (`p5-new-005-migration-idempotency-{before,after}.txt`) |
+| TypeScript strict compilation | **executed** | `npm run typecheck` (tsc 6.0.3) and `npm run typecheck:native` (tsgo 7.0.2), both exit 0 |

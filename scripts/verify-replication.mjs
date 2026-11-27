@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -638,9 +638,86 @@ try {
   );
   const memSrc = readFileSync(join(root, 'packages/replication-cloud/src/ingest.ts'), 'utf8');
   check(
-    memSrc.includes('${publisher.businessId}|${envelope.operationId}'),
+    /store\.operationKey\(\s*publisher\.businessId,\s*envelope\.stream,\s*envelope\.operationId,?\s*\)/.test(memSrc),
     'in-memory dedup uses the same business-scoped operation identity',
   );
+  check(
+    /store\.operationKey\(businessId,\s*row\.stream,\s*row\.operation_id\)/.test(
+      readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8'),
+    ),
+    'durable hydration keys the same operation identity from the row stream',
+  );
+  check(
+    /operationKey\(businessId: string, stream: StreamName, operationId: string\)/.test(
+      readFileSync(join(root, 'packages/replication-cloud/src/store.ts'), 'utf8'),
+    ),
+    'operation identity is (business, stream, operation), never business+operation alone',
+  );
+
+  // ONE native commit emits several envelopes under ONE operation id: a desktop
+  // retail sale is a `retail` envelope (the payments/receipt) and a `billing`
+  // envelope (the invoice) with the same operationId. Deduping without the
+  // stream rejected the second envelope as CONFLICT, so every real retail sale
+  // (cash+UPI, card, cash+credit) failed to replicate. Synthetic fixtures with
+  // distinct `bill-N`/`sale-N` ids could not see it.
+  {
+    const shared = new CloudStore();
+    const pub = enroll(shared, actor('publisher', { deviceId: 'device-shared-op' }));
+    const opId = 'checkout-op-1';
+    // The retail outbox envelope for this commit carries the SALE operation id,
+    // and the billing outbox envelope carries the INVOICE id — which the native
+    // checkout writes as the same value (CheckoutPanel/`post_retail`).
+    const retailEnvelope = () => ({
+      stream: 'retail',
+      sequence: 1,
+      operationId: opId,
+      occurredAtIso: ISO,
+      payload: {
+        version: 1,
+        actorId: 'owner-1',
+        receipt: {
+          operationId: opId,
+          kind: 'sale',
+          data: {
+            invoice: { id: opId, totalPaise: TOTAL, customerId: null },
+            payments: [{ id: 'pay-shared', method: 'cash', amountPaise: TOTAL }],
+          },
+        },
+      },
+    });
+    const first = publish(shared, pub, retailEnvelope());
+    check(first.duplicate === false, 'shared operation id: retail envelope is accepted');
+    const second = publish(shared, pub, invoiceRow(1, { id: opId, tender: 'retail', customerId: null, customerName: 'Walk-in' }));
+    check(second.duplicate === false, 'shared operation id: billing envelope is a distinct operation, not a CONFLICT');
+    check(
+      shared.events.length === 2 &&
+        shared.events[0].stream === 'retail' &&
+        shared.events[1].stream === 'billing',
+      'both stream envelopes of one commit are committed',
+    );
+    const retailAgain = publish(shared, pub, retailEnvelope());
+    check(
+      retailAgain.duplicate === true && retailAgain.cursor === first.cursor,
+      'retrying the retail envelope stays idempotent with its original cursor',
+    );
+    const billingAgain = publish(shared, pub, invoiceRow(1, { id: opId, tender: 'retail', customerId: null, customerName: 'Walk-in' }));
+    check(
+      billingAgain.duplicate === true && billingAgain.cursor === second.cursor,
+      'retrying the billing envelope stays idempotent with its original cursor',
+    );
+    const clone = shared.clone();
+    check(
+      clone.events.length === 2 && clone.events[0].stream === 'retail' && clone.events[1].stream === 'billing',
+      'cloning the store preserves the stream order of a shared operation id',
+    );
+    expectCode('CONFLICT', () =>
+      publish(shared, pub, invoiceRow(3, { id: opId, tender: 'cash', customerId: null, totalPaise: 1, lines: [] })),
+    );
+    check(
+      shared.events.length === 2,
+      'a conflicting payload on a shared id is still rejected',
+    );
+  }
 
   const sidecar = new CloudStore();
   const pub = enroll(sidecar, actor('publisher', { deviceId: 'device-publisher-flush' }));

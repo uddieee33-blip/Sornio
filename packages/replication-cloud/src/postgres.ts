@@ -180,7 +180,7 @@ export async function hydrateFromPostgres(db: SqlDatabase, businessId: string): 
       cursor: row.cursor ?? '0',
     };
     store.events.push(stored);
-    store.byOperation.set(`${businessId}|${row.operation_id}`, stored);
+    store.byOperation.set(store.operationKey(businessId, row.stream, row.operation_id), stored);
   }
   const invoices = await db.query<Record<string, unknown>>(
     `SELECT invoice_id, billing_operation_id, retail_operation_id, occurred_at::text, counterparty, customer_id,

@@ -84,6 +84,24 @@ export class CloudStore {
     return `${businessId}|${generation}|${stream}`;
   }
 
+  /**
+   * Operation identity is `(business, stream, operationId)`.
+   *
+   * `stream` is part of the key because one native checkout commit legitimately
+   * writes the SAME operation id to more than one outbox upstream: a desktop
+   * retail sale writes `local_retail_outbox` (stream `retail`) and
+   * `local_billing_outbox` (stream `billing`) under one `operationId`, and a
+   * split-retail or credit customer effect adds another stream. Keying without
+   * the stream rejected the second envelope of every such sale as a CONFLICT and
+   * let `hydrateFromPostgres` overwrite one stream's entry with another's.
+   * The durable schema has always scoped identity as
+   * `(business_id, restore_generation, stream, operation_id)`; `restore_generation`
+   * is deliberately NOT part of identity (cross-generation dedup is required).
+   */
+  operationKey(businessId: string, stream: StreamName, operationId: string): string {
+    return `${businessId}|${stream}|${operationId}`;
+  }
+
   cursor(businessId: string): bigint {
     return this.cursorByBusiness.get(businessId) ?? 0n;
   }
@@ -99,7 +117,17 @@ export class CloudStore {
     copy.businesses = new Map(this.businesses);
     copy.devices = new Map([...this.devices].map(([key, value]) => [key, { ...value }]));
     copy.events = this.events.map((event) => ({ ...event }));
-    copy.byOperation = new Map(copy.events.map((event) => [`${event.businessId}|${event.operationId}`, event]));
+    // Derived from this copy's own event log, one entry per
+    // (business, stream, operation) identity. The stream component is what keeps
+    // a retail envelope and a billing envelope that share one operation id from
+    // evicting each other.
+    copy.byOperation = new Map();
+    for (const event of copy.events) {
+      copy.byOperation.set(
+        copy.operationKey(event.businessId, event.stream, event.operationId),
+        event,
+      );
+    }
     copy.streamHead = new Map(this.streamHead);
     copy.invoices = new Map([...this.invoices].map(([key, value]) => [key, { ...value }]));
     copy.pendingRetail = new Map([...this.pendingRetail].map(([key, value]) => [key, { ...value }]));

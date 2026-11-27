@@ -28,11 +28,17 @@ export function ingestEnvelope(
   const sequence = BigInt(envelope.streamSequence);
   const headKey = store.headKey(publisher.businessId, publisher.restoreGeneration, envelope.stream);
   const last = store.streamHead.get(headKey) ?? 0n;
-  // Operation identity is business-scoped and generation-independent: a restore
-  // generation is a transport epoch, not part of business identity. Dedup is
-  // therefore cross-generation, so republishing a snapshot's rows after a
-  // restore can never re-project them (which would double-count credit deltas).
-  const duplicate = store.byOperation.get(`${publisher.businessId}|${envelope.operationId}`);
+  // Operation identity is (business, stream, operation) and generation-independent:
+  // a restore generation is a transport epoch, not part of business identity.
+  // Dedup is therefore cross-generation, so republishing a snapshot's rows after
+  // a restore can never re-project them (which would double-count credit deltas).
+  // The stream belongs in the key because one native commit legitimately emits
+  // the same operationId on several streams (a desktop retail sale is both a
+  // `retail` and a `billing` envelope); omitting it rejected the second envelope
+  // of every such sale as a CONFLICT.
+  const duplicate = store.byOperation.get(
+    store.operationKey(publisher.businessId, envelope.stream, envelope.operationId),
+  );
   if (duplicate) {
     if (duplicate.payloadSha256 !== envelope.payloadSha256) {
       throw new ReplicationError('CONFLICT', 'Operation identity was reused with a different payload.');
@@ -59,7 +65,10 @@ export function ingestEnvelope(
     const stored: Envelope & { cursor: string } = { ...envelope, cursor };
     projectEvent(draft, envelope);
     draft.events.push(stored);
-    draft.byOperation.set(`${publisher.businessId}|${envelope.operationId}`, stored);
+    draft.byOperation.set(
+      draft.operationKey(publisher.businessId, envelope.stream, envelope.operationId),
+      stored,
+    );
     draft.streamHead.set(headKey, sequence);
     store.adopt(draft);
     return { operationId: envelope.operationId, cursor, duplicate: false };
