@@ -12,7 +12,6 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { readFileSync } from 'node:fs';
 
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const gate = join(root, 'scripts/verify-windows-foundation-evidence.mjs');
@@ -38,7 +37,12 @@ const validRecord = () => {
   gates['H-13-barcode-scanner'] = { state: 'blocked', evidence: [], reason: 'no scanner attached to the workstation' };
   gates['H-14-thermal-printer'] = { state: 'blocked', evidence: [], reason: 'no printer attached to the workstation' };
   gates['H-15-cash-drawer'] = { state: 'blocked', evidence: [], reason: 'no cash drawer attached to the workstation' };
-  const snapshot = { cashPaise: 10164, customerOutstandingPaise: 463, stockMilli: { 'atta-001': 1500 }, lastInvoiceNumber: 'S-000000000042' };
+  const snapshot = {
+    cashPaise: 10164,
+    customerOutstandingPaise: 463,
+    stockMilli: { 'atta-001': 1500, 'rice-002': 2500, 'oil-003': 750 },
+    lastInvoiceNumber: 'S-000000000042',
+  };
   return {
     milestone: 'foundation',
     commitSha: head,
@@ -62,6 +66,7 @@ const validRecord = () => {
     nonClaims: [
       'This record does not establish a signed consumer release; the build is an unsigned engineering build.',
       'This record covers one workstation only.',
+      'The hardware gates H-13..H-15 were not executed; a foundation acceptance is not a hardware acceptance.',
     ],
   };
 };
@@ -108,6 +113,9 @@ const cases = [
   }, /stock for atta-001 changed across the upgrade/],
   ['a placeholder commit SHA is refused', (r) => {
     r.commitSha = '0'.repeat(40);
+  }, /commitSha is a placeholder; record the real commit under test/],
+  ['a commit SHA from another build is refused', (r) => {
+    r.commitSha = 'c'.repeat(40);
   }, /commitSha .* does not match the checked-out HEAD/],
   ['a placeholder installer hash is refused', (r) => {
     r.installer.sha256 = '0'.repeat(64);
@@ -128,6 +136,94 @@ const cases = [
   ['the template placeholder tester name is refused', (r) => {
     r.recordedBy = 'REPLACE WITH TESTER NAME';
   }, /recordedBy is still the template placeholder/],
+
+  // --- policy: 'blocked' is a hardware-only state -------------------------
+  ['a blocked FOUNDATION gate is refused even with a reason', (r) => {
+    r.gates['W-02-webview2'] = {
+      state: 'blocked',
+      evidence: [],
+      reason: 'this workstation already has the WebView2 runtime installed',
+    };
+  }, /W-02-webview2 is 'blocked': a blocked foundation gate is not an acceptance/],
+  ['a blocked foundation gate is also named in the summary', (r) => {
+    r.gates['W-05-schema-upgrade'] = {
+      state: 'blocked',
+      evidence: [],
+      reason: 'no schema-12 database available on this workstation',
+    };
+  }, /foundation gates cannot be blocked: W-05-schema-upgrade/],
+  ['a blocked foundation gate without a reason is still refused', (r) => {
+    r.gates['W-04-sqlcipher-init'] = { state: 'blocked', evidence: [] };
+  }, /W-04-sqlcipher-init is 'blocked'/],
+  ['a workstation that already has WebView2 cannot be recorded', (r) => {
+    r.environment.webview2 = 'present';
+  }, /environment\.webview2 is "present"/],
+  ['parking a foundation gate as not-run is refused', (r) => {
+    r.gates['W-12-ntfs-acls'] = { state: 'not-run', evidence: [] };
+  }, /W-12-ntfs-acls was never run/],
+
+  // --- policy: the upgrade must specifically be 12 -> 13 ------------------
+  ['a record that upgrades from schema 11 is refused', (r) => {
+    r.environment.schemaBefore = 11;
+  }, /environment\.schemaBefore must be 12/],
+  ['a record that upgrades to schema 14 is refused', (r) => {
+    r.environment.schemaAfter = 14;
+  }, /environment\.schemaAfter must be 13/],
+  ['a schema version given as a string is refused, not coerced', (r) => {
+    r.environment.schemaAfter = '13';
+  }, /environment\.schemaAfter must be an integer/],
+
+  // --- policy: financial snapshot must be real, typed and complete -------
+  ['a string-typed cash figure is refused, not coerced', (r) => {
+    r.financialParity.after.cashPaise = '10164';
+  }, /financialParity\.after\.cashPaise must be an integer/],
+  ['a fractional stock balance is refused', (r) => {
+    r.financialParity.after.stockMilli['atta-001'] = 1500.5;
+  }, /financialParity\.after\.stockMilli\.atta-001 must be an integer/],
+  ['a snapshot with fewer than three products is refused', (r) => {
+    r.financialParity.before.stockMilli = { 'atta-001': 1500 };
+    r.financialParity.after.stockMilli = { 'atta-001': 1500 };
+  }, /records 1 product\(s\); record at least 3/],
+  ['a snapshot that changes which products it records is refused', (r) => {
+    r.financialParity.after.stockMilli['extra-999'] = 42;
+  }, /record different products before/],
+  ['a placeholder product id is refused', (r) => {
+    const stock = { 'REPLACE-product-a': 1, 'REPLACE-product-b': 2, 'REPLACE-product-c': 3 };
+    r.financialParity.before.stockMilli = { ...stock };
+    r.financialParity.after.stockMilli = { ...stock };
+  }, /is a placeholder, not a real product/],
+  ['a placeholder invoice number is refused', (r) => {
+    r.financialParity.before.lastInvoiceNumber = 'REPLACE';
+    r.financialParity.after.lastInvoiceNumber = 'REPLACE';
+  }, /lastInvoiceNumber must be the real invoice number/],
+  ['a decimal-typed outstanding balance is refused', (r) => {
+    r.financialParity.before.customerOutstandingPaise = 463.5;
+  }, /customerOutstandingPaise must be an integer/],
+  ['money drifting on the outstanding column is caught', (r) => {
+    r.financialParity.after.customerOutstandingPaise = 464;
+  }, /financialParity\.customerOutstandingPaise changed across the upgrade/],
+
+  // --- policy: evidence rows must be real --------------------------------
+  ['a blank evidence row is not evidence', (r) => {
+    r.gates['W-06-offline-billing'] = { state: 'passed', evidence: ['   '] };
+  }, /W-06-offline-billing\.evidence must be a list of non-empty/],
+  ['an evidence value that is not a list is refused', (r) => {
+    r.gates['W-07-offline-inventory'] = { state: 'passed', evidence: 'evidence/W-07.txt' };
+  }, /W-07-offline-inventory\.evidence must be a list/],
+
+  // --- policy: claims must be typed and complete -------------------------
+  ['a non-boolean hardware claim is refused', (r) => {
+    r.hardwareClaimed.barcodeScanner = 'no';
+  }, /hardwareClaimed\.barcodeScanner must be a boolean/],
+  ['non-claims that ignore the hardware gates are refused', (r) => {
+    r.nonClaims = ['This record does not establish a signed consumer release; the build is an unsigned engineering build.'];
+  }, /nonClaims must disclose that the hardware gates were not executed/],
+  ['a bare date is not an acceptance timestamp', (r) => {
+    r.recordedAt = '2026-11-27';
+  }, /recordedAt must be a full date-time/],
+  ['a malformed financial parity block is refused', (r) => {
+    r.financialParity.before = null;
+  }, /financialParity\.before\/after are required/],
 ];
 
 for (const [label, mutate, pattern] of cases) {
@@ -144,6 +240,34 @@ check(
     return result.code === 1 && /is missing from the record/.test(result.out);
   })(),
   'a record with no gates at all is refused',
+);
+
+check(
+  (() => {
+    const record = validRecord();
+    delete record.financialParity;
+    const result = run(record);
+    return result.code === 1 && /financialParity\.before\/after are required/.test(result.out);
+  })(),
+  'a record with no financial parity snapshot is refused',
+);
+
+// The success message is part of the honesty: it must never read as a hardware pass.
+check(
+  /foundation gates W-01-installation.*W-12/i.test(baseline.out)
+    && /foundation acceptance, not a hardware\s+acceptance/i.test(baseline.out)
+    && /H-13-barcode-scanner, H-14-thermal-printer, H-15-cash-drawer remain blocked and unclaimed/i.test(baseline.out),
+  'the accepted record reports a FOUNDATION acceptance and names the hardware gates as still blocked',
+);
+check(
+  !/hardware acceptance: VALID|hardware accepted/i.test(baseline.out),
+  'the accepted record never claims hardware acceptance',
+);
+check(
+  /TEMPLATE check, not a Windows pass/.test(
+    execFileSync(process.execPath, [gate, '--schema-only'], { encoding: 'utf8' }),
+  ),
+  'the template check labels itself as a template, not a Windows pass',
 );
 
 rmSync(dir, { recursive: true, force: true });

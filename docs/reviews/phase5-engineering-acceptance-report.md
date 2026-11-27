@@ -467,3 +467,60 @@ performed** — Section H stands unchanged.
 source was modified); 33/33 `verify:*` sub-gates; `verify:replication` 144; `verify:replication-postgres`
 **100**; `verify:replication-native-https` 123. `rem_r2` remains disclosed as a load-dependent flake and
 its assertions are unchanged (passing 3/3 in isolation here).
+
+### Section J addendum — second hardening pass (2026-11-27)
+
+The first pass left three things weaker than they looked. Each is now closed, and in each case the
+closing was proved by reverting the fix and watching the gate fail.
+
+**IV2-003 was not transactional.** The first pass added validation, a device-row lock and a reported
+transition, but the read and the write were still separate statements. Two restores could both read
+`gen-A`, both "succeed", both report `gen-A` as the predecessor, and leave the row on whichever UPDATE
+landed last. `rotatePublisherGeneration` now runs one explicit `BEGIN`/`COMMIT` on the connection it was
+handed (`SqlDatabase` is connection-scoped; there is no pool anywhere in `packages/`, `scripts/` or
+`apps/`), locks the business row and then the publisher row — the same order `ingestDurable` takes, so
+the two cannot deadlock — and writes with `UPDATE … WHERE restore_generation = $2 RETURNING`, so the
+reported predecessor is the value the database actually replaced and zero rows means `CONFLICT`.
+Serialization/deadlock failures (`40001`, `40P01`) are retried at most three times and then surfaced as
+`CONFLICT`; no raw driver error escapes. Five new concurrency cases on separate `pg.Client`
+connections cover same-target racing (exactly one commit), different-target racing (a genuine chain,
+never an assumed order), a same-generation retry, rotation racing a real ingest, and the opposite-order
+lock probe. Reverting `postgres.ts` to its pre-change form fails this suite 6/6. Evidence:
+`docs/reviews/iv2-evidence/iv2-003-durable-rotation.txt`.
+
+**IV2-004 was evidenced but not gated.** The index, the plan and the 775× measurement were recorded in a
+document; nothing in `npm run verify` would have noticed the index being dropped or reshaped.
+`verify:replication-postgres` now asserts, inside one always-rolled-back transaction on a dedicated
+connection: both composite uniqueness constraints still lead with `restore_generation` (so the premise
+holds), the index is exactly `(business_id, stream, operation_id, event_pk)` and never
+`restore_generation`, the lookup for an operation behind a 40k-row backlog is served by that index and
+examines ≤ 4 rows, dropping it degrades the same lookup to O(table) rows, and re-applying the shipped
+migration restores both the index and the fast plan. Removing the index from the migration, reordering
+its columns, and keying it on `restore_generation` are each caught. Evidence:
+`docs/reviews/iv2-evidence/iv2-004-migration.txt`.
+
+**The Windows gate accepted a blocked foundation gate.** The first pass required every gate to be
+`passed` or `blocked`-with-a-reason, which let the worst case through: a record where W-02 (the
+offline-WebView2 fallback) had never been executed could still validate — the shipped validator printed
+"VALID — every required gate passed" for exactly that record, and that is reproduced in
+`docs/reviews/iv2-evidence/stage3-windows-validator-policy.txt`. `blocked` is now legal only on the
+three hardware gates; a blocked foundation gate fails with a message saying it is not an acceptance,
+and `environment.webview2: "present"` is rejected outright because W-02 cannot be exercised on such a
+machine. The upgrade is pinned to schema 12 → 13, financial figures must be integers (no coercion, no
+`REPLACE` placeholders), stock must record ≥ 3 products with the same ids on both sides, evidence rows
+must be non-empty, and a missing git checkout is reported as a failure instead of an uncaught crash. The
+gate nodes in the schema are per-gate now, so W-01..W-12 enumerate only `[passed, failed, not-run]` —
+the policy is structural, and both the schema and the validator reject the same nine cheat fixtures.
+The success line reads "foundation gates … all passed … this is a FOUNDATION acceptance, not a hardware
+acceptance", and the template path labels itself a template. Negative suite: **31 → 81 checks**, with no
+pre-existing case removed or relaxed (one was split into placeholder-SHA and stale-SHA, since the
+validator now names the more specific failure).
+
+**Regression status after the second pass:** `npm run verify` 33/33 sub-gates; `verify:replication`
+**148** (the rotation source checks were retargeted at the transaction body and strengthened with a
+lock-order assertion); `verify:replication-postgres` **139** (10/10 consecutive clean runs);
+`verify:windows-foundation` **81**; `verify:replication-native-https` 123; `cargo test` 262/0/7, `fmt`
+and `clippy -D warnings` clean; `typecheck`, `typecheck:native` and `lint` clean. `rem_r2` remains a
+disclosed load-dependent flake, passing 3/3 in isolation, assertions unchanged. No product semantics,
+no schema change, and no index change were made in this pass: the work is a transaction boundary, a
+test, and a validator.

@@ -16,16 +16,23 @@ are a later milestone and are explicitly out of scope here.
 
 **How to read the states.** Every gate is recorded as exactly one of:
 
-| State | Meaning |
-|---|---|
-| `passed` | Executed on the Windows workstation, evidence attached, validator accepts it. |
-| `failed` | Executed, did not meet the expectation. Blocks the milestone. |
-| `not-run` | Not executed. **Never** counts as a pass. |
-| `blocked` | Cannot be executed in the available environment (e.g. no barcode scanner attached). |
+| State | Meaning | Allowed on |
+|---|---|---|
+| `passed` | Executed on the Windows workstation, evidence attached, validator accepts it. | every gate |
+| `failed` | Executed, did not meet the expectation. Blocks the milestone. | every gate |
+| `not-run` | Not executed. **Never** counts as a pass. | every gate |
+| `blocked` | Cannot be executed in the available environment. | **only the hardware gates** |
 
-A record only validates when every required gate is `passed`, every `blocked` gate carries a reason,
-and the two hardware gates are honestly marked `blocked` if no hardware was attached. **This package
-cannot pass without a physical Windows workstation.**
+**`blocked` is reserved for the hardware gates** H-13..H-15 and is only legitimate with a reason there.
+For the foundation gates W-01..W-12 a `blocked` state means the foundation was *not* accepted: the
+validator rejects it even when a reason is supplied. The foundation gates are obtainable on a single
+ordinary Windows workstation, so "blocked" would only be a way of claiming a pass without evidence.
+
+A record only validates when **all twelve foundation gates are `passed`**, every `blocked` hardware gate
+carries a reason, and no blocked gate is claimed as working hardware. **This package cannot pass without
+a physical Windows workstation.** A record that validates is a **foundation acceptance, not a hardware
+acceptance**: the three hardware gates remain blocked and unclaimed. Do not describe the milestone as
+"hardware accepted" on the strength of this record.
 
 ---
 
@@ -91,9 +98,10 @@ acceptable evidence.
 1. Record whether `HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{F3017226-FE2A-4295-8BDF-00C3A9A7E4C5}`
    exists (WebView2 present) or not.
 2. If absent: install from the bundled offline installer and confirm the app still starts **with no
-   network connection**.
-3. If present: record that the fallback path could not be exercised and mark this gate `blocked`
-   with that reason. Do not mark it `passed`.
+   network connection**. This is the only configuration in which W-02 can pass.
+3. If present: the fallback path cannot be exercised and W-02 cannot pass. Because W-02 is a foundation
+   gate, such a workstation cannot produce a foundation record at all — set up a machine with no
+   WebView2 Runtime instead of recording a blocked gate.
    **Evidence:** `evidence/W-02-webview2.txt` (the registry query output), screenshot of the app
    running offline.
 
@@ -113,13 +121,18 @@ acceptable evidence.
 3. Confirm the file lives under the per-user app data path, not `Program Files`.
    **Evidence:** `evidence/W-04-database.txt` (file path, size, `findstr` output).
 
-### W-05-schema-upgrade — Schema-12 to schema-13 upgrade
+### W-05-schema-upgrade — Schema 12 to schema 13 upgrade
 
-This is the gate CI cannot cover at all.
+This is the gate CI cannot cover at all, and it is the gate that defines this milestone: the record is
+only valid for a schema-12 -> schema-13 upgrade. Any other starting or ending version is a different
+record and the validator will reject it by name.
 
 1. Start from an **existing shop database written by the previous release** (schema 12). Record its
-   schema version and a financial snapshot: cash total, customer outstanding, stock for three
-   products, last invoice number.
+   schema version and a financial snapshot: cash total, customer outstanding, stock for
+   **at least three** products, last invoice number. Record the *same* product ids before and after —
+   a snapshot that adds or drops a product id cannot show what happened to the missing one.
+   Amounts must be integers in paise (milli-units for stock); the validator rejects decimal, string
+   or placeholder values rather than coercing them.
 2. Install and launch the new build over it.
 3. Confirm the app opens without a recovery prompt, the schema is now 13, and **every recorded
    financial figure is unchanged**.
@@ -213,7 +226,9 @@ This is the gate CI cannot cover at all.
 
 ## 4. Recording the result
 
-1. Copy `docs/windows/foundation-acceptance.example.json` to a working file.
+1. Copy `docs/windows/foundation-acceptance.example.json` to a working file. The shipped example keeps
+   `REPLACE` placeholders and therefore does **not** validate: it is a worksheet, not evidence. Do not
+   "fix" it by deleting the placeholder checks — replace the placeholders with measurements.
 2. Fill in every field. Leave no gate `not-run` if you intend to claim the milestone.
 3. Run the validator:
 
@@ -221,9 +236,15 @@ This is the gate CI cannot cover at all.
 node scripts/verify-windows-foundation-evidence.mjs --record .\foundation-acceptance.json
 ```
 
-4. The validator fails unless: the schema is well-formed, every required gate is `passed`, every
-   `blocked` gate has a non-empty reason, `hardwareClaimed` matches the hardware gate states, and the
-   commit SHA matches the checked-out HEAD.
+4. The validator fails unless: the document types are right, all twelve foundation gates are
+   `passed`, only hardware gates are `blocked` and each carries a non-empty reason, `hardwareClaimed`
+   matches the hardware gate states, the upgrade is specifically schema 12 -> schema 13, the financial
+   snapshot is integer-typed and identical on both sides for the same product ids, and the commit SHA
+   matches the checked-out HEAD.
+
+   A stored record is optional: the validator is the authority, and a record must be re-validated
+   against the HEAD it claims, so an acceptance recorded for one commit does not silently carry over
+   to a later build.
 5. Attach the whole `evidence/` tree and the JSON to the acceptance record. Hashes are recorded, not
    screenshots alone.
 
@@ -231,6 +252,8 @@ node scripts/verify-windows-foundation-evidence.mjs --record .\foundation-accept
 
 Completing this package **does not** mean:
 
+* the three hardware gates were executed — they stay `blocked` and unclaimed; the record is a
+  foundation acceptance, not a hardware acceptance;
 * the app is signed for consumer distribution (the build is an unsigned engineering build);
 * it was tested on more than the recorded workstation;
 * hardware works beyond the recorded make/model;

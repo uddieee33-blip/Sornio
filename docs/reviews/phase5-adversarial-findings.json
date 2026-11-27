@@ -517,7 +517,7 @@
           "packages/local-store/src/recovery/phase5_tests.rs"
         ],
         "tests_added": 5,
-        "verification": "cargo test --lib recovery:: => 78 passed / 0 failed / 3 ignored, exit 0. New tests: recovery_metadata_is_immutable_while_fenced (replays every attack the audit used: budget reset, retry-window drop, credential swap, generation tamper, business_id substitution, identity delete \u2014 all refused, budget unchanged, accounting still monotonic); metadata_writes_are_allowed_once_the_fence_is_released (restore still rotates the generation and the Owner can still unlock); startup_rejects_malformed_recovery_identity. verify:local-schema => 110 checks passed including 11 new v13 guard attacks.",
+        "verification": "cargo test --lib recovery:: => 78 passed / 0 failed / 3 ignored, exit 0. New tests: recovery_metadata_is_immutable_while_fenced (replays every attack the audit used: budget reset, retry-window drop, credential swap, generation tamper, business_id substitution, identity delete — all refused, budget unchanged, accounting still monotonic); metadata_writes_are_allowed_once_the_fence_is_released (restore still rotates the generation and the Owner can still unlock); startup_rejects_malformed_recovery_identity. verify:local-schema => 110 checks passed including 11 new v13 guard attacks.",
         "evidence": [
           "gates-cargo-test.txt",
           "gates-npm-verify.txt"
@@ -641,7 +641,7 @@
           "packages/local-store/src/recovery/phase5_tests.rs"
         ],
         "tests_added": 3,
-        "verification": "startup_rejects_malformed_recovery_identity covers the audit's exact accepted values (\"short\", \"zzzz\", \"'; DROP TABLE x; --\", \"\") plus non-hex/short business identities and a malformed or mismatched completed result_generation \u2014 every one now returns RecoveryCorrupt. verify:local-schema asserts the engine refuses a non-hex and a shortened generation at INSERT/UPDATE.",
+        "verification": "startup_rejects_malformed_recovery_identity covers the audit's exact accepted values (\"short\", \"zzzz\", \"'; DROP TABLE x; --\", \"\") plus non-hex/short business identities and a malformed or mismatched completed result_generation — every one now returns RecoveryCorrupt. verify:local-schema asserts the engine refuses a non-hex and a shortened generation at INSERT/UPDATE.",
         "evidence": [
           "gates-cargo-test.txt",
           "gates-npm-verify.txt"
@@ -915,7 +915,7 @@
       "title": "verify:local-schema fails on schema v13 and the committed fingerprint still described schema 12",
       "file_function": "scripts/verify-local-schema.py::load_migrations; packages/local-store/fixtures/schema-fingerprint.json",
       "code_path": "The verifier replayed only `fn migrate` bodies. Schema 13 is applied by `recovery::migrate_v13` with the DDL inline in V13_EXTENSION plus a per-FENCED_TABLES trigger loop, so it was never replayed: user_version stayed 12 against SCHEMA_VERSION 13, and the structural fingerprint and guard attacks described the old schema.",
-      "attack_scenario": "A required governance gate (part of npm run verify) fails on the branch, and the schema fingerprint \u2014 the mechanism that catches a silently removed guard \u2014 was blind to every v13 guard.",
+      "attack_scenario": "A required governance gate (part of npm run verify) fails on the branch, and the schema fingerprint — the mechanism that catches a silently removed guard — was blind to every v13 guard.",
       "actual_observed_behavior": "npm run verify:local-schema exit 1 with 2/92 failures on the baseline commit.",
       "expected_invariant": "The schema verifier must replay and fingerprint the CURRENT schema, and every guard it ships must be attacked.",
       "reproduction_evidence": "baseline gate run: \"user_version is 12, crate SCHEMA_VERSION is 13\" and \"legacy v4 database upgrades to schema 13\"",
@@ -1032,7 +1032,7 @@
       "area": "E. Publisher draining/replication",
       "title": "Cloud ingest rejects the second envelope of every real desktop retail sale because operation identity omits the stream",
       "file_function": "packages/replication-cloud/src/store.ts (CloudStore.byOperation), ingest.ts::ingestEnvelope, postgres.ts::hydrateFromPostgres",
-      "code_path": "A desktop retail sale writes ONE operationId to two outboxes: local_retail_outbox (stream=retail) and local_billing_outbox (stream=billing) \u2014 CheckoutPanel.tsx reuses request.operationId for the retail action, payments.rs::post_retail stores it, and replication_matrix_tests.rs proves the native export emits both (bill-cash-upi is billing seq 5 and retail seq 3). PostgreSQL scopes identity as (business_id, restore_generation, stream, operation_id) and postgres.ts dedups with stream, but store.ts and ingest.ts keyed store.byOperation by `${businessId}|${operationId}` and hydrateFromPostgres did the same.",
+      "code_path": "A desktop retail sale writes ONE operationId to two outboxes: local_retail_outbox (stream=retail) and local_billing_outbox (stream=billing) — CheckoutPanel.tsx reuses request.operationId for the retail action, payments.rs::post_retail stores it, and replication_matrix_tests.rs proves the native export emits both (bill-cash-upi is billing seq 5 and retail seq 3). PostgreSQL scopes identity as (business_id, restore_generation, stream, operation_id) and postgres.ts dedups with stream, but store.ts and ingest.ts keyed store.byOperation by `${businessId}|${operationId}` and hydrateFromPostgres did the same.",
       "attack_scenario": "Every genuine retail sale paid by UPI, card, cash+UPI, cash+card or cash+credit fails to replicate: the first (retail) envelope commits, then the billing envelope of the SAME commit is matched against the retail payload, its payloadSha256 differs, and ingest throws CONFLICT. The sale never reaches the cloud projection, so the shop reports and khata silently diverge from the PC. Separately, hydrateFromPostgres overwrites the retail entry with the billing entry, so post-restart duplicate detection compares a billing payload with a retail envelope.",
       "expected_invariant": "Operation identity must be (business, stream, operation), the same key the durable schema uses; two envelopes of one commit must both commit and each retry must stay idempotent with its own cursor.",
       "actual_observed_behavior": "Candidate: retail envelope accepted, billing envelope => ReplicationError CONFLICT; after hydration only one byOperation entry exists for the shared id; the native SQLCipher export of seven real sales contains exactly these shared ids and cannot be replicated.",
@@ -1164,7 +1164,7 @@
     "docs/reviews/phase5-adversarial-evidence/"
   ],
   "remediation": {
-    "phase": "Phase 5 Remediation \u2014 Adversarial Closure Pass",
+    "phase": "Phase 5 Remediation — Adversarial Closure Pass",
     "date_utc": "2026-11-27",
     "branch": "arena/475a4866-sornio",
     "branch_constraint": "Stage 0 finding: target commit 16e0267f8a931ebba4736f2e34ea86341e9f6898 is absent from GitHub (HTTP 422) and every remote ref. With explicit user decision `proceed_from_9274ddb`, the session branch was fast-forwarded to the verified parent 9274ddb and the pass continued there. No history was rewritten; main is untouched.",
@@ -1178,7 +1178,7 @@
     "verdict_rationale": "Every one of the 17 findings has (a) an identified root cause verified in the source diff, (b) a remediation present as a real code or gate change, and (c) at least one regression assertion that the independent reviewer executed at HEAD. Every gate this environment can run passes on a clean worktree at 830b9f0 (fmt, clippy -D warnings, cargo test 262/0/7, typecheck, native typecheck, lint, 32/32 verify:* sub-gates, real PostgreSQL 16.2 durable 79, native SQLCipher->TLS->PostgreSQL 123, migration applied 3x). Two claims were narrowed by this pass rather than accepted on the author's word: P5-ADV-007's fix lives in the baseline commit 9274ddb, not in f232348; and the durable cross-generation contract (P5-ADV-009) had no durable test until this pass wrote one. Both are now evidenced at HEAD.",
     "status_legend": {
       "FIXED": "Remediated and verified by execution in this environment",
-      "FIXED \u2014 NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
+      "FIXED — NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
       "STILL OPEN": "Not remediated in this pass",
       "BLOCKED": "Verification cannot be performed in this environment"
     },
@@ -1334,7 +1334,7 @@
     "baseline": "9274ddb8b3977cf52411cbb49c68e191a1c78c6d",
     "independent_review": "See canonical_closure (2026-11-27 acceptance review): every gate re-executed from a clean worktree at 830b9f0.",
     "independent_verification_2026_11_27": {
-      "phase": "Phase 5 \u2014 Final Independent Verification & Acceptance Reconciliation",
+      "phase": "Phase 5 — Final Independent Verification & Acceptance Reconciliation",
       "date_utc": "2026-11-27",
       "reviewer": "acceptance reviewer (separate session, separate git worktree at HEAD; not the remediation author)",
       "branch": "arena/475a4866-sornio",
@@ -1531,7 +1531,7 @@
     ]
   },
   "canonical_closure": {
-    "phase": "Phase 5 \u2014 Final Independent Verification & Acceptance Reconciliation",
+    "phase": "Phase 5 — Final Independent Verification & Acceptance Reconciliation",
     "date_utc": "2026-11-27",
     "reviewer": "acceptance reviewer (independent of the remediation author; see reviewer_independence)",
     "repository": "uddieee33-blip/Sornio",
@@ -1806,11 +1806,11 @@
     "release_gate": {
       "phase5_code_level_remediation": "PASS",
       "windows_release_acceptance": "BLOCKED",
-      "verdict": "CONDITIONAL PASS \u2014 code accepted; release blocked on the Windows and physical gates",
+      "verdict": "CONDITIONAL PASS — code accepted; release blocked on the Windows and physical gates",
       "blockers": [
-        "Windows runtime acceptance: install, launch, WebView2 presence, DB init, upgrade from a v12 shop DB, offline billing, recovery flow, uninstall \u2014 none executed on Windows.",
-        "Installer build (NSIS) and per-user installation on a Windows host \u2014 not performed.",
-        "Physical device / real-shop acceptance \u2014 not performed.",
+        "Windows runtime acceptance: install, launch, WebView2 presence, DB init, upgrade from a v12 shop DB, offline billing, recovery flow, uninstall — none executed on Windows.",
+        "Installer build (NSIS) and per-user installation on a Windows host — not performed.",
+        "Physical device / real-shop acceptance — not performed.",
         "The on-disk hardening (file permissions, ACLs, encryption-at-rest) was not exercised on NTFS."
       ],
       "note": "No Linux result is offered as a substitute for any Windows gate."
@@ -1822,7 +1822,7 @@
     "per_finding_independent_verification": "see findings[].independent_verification.result_lines"
   },
   "remediation_author_record": {
-    "phase": "Phase 5 Remediation \u2014 Adversarial Closure Pass",
+    "phase": "Phase 5 Remediation — Adversarial Closure Pass",
     "date_utc": "2026-11-27",
     "branch": "arena/475a4866-sornio",
     "branch_constraint": "Stage 0 finding: target commit 16e0267f8a931ebba4736f2e34ea86341e9f6898 is absent from GitHub (HTTP 422) and every remote ref. With explicit user decision `proceed_from_9274ddb`, the session branch was fast-forwarded to the verified parent 9274ddb and the pass continued there. No history was rewritten; main is untouched.",
@@ -1836,7 +1836,7 @@
     "verdict_rationale": "All 17 findings carry a verified FIXED status backed by executable evidence produced in this environment. P5-ADV-008/010/011 are closed with engine-level guards, format validation and a clean strict-lint gate. P5-ADV-007 (sale-journal duplication, still open under the previous independent audit) is closed by the sale-cardinality rule. Six new findings were uncovered by this pass; five were release- or restore-blocking (two legitimate-history false positives, the schema-gate blind spot, the non-idempotent PostgreSQL migration and the critical shared-operationId CONFLICT that silently dropped the cloud copy of most real retail sales) and all six are remediated and re-executed. Gates executed here: cargo fmt, clippy -D warnings, full cargo test, npm typecheck/native typecheck/lint, all 32 verify:* sub-gates, and real PostgreSQL 16.2 durable, native SQLCipher->TLS->PostgreSQL and migration-idempotency runs. Residual limitations are recorded honestly: no Windows/Tauri runtime and no physical-device evidence.",
     "status_legend": {
       "FIXED": "Remediated and verified by execution in this environment",
-      "FIXED \u2014 NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
+      "FIXED — NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
       "STILL OPEN": "Not remediated in this pass",
       "BLOCKED": "Verification cannot be performed in this environment"
     },
@@ -2009,19 +2009,20 @@
           "scripts/verify-replication-postgres.mjs"
         ],
         "tests": {
-          "in_memory_harness": "139 -> 144 checks",
-          "durable_postgres": "79 -> 100 checks",
-          "new_assertions": "5 API-surface + 21 rotation lifecycle/refusal assertions"
+          "in_memory_harness": "139 -> 144 checks (first pass)",
+          "durable_postgres": "79 -> 100 checks (first pass)",
+          "new_assertions": "5 API-surface + 21 rotation lifecycle/refusal assertions",
+          "superseded_by": "post_phase5_hardening.second_hardening_pass.iv2_003 - the read and the write were still separate statements in this pass; the rotation is now one transaction, and verify:replication is 148 / verify:replication-postgres is 139"
         },
         "verification": [
-          "verify:replication 144 checks exit 0",
-          "verify:replication-postgres 100 checks on PostgreSQL 16.2 exit 0"
+          "verify:replication 144 checks exit 0 (first pass)",
+          "verify:replication-postgres 100 checks on PostgreSQL 16.2 exit 0 (first pass)"
         ],
         "evidence": [
           "docs/reviews/iv2-evidence/iv2-003-api-surface.txt",
           "docs/reviews/iv2-evidence/iv2-003-durable-rotation.txt"
         ],
-        "status": "FIXED \u2014 verified"
+        "status": "FIXED — verified"
       },
       {
         "id": "IV2-004",
@@ -2071,7 +2072,7 @@
           "docs/reviews/iv2-evidence/iv2-004-migration.txt"
         ],
         "residual": "Benchmark is a warm-cache, single-client, synthetic measurement on a sandbox: representative of plan shape and relative cost, not production latency. A very large existing table needs CREATE INDEX CONCURRENTLY out of band (documented, not automated).",
-        "status": "FIXED \u2014 verified"
+        "status": "FIXED — verified"
       }
     ],
     "windows_package": {
@@ -2082,23 +2083,80 @@
         "scripts/verify-windows-foundation-evidence.mjs",
         "scripts/test-windows-foundation-evidence.mjs"
       ],
-      "gate": "npm run verify:windows-foundation (added to the aggregate verify chain): 31 checks",
-      "design": "15 gates. Every gate must be passed, or blocked with a written reason; 'not-run' and 'failed' both block the record. The validator refuses: a passing gate with no evidence, a placeholder commit or installer hash, a commit that is not HEAD, money or stock drifting across the schema-12 -> 13 upgrade, hardware claimed while its gate is blocked, and a missing non-claim about the unsigned build. A negative-test suite proves each refusal.",
+      "gate": "npm run verify:windows-foundation (in the aggregate verify chain): 81 checks (31 in the first pass; the policy was tightened in the second pass)",
+      "design": "15 gates. ALL twelve foundation gates (W-01..W-12) must be 'passed'. 'blocked' is legal only on the three hardware gates, and a blocked hardware gate must carry a reason and must not be claimed. The validator also refuses: a passing gate with no evidence, non-integer or placeholder financial figures, a stock snapshot with fewer than three products or different ids on each side, a placeholder commit or installer hash, a commit that is not HEAD, an upgrade that is not specifically schema 12 -> 13, a workstation that already has WebView2 (W-02 unexercisable), and a missing non-claim about either the unsigned build or the unexecuted hardware gates. A validated record says it is a FOUNDATION acceptance, not a hardware acceptance.",
       "windows_execution": "NOT PERFORMED. No Windows host in this environment.",
       "blocked_gates": [
-        "W-01..W-12 need a physical Windows workstation",
         "H-13 barcode scanner",
         "H-14 thermal printer",
-        "H-15 cash drawer"
+        "H-15 cash drawer",
+        "W-01..W-12 cannot pass without a physical Windows workstation (they cannot be blocked instead)"
       ],
       "note": "The package is a template and procedure. It cannot pass without a physical Windows workstation, and the validator is written to enforce that rather than allow a paper pass."
     },
     "unchanged_guarantees": [
       "No Phase 5 finding reopened",
       "No financial semantics changed",
+      "No schema change and no index change in the second pass (the events_operation_identity shape is now asserted, not altered)",
       "No Rust source touched (cargo test 262/0/7, fmt and clippy -D warnings still clean)",
-      "main untouched, no force push, no history rewrite",
+      "main untouched, no force push, no history rewrite, no automatic PR",
       "rem_r2 flake still disclosed, assertions unchanged"
-    ]
+    ],
+    "second_hardening_pass": {
+      "date_utc": "2026-11-27",
+      "starting_head": "b7357893a7ad263f8818554ea3216d1144bea5ed",
+      "reason": "Three items from the first pass were weaker than they appeared: the rotation was not transactional, the IV2-004 index was evidenced but not gated, and the Windows validator accepted a blocked foundation gate. Each fix was proved by reverting it and watching the gate fail.",
+      "iv2_003": {
+        "defect": "rotatePublisherGeneration read the device row and then issued an unconditional UPDATE with no transaction. Two restores could both read gen-A, both report success with previousGeneration gen-A, and leave the row on whichever UPDATE landed last.",
+        "fix": "One explicit BEGIN/COMMIT on the handed-in connection: lock the business row, then the publisher row (the same order as ingestDurable, so they cannot deadlock), then UPDATE ... WHERE restore_generation = $2 RETURNING. Zero rows means CONFLICT. 40001/40P01 are retried at most 3 times, then surfaced as CONFLICT; no raw driver error escapes.",
+        "no_pool": "SqlDatabase is connection-scoped; there is no pg.Pool anywhere in packages/, scripts/ or apps/.",
+        "new_tests": "5 concurrency cases on separate pg.Client connections: same-target race (exactly one commit, loser CONFLICT), different-target race (a genuine chain from the start generation, never an assumed order), same-generation retry, rotation racing a real ingestDurable, and the opposite-order lock probe.",
+        "mutation_proof": "Reverting postgres.ts to b735789 and re-running the suite fails 6/6 with 'the two transitions form a real chain from the start ([\"race-gen-C\"])' and 'exactly one concurrent rotation to the same generation commits (2 of 2)'.",
+        "assertions_deliberately_not_made": [
+          "A fixed commit order for racing rotations (the one issued first can commit second).",
+          "A single expected error code for an ingest that loses the race: GAP and STALE_GENERATION are both correct fail-closed outcomes."
+        ],
+        "counts": "verify:replication 144 -> 148; verify:replication-postgres 100 -> 139, 10/10 consecutive clean runs",
+        "evidence": [
+          "docs/reviews/iv2-evidence/iv2-003-durable-rotation.txt",
+          "docs/reviews/iv2-evidence/iv2-003-api-surface.txt"
+        ]
+      },
+      "iv2_004": {
+        "defect": "The index, plan and 775x measurement lived in a document plus two bench scripts that nothing in npm run verify ran. A later change could drop or reshape the index and every gate stayed green.",
+        "fix": "verify:replication-postgres asserts, inside one always-rolled-back transaction on a dedicated connection: both composite UNIQUE constraints still lead with restore_generation; the index is exactly (business_id, stream, operation_id, event_pk) and never restore_generation; the lookup for an operation behind a 40k-row backlog is index-served and examines <= 4 rows; dropping the index degrades the same lookup to O(table) rows; re-applying the migration restores the index and the fast plan; the rollback leaves zero probe rows and the index present.",
+        "mutation_proof": [
+          "index removed from the migration -> 'the shipped events_operation_identity index exists' fails",
+          "columns reordered to (business_id, operation_id, stream, event_pk) -> identity check fails",
+          "keyed on restore_generation -> identity check fails"
+        ],
+        "not_claimed": "Plan shape is the gate; timing is asserted only as a relative inequality, and the warm-cache single-client limitation stands.",
+        "evidence": [
+          "docs/reviews/iv2-evidence/iv2-004-migration.txt"
+        ]
+      },
+      "windows_validator": {
+        "defect": "The first pass required every gate to be 'passed' OR 'blocked with a reason', which let a record where W-02 had never been executed still validate. Reproduced: the shipped validator printed 'VALID — every required gate passed' for that record.",
+        "policy_now": [
+          "'blocked' is legal only on H-13..H-15; a blocked foundation gate fails even with a reason.",
+          "environment.webview2 = 'present' is rejected: W-02 cannot be exercised there.",
+          "schemaBefore/schemaAfter pinned to const 12/13, and must be integers (no string coercion).",
+          "Financial figures must be integers; 'REPLACE' placeholders are rejected.",
+          "stockMilli needs >= 3 products, the same ids on both sides, no placeholder ids.",
+          "Evidence rows must be non-empty strings; hardwareClaimed values must be booleans.",
+          "nonClaims must disclose both the unsigned build and the unexecuted hardware gates.",
+          "A missing git checkout is reported as a failure, not an uncaught crash.",
+          "Per-gate schema nodes: W-01..W-12 enumerate only [passed, failed, not-run], so the policy is structural."
+        ],
+        "success_message": "A validated record prints 'foundation gates W-01-installation..W-12 (12 executed, all passed) ... This is a FOUNDATION acceptance, not a hardware acceptance: H-13, H-14, H-15 remain blocked and unclaimed.' The template path labels itself a template, not a Windows pass.",
+        "counts": "negative suite 31 -> 81 checks; no pre-existing case removed or relaxed",
+        "schema_validator_agreement": "Both the schema (ajv) and the validator reject the same nine cheat fixtures and accept the same well-formed record. The shipped example deliberately keeps REPLACE placeholders and therefore does NOT validate: it is a worksheet, not evidence.",
+        "evidence": [
+          "docs/reviews/iv2-evidence/stage3-windows-validator-policy.txt"
+        ]
+      },
+      "gate_ledger": "docs/reviews/iv2-evidence/stage5-gate-ledger-second-pass.txt",
+      "windows_execution": "NOT PERFORMED. Still no Windows host. A foundation pass is not a hardware acceptance."
+    }
   }
 }

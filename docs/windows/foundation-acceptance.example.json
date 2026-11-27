@@ -23,18 +23,54 @@
     "signatureStatus": "unsigned"
   },
   "gates": {
-    "W-01-installation": { "state": "not-run", "evidence": [] },
-    "W-02-webview2": { "state": "not-run", "evidence": [] },
-    "W-03-startup-shutdown": { "state": "not-run", "evidence": [] },
-    "W-04-sqlcipher-init": { "state": "not-run", "evidence": [] },
-    "W-05-schema-upgrade": { "state": "not-run", "evidence": [] },
-    "W-06-offline-billing": { "state": "not-run", "evidence": [] },
-    "W-07-offline-inventory": { "state": "not-run", "evidence": [] },
-    "W-08-recovery": { "state": "not-run", "evidence": [] },
-    "W-09-restart": { "state": "not-run", "evidence": [] },
-    "W-10-backup-restore": { "state": "not-run", "evidence": [] },
-    "W-11-install-uninstall": { "state": "not-run", "evidence": [] },
-    "W-12-ntfs-acls": { "state": "not-run", "evidence": [] },
+    "W-01-installation": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-02-webview2": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-03-startup-shutdown": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-04-sqlcipher-init": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-05-schema-upgrade": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-06-offline-billing": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-07-offline-inventory": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-08-recovery": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-09-restart": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-10-backup-restore": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-11-install-uninstall": {
+      "state": "not-run",
+      "evidence": []
+    },
+    "W-12-ntfs-acls": {
+      "state": "not-run",
+      "evidence": []
+    },
     "H-13-barcode-scanner": {
       "state": "blocked",
       "evidence": [],
@@ -60,19 +96,28 @@
     "before": {
       "cashPaise": 0,
       "customerOutstandingPaise": 0,
-      "stockMilli": { "REPLACE-product-id": 0 },
+      "stockMilli": {
+        "REPLACE-product-a": 0,
+        "REPLACE-product-b": 0,
+        "REPLACE-product-c": 0
+      },
       "lastInvoiceNumber": "REPLACE"
     },
     "after": {
       "cashPaise": 0,
       "customerOutstandingPaise": 0,
-      "stockMilli": { "REPLACE-product-id": 0 },
+      "stockMilli": {
+        "REPLACE-product-a": 0,
+        "REPLACE-product-b": 0,
+        "REPLACE-product-c": 0
+      },
       "lastInvoiceNumber": "REPLACE"
     }
   },
   "nonClaims": [
     "This record does not establish a signed consumer release; the build is an unsigned engineering build.",
     "This record covers one workstation only.",
-    "Hardware gates are blocked, not passed."
+    "The hardware gates H-13..H-15 were not executed; a foundation acceptance is not a hardware acceptance.",
+    "This record does not establish fitness for a real shop; that needs the hardware milestone and a usability study."
   ]
 }
