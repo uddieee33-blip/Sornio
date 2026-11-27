@@ -107,6 +107,17 @@ pub(crate) fn generation(db: &Connection) -> Result<String, StoreError> {
     )?)
 }
 
+/// Recovery identity fields are opaque 32-byte values rendered as 64 lowercase
+/// hex characters by [`random_id`]. Validating the shape (not only presence)
+/// means a tampered-but-nonempty token, generation or business identity is
+/// refused even when it happens to satisfy the pairing checks (P5-ADV-010).
+pub(crate) fn is_hex64(value: &str) -> bool {
+    value.len() == 64
+        && value
+            .bytes()
+            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+}
+
 // ---------------------------------------------------------------------------
 // Phase 5 durable recovery state machine (schema v13).
 // See docs/reviews/p0-durable-recovery-phase5-state-machine.md.
@@ -236,6 +247,42 @@ const V13_EXTENSION: &str = "CREATE TABLE local_recovery_operations (
   SELECT RAISE(ABORT,'recovery fence may only be released for a terminal operation') WHERE NOT EXISTS(
    SELECT 1 FROM local_recovery_operations o WHERE o.operation_id=OLD.operation_id
    AND o.state IN ('completed','rejected','interrupted'));
+ END;
+ CREATE TRIGGER local_recovery_identity_insert BEFORE INSERT ON local_recovery_identity
+ BEGIN
+  SELECT RAISE(ABORT,'recovery identity is a singleton') WHERE NEW.singleton<>1;
+  SELECT RAISE(ABORT,'recovery business identity must be 64 lowercase hex characters') WHERE
+   length(NEW.business_id)<>64 OR NEW.business_id GLOB '*[^0-9a-f]*';
+  SELECT RAISE(ABORT,'recovery generation must be 64 lowercase hex characters') WHERE
+   length(NEW.generation)<>64 OR NEW.generation GLOB '*[^0-9a-f]*';
+  SELECT RAISE(ABORT,'recovery metadata is frozen while a recovery fence is active') WHERE
+   EXISTS(SELECT 1 FROM local_recovery_fence);
+ END;
+ CREATE TRIGGER local_recovery_identity_no_delete BEFORE DELETE ON local_recovery_identity
+ BEGIN SELECT RAISE(ABORT,'recovery identity is permanent'); END;
+ CREATE TRIGGER local_recovery_identity_update BEFORE UPDATE ON local_recovery_identity
+ BEGIN
+  SELECT RAISE(ABORT,'recovery business identity is immutable') WHERE
+   NEW.singleton<>OLD.singleton OR NEW.business_id<>OLD.business_id;
+  SELECT RAISE(ABORT,'recovery generation must be 64 lowercase hex characters') WHERE
+   NEW.generation<>OLD.generation
+   AND (length(NEW.generation)<>64 OR NEW.generation GLOB '*[^0-9a-f]*');
+  SELECT RAISE(ABORT,'recovery metadata is frozen while a recovery fence is active') WHERE
+   EXISTS(SELECT 1 FROM local_recovery_fence);
+ END;
+ CREATE TRIGGER workspace_access_insert BEFORE INSERT ON workspace_access
+ BEGIN SELECT RAISE(ABORT,'workspace access is a singleton') WHERE NEW.singleton<>1; END;
+ CREATE TRIGGER workspace_access_no_delete BEFORE DELETE ON workspace_access
+ BEGIN SELECT RAISE(ABORT,'workspace access state is permanent'); END;
+ CREATE TRIGGER workspace_access_fenced_update BEFORE UPDATE ON workspace_access
+ WHEN EXISTS(SELECT 1 FROM local_recovery_fence)
+ BEGIN
+  SELECT RAISE(ABORT,'workspace credential policy is frozen while a recovery fence is active')
+   WHERE NEW.password_hash IS NOT OLD.password_hash;
+  SELECT RAISE(ABORT,'workspace lockout cannot be cleared while a recovery fence is active')
+   WHERE NEW.failed_attempts=0 AND (OLD.failed_attempts<>0 OR OLD.retry_after<>0);
+  SELECT RAISE(ABORT,'workspace lockout window cannot be dropped while a recovery fence is active')
+   WHERE OLD.retry_after>0 AND NEW.retry_after=0 AND NEW.failed_attempts>=OLD.failed_attempts;
  END;";
 
 pub(crate) fn migrate_v13(tx: &rusqlite::Transaction<'_>) -> Result<(), StoreError> {
@@ -261,6 +308,38 @@ pub(crate) fn migrate_v13(tx: &rusqlite::Transaction<'_>) -> Result<(), StoreErr
 /// dropped table. This never runs in production code paths.
 #[cfg(test)]
 pub(crate) fn remove_v13_for_legacy_test(db: &Connection) {
+    drop_triggers(db, METADATA_TRIGGERS_V13);
+    db.execute_batch(
+        "DROP TABLE IF EXISTS local_recovery_fence; DROP TABLE IF EXISTS local_recovery_operations;",
+    )
+    .unwrap();
+}
+
+/// Every metadata trigger created by [`V13_EXTENSION`]. Kept as an explicit list
+/// so the legacy-fixture downgrade cannot silently miss a guard that a later
+/// restore would re-parse against a dropped table.
+#[cfg(test)]
+const METADATA_TRIGGERS_V13: &[&str] = &[
+    "local_recovery_operations_no_delete",
+    "local_recovery_operations_insert",
+    "local_recovery_operations_transition",
+    "local_recovery_fence_insert",
+    "local_recovery_fence_no_update",
+    "local_recovery_fence_release",
+    "local_recovery_identity_insert",
+    "local_recovery_identity_no_delete",
+    "local_recovery_identity_update",
+    "workspace_access_insert",
+    "workspace_access_no_delete",
+    "workspace_access_fenced_update",
+];
+
+#[cfg(test)]
+fn drop_triggers(db: &Connection, named: &[&str]) {
+    for name in named {
+        db.execute_batch(&format!("DROP TRIGGER IF EXISTS {};", quote(name)))
+            .unwrap();
+    }
     for table in FENCED_TABLES {
         for suffix in ["ins", "upd", "del"] {
             db.execute_batch(&format!(
@@ -269,10 +348,6 @@ pub(crate) fn remove_v13_for_legacy_test(db: &Connection) {
             .unwrap();
         }
     }
-    db.execute_batch(
-        "DROP TABLE IF EXISTS local_recovery_fence; DROP TABLE IF EXISTS local_recovery_operations;",
-    )
-    .unwrap();
 }
 
 /// In-memory capability held only by the admitting process. Never serialized.
@@ -321,6 +396,13 @@ fn transition(
     result_generation: Option<&str>,
 ) -> Result<(), StoreError> {
     let placeholders = from.iter().map(|_| "?").collect::<Vec<_>>().join(",");
+    if let Some(result) = result_generation {
+        // The completion generation becomes the live restore generation, so it
+        // must have the same canonical shape as the identity it replaces.
+        if !is_hex64(result) {
+            return Err(StoreError::RecoveryCorrupt);
+        }
+    }
     let sql = format!(
         "UPDATE local_recovery_operations
          SET state=?, detail=COALESCE(?,detail), result_generation=?, updated_at=?
@@ -370,6 +452,14 @@ fn admit(store: &mut Store, preview: &BackupPreview) -> Result<Ownership, StoreE
         return Err(StoreError::RecoveryInterrupted);
     }
     check_business(&tx, &preview.business_id)?;
+    // Bind only canonical identities. random_id() below always satisfies this;
+    // the check exists so a tampered on-disk identity is refused at admission
+    // instead of being copied into a new durable operation record (P5-ADV-010).
+    let bound_business = preview.business_id.clone();
+    let bound_generation = generation(&tx)?;
+    if !is_hex64(&bound_business) || !is_hex64(&bound_generation) {
+        return Err(StoreError::RecoveryCorrupt);
+    }
     let operation_id = random_id()?;
     let owner_token = random_id()?;
     let at = now()?;
@@ -378,8 +468,8 @@ fn admit(store: &mut Store, preview: &BackupPreview) -> Result<Ownership, StoreE
          VALUES(?1,'restore','admitted',?2,?3,?4,?5,?6,?7,NULL,NULL,?8,?8)",
         params![
             operation_id,
-            preview.business_id,
-            generation(&tx)?,
+            bound_business,
+            bound_generation,
             owner_token,
             preview.backup_id,
             fingerprint(&tx)?,
@@ -504,16 +594,6 @@ pub(crate) fn resolve_interrupted_at(
     }
     let actor = crate::identity::principal(&tx, &id)?;
     let session = crate::identity::session(&tx, scope.clone(), &actor)?;
-    // A successful Owner authentication clears the shared budget, exactly as a
-    // successful normal login does. Principal counters stay untouched: their
-    // table is fenced, and leaving them intact is the conservative choice.
-    if tx.execute(
-        "UPDATE workspace_access SET failed_attempts=0,retry_after=0 WHERE singleton=1",
-        [],
-    )? != 1
-    {
-        return Err(StoreError::AccessUnavailable);
-    }
     crate::identity::audit(&tx, &scope, Some(&actor), "session.unlocked", None)?;
     let changed = tx.execute(
         &format!(
@@ -529,6 +609,19 @@ pub(crate) fn resolve_interrupted_at(
         "DELETE FROM local_recovery_fence WHERE operation_id=?1",
         [operation_id],
     )?;
+    // A successful Owner authentication clears the shared budget, exactly as a
+    // successful normal login does, but only AFTER the fence is released: the
+    // v13 barrier refuses to clear a lockout while a fence is active, so a raw
+    // SQL actor cannot use the fenced window to reset the brute-force budget.
+    // Principal counters stay untouched: their table is fenced, and leaving
+    // them intact is the conservative choice.
+    if tx.execute(
+        "UPDATE workspace_access SET failed_attempts=0,retry_after=0 WHERE singleton=1",
+        [],
+    )? != 1
+    {
+        return Err(StoreError::AccessUnavailable);
+    }
     audit(&tx, "recovery.interrupted", operation_id, Some(&actor))?;
     tx.commit()?;
     // The Owner authenticated; leave the workspace unlocked for normal use now
@@ -598,11 +691,16 @@ pub(crate) fn reconcile_startup(db: &mut Connection) -> Result<(), StoreError> {
     {
         return Err(StoreError::RecoveryCorrupt);
     }
-    let business: String = db.query_row(
-        "SELECT business_id FROM local_recovery_identity WHERE singleton=1",
+    let (business, live_generation): (String, String) = db.query_row(
+        "SELECT business_id,generation FROM local_recovery_identity WHERE singleton=1",
         [],
-        |r| r.get(0),
+        |r| Ok((r.get(0)?, r.get(1)?)),
     )?;
+    // Reject a tampered-but-nonempty identity on shape alone: both fields must
+    // be the canonical 64-lowercase-hex form random_id() produces (P5-ADV-010).
+    if !is_hex64(&business) || !is_hex64(&live_generation) {
+        return Err(StoreError::RecoveryCorrupt);
+    }
     let ops: Vec<(String, String, String, Option<String>)> = {
         let mut q = db.prepare(
             "SELECT operation_id,state,business_id,result_generation FROM local_recovery_operations",
@@ -615,10 +713,16 @@ pub(crate) fn reconcile_startup(db: &mut Connection) -> Result<(), StoreError> {
         if biz != business {
             return Err(StoreError::RecoveryCorrupt);
         }
+        if !is_hex64(&id) {
+            return Err(StoreError::RecoveryCorrupt);
+        }
         match state.as_str() {
             "completed" => {
-                if result_generation.is_none() {
-                    return Err(StoreError::RecoveryCorrupt);
+                // A completed recovery replaced the live generation, so its
+                // recorded result must be a canonical generation string.
+                match result_generation.as_deref() {
+                    Some(result) if is_hex64(result) => {}
+                    _ => return Err(StoreError::RecoveryCorrupt),
                 }
             }
             "rejected" | "interrupted" => {}
@@ -629,6 +733,21 @@ pub(crate) fn reconcile_startup(db: &mut Connection) -> Result<(), StoreError> {
                 live = Some((id, state));
             }
             _ => return Err(StoreError::RecoveryCorrupt),
+        }
+    }
+    // The newest completed recovery is the one that produced the live data, so
+    // its result generation must be the generation currently bound. A rolled
+    // back or tampered completion therefore cannot masquerade as "clean".
+    let latest: Option<Option<String>> = db
+        .query_row(
+            "SELECT result_generation FROM local_recovery_operations WHERE state='completed' ORDER BY rowid DESC LIMIT 1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()?;
+    if let Some(Some(result)) = latest {
+        if result != live_generation {
+            return Err(StoreError::RecoveryCorrupt);
         }
     }
     let fence: Option<(String, String, String)> = db
@@ -1330,6 +1449,11 @@ fn restore_owned(
                 |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
             )
             .map_err(|_| StoreError::RecoveryOwnership)?;
+        // Never execute a restore whose bound identity was rewritten between
+        // admission and execution (P5-ADV-008/P5-ADV-010).
+        if !is_hex64(&bound_generation) || !is_hex64(&expected.business_id) {
+            return Err(StoreError::RecoveryCorrupt);
+        }
         if fingerprint(&tx)? != bound_fingerprint {
             return Err(StoreError::RecoveryChanged);
         }
@@ -1363,13 +1487,6 @@ fn restore_owned(
             "DROP TABLE sornio_backup_manifest; PRAGMA user_version={SCHEMA_VERSION};"
         ))?;
         let new_generation = random_id()?;
-        if tx.execute(
-            "UPDATE local_recovery_identity SET generation=?1 WHERE singleton=1",
-            [&new_generation],
-        )? != 1
-        {
-            return Err(StoreError::AccessUnavailable);
-        }
         // The import replaced the operations table with the backup's history.
         // Any non-terminal operation inside the imported image (a safety backup
         // captured mid-recovery) is an interrupted attempt: terminate it explicitly.
@@ -1391,6 +1508,16 @@ fn restore_owned(
         }
         // Imported fence rows now reference only terminal operations.
         tx.execute("DELETE FROM local_recovery_fence", [])?;
+        // The new restore generation is written only after the fence is gone:
+        // local_recovery_identity is frozen by the v13 barrier while a fence is
+        // active, so the order is a guard invariant, not a style choice.
+        if tx.execute(
+            "UPDATE local_recovery_identity SET generation=?1 WHERE singleton=1",
+            [&new_generation],
+        )? != 1
+        {
+            return Err(StoreError::AccessUnavailable);
+        }
         // Re-establish this operation's durable record (destroyed by the import).
         tx.execute(
             "INSERT INTO local_recovery_operations(operation_id,kind,state,business_id,generation,owner_token,backup_id,expected_fingerprint,actor_id,result_generation,detail,created_at,updated_at)

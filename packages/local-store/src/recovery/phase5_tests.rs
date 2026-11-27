@@ -782,3 +782,202 @@ fn crash_at_every_transition_is_fail_closed_and_consistent() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// P5-ADV-008 / P5-ADV-010: recovery metadata must be tamper-resistant.
+//
+// The original audit wrote, with raw SQL and a live fence: a lockout reset, a
+// `generation` tamper, a `business_id` substitution, and accepted malformed
+// generations at startup reconciliation. Every guard below is engine-level, so
+// it holds for any connection and any raw SQL, not only through the Rust API.
+// ---------------------------------------------------------------------------
+
+/// With a live fence the engine refuses every metadata rewrite the audit used.
+#[test]
+fn recovery_metadata_is_immutable_while_fenced() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let o = install_fence(&s.0);
+    s.1 = None;
+    let clock = now().unwrap();
+    for _ in 0..5 {
+        let _ = resolve_interrupted_at(&mut s, &o.operation_id, "wrong-password-value", clock);
+    }
+    let spent: (i64, i64) =
+        s.0.query_row(
+            "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(spent.0, 5, "the audit's precondition: budget is spent");
+    // 1. The audit's lockout reset must be refused while the fence is live.
+    assert!(
+        s.0.execute(
+            "UPDATE workspace_access SET failed_attempts=0,retry_after=0 WHERE singleton=1",
+            [],
+        )
+        .is_err(),
+        "clearing the shared lockout under a live fence must be refused"
+    );
+    // Partial weakening (retry window dropped) and credential swaps are refused.
+    assert!(s
+        .0
+        .execute(
+            "UPDATE workspace_access SET retry_after=0 WHERE singleton=1",
+            []
+        )
+        .is_err());
+    assert!(s
+        .0
+        .execute(
+            "UPDATE workspace_access SET password_hash='x' WHERE singleton=1",
+            []
+        )
+        .is_err());
+    assert!(s.0.execute("DELETE FROM workspace_access", []).is_err());
+    // 2. The audit's generation tamper must be refused.
+    assert!(s
+        .0
+        .execute(
+            "UPDATE local_recovery_identity SET generation='tampered'",
+            []
+        )
+        .is_err());
+    // 3. The audit's business identity substitution must be refused.
+    assert!(s
+        .0
+        .execute(
+            "UPDATE local_recovery_identity SET business_id='someone-else'",
+            []
+        )
+        .is_err());
+    // 4. Deleting the identity row (and thus the fence's identity anchor) fails.
+    assert!(s
+        .0
+        .execute("DELETE FROM local_recovery_identity", [])
+        .is_err());
+    let (attempts, retry): (i64, i64) =
+        s.0.query_row(
+            "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        (attempts, retry),
+        spent,
+        "the durable budget must be unchanged by every refused tamper"
+    );
+    // Accountability is preserved: only monotonic failure accounting may be
+    // written through the fence, so a further attempt still locks out.
+    assert!(matches!(
+        resolve_interrupted_at(&mut s, &o.operation_id, "wrong-password-value", clock + 120),
+        Err(StoreError::InvalidPassword)
+    ));
+    let after: (i64, i64) =
+        s.0.query_row(
+            "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )
+        .unwrap();
+    assert_eq!(
+        after.0, 1,
+        "after the lockout window expires the budget restarts at one"
+    );
+    assert_eq!(after.1, 0, "the expired lockout window is cleared");
+    assert!(fence_active(&s.0).unwrap(), "the fence is still live");
+}
+
+/// Legitimate post-fence maintenance still works: release → rotate generation is
+/// the production restore/resolve order, and it must not be blocked.
+#[test]
+fn metadata_writes_are_allowed_once_the_fence_is_released() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    s.post_invoice(sale("sale-1", 1)).unwrap();
+    let archive = d.path().join("backup");
+    export(&mut s, &archive, SECRET).unwrap();
+    s.post_invoice(sale("sale-2", 2)).unwrap();
+    let before = generation(&s.0).unwrap();
+    let p = preview(&mut s, &archive, SECRET, LOGIN).unwrap();
+    restore(
+        &mut s,
+        &archive,
+        d.path(),
+        SECRET,
+        LOGIN,
+        &p,
+        &p.confirmation,
+    )
+    .unwrap();
+    let after = generation(&s.0).unwrap();
+    assert_ne!(before, after, "a restore rotates the generation");
+    assert!(is_hex64(&after), "the new generation is canonical");
+    assert!(!fence_active(&s.0).unwrap());
+    // The shared authentication budget is usable (and resettable) again.
+    let mut w = Workspace::new(s);
+    w.unlock(LOGIN).unwrap();
+}
+
+/// Malformed durable metadata is refused at startup, not accepted because it is
+/// merely non-empty. (P5-ADV-010: the audit's four accepted malformed values.)
+#[test]
+fn startup_rejects_malformed_recovery_identity() {
+    for bad in ["short", "zzzz", "'; DROP TABLE x; --", ""] {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("live");
+        let s = seeded(&path);
+        strip_triggers(&s.0);
+        s.0.execute("UPDATE local_recovery_identity SET generation=?1", [bad])
+            .unwrap();
+        drop(s);
+        assert!(
+            matches!(reopen_err(&path), StoreError::RecoveryCorrupt),
+            "generation {bad:?} must be refused at startup"
+        );
+    }
+    for bad in ["short", "not-hex", ""] {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("live");
+        let s = seeded(&path);
+        strip_triggers(&s.0);
+        s.0.execute("UPDATE local_recovery_identity SET business_id=?1", [bad])
+            .unwrap();
+        drop(s);
+        assert!(
+            matches!(reopen_err(&path), StoreError::RecoveryCorrupt),
+            "business identity {bad:?} must be refused at startup"
+        );
+    }
+    // A completed recovery whose recorded result generation is malformed or does
+    // not match the live generation must also fail closed.
+    let canonical = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdee";
+    for (label, result) in [
+        ("malformed result generation", "short"),
+        (
+            "result generation differs from the live generation",
+            canonical,
+        ),
+    ] {
+        let d = tempfile::tempdir().unwrap();
+        let path = d.path().join("live");
+        let s = seeded(&path);
+        let o = install_fence(&s.0);
+        strip_triggers(&s.0);
+        s.0.execute("UPDATE local_recovery_operations SET state='completed'", [])
+            .unwrap();
+        s.0.execute(
+            "UPDATE local_recovery_operations SET result_generation=?1 WHERE operation_id=?2",
+            params![result, o.operation_id],
+        )
+        .unwrap();
+        s.0.execute("DELETE FROM local_recovery_fence", []).unwrap();
+        drop(s);
+        assert!(
+            matches!(reopen_err(&path), StoreError::RecoveryCorrupt),
+            "{label} must be refused at startup"
+        );
+    }
+}
