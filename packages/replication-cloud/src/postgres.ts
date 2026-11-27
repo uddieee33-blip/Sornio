@@ -97,13 +97,90 @@ export async function revokePrivileged(db: SqlDatabase, deviceId: string): Promi
   await db.query(`UPDATE native_replication.devices SET revoked = TRUE WHERE device_id = $1`, [deviceId]);
 }
 
-export async function rotatePublisherGeneration(db: SqlDatabase, businessId: string, generation: string): Promise<void> {
+/** The `restore_generation` shape enforced by `native_replication.devices`. */
+const GENERATION = /^[A-Za-z0-9_-]{1,128}$/;
+
+export type RotateGenerationResult = {
+  businessId: string;
+  generation: string;
+  previousGeneration: string;
+  deviceId: string;
+};
+
+/**
+ * Re-points the business's publisher to a new restore generation.
+ *
+ * A restore resets the publisher's sidecar, so the device replays its outbox
+ * from sequence 1 under a new generation. That replay is only accepted once the
+ * enrolled device row carries the new generation, which makes this the single
+ * server-side step of a restore. It moves a *transport epoch*, never business
+ * identity, so operation deduplication is deliberately unaffected: the same
+ * operations replayed under the new generation are still recognised as
+ * duplicates, and the first genuinely new operation is publishable instead of
+ * being rejected as a gap.
+ *
+ * Paired with `enrollPrivileged` and `revokePrivileged`, and behind the same
+ * privileged boundary: it requires direct database credentials, is not reachable
+ * over the staging ingest HTTP route, and never takes a caller-supplied role or
+ * generation from an envelope.
+ *
+ * Failure modes are explicit rather than silent:
+ * * a malformed generation is refused before any statement runs (a malformed
+ *   value could not be stored — the column has the same CHECK);
+ * * an unknown business is `UNAUTHENTICATED`, matching enrollment;
+ * * a business with no active (non-revoked) publisher is `FORBIDDEN`, so a
+ *   restore cannot appear to succeed while nothing was re-pointed;
+ * * a repeat of the current generation is refused with `CONFLICT` rather than
+ *   accepted as a no-op, so a caller cannot believe a second restore happened.
+ *
+ * The returned `previousGeneration` lets the caller record the transition
+ * without a second read.
+ */
+export async function rotatePublisherGeneration(
+  db: SqlDatabase,
+  businessId: string,
+  generation: string,
+): Promise<RotateGenerationResult> {
+  if (typeof generation !== 'string' || !GENERATION.test(generation)) {
+    throw new ReplicationError(
+      'INVALID_ENVELOPE',
+      'Restore generation must be 1-128 characters of [A-Za-z0-9_-].',
+    );
+  }
+  const business = await db.query<{ business_id: string }>(
+    `SELECT business_id FROM native_replication.businesses WHERE business_id = $1`,
+    [businessId],
+  );
+  if (!business.rows[0]) {
+    throw new ReplicationError('UNAUTHENTICATED', 'This business is not enrolled.');
+  }
+  // FOR UPDATE: a concurrent restore must not interleave with ingest reading
+  // the same device row inside its own transaction.
+  const publisher = await db.query<{ device_id: string; restore_generation: string }>(
+    `SELECT device_id, restore_generation FROM native_replication.devices
+     WHERE business_id = $1 AND role = 'publisher' AND revoked = FALSE
+     FOR UPDATE`,
+    [businessId],
+  );
+  const current = publisher.rows[0];
+  if (!current) {
+    throw new ReplicationError('FORBIDDEN', 'This business has no active publisher device.');
+  }
+  if (current.restore_generation === generation) {
+    throw new ReplicationError('CONFLICT', 'The publisher is already on this restore generation.');
+  }
   await db.query(
     `UPDATE native_replication.devices
      SET restore_generation = $2
      WHERE business_id = $1 AND role = 'publisher' AND revoked = FALSE`,
     [businessId, generation],
   );
+  return {
+    businessId,
+    generation,
+    previousGeneration: current.restore_generation,
+    deviceId: current.device_id,
+  };
 }
 
 export async function hydrateFromPostgres(db: SqlDatabase, businessId: string): Promise<CloudStore> {

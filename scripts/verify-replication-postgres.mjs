@@ -147,6 +147,7 @@ try {
     hydrateFromPostgres,
     enrollPrivileged,
     revokePrivileged,
+    rotatePublisherGeneration,
     issueStagingToken,
     verifyStagingToken,
     listenStagingIngest,
@@ -784,6 +785,207 @@ try {
     await server.close();
     await httpsDb.end();
     rmSync(tlsDir, { recursive: true, force: true });
+  }
+
+  // --- IV2-003: the restore-generation rotation, through the PUBLIC API and on
+  // a real server. Enrollment, revocation and rotation are the three privileged
+  // server-side operations; only the first two were exported and tested. This
+  // block drives a complete restore lifecycle and every refusal that keeps the
+  // operation safe.
+  {
+    const rotPub = actor('publisher', {
+      businessId: 'biz-pg-rotate',
+      businessName: 'Rotation Kirana',
+      deviceId: 'device-rotate-pub',
+      restoreGeneration: 'gen-1',
+    });
+    await enrollPrivileged(db, rotPub);
+
+    const codeOf = async (fn) => {
+      try {
+        await fn();
+        return 'NO_ERROR';
+      } catch (error) {
+        return error instanceof ReplicationError ? error.code : 'UNEXPECTED';
+      }
+    };
+
+    // Invalid transitions are refused before anything moves.
+    check(
+      (await codeOf(() => rotatePublisherGeneration(db, rotPub.businessId, ''))) === 'INVALID_ENVELOPE',
+      'rotation refuses an empty generation',
+    );
+    check(
+      (await codeOf(() => rotatePublisherGeneration(db, rotPub.businessId, 'has space'))) === 'INVALID_ENVELOPE',
+      'rotation refuses whitespace in a generation',
+    );
+    check(
+      (await codeOf(() => rotatePublisherGeneration(db, rotPub.businessId, 'x'.repeat(129)))) ===
+        'INVALID_ENVELOPE',
+      'rotation refuses a generation longer than the column allows',
+    );
+    check(
+      (await codeOf(() => rotatePublisherGeneration(db, 'biz-unknown-rotate', 'gen-2'))) ===
+        'UNAUTHENTICATED',
+      'rotation refuses an unenrolled business',
+    );
+
+    // A revoked-only business has no active publisher.
+    await enrollPrivileged(db, {
+      ...rotPub,
+      businessId: 'biz-pg-rotate-revoked',
+      deviceId: 'device-rotate-revoked',
+    });
+    await revokePrivileged(db, 'device-rotate-revoked');
+    check(
+      (await codeOf(() => rotatePublisherGeneration(db, 'biz-pg-rotate-revoked', 'gen-2'))) ===
+        'FORBIDDEN',
+      'rotation refuses a business whose only publisher is revoked',
+    );
+
+    // Re-issuing the current generation is a conflict, not a silent no-op.
+    check(
+      (await codeOf(() => rotatePublisherGeneration(db, rotPub.businessId, 'gen-1'))) === 'CONFLICT',
+      'rotation refuses re-issuing the generation already in force',
+    );
+
+    // The legitimate transition.
+    const rotated = await rotatePublisherGeneration(db, rotPub.businessId, 'gen-2');
+    check(
+      rotated.previousGeneration === 'gen-1' && rotated.generation === 'gen-2',
+      'rotation reports the transition it performed',
+    );
+    check(rotated.deviceId === rotPub.deviceId, 'rotation reports the device it moved');
+    const deviceRow = await admin.query(
+      `SELECT restore_generation FROM native_replication.devices WHERE device_id = $1`,
+      [rotPub.deviceId],
+    );
+    check(deviceRow.rows[0].restore_generation === 'gen-2', 'the enrolled device carries gen-2');
+    const untouched = await admin.query(
+      `SELECT COUNT(*)::int AS n FROM native_replication.events WHERE business_id = $1`,
+      [rotPub.businessId],
+    );
+    check(untouched.rows[0].n === 0, 'rotation itself writes no events');
+
+    // The publisher must now send under gen-2, and a stale generation is refused.
+    const g2Pub = { ...rotPub, restoreGeneration: 'gen-2' };
+    check(
+      (await codeOf(async () =>
+        ingestDurable(
+          db,
+          rotPub,
+          buildEnvelope(rotPub, invoiceRow(1, { id: 'rot-stale', tender: 'cash', lines: [] }), digest),
+          digest,
+          NOW,
+        ),
+      )) === 'STALE_GENERATION',
+      'the pre-restore generation can no longer publish',
+    );
+    const firstAfterRestore = await ingestDurable(
+      db,
+      g2Pub,
+      buildEnvelope(g2Pub, invoiceRow(1, { id: 'rot-new-1', tender: 'cash', lines: [] }), digest),
+      digest,
+      NOW,
+    );
+    check(firstAfterRestore.duplicate === false, 'the first new post-restore operation is accepted');
+
+    // A restore replays the snapshot under the new generation: still duplicates.
+    const replay = await ingestDurable(
+      db,
+      g2Pub,
+      buildEnvelope(g2Pub, invoiceRow(1, { id: 'rot-new-1', tender: 'cash', lines: [] }), digest),
+      digest,
+      NOW,
+    );
+    check(
+      replay.duplicate === true && replay.cursor === firstAfterRestore.cursor,
+      'a replay after rotation keeps its original cursor',
+    );
+
+    // A SECOND restore rotates again, and the first restore's events stay deduped.
+    const rotated2 = await rotatePublisherGeneration(db, rotPub.businessId, 'gen-3');
+    check(rotated2.previousGeneration === 'gen-2', 'a second rotation reports gen-2 -> gen-3');
+    const g3Pub = { ...rotPub, restoreGeneration: 'gen-3' };
+    const replayAgain = await ingestDurable(
+      db,
+      g3Pub,
+      buildEnvelope(g3Pub, invoiceRow(1, { id: 'rot-new-1', tender: 'cash', lines: [] }), digest),
+      digest,
+      NOW,
+    );
+    check(
+      replayAgain.duplicate === true,
+      'an operation from an earlier generation is still a duplicate after a second restore',
+    );
+
+    // Ordering still restarts per generation, and gaps are still refused.
+    const freshG3 = await ingestDurable(
+      db,
+      g3Pub,
+      buildEnvelope(g3Pub, invoiceRow(2, { id: 'rot-new-2', tender: 'cash', lines: [] }), digest),
+      digest,
+      NOW,
+    );
+    check(freshG3.duplicate === false, 'the new generation continues from its own sequence');
+    check(
+      (await codeOf(async () =>
+        ingestDurable(
+          db,
+          g3Pub,
+          buildEnvelope(g3Pub, invoiceRow(5, { id: 'rot-gap', tender: 'cash', lines: [] }), digest),
+          digest,
+          NOW,
+        ),
+      )) === 'GAP',
+      'a skipped sequence under the new generation is still a gap',
+    );
+
+    // Payload conflicts survive rotation.
+    check(
+      (await codeOf(async () =>
+        ingestDurable(
+          db,
+          g3Pub,
+          buildEnvelope(g3Pub, invoiceRow(3, { id: 'rot-new-1', tender: 'cash', totalPaise: 7, lines: [] }), digest),
+          digest,
+          NOW,
+        ),
+      )) === 'CONFLICT',
+      'a reused operation id with a different payload is still a conflict after rotation',
+    );
+
+    // An event records the generation that carried it, and rotation never
+    // rewrites history: the operation committed before the restore stays on the
+    // generation that carried it, and only a genuinely new operation is written
+    // under the current one. (Duplicates create an ack for the new generation but
+    // deliberately do not insert a second event.)
+    const generations = await admin.query(
+      `SELECT operation_id, restore_generation FROM native_replication.events
+       WHERE business_id = $1 ORDER BY operation_id`,
+      [rotPub.businessId],
+    );
+    const carriedBy = Object.fromEntries(
+      generations.rows.map((row) => [row.operation_id, row.restore_generation]),
+    );
+    check(
+      carriedBy['rot-new-1'] === 'gen-2' && carriedBy['rot-new-2'] === 'gen-3',
+      'each event keeps the generation that carried it; rotation rewrites no history',
+    );
+    const rotAcks = await admin.query(
+      `SELECT restore_generation, COUNT(*)::int AS n FROM native_replication.acks
+       WHERE business_id = $1 GROUP BY 1 ORDER BY 1`,
+      [rotPub.businessId],
+    );
+    check(
+      rotAcks.rows.some((row) => row.restore_generation === 'gen-3' && row.n >= 1),
+      'a replay after rotation is acked against the new generation',
+    );
+    const hydratedRot = await hydrateFromPostgres(db, rotPub.businessId);
+    check(
+      [...hydratedRot.byOperation.keys()].every((k) => k.split('|').length === 3),
+      'hydration after rotation keeps the stream-scoped identity',
+    );
   }
 
   await admin.end();

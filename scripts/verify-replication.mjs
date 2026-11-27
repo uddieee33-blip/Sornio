@@ -109,6 +109,7 @@ try {
     verifyStagingToken,
     listenStagingIngest,
     postStagingIngest,
+    rotatePublisherGeneration,
   } = require(join(out, 'replication-cloud/src/index.js'));
   const { parseCompanionSnapshot } = require(join(out, 'mobile-contracts/src/validation.js'));
   const { decideSnapshotApply } = require(join(out, 'mobile-contracts/src/sync.js'));
@@ -990,6 +991,41 @@ try {
   } finally {
     await server.close();
     rmSync(tlsDir, { recursive: true, force: true });
+  }
+
+  // --- IV2-003: restore-generation rotation is a public, privileged operation.
+  // Enrollment and revocation were already exported from the package entry
+  // point; rotation was exported from postgres.ts but not re-exported, had no
+  // caller and no test, so the one server-side step of a restore was neither
+  // reachable nor exercised. These checks pin the API surface and the failure
+  // taxonomy that keeps it safe.
+  {
+    const entry = readFileSync(join(root, 'packages/replication-cloud/src/index.ts'), 'utf8');
+    check(
+      /rotatePublisherGeneration/.test(entry),
+      'the package entry point exports the restore-generation rotation',
+    );
+    check(
+      typeof rotatePublisherGeneration === 'function',
+      'rotatePublisherGeneration is callable through the package entry point',
+    );
+    // It must move only the transport epoch; identity stays (business, stream, operation).
+    const pgText = readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8');
+    const rotation = pgText.slice(pgText.indexOf('export async function rotatePublisherGeneration'));
+    const rotationBody = rotation.slice(0, rotation.indexOf('\n}\n') + 3);
+    check(
+      /SET restore_generation = \$2/.test(rotationBody) &&
+        !/operation_id|stream_sequence|event_pk/.test(rotationBody),
+      'rotation writes only the device generation, never stream or operation identity',
+    );
+    check(
+      /role = 'publisher'/.test(rotationBody) && /revoked = FALSE/.test(rotationBody),
+      'rotation targets exactly one active publisher device',
+    );
+    check(
+      /FOR UPDATE/.test(rotationBody),
+      'rotation locks the device row so it cannot interleave with an in-flight ingest',
+    );
   }
 
   const docs = readFileSync(join(root, 'docs/mobile/PHASE-2-DESKTOP-CLOUD-REPLICATION.md'), 'utf8');
