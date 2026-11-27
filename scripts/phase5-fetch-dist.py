@@ -12,7 +12,7 @@ with open("relay/channel-rust-stable.toml", "rb") as f:
     channel = tomllib.load(f)
 version = channel["pkg"]["rustc"]["version"]
 target = "x86_64-unknown-linux-gnu"
-wanted = ["rustc", "rust-std", "cargo", "rustfmt-preview", "clippy-preview"]
+wanted = ["rustc", "rust-std", "cargo", "rustfmt", "clippy"]
 manifest = {
     "channel": "stable",
     "version": version,
