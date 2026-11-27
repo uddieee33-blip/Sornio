@@ -28,7 +28,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch arena/76ac88ca-sornio \
+          git clone --depth 1 --branch arena/e831eb29-sornio \
             "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}" work
       - name: Fetch, verify and relay (logs always pushed back to the branch)
         env:
