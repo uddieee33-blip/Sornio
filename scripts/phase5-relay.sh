@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Temporary Phase 5 relay for independent audit.
 # Copies the already-installed Rust toolchain from the GitHub runner
-# (installed by dtolnay/rust-toolchain@stable) and pushes it to the
-# session branch so the network-restricted sandbox can fetch it via git.
+# (installed by dtolnay/rust-toolchain@stable), splits the tarball into
+# <100MB chunks, and pushes them to the session branch so the
+# network-restricted sandbox can fetch them via git and reassemble.
 set -u
 cd "$(dirname "$0")/.."
 ROOT="$PWD"
@@ -16,19 +17,23 @@ push_diagnostics() {
     echo "== pwd: $PWD"
     echo "== cargo: $(cargo --version 2>&1)"
     echo "== rustc: $(rustc --version 2>&1)"
-    echo "== ls relay"; ls -la "$ROOT/relay" 2>&1
+    echo "== ls phase5-relay"; ls -la "$ROOT/phase5-relay" 2>&1
   } >> "$LOG" 2>&1
   git config user.name "phase5-relay"
   git config user.email "actions@github.com"
   mkdir -p phase5-relay
   cp "$LOG" phase5-relay/run.log 2>/dev/null
-  if [ -f relay/RUST_OK ] && [ -f relay/rust-toolchain.tar ]; then
-    cp relay/rust-toolchain.tar phase5-relay/ 2>/dev/null
-    sha256sum relay/rust-toolchain.tar > phase5-relay/rust-toolchain.tar.sha256 2>/dev/null
-    echo "RUST_TOOLCHAIN_PUSHED" >> "$LOG"
+  if [ -f relay/RUST_OK ] && [ -f relay/rust-toolchain.tar.sha256 ]; then
+    # Copy chunks + manifest
+    if [ -f relay/chunks.txt ]; then
+      cp "$ROOT/relay/chunk-"* phase5-relay/ 2>/dev/null
+    fi
+    cp relay/rust-toolchain.tar.sha256 phase5-relay/ 2>/dev/null
+    cp relay/chunks.txt phase5-relay/ 2>/dev/null
+    echo "CHUNKS_PUSHED" >> "$LOG"
   fi
   git add phase5-relay >> "$LOG" 2>&1
-  git commit -m "chore(phase5): relay rust toolchain (temporary)" >> "$LOG" 2>&1
+  git commit -m "chore(phase5): relay rust toolchain chunks (temporary)" >> "$LOG" 2>&1
   git push origin HEAD:arena/e831eb29-sornio >> "$LOG" 2>&1
   echo "== push exit: $?" >> "$LOG"
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
@@ -60,20 +65,23 @@ trap push_diagnostics EXIT
   echo "== HOME: $HOME"
   echo "== cargo: $(cargo --version 2>&1)"
   echo "== rustc: $(rustc --version 2>&1)"
-  echo "== rustup: $(rustup --version 2>&1)"
-  echo "== rustup show: $(rustup show 2>&1)"
   mkdir -p relay
   echo "== finding toolchain"
   TC=$(rustup show active-toolchain 2>/dev/null | awk '{print $1}')
   echo "== active toolchain: $TC"
   TC_DIR="$HOME/.rustup/toolchains/$TC"
-  echo "== toolchain dir: $TC_DIR"
-  echo "== ls toolchain: $(ls $TC_DIR 2>&1)"
   echo "== packing toolchain"
   tar cf relay/rust-toolchain.tar "$TC_DIR" "$HOME/.cargo" 2>&1
   echo "== tar exit: $?"
   echo "== tar size: $(du -h relay/rust-toolchain.tar 2>&1)"
+  echo "== splitting into <100MB chunks"
+  split -b 95m -d relay/rust-toolchain.tar relay/chunk-
+  echo "== split exit: $?"
+  ls -la relay/chunk-* > relay/chunks.txt 2>&1
+  echo "== chunk count: $(ls relay/chunk-* | wc -l)"
+  sha256sum relay/rust-toolchain.tar > relay/rust-toolchain.tar.sha256 2>&1
+  echo "== sha256 written"
   touch relay/RUST_OK
 } >> "$LOG" 2>&1
 
-if [ -f relay/RUST_OK ] && [ -s relay/rust-toolchain.tar ]; then exit 0; else exit 1; fi
+if [ -f relay/RUST_OK ] && [ -f relay/rust-toolchain.tar.sha256 ] && ls relay/chunk-* >/dev/null 2>&1; then exit 0; else exit 1; fi
