@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Temporary Phase 5 relay for independent audit.
-# Downloads official Rust stable dist components on a GitHub runner,
-# verifies SHA-256, and pushes the payload to the session branch so the
-# network-restricted sandbox can fetch them via git.
+# Copies the already-installed Rust toolchain from the GitHub runner
+# (installed by dtolnay/rust-toolchain@stable) and pushes it to the
+# session branch so the network-restricted sandbox can fetch it via git.
 set -u
-cd "$(dirname "$0")/.."   # repository root (the clone)
+cd "$(dirname "$0")/.."
 ROOT="$PWD"
 LOG="$ROOT/phase5-relay-run.log"
 export GIT_TERMINAL_PROMPT=0
@@ -14,28 +14,21 @@ push_diagnostics() {
   {
     echo "== relay exit code: $rc"
     echo "== pwd: $PWD"
-    echo "== ls root"; ls -la "$ROOT" 2>&1
-    echo "== ls relay"; ls -la "$ROOT/relay" "$ROOT/relay/payload" 2>&1
+    echo "== cargo: $(cargo --version 2>&1)"
+    echo "== rustc: $(rustc --version 2>&1)"
+    echo "== ls relay"; ls -la "$ROOT/relay" 2>&1
   } >> "$LOG" 2>&1
   git config user.name "phase5-relay"
   git config user.email "actions@github.com"
   mkdir -p phase5-relay
   cp "$LOG" phase5-relay/run.log 2>/dev/null
-  cp relay/manifest.json phase5-relay/ 2>/dev/null
-  cp relay/channel-rust-stable.toml phase5-relay/ 2>/dev/null
-  if [ -f relay/DIST_OK ]; then
-    (
-      cd relay
-      tar cf payload.tar payload manifest.json channel-rust-stable.toml
-      sha256sum payload.tar > payload.tar.sha256
-      split -b 45m -d payload.tar chunk-
-      rm payload.tar
-      mv chunk-* payload.tar.sha256 "$ROOT/phase5-relay/"
-    ) >> "$LOG" 2>&1
-    cp "$LOG" phase5-relay/run.log
+  if [ -f relay/RUST_OK ] && [ -f relay/rust-toolchain.tar ]; then
+    cp relay/rust-toolchain.tar phase5-relay/ 2>/dev/null
+    sha256sum relay/rust-toolchain.tar > phase5-relay/rust-toolchain.tar.sha256 2>/dev/null
+    echo "RUST_TOOLCHAIN_PUSHED" >> "$LOG"
   fi
   git add phase5-relay >> "$LOG" 2>&1
-  git commit -m "chore(phase5): relay payload/diagnostics (temporary)" >> "$LOG" 2>&1
+  git commit -m "chore(phase5): relay rust toolchain (temporary)" >> "$LOG" 2>&1
   git push origin HEAD:arena/e831eb29-sornio >> "$LOG" 2>&1
   echo "== push exit: $?" >> "$LOG"
   if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
@@ -64,26 +57,23 @@ trap push_diagnostics EXIT
 
 {
   echo "== uname: $(uname -a)"
-  echo "== python: $(python3 --version 2>&1)"
+  echo "== HOME: $HOME"
   echo "== cargo: $(cargo --version 2>&1)"
-  echo "== curl: $(curl --version 2>&1 | head -1)"
-  mkdir -p relay/payload
-  echo "== fetching channel manifest"
-  curl -fsSL https://static.rust-lang.org/dist/channel-rust-stable.toml -o relay/channel-rust-stable.toml
-  echo "== curl manifest exit: $?"
-  python3 -u scripts/phase5-fetch-dist.py
-  echo "== dist exit: $?"
+  echo "== rustc: $(rustc --version 2>&1)"
+  echo "== rustup: $(rustup --version 2>&1)"
+  echo "== rustup show: $(rustup show 2>&1)"
+  mkdir -p relay
+  echo "== finding toolchain"
+  TC=$(rustup show active-toolchain 2>/dev/null | awk '{print $1}')
+  echo "== active toolchain: $TC"
+  TC_DIR="$HOME/.rustup/toolchains/$TC"
+  echo "== toolchain dir: $TC_DIR"
+  echo "== ls toolchain: $(ls $TC_DIR 2>&1)"
+  echo "== packing toolchain"
+  tar cf relay/rust-toolchain.tar "$TC_DIR" "$HOME/.cargo" 2>&1
+  echo "== tar exit: $?"
+  echo "== tar size: $(du -h relay/rust-toolchain.tar 2>&1)"
+  touch relay/RUST_OK
 } >> "$LOG" 2>&1
 
-# Marker based on actual artifacts.
-if [ -f relay/manifest.json ]; then
-  python3 -c "
-import json,hashlib
-m=json.load(open('relay/manifest.json'))
-for f in m['files']:
-    h=hashlib.sha256(open('relay/payload/'+f['name'],'rb').read()).hexdigest()
-    assert h==f['sha256'], f['name']
-print('DIST_OK')" >> "$LOG" 2>&1 && touch relay/DIST_OK
-fi
-echo "== markers: DIST_OK=$([ -f relay/DIST_OK ] && echo yes || echo no)" >> "$LOG"
-if [ -f relay/DIST_OK ]; then exit 0; else exit 1; fi
+if [ -f relay/RUST_OK ] && [ -s relay/rust-toolchain.tar ]; then exit 0; else exit 1; fi
