@@ -1,0 +1,7 @@
+-rw-r--r-- 1 runner runner 99614720 Nov 27 07:23 relay/chunk-00
+-rw-r--r-- 1 runner runner 99614720 Nov 27 07:23 relay/chunk-01
+-rw-r--r-- 1 runner runner 99614720 Nov 27 07:23 relay/chunk-02
+-rw-r--r-- 1 runner runner 99614720 Nov 27 07:23 relay/chunk-03
+-rw-r--r-- 1 runner runner 99614720 Nov 27 07:23 relay/chunk-04
+-rw-r--r-- 1 runner runner 99614720 Nov 27 07:23 relay/chunk-05
+-rw-r--r-- 1 runner runner 76840960 Nov 27 07:23 relay/chunk-06
