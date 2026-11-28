@@ -1,0 +1,4 @@
+=== cargo fmt --check (FINAL TREE) ===
+DATE_UTC: 2026-11-26T18:02:25Z
+COMMAND: cargo fmt --check --manifest-path packages/local-store/Cargo.toml
+EXIT_CODE=0

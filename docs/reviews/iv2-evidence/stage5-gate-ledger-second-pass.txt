@@ -1,0 +1,34 @@
+## Stage 5 gate ledger (second hardening pass), 2026-11-27T19:52:16Z
+Branch arena/475a4866-sornio at b735789 + uncommitted hardening work.
+Host: Linux sandbox. PostgreSQL 16.2 on 55432. Node v22.22.3. Rust stable 1.100.0.
+EVERY line below was executed in this session; none is carried over from the previous pass.
+
+npm run verify (33 sub-gates): EXIT=0  (full chain, DATABASE_URL set)
+npm run typecheck (typescript-js 6.0.3): EXIT=0 — no type errors
+npm run typecheck:native (tsgo 7.0.2): EXIT=0 — no type errors
+npm run lint (eslint): EXIT=0 — 0 errors, 0 warnings
+
+verify:windows-foundation  -> 81 checks passed  (was 31)
+verify:replication         -> 148 checks passed (was 144: 4 stricter rotation-source checks)
+verify:replication-postgres-> 139 checks passed (was 100)  — 10/10 consecutive clean runs
+verify:replication-native-https -> 123 checks passed (SQLCipher TEXT -> TLS -> PostgreSQL)
+all 110 schema checks passed
+37 desktop contract checks passed
+12 money contract checks passed
+40 Windows release-identity checks passed
+Mobile contracts: 63 checks passed
+
+cargo test (packages/local-store): 262 passed; 0 failed; 7 ignored  (baseline unchanged)
+cargo fmt --check: EXIT=0
+cargo clippy --all-targets -- -D warnings: EXIT=0
+rem_r2_concurrent_attempts_do_not_bypass_accounting x3 in isolation: 3/3 pass
+  (the known full-suite DatabaseBusy observation is preserved; assertions unchanged)
+
+## Preconditions and gotchas worth recording
+- verify-replication-postgres requires 'DROP SCHEMA IF EXISTS native_replication CASCADE' first.
+  Reusing a schema from a previous run makes the ingest race see prior rows and fail
+  ('exactly one worker committed a new event'). This is stale-fixture, not a product defect;
+  it bit me once during Stage 4 and is the reason every run above starts from a dropped schema.
+- verify-replication-native-https needs SORNIO_NATIVE_OUTBOX_DIR pointing at a real export
+  (exits 2 locally / 1 under CI when unset or empty).
+- cargo commands must run from packages/local-store, not apps/desktop.

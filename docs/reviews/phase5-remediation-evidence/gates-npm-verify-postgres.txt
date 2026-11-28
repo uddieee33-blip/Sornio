@@ -1,0 +1,7 @@
+=== verify:replication-postgres (fresh schema each run) ===
+verify-replication-postgres: 79 checks passed on server PostgreSQL
+exit=0
+
+=== verify:replication-native-https (native SQLCipher TEXT -> TLS -> PostgreSQL) ===
+verify-replication-native-https: 123 checks passed on SQLCipher TEXT -> TLS -> PostgreSQL
+exit=0

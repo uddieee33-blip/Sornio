@@ -1,0 +1,23 @@
+=== CLOUD BEHAVIORAL (in-memory dedup contract) ===
+DATE_UTC: 2026-11-26T17:32:54Z
+PASS: clause 9: first new operation is not a duplicate (got false, want false)
+PASS: baseline outstanding is 5000 (got 5000, want 5000)
+PASS: clause 6: retry is a duplicate (got true, want true)
+PASS: clause 6: retry keeps the ORIGINAL cursor (got 3, want 3)
+PASS: clause 6: retry does not advance the head (got 2, want 2)
+PASS: clause 4: payload reuse is CONFLICT (got CONFLICT, want CONFLICT)
+PASS: clause 2: stale generation fenced (got STALE_GENERATION, want STALE_GENERATION)
+PASS: clause 3: cross-generation replay is a duplicate (got true, want true)
+PASS: clause 7: cursor is business-scoped across generations (got 3, want 3)
+PASS: clause 3: every replayed row is a duplicate (got true, want true)
+PASS: clause 5: duplicates advance the new generation head (got 2, want 2)
+PASS: clause 5: first NEW post-restore operation is accepted (got false, want false)
+PASS: clause 3: replayed credit entry is a duplicate (got true, want true)
+PASS: clause 3: outstanding NOT double-counted (got 5000, want 5000)
+PASS: clause 6: post-restore retry keeps the original cursor (got 3, want 3)
+PASS: clause 9: out-of-order new operation is GAP (got GAP, want GAP)
+PASS: full ordered outbox replay is entirely duplicates
+PASS: full replay does not double-count outstanding (got 5000, want 5000)
+
+CLOUD BEHAVIORAL VERIFY: 18 passed, 0 failed
+EXIT_CODE=0

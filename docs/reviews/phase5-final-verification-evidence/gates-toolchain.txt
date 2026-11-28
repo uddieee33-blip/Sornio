@@ -1,0 +1,4 @@
+# PostgreSQL 16.2 server used for every durable check below
+PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 10.2.1 20210130 (Red Hat 10.2.1-11), 64-bit
+# node v22.22.3  npm 10.9.8  python3 3.11.2
+# rustc rustc 1.100.0 (0ef1bc386 2026-11-09)

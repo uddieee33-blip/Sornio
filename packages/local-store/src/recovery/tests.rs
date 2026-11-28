@@ -21,6 +21,7 @@ fn version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration()
     db.pragma_update(None, "key", SECRET).unwrap();
     crate::lan_authority::remove_fixture_tables(&db);
     db.pragma_update(None, "user_version", 11).unwrap();
+    crate::recovery::remove_v13_for_legacy_test(&db);
     let payload: String = db
         .query_row("SELECT payload FROM sornio_backup_manifest", [], |r| {
             r.get(0)
@@ -333,10 +334,13 @@ fn other_business_confirmation_stale_preview_storage_and_native_auth_are_checked
         preview(&mut other, &p, SECRET, LOGIN),
         Err(StoreError::BackupBusinessMismatch)
     ));
-    let before = digest(&s.0).unwrap();
+    // Phase 5: a rejected restore attempt leaves a permanent recovery audit trail
+    // (operation ledger + audit), so the preservation invariant is the business
+    // fingerprint, which excludes recovery bookkeeping by design.
+    let before = fingerprint(&s.0).unwrap();
     assert!(export(&mut s, &p, SECRET).is_err());
     assert!(export(&mut s, &d.path().join("missing/backup"), SECRET).is_err());
-    assert_eq!(digest(&s.0).unwrap(), before);
+    assert_eq!(fingerprint(&s.0).unwrap(), before);
     let v = preview(&mut s, &p, SECRET, LOGIN).unwrap();
     assert!(matches!(
         restore(&mut s, &p, d.path(), SECRET, LOGIN, &v, "YES"),
@@ -345,7 +349,7 @@ fn other_business_confirmation_stale_preview_storage_and_native_auth_are_checked
     let blocked = d.path().join("not-a-directory");
     fs::write(&blocked, "occupied").unwrap();
     assert!(restore(&mut s, &p, &blocked, SECRET, LOGIN, &v, &v.confirmation).is_err());
-    assert_eq!(digest(&s.0).unwrap(), before);
+    assert_eq!(fingerprint(&s.0).unwrap(), before);
     let mut w = Workspace::new(s);
     assert!(matches!(
         w.export_backup(&d.path().join("denied"), LOGIN, SECRET),
@@ -469,13 +473,34 @@ fn forced_termination_does_not_publish_partial_backup_or_commit_partial_restore(
         assert!(marker.exists(), "Worker did not reach boundary");
         child.kill().unwrap();
         child.wait().unwrap();
-        let mut w = Workspace::new(Store::open(&d.path().join("live"), KEY).unwrap());
-        w.unlock(LOGIN).unwrap();
-        let mut reopened = w.into_recovery_store();
-        assert_eq!(reopened.list_invoices(0).unwrap().len(), 2);
-        integrity(&reopened.0).unwrap();
+        let store = Store::open(&d.path().join("live"), KEY).unwrap();
+        // Reads are never fenced: the rolled-back import left pre-restore data intact.
+        assert_eq!(store.list_invoices(0).unwrap().len(), 2);
+        integrity(&store.0).unwrap();
         assert!(!d.path().join("interrupted.sorniobackup").exists());
+        let mut w = Workspace::new(store);
         if phase == "restore" {
+            // Phase 5 fail-closed: the interrupted restore left a durable fence.
+            // Even establishing a session is barred (login writes are fenced) until
+            // the Owner explicitly resolves the interrupted operation.
+            assert!(crate::recovery::fence_active(&w.store_for_test().0).unwrap());
+            assert!(matches!(w.unlock(LOGIN), Err(StoreError::RecoveryActive)));
+            let status = w.recovery_status().unwrap();
+            assert!(status.fenced && status.requires_resolution);
+            let op = status.operation_id.clone().expect("interrupted operation");
+            // A wrong Owner password is rejected and the fence stays in place.
+            assert!(w
+                .resolve_interrupted_recovery(&op, "not the owner password")
+                .is_err());
+            assert!(crate::recovery::fence_active(&w.store_for_test().0).unwrap());
+            // Owner resolution authenticates read-only and releases the fence
+            // without touching any business row.
+            w.resolve_interrupted_recovery(&op, LOGIN).unwrap();
+            assert!(!crate::recovery::fence_active(&w.store_for_test().0).unwrap());
+            assert!(!w.recovery_status().unwrap().requires_resolution);
+            let mut reopened = w.into_recovery_store();
+            assert_eq!(reopened.list_invoices(0).unwrap().len(), 2);
+            // A fresh restore now succeeds and imports the single-invoice backup.
             let p = preview(&mut reopened, &d.path().join("backup"), SECRET, LOGIN).unwrap();
             restore(
                 &mut reopened,
@@ -489,6 +514,10 @@ fn forced_termination_does_not_publish_partial_backup_or_commit_partial_restore(
             .unwrap();
             assert_eq!(reopened.list_invoices(0).unwrap().len(), 1);
         } else {
+            // A crash during export never admits a recovery, so no fence exists.
+            assert!(!crate::recovery::fence_active(&w.store_for_test().0).unwrap());
+            w.unlock(LOGIN).unwrap();
+            let mut reopened = w.into_recovery_store();
             export(&mut reopened, &d.path().join("after-crash"), SECRET).unwrap();
             assert_eq!(
                 preview(&mut reopened, &d.path().join("after-crash"), SECRET, LOGIN)
@@ -822,6 +851,7 @@ fn recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_erro
     let products = s.list_products().unwrap();
     crate::lan_authority::remove_fixture_tables(&s.0);
     s.0.execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; PRAGMA user_version=10;").unwrap();
+    crate::recovery::remove_v13_for_legacy_test(&s.0);
     drop(s);
     let migrated = Store::open(&path, KEY).unwrap();
     assert_eq!(
@@ -915,6 +945,11 @@ fn integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_fina
                     "local_identity_audit",
                     "local_principals",
                     "workspace_access",
+                    // Phase 5: the durable operation ledger and fence are recovery
+                    // bookkeeping. A completed restore legitimately appends an
+                    // operation record + audit; they are not financial rows.
+                    "local_recovery_operations",
+                    "local_recovery_fence",
                 ]
                 .contains(&name.as_str())
             {

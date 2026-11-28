@@ -1,0 +1,2162 @@
+{
+  "audit": "Phase 5 Independent Adversarial Audit",
+  "audit_date_utc": "2026-11-26",
+  "candidate_commit": "7f73ef0a64c81d4d87cc983c8d410d390e01d04c",
+  "branch": "arena/76ac88ca-sornio",
+  "baseline_main_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+  "schema_version": 13,
+  "verdict": "NO-GO",
+  "verdict_rationale": "A critical security invariant (authentication lockout) is violated on a reachable, session-less recovery command (P5-ADV-001). The candidate also fails the existing required verify:replication governance gate (P5-ADV-002) and does not enforce financial-integrity verification at the production restore boundary (P5-ADV-003), with four reproduced detector false negatives. Business-data ownership fencing, crash consistency, and fail-closed startup reconciliation were independently verified and are sound; they are not the basis for NO-GO. No finding was downgraded to reach this verdict.",
+  "severity_counts": {
+    "Critical": 1,
+    "High": 3,
+    "Medium": 11,
+    "Low": 1,
+    "Informational": 1
+  },
+  "independently_verified_invariants": [
+    {
+      "invariant": "Business-table fence blocks session-less raw SQL writes",
+      "evidence": "audit_b1 positive control + candidate fence test (candidate-full-suite.txt)"
+    },
+    {
+      "invariant": "No dual live ownership at startup",
+      "evidence": "audit_f2_startup_rejects_two_live_operations"
+    },
+    {
+      "invariant": "Pre-commit crash retains original financial data and durable fence",
+      "evidence": "pristine-crash.txt (crash_at_every_transition_is_fail_closed_and_consistent)"
+    },
+    {
+      "invariant": "Completed crash is the sole durable success point",
+      "evidence": "pristine-crash.txt"
+    },
+    {
+      "invariant": "Startup rejects unknown recovery audit action",
+      "evidence": "audit_f1_startup_rejects_unknown_audit_action"
+    },
+    {
+      "invariant": "Startup rejects fence referencing a terminal operation",
+      "evidence": "audit_f3_startup_rejects_fence_on_terminal_operation"
+    },
+    {
+      "invariant": "Startup rejects completed operation without result generation",
+      "evidence": "audit_f4_startup_rejects_completed_without_generation"
+    },
+    {
+      "invariant": "Startup rejects business-identity substitution",
+      "evidence": "audit_b2_startup_fails_closed_on_business_substitution"
+    },
+    {
+      "invariant": "Normal login lockout engages after five failures",
+      "evidence": "audit_a2_normal_login_locks_out_after_five_failures"
+    },
+    {
+      "invariant": "Cloud same-generation redelivery is idempotent",
+      "evidence": "cloud-behavioral-probe.txt"
+    },
+    {
+      "invariant": "Cloud rejects operation-identity payload reuse with CONFLICT",
+      "evidence": "cloud-behavioral-probe.txt"
+    },
+    {
+      "invariant": "Cloud rejects stale restore generation with STALE_GENERATION",
+      "evidence": "cloud-behavioral-probe.txt"
+    }
+  ],
+  "failed_invariants": 3,
+  "toolchain": {
+    "rustc": "1.100.0 (0ef1bc386 2026-11-09)",
+    "cargo": "1.100.0",
+    "rustfmt": "1.11.0-stable",
+    "clippy": "0.1.100",
+    "node": "v22.22.3",
+    "typescript": "6.0.3"
+  },
+  "classification_legend": {
+    "IMPLEMENTED": "source present",
+    "COMPILED": "builds",
+    "TESTED": "candidate tests pass",
+    "INDEPENDENTLY VERIFIED": "audit-executed evidence",
+    "NOT VERIFIED": "insufficient evidence",
+    "FAILED": "invariant violated"
+  },
+  "findings": [
+    {
+      "id": "P5-ADV-001",
+      "severity": "High",
+      "area": "A. Authorization/recovery-command security",
+      "title": "Owner-resolution command has no brute-force lockout and grants an unlocked Owner session",
+      "file_function": "packages/local-store/src/recovery.rs::resolve_interrupted; packages/local-store/src/access.rs::resolve_interrupted_recovery; apps/desktop/src-tauri/src/main.rs::resolve_interrupted_recovery",
+      "code_path": "Tauri resolve_interrupted_recovery -> with_recovery_review_workspace -> verify_scope_readonly (no session) -> Workspace::resolve_interrupted_recovery -> recovery::resolve_interrupted. Reads owner retry_after and workspace_access.retry_after and honors an existing lockout, but on wrong password returns InvalidPassword without incrementing failed_attempts or setting retry_after (global or principal), and writes no session.unlocked audit. On success sets store.1 = Some(session) (unlocked Owner).",
+      "attack_scenario": "While the workspace is fenced (interrupted recovery after a crash), an attacker with local access to the registered, session-less Tauri command makes unlimited Owner-password guesses. The persistent 5-attempt/60s lockout that protects normal login is never engaged through this path; a correct guess yields a fully unlocked Owner session controlling all financial data.",
+      "expected_invariant": "Owner authentication must enforce the persistent brute-force lockout (failed_attempts increment, retry_after at threshold) on every authentication path, including recovery resolution; existing authentication safeguards must not be weakened.",
+      "actual_observed_behavior": "25 consecutive wrong passwords all return InvalidPassword; local_principals and workspace_access failed_attempts/retry_after remain (0,0,0,0); the correct password then unlocks an Owner session and releases the fence.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt (audit_a1_resolve_interrupted_has_no_bruteforce_lockout); control audit_a2_normal_login_locks_out_after_five_failures; repro source docs/reviews/phase5-adversarial-evidence/adversarial-repro-tests.rs.txt",
+      "impact": "Security: removal of the authentication rate-limit safeguard for the root Owner credential in the recovery scenario; unlimited online guessing (Argon2-bounded per attempt) plus full Owner session grant on success.",
+      "recommended_remediation": "Mirror login_at: increment global and principal failed_attempts, set retry_after at the threshold, audit failed resolution attempts, and add a regression test asserting lockout engages through the resolution path.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "895ec34",
+        "rule": "RULE 2",
+        "root_cause": "Recovery Owner-password verification called Argon2 directly and never consulted or updated the durable workspace_access failure budget used by access::login_at, so the session-less command was an unlimited password oracle and a correct guess released the fence even during an active login lockout.",
+        "fix": "resolve_interrupted_at shares the existing login lockout policy: active lockout (principal or global) returns RateLimited even with the correct password; failures durably increment failed_attempts (cap 5) and set retry_after=clock+60 with reset-to-1 after expiry; accounting is explicitly committed inside the IMMEDIATE writer transaction so it is restart-persistent and concurrency-safe; success clears the budget, audits session.unlocked, then releases the fence. StoreError::InvalidPassword preserved. No second password policy was introduced.",
+        "files_changed": [
+          "packages/local-store/src/recovery.rs",
+          "packages/local-store/src/recovery/phase5_tests.rs",
+          "packages/local-store/src/recovery/remediation_tests.rs"
+        ],
+        "tests_added": 6,
+        "verification": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::remediation_tests => 6 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-auth-remediation.txt",
+          "rule6-full-suite-final.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::remediation_tests::rem_r2_* (6)"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IV001-IV006 drive the production API Workspace::resolve_interrupted_recovery. Candidate 0/6 (40 wrong passwords never rate-limited; correct password granted Ok(()) during would-be lockout; 32 concurrent never limited). Remediation 6/6: cap 5, RateLimited on correct password while locked, budget identical after reopen, shared with login, 28/32 concurrent limited, business write rejected by fence and login RecoveryActive.",
+        "result_lines": [
+          "Re-executed at HEAD: recovery:: (84 passed) includes the 6 rem_r2 remediation tests; rem_r2_concurrent passed 6/6 in isolation and inside the full suite."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IV001-IV006 drive the production API Workspace::resolve_interrupted_recovery. Candidate 0/6 (40 wrong passwords never rate-limited; correct password granted Ok(()) during would-be lockout; 32 concurrent never limited). Remediation 6/6: cap 5, RateLimited on correct password while locked, budget identical after reopen, shared with login, 28/32 concurrent limited, business write rejected by fence and login RecoveryActive."
+      }
+    },
+    {
+      "id": "P5-ADV-002",
+      "severity": "Medium",
+      "area": "E. Publisher draining/replication (governance)",
+      "title": "Existing verify:replication governance gate fails on the candidate",
+      "file_function": "scripts/verify-replication.mjs (lines 281, 291); packages/local-store/src/lib.rs::SCHEMA_VERSION; apps/desktop/src-tauri/src/main.rs (reset_sidecar_file removed)",
+      "code_path": "node scripts/verify-replication.mjs compiles replication-cloud + mobile-contracts (succeeds), then asserts /const SCHEMA_VERSION: i64 = 12;/ against lib.rs (candidate is 13) -> AssertionError 'financial schema remains 12'. A later assertion requires desktopMain.includes('reset_sidecar_file'), which the candidate removed.",
+      "attack_scenario": "Not an attack; a regression. The candidate changed schema version and sidecar behavior but did not update the harness, so the project's required verification gate (npm run verify:replication, part of npm run verify) exits non-zero.",
+      "expected_invariant": "The candidate must pass the project's existing required governance/verification gates.",
+      "actual_observed_behavior": "REPLICATION_EXIT=1; AssertionError 'financial schema remains 12'. git diff baseline..candidate -- scripts/verify-replication.mjs is empty (harness unchanged). reset_sidecar_file occurrences in desktop main = 0.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/cloud-verify-replication.txt",
+      "impact": "Release-blocking governance regression; the candidate's verification suite fails. The audit did not weaken assertions.",
+      "recommended_remediation": "Update the harness to v13 invariants (schema 13; sidecar reset removed) without weakening assertions, and make verify:replication pass.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "0ccae3c",
+        "rule": "RULE 4",
+        "root_cause": "The harness pinned financial schema 12 and asserted the presence of a sidecar-deletion reset path that v13 replaced with generation-keyed reset, so the required governance gate exited 1.",
+        "fix": "Every obsolete assertion replaced with a meaningful v13 equivalent, none removed or weakened: schema pin 13 plus migrate_v13 and reconcile_startup wiring; sidecar-deletion presence inverted to absence plus on_restore / ack.on_restore(&generation) / stale-generation checks; added recovery-fencing and financial-module assertions. Full harness executed, not bypassed.",
+        "files_changed": [
+          "scripts/verify-replication.mjs"
+        ],
+        "tests_added": 0,
+        "verification": "node scripts/verify-replication.mjs => 120 checks passed exit 0 at this commit; 129 checks passed exit 0 after RULE 5 added dedup-contract checks",
+        "evidence": [
+          "rule4-replication-harness.txt",
+          "rule5-replication-harness.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "scripts/verify-replication.mjs (139 checks)"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "Official harness re-run independently: 129 checks, exit 0. Diff audit: exactly 2 obsolete assertions removed, 25 added; security/compatibility intent preserved by v13 equivalents.",
+        "result_lines": [
+          "verify:replication.mjs executed at HEAD: 139 checks passed, exit 0."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "Official harness re-run independently: 129 checks, exit 0. Diff audit: exactly 2 obsolete assertions removed, 25 added; security/compatibility intent preserved by v13 equivalents."
+      }
+    },
+    {
+      "id": "P5-ADV-003",
+      "severity": "Medium",
+      "area": "D. Financial integrity",
+      "title": "Financial-integrity verification is test-only and not enforced at the production restore boundary",
+      "file_function": "packages/local-store/src/recovery.rs::restore_owned (T3 integrity()); packages/local-store/src/recovery/phase5_tests.rs::financial_violations (#[cfg(test)])",
+      "code_path": "restore_owned T3 calls integrity() (PRAGMA cipher_integrity_check / integrity_check / foreign_key_check) only. financial_violations is referenced nowhere outside tests (repository-wide search). Comment: 'Deep financial-invariant verification is test-only by design.'",
+      "attack_scenario": "A backup whose financial data is logically invalid but structurally intact (e.g., logical on-disk corruption) passes validate() + integrity() and is imported and marked completed without financial verification.",
+      "expected_invariant": "Recovery must verify financial invariants at the restore boundary so it cannot silently commit invalid financial state.",
+      "actual_observed_behavior": "Production restore performs structural verification only; the deep financial verifier is test-only. End-to-end silent corruption was NOT demonstrated (schema validation requires the full trigger set; write-time triggers constrain normal data).",
+      "reproduction_evidence": "Source inspection (restore_owned T3; financial_violations cfg(test)); detector false negatives P5-ADV-004..007 reproduced in docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt",
+      "impact": "Financial-integrity guarantee is not enforced at the production boundary; the test oracle that underpins the claim is incomplete.",
+      "recommended_remediation": "Promote a hardened financial verifier out of #[cfg(test)] and run it inside the restore transaction before completion; reject backups that violate financial invariants.",
+      "independently_reproduced": false,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "financial_violations had zero production callers; it existed only as a test oracle, so a restore could install a semantically corrupt ledger.",
+        "fix": "New packages/local-store/src/recovery/financial.rs exposes violations() and verify(). verify() is called inside the single IMMEDIATE restore transaction after integrity() and before completion, raising StoreError::FinancialInconsistency; rejection rolls back the whole transaction, preserving the original database and fence. Desktop adapter maps the error to financial_inconsistency. The phase5 test oracle additionally calls the production verifier (additive).",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery.rs",
+          "packages/local-store/src/lib.rs",
+          "apps/desktop/src-tauri/src/main.rs",
+          "packages/local-store/src/recovery/phase5_tests.rs"
+        ],
+        "tests_added": 4,
+        "verification": "cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::financial::financial_tests => 10 passed / 0 failed, exit 0 (includes end-to-end restore rejection and valid-backup-still-restores) | RULE 3 tests: rem_r3_detects_missing_postings_and_broken_stock_arithmetic, rem_r3_restore_rejects_financially_inconsistent_backup, rem_r3_tampered_backup_file_is_rejected_at_preview, rem_r3_valid_backup_still_restores",
+        "evidence": [
+          "rule6-financial-corruption.txt",
+          "rule6-full-suite-final.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::rem_r3_restore_rejects_financially_inconsistent_backup"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "financial::verify confirmed inside the single IMMEDIATE restore tx after integrity() and before completion. Independent IVF10: corrupt backup rejected FinancialInconsistency, 2 original invoices intact, no fence left behind. IVF11 healthy backup restores clean.",
+        "result_lines": [
+          "financial::verify is present in the restore transaction; the whole recovery module (84 tests) passes at HEAD."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "financial::verify confirmed inside the single IMMEDIATE restore tx after integrity() and before completion. Independent IVF10: corrupt backup rejected FinancialInconsistency, 2 original invoices intact, no fence left behind. IVF11 healthy backup restores clean."
+      }
+    },
+    {
+      "id": "P5-ADV-004",
+      "severity": "Medium",
+      "area": "D. Financial integrity",
+      "title": "Verifier misses a deleted credit-sale entry (customer outstanding understated)",
+      "file_function": "packages/local-store/src/recovery/phase5_tests.rs::financial_violations (check 5)",
+      "code_path": "Check 5: SELECT c.invoice_id FROM local_credit_entries c JOIN local_billing_ledger l ON l.invoice_id=c.invoice_id AND l.account='receivables' WHERE c.kind='sale' AND l.amount_paise<>c.amount_paise. INNER JOIN yields no row when the credit entry is deleted; billing ledger stays balanced.",
+      "attack_scenario": "On-disk corruption or tampering deletes a credit sale's local_credit_entries row; customer outstanding balance is understated and the verifier reports clean.",
+      "expected_invariant": "Every credit sale must have a matching credit entry; outstanding balance must reconcile.",
+      "actual_observed_behavior": "After DELETE of the kind='sale' entry, SUM(amount_paise) for the customer changes but financial_violations returns empty.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt (audit_d1_verifier_misses_deleted_credit_sale_entry)",
+      "impact": "Financial: understated receivables/outstanding undetected by the integrity oracle.",
+      "recommended_remediation": "Add a check that every credit invoice has a corresponding credit entry (LEFT JOIN / NOT EXISTS), independent of ledger balance.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "The verifier checked aggregate balance only, which is unchanged when a credit-sale entry is deleted, so customer outstanding was understated without any violation.",
+        "fix": "Credit invariant now requires credit sale <-> credit entry correspondence in BOTH directions, plus derived outstanding >= 0. Outstanding is recomputed from entries because local_customers has no stored balance column (documented limitation).",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 1,
+        "verification": "rem_r3_detects_deleted_credit_sale_entry passes; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::rem_r3_detects_deleted_credit_sale_entry"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF01 independently reproduced: credit sale missing matching credit entry + customer outstanding is negative.",
+        "result_lines": [
+          "rem_r3_detects_deleted_credit_sale_entry passes at HEAD."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF01 independently reproduced: credit sale missing matching credit entry + customer outstanding is negative."
+      }
+    },
+    {
+      "id": "P5-ADV-005",
+      "severity": "Medium",
+      "area": "D. Financial integrity",
+      "title": "Verifier misses tampered repayment/opening_due credit entries",
+      "file_function": "packages/local-store/src/recovery/phase5_tests.rs::financial_violations (check 5)",
+      "code_path": "Check 5 filters c.kind='sale' only; repayment/opening_due/write_off entries are not cross-checked against the customer journal.",
+      "attack_scenario": "Tampering a repayment credit entry amount changes customer outstanding balance; the customer journal is untouched and balanced, so the verifier reports clean.",
+      "expected_invariant": "All credit entry kinds must reconcile with the customer journal/outstanding balance.",
+      "actual_observed_behavior": "UPDATE local_credit_entries SET amount_paise=amount_paise+5000 WHERE operation_id='cash-collection' leaves financial_violations empty.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt (audit_d2_verifier_misses_tampered_repayment_entry)",
+      "impact": "Financial: outstanding balance manipulation undetected for non-sale credit kinds.",
+      "recommended_remediation": "Cross-check every credit kind against the customer journal and recompute outstanding balances.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "Tampered repayment/opening_due amounts preserved zero-sum journal balance, so the totals-only verifier accepted them.",
+        "fix": "For non-sale credit entries the entry delta must equal the journal receivables movement, establishing the source-record to financial-consequence relationship rather than aggregate balance.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 1,
+        "verification": "rem_r3_detects_tampered_repayment_entry passes; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::rem_r3_detects_tampered_repayment_entry"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF02 independently reproduced: credit entry disagrees with customer journal.",
+        "result_lines": [
+          "rem_r3_detects_tampered_repayment_entry passes at HEAD."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF02 independently reproduced: credit entry disagrees with customer journal."
+      }
+    },
+    {
+      "id": "P5-ADV-006",
+      "severity": "Medium",
+      "area": "D. Financial integrity",
+      "title": "Verifier misses a balanced billing-ledger tamper versus invoice total",
+      "file_function": "packages/local-store/src/recovery/phase5_tests.rs::financial_violations (check 1)",
+      "code_path": "Check 1 groups local_billing_ledger by invoice_id HAVING SUM(amount_paise)<>0. Shifting amount between revenue and cash keeps SUM=0; no check reconciles ledger legs to the invoice total.",
+      "attack_scenario": "A balanced tamper (revenue -100, cash +100) keeps the ledger zero-sum but the revenue leg no longer matches the invoice; the verifier reports clean.",
+      "expected_invariant": "Ledger postings must reconcile to the invoice total, not merely sum to zero.",
+      "actual_observed_behavior": "After the balanced shift, financial_violations returns empty while the revenue leg drifts from its original value.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt (audit_d3_verifier_misses_balanced_ledger_tamper)",
+      "impact": "Financial: revenue/cash misstatement undetected when balance is preserved.",
+      "recommended_remediation": "Reconcile ledger legs to the stored invoice total/tax and tender breakdown.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "14d5cc1",
+        "rule": "RULE 3",
+        "root_cause": "A balanced revenue-to-cash shift kept SUM(postings)=0, so the totals-only verifier accepted a ledger that contradicted the invoice.",
+        "fix": "Invoice-to-ledger invariants: postings exist, zero-sum, exactly one settlement leg matching total/tender/customer, revenue leg equals -subtotal, tax leg present iff tax>0, and subtotal+tax=total. The regression test asserts SUM is still 0 while the verifier rejects.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 1,
+        "verification": "rem_r3_detects_balanced_but_semantically_wrong_ledger passes; financial suite 10 passed / 0 failed, exit 0",
+        "evidence": [
+          "rule6-financial-corruption.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::rem_r3_detects_balanced_but_semantically_wrong_ledger"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF03 independently reproduced with ledger SUM confirmed still 0: settlement leg and revenue leg disagreements detected.",
+        "result_lines": [
+          "rem_r3_detects_balanced_but_semantically_wrong_ledger passes at HEAD."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "IVF03 independently reproduced with ledger SUM confirmed still 0: settlement leg and revenue leg disagreements detected."
+      }
+    },
+    {
+      "id": "P5-ADV-007",
+      "severity": "Medium",
+      "area": "D. Financial integrity",
+      "title": "Verifier misses a duplicated balanced retail journal",
+      "file_function": "packages/local-store/src/recovery/phase5_tests.rs::financial_violations; schema local_retail_journal",
+      "code_path": "local_retail_journal has sequence PK but no UNIQUE(operation_id,account). The verifier checks retail journal SUM per operation and outbox duplicates, but has no duplicate-journal check. Duplicating a balanced posting set keeps SUM=0.",
+      "attack_scenario": "On-disk duplication of a retail operation's postings double-counts revenue/cash while remaining zero-sum; the verifier reports clean.",
+      "expected_invariant": "Journal postings must be unique per operation/account; duplication must be detected.",
+      "actual_observed_behavior": "After duplicating the balanced set, financial_violations returns empty although a GROUP BY operation_id,account HAVING COUNT(*)>1 query detects duplicates.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt (audit_d4_verifier_misses_duplicated_retail_journal)",
+      "impact": "Financial: double-counted revenue/cash undetected.",
+      "recommended_remediation": "Add a duplicate-journal detector and a UNIQUE(operation_id,account) guard for local_retail_journal.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "9274ddb",
+        "rule": "RULE 3",
+        "root_cause": "Retail SALE postings were only checked relationally by amount, so duplicating both legs (cash 4250 -> 8500, receivables -4250 -> -8500) kept the operation zero-sum and the activity row intact: the derived independent test IVX01 found the sale case still open even after returns were covered.",
+        "fix": "Sale operations additionally assert a cardinality invariant: exactly one cash leg and exactly one receivables leg iff the recorded cash payments are non-zero, and only those two accounts with no customer attribution. Duplicating a balanced sale pair (including the halved-amounts variant) therefore breaks the cardinality while legitimate multi-part returns, which repeat accounts by construction, stay accepted by the documented false-positive guard.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/final_financial_tests.rs"
+        ],
+        "tests_added": 4,
+        "verification": "fin01_duplicate_sale_journal_4250_scenario, fin02b_partial_missing_sale_journal, fin07b_duplicate_with_halved_amounts_keeps_sums and rem_r3_accepts_valid_history_including_multipart_returns all pass; full cargo test 262 passed / 0 failed, exit 0.",
+        "evidence": [
+          "gates-cargo-test.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::final_financial_tests::fin01_duplicate_sale_journal_4250_scenario",
+          "fin07b_duplicate_with_halved_amounts_keeps_sums",
+          "fin09b_duplicate_one_of_many_sales_rejected",
+          "fin08_legitimate_multipart_return_accepted (false-positive guard)"
+        ],
+        "commit_attribution_note": "The code fix and its 16-test suite (recovery/final_financial_tests.rs) landed in the branch baseline 9274ddb, which is the verified parent of this seven-commit series and is contained in HEAD. f232348 does NOT contain the sale-cardinality rule; it extends the sale side only through P5-NEW-001..003. The independent reviewer re-executed all 16 fin* tests at HEAD (16 passed).",
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (branch baseline)",
+        "result": "IVX01 (duplicate a SALE operation, cash 4250->8500 / receivables -4250->-8500, zero-sum preserved) is now detected by the sale-cardinality rule and rejected at the production restore boundary; the halved-amounts variant is covered by fin07b.",
+        "result_lines": [
+          "All 16 recovery::final_financial_tests pass at HEAD, including fin01 (the reproduced 4250 scenario) and its false-positive guard fin08. Attribution corrected: the fix is in 9274ddb."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (branch baseline)",
+        "result": "IVX01 (duplicate a SALE operation, cash 4250->8500 / receivables -4250->-8500, zero-sum preserved) is now detected by the sale-cardinality rule and rejected at the production restore boundary; the halved-amounts variant is covered by fin07b."
+      }
+    },
+    {
+      "id": "P5-ADV-008",
+      "severity": "Medium",
+      "area": "B. Universal ownership fencing",
+      "title": "Unfenced metadata tables writable via raw SQL while fenced (bounded)",
+      "file_function": "packages/local-store/src/recovery.rs::FENCED_TABLES / migrate_v13; tables workspace_access, local_recovery_identity",
+      "code_path": "The engine fence triggers cover only the 40 FENCED_TABLES. workspace_access (lockout counters) and local_recovery_identity (business_id, generation) have no fence trigger; local_recovery_identity has no immutability trigger.",
+      "attack_scenario": "A session-less raw-SQL writer resets workspace_access lockout counters or tampers local_recovery_identity.generation while a recovery fence is active.",
+      "expected_invariant": "No unfenced writes that affect security/recovery identity during a live fence; no business-identity substitution.",
+      "actual_observed_behavior": "audit_b1: UPDATE workspace_access and UPDATE local_recovery_identity SET generation succeed while fenced; a business write (local_products) is rejected. audit_b2: business_id substitution is caught fail-closed at startup (RecoveryCorrupt).",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/adversarial-all-12.txt (audit_b1_unfenced_metadata_writable_while_fenced, audit_b2_startup_fails_closed_on_business_substitution)",
+      "impact": "Defense-in-depth gap: lockout reset and generation tamper between transactions; bounded by fail-closed startup for business substitution and by the writer lock during restore. Not a business-data ownership breach.",
+      "recommended_remediation": "Extend fencing/immutability to local_recovery_identity and workspace_access, or document and bound the metadata trust model; cross-check generation consistency.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "124e601",
+        "rule": "RULE 7 (metadata trust model, designed rather than patched)",
+        "root_cause": "The fence triggers covered only the 40 FENCED_TABLES. workspace_access and local_recovery_identity had no trigger at all, so raw SQL with the SQLCipher key could, during a live fence, clear the shared 5-attempt/60s lockout, rewrite the restore generation and substitute business identity.",
+        "fix": "Designed metadata trust model in V13_EXTENSION, all engine-level so every connection and every raw-SQL path is covered: (a) local_recovery_identity gets BEFORE INSERT (singleton + 64-hex shape + fenced), BEFORE DELETE (permanent) and BEFORE UPDATE (business_id immutable, generation shape, and FROZEN while a fence is live); (b) workspace_access gets BEFORE INSERT (singleton), BEFORE DELETE (permanent) and a fenced BEFORE UPDATE that refuses credential-policy changes and any weakening of the lockout while still permitting monotonic failure accounting, which is exactly what the P5-ADV-001 fix needs; (c) the two production code paths that legitimately write through these tables were re-ordered to respect the guards instead of the guards being weakened: resolve_interrupted_at now transitions the operation and releases the fence BEFORE clearing the shared budget, and restore_owned deletes the imported fence BEFORE rotating the generation. No validation was relaxed and no second password policy was introduced.",
+        "files_changed": [
+          "packages/local-store/src/recovery.rs",
+          "packages/local-store/src/recovery/phase5_tests.rs"
+        ],
+        "tests_added": 5,
+        "verification": "cargo test --lib recovery:: => 78 passed / 0 failed / 3 ignored, exit 0. New tests: recovery_metadata_is_immutable_while_fenced (replays every attack the audit used: budget reset, retry-window drop, credential swap, generation tamper, business_id substitution, identity delete — all refused, budget unchanged, accounting still monotonic); metadata_writes_are_allowed_once_the_fence_is_released (restore still rotates the generation and the Owner can still unlock); startup_rejects_malformed_recovery_identity. verify:local-schema => 110 checks passed including 11 new v13 guard attacks.",
+        "evidence": [
+          "gates-cargo-test.txt",
+          "gates-npm-verify.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::phase5_tests::recovery_metadata_is_immutable_while_fenced",
+          "metadata_writes_are_allowed_once_the_fence_is_released",
+          "verify-local-schema.py v13 guard attacks (11)"
+        ],
+        "residual_threat_model": "These are engine-level SQLite triggers. An attacker who can attach an unencrypted plaintext copy of the database (ATTACH, then DROP TRIGGER / INSERT through the copy) is outside what an in-engine trigger can stop; the fence is defence against raw SQL through a normal connection, which is the documented P5-ADV-008 threat.",
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Re-ran the audit attack set against the new schema. All metadata tampering during a live fence is now refused by the engine (budget reset, retry-window drop, credential swap, workspace_access delete, generation tamper, business_id substitution, identity delete). The legitimate paths still work: an expired-window retry restarts the budget at 1, successful resolution releases the fence and clears the budget, and a full restore still rotates the generation.",
+        "result_lines": [
+          "recovery_metadata_is_immutable_while_fenced and metadata_writes_are_allowed_once_the_fence_is_released pass; the 11 v13 guard attacks in verify-local-schema (110 checks) pass. Residual ATTACH threat documented."
+        ]
+      },
+      "classified": true,
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Re-ran the audit attack set against the new schema. All metadata tampering during a live fence is now refused by the engine (budget reset, retry-window drop, credential swap, workspace_access delete, generation tamper, business_id substitution, identity delete). The legitimate paths still work: an expired-window retry restarts the budget at 1, successful resolution releases the fence and clears the budget, and a full restore still rotates the generation."
+      }
+    },
+    {
+      "id": "P5-ADV-009",
+      "severity": "Medium",
+      "area": "E. Publisher draining/replication",
+      "title": "Cloud in-memory dedup is cross-generation while durable Postgres dedup is per-generation",
+      "file_function": "packages/replication-cloud/src/ingest.ts::ingestEnvelope; packages/replication-cloud/src/postgres.ts::ingestDurable; sql/20261103000000_native_financial_replication.sql",
+      "code_path": "ingest.ts dedups by `${businessId}|${operationId}` (cross-generation). postgres.ts dedups by (business_id, restore_generation, stream, operation_id) (SQL UNIQUE line 50). After a restore rotates the generation, Postgres would not dedup against the prior generation's events.",
+      "attack_scenario": "Post-restore re-publication of the same operationId under a new generation is deduped in-memory (duplicate=true) but could be re-projected by the Postgres path; journal/credit projection idempotency is not guaranteed by the per-generation key.",
+      "expected_invariant": "Consistent dedup semantics across reference and durable paths; no double-projection of financial events after restore.",
+      "actual_observed_behavior": "Probe: gen-2 redelivery of a gen-1 operation returns duplicate=true (in-memory). Postgres per-generation key confirmed by source/SQL; not executed (no Postgres instance).",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/cloud-behavioral-probe.txt (in-memory executed); postgres.ts/sql source inspection",
+      "impact": "Potential cloud-side double-projection of financial events after restore; requires production-path verification.",
+      "recommended_remediation": "Align dedup semantics and verify projection idempotency for journals/credits across in-memory and Postgres paths.",
+      "independently_reproduced": false,
+      "classification": "NOT VERIFIED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "272b492",
+        "rule": "RULE 5",
+        "root_cause": "In-memory dedup was keyed businessId|operationId (cross-generation) while durable Postgres dedup included restore_generation. Separately, the in-memory duplicate branch returned early without advancing the new generation stream head, so after a restore the first genuinely new operation was rejected GAP and could never be published.",
+        "fix": "Decision: cross-generation dedup is intentional and required; a restore generation is a transport epoch, not business identity, and bumpCustomer applies a delta so re-projection would double-count outstanding. postgres.ts duplicate lookup drops restore_generation and selects the earliest event, advances the current generation head under FOR UPDATE when contiguous, and inserts a per-generation ack ON CONFLICT DO NOTHING. ingest.ts advances the head when a duplicate is exactly last+1 via clone/adopt. Retries of a seen sequence stay idempotent with the original cursor. Full 9-clause contract documented.",
+        "files_changed": [
+          "packages/replication-cloud/src/ingest.ts",
+          "packages/replication-cloud/src/postgres.ts"
+        ],
+        "tests_added": 9,
+        "verification": "Durable path executed on real PostgreSQL 16.2: verify:replication-postgres => 79 checks passed. In-memory contract re-executed after the P5-NEW-006 key correction: verify:replication => 139 checks passed.",
+        "evidence": [
+          "rule5-replication-harness.txt",
+          "rule5-probe-before.txt",
+          "rule5-probe-after.txt",
+          "gates-npm-verify.txt",
+          "gates-npm-verify-postgres.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "verify-replication.mjs P5-ADV-009 dedup block (139 checks)",
+          "durable cross-generation probe on real PostgreSQL 16.2 (10 assertions)"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "DURABLE PATH NOW VERIFIED ON REAL POSTGRESQL 16.2 (previously BLOCKED). 36/36 independent assertions incl. 4-way concurrent duplicate ingestion (1 event row, same cursor), sequence race (exactly 1 winner, 3 DUPLICATE_SEQUENCE, head advances once), and rollback (no partial event/ack, head unchanged). Candidate proven defective on the same server: full ordered outbox replay doubled outstanding 5000->10000 with duplicate event rows; remediation preserved 5000 with all duplicates. In-memory contract 18/18.",
+        "result_lines": [
+          "In-memory contract re-executed (139 checks). The durable contract, which had NO test before this pass, was proven on real PostgreSQL 16.2 by an independent probe: 10/10 assertions (cross-generation dedup, no double-count, head advance, GAP for a skipped new sequence, CONFLICT on a changed payload)."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+        "result": "DURABLE PATH NOW VERIFIED ON REAL POSTGRESQL 16.2 (previously BLOCKED). 36/36 independent assertions incl. 4-way concurrent duplicate ingestion (1 event row, same cursor), sequence race (exactly 1 winner, 3 DUPLICATE_SEQUENCE, head advances once), and rollback (no partial event/ack, head unchanged). Candidate proven defective on the same server: full ordered outbox replay doubled outstanding 5000->10000 with duplicate event rows; remediation preserved 5000 with all duplicates. In-memory contract 18/18."
+      }
+    },
+    {
+      "id": "P5-ADV-010",
+      "severity": "Low",
+      "area": "F. Metadata/corruption resistance",
+      "title": "owner_token and generation format are not validated",
+      "file_function": "packages/local-store/src/recovery.rs::admit / reconcile_startup / random_id",
+      "code_path": "owner_token/generation are produced by random_id() (hex) but neither admission nor reconciliation validates their format/length; pairing checks assume well-formed values.",
+      "attack_scenario": "A tampered-but-nonempty token/generation that still satisfies fence pairing is not rejected on format alone.",
+      "expected_invariant": "Recovery identity tokens/generations should be validated for expected format.",
+      "actual_observed_behavior": "No format validation observed in admit or reconcile_startup (source inspection).",
+      "reproduction_evidence": "Source inspection (recovery.rs admit/reconcile_startup)",
+      "impact": "Low; values are internal and pairing-checked.",
+      "recommended_remediation": "Validate token/generation format (length/charset) at admission and reconciliation.",
+      "independently_reproduced": false,
+      "classification": "NOT VERIFIED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "124e601",
+        "rule": "RULE 7",
+        "root_cause": "random_id() emits 64 lowercase hex, but no consumer validated the shape, so a tampered-but-nonempty generation/business identity was accepted at admission and passed startup reconciliation as long as it satisfied the pairing checks.",
+        "fix": "is_hex64() added and enforced at every recovery boundary: generation() consumers in admit(), the transition() completion generation, restore_owned() before execution, and reconcile_startup() for business_id, the live generation, every operation_id and every completed result_generation. reconcile_startup also now requires the newest completed result_generation to equal the live generation, so a rollback or a forged completion cannot masquerade as clean. The same shape is enforced in SQL by the two new local_recovery_identity triggers, so it holds for raw writes too. Malformed metadata returns StoreError::RecoveryCorrupt (fail closed, original files preserved).",
+        "files_changed": [
+          "packages/local-store/src/recovery.rs",
+          "packages/local-store/src/recovery/phase5_tests.rs"
+        ],
+        "tests_added": 3,
+        "verification": "startup_rejects_malformed_recovery_identity covers the audit's exact accepted values (\"short\", \"zzzz\", \"'; DROP TABLE x; --\", \"\") plus non-hex/short business identities and a malformed or mismatched completed result_generation — every one now returns RecoveryCorrupt. verify:local-schema asserts the engine refuses a non-hex and a shortened generation at INSERT/UPDATE.",
+        "evidence": [
+          "gates-cargo-test.txt",
+          "gates-npm-verify.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::phase5_tests::startup_rejects_malformed_recovery_identity"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "All four malformed generations the audit accepted now return RecoveryCorrupt at Store::open, as do malformed business identities and malformed/mismatched completed result generations.",
+        "result_lines": [
+          "startup_rejects_malformed_recovery_identity passes (9 malformed values refused at startup)."
+        ]
+      },
+      "classified": true,
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "All four malformed generations the audit accepted now return RecoveryCorrupt at Store::open, as do malformed business identities and malformed/mismatched completed result generations."
+      }
+    },
+    {
+      "id": "P5-ADV-011",
+      "severity": "Informational",
+      "area": "Code quality",
+      "title": "clippy -D warnings yields pre-existing style lints; plain gate passes",
+      "file_function": "packages/local-store/src/payments.rs:769/1516/1777; customers.rs:301/330; access.rs:166; phase3_reliability_tests.rs:561/708",
+      "code_path": "cargo clippy --all-targets (plain) exits 0 with 17 lib warnings (19 in test cfg). Adding -D warnings promotes them to errors (exit 101): too_many_arguments, needless_borrow, type_complexity, redundant_pattern_matching, manual RangeInclusive contains.",
+      "attack_scenario": "Not a security defect; style lints, predominantly pre-existing baseline code.",
+      "expected_invariant": "Candidate clippy gate (plain) passes.",
+      "actual_observed_behavior": "CLIPPY_PLAIN_EXIT=0; clippy -D warnings exit 101.",
+      "reproduction_evidence": "docs/reviews/phase5-adversarial-evidence/pristine-clippy-plain.txt; pristine-clippy.txt",
+      "impact": "None on security; code-quality only.",
+      "recommended_remediation": "Optionally address style lints; not release-blocking.",
+      "independently_reproduced": true,
+      "classification": "TESTED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "a3573a2",
+        "rule": "RULE 8 (code quality gate)",
+        "root_cause": "19 clippy lints surfaced under `-D warnings` (11 needless_borrow in billing.rs, unneeded_wildcard_pattern in payments.rs, type_complexity in customers.rs, four too_many_arguments, two test idioms) plus 2 ESLint unused-variable warnings.",
+        "fix": "Fixed rather than silenced wherever the lint was right: needless borrows removed, the redundant wildcard pattern collapsed, a CustomerRow type alias introduced, and the two test idioms rewritten. Four too_many_arguments sites (restore_backup, customers::entry, payments::return_invoice, payments::csv_row) keep their explicit argument lists with a documented #[allow] because each argument is a distinct security- or money-bearing fact and a wrapper struct would only lengthen their lifetime. The two ESLint findings were dead code (an unused parameter and an unused import) and were removed.",
+        "files_changed": [
+          "packages/local-store/src/{access,billing,customers,payments,phase3_reliability_tests}.rs",
+          "packages/replication-cloud/src/project.ts"
+        ],
+        "tests_added": 0,
+        "verification": "cargo clippy --all-targets --locked --offline -- -D warnings => exit 0 (was exit 101 with 19 warnings). cargo fmt --check => exit 0. npm run lint => exit 0 with 0 warnings (was exit 0 with 2 warnings).",
+        "evidence": [
+          "gates-clippy-strict.txt",
+          "gates-fmt.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "cargo clippy --all-targets -- -D warnings (gate itself)",
+          "npm run lint"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "clippy -D warnings exit 0 and ESLint 0 warnings, both re-executed after the change.",
+        "result_lines": [
+          "cargo clippy --all-targets -- -D warnings exits 0 at HEAD; the pre-fix tree emits 19 warnings. npm run lint exits 0."
+        ]
+      },
+      "classified": true,
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "clippy -D warnings exit 0 and ESLint 0 warnings, both re-executed after the change."
+      }
+    },
+    {
+      "id": "P5-NEW-001",
+      "severity": "High",
+      "area": "D. Financial integrity",
+      "title": "Restore-boundary verifier rejects every legitimate split cash+credit retail sale and misses a deleted split-credit entry",
+      "file_function": "packages/local-store/src/recovery/financial.rs::violations (credit entry <-> invoice rules); billing.rs::post_into -> customers::post_split_credit",
+      "code_path": "A split retail sale posts cash/UPI/card parts through payments::invoice_posted and books ONLY the credit part as customer debt via customers::post_split_credit, whose entry carries invoice_id=invoice and kind=sale with amount = credit parts (< invoice total). The reverse-direction rule required json_extract(payload,'$.tender')='credit' AND totalPaise = entry amount, which no split sale satisfies. Because that rule never looked at retail invoices, deleting the split-credit entry was also undetected.",
+      "attack_scenario": "A shop that sells partly on khata cannot restore its own backup at all (availability defect), and a backup whose split-credit entry was lost silently understates customer outstanding.",
+      "expected_invariant": "A split cash+credit retail sale must restore successfully, and its credit entry must be reconciled exactly once in both directions.",
+      "actual_observed_behavior": "sales-by-sale: legitimate split sale => FinancialInconsistency on restore; deleted split-credit entry => violations()==[] on the candidate.",
+      "reproduction_evidence": "cargo test --lib recovery::financial::financial_tests::p5_new_001_*",
+      "impact": "Blocks restore for a normal khata workflow; hides lost receivable.",
+      "recommended_remediation": "Accept tender=credit OR (tender=retail AND credit parts = entry amount AND customer matches); add the retail-direction cardinality and amount rules.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "f232348",
+        "rule": "RULE 3",
+        "root_cause": "The credit-entry reverse rule assumed every sale entry belongs to a tender=credit invoice, which is false for split retail sales.",
+        "fix": "The reverse rule now accepts the split form as well (retail tender, credit parts equal to the entry amount, same customer). Two new forward rules make it bidirectional: a retail invoice must have exactly one kind=sale entry iff its credit parts are non-zero, and that entry must equal the recorded credit parts for the invoice customer. No rule was loosened: the tender=credit form and all amount/customer equalities are still required.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 2,
+        "verification": "p5_new_001_split_cash_credit_sale_is_accepted (accepted, then a real export/preview/restore round trip succeeds) and p5_new_001_deleted_split_credit_entry_is_detected both pass; the whole financial suite is 16 passed / 0 failed, exit 0.",
+        "evidence": [
+          "gates-cargo-test.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::p5_new_001_split_cash_credit_sale_is_accepted",
+          "p5_new_001_deleted_split_credit_entry_is_detected"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "False positive reproduced and removed; the deletion attack is now reported as \"retail split credit is not exactly one credit entry\" and verify() returns FinancialInconsistency.",
+        "result_lines": [
+          "Both directions and both cases pass at HEAD (accepted valid split sale incl. a real restore round trip; deleted split-credit entry detected)."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "False positive reproduced and removed; the deletion attack is now reported as \"retail split credit is not exactly one credit entry\" and verify() returns FinancialInconsistency."
+      }
+    },
+    {
+      "id": "P5-NEW-002",
+      "severity": "High",
+      "area": "D. Financial integrity",
+      "title": "Restore-boundary verifier rejects legitimate repeated-product invoice lines and cannot see duplicate-line under-deduction",
+      "file_function": "packages/local-store/src/recovery/financial.rs::violations (invoice lines <-> local_invoice_stock); billing.rs::post_into quantities map",
+      "code_path": "billing::post_into aggregates requested quantity per product (`quantities` BTreeMap) and writes ONE local_invoice_stock row per product, while the invoice payload keeps every line. The verifier compared each payload line against a stock movement, so two lines of the same product never matched.",
+      "attack_scenario": "Any invoice that bills the same product on two lines cannot be restored; a movement matching only one of the lines hides an under-deducted stock quantity.",
+      "expected_invariant": "SUM(quantity_milli per product) in the payload must equal the stock movement(s) for that product, both directions.",
+      "actual_observed_behavior": "legitimate two-line invoice => FinancialInconsistency; movement cut to one line => violations()==[] on the candidate.",
+      "reproduction_evidence": "cargo test --lib recovery::financial::financial_tests::p5_new_002_*",
+      "impact": "Blocks restore for a normal basket; hides inventory corruption.",
+      "recommended_remediation": "Aggregate payload lines by (invoice, product) before comparing, and compare the aggregate to SUM(stock movements).",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "f232348",
+        "rule": "RULE 3",
+        "root_cause": "The comparison was line-oriented while the writer is product-oriented.",
+        "fix": "Both directions rewritten to aggregate: GROUP BY (invoice, productId) with SUM(quantityMilli) compared to COALESCE(SUM(local_invoice_stock.quantity_milli),0), and a movement for an unbilled product is still rejected. The per-movement arithmetic check (after = before - quantity) and non-negative stock checks are unchanged.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 2,
+        "verification": "p5_new_002_repeated_product_lines_are_accepted (proves the real writer emits one aggregated movement of 1000) and p5_new_002_duplicate_line_under_deduction_is_detected both pass; financial suite 16 passed / 0 failed, exit 0.",
+        "evidence": [
+          "gates-cargo-test.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::p5_new_002_repeated_product_lines_are_accepted",
+          "p5_new_002_duplicate_line_under_deduction_is_detected"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Both the false positive and the blind spot are closed; the one pre-existing test that asserted the old label was updated to the new label without weakening its assertion.",
+        "result_lines": [
+          "Both cases pass at HEAD (repeated-product invoice accepted; duplicate-line under-deduction detected)."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Both the false positive and the blind spot are closed; the one pre-existing test that asserted the old label was updated to the new label without weakening its assertion."
+      }
+    },
+    {
+      "id": "P5-NEW-003",
+      "severity": "Medium",
+      "area": "D. Financial integrity",
+      "title": "Non-sale credit entries were only checked when a journal row existed, and kind=return entries had no bilateral verification",
+      "file_function": "packages/local-store/src/recovery/financial.rs::violations (customer journal rules); payments.rs::return_invoice; customers.rs::invoice_return",
+      "code_path": "The non-sale rule was guarded by EXISTS(local_customer_journal ...), so a DELETED journal row skipped the comparison entirely. kind=return entries (written by customers::invoice_return from local_retail_return_parts.debt) were not verified against the return record or the retail journal at all.",
+      "attack_scenario": "Delete a repayment journal leg, or delete/inflate a return debt entry, and the restore boundary still reports clean data.",
+      "expected_invariant": "Every journal-backed credit entry must equal its journal receivables leg, and every return must reconcile with its recorded debt in both directions.",
+      "actual_observed_behavior": "deleted journal row => violations()==[]; inconsistent return debt => violations()==[] on the candidate.",
+      "reproduction_evidence": "cargo test --lib recovery::financial::financial_tests::p5_new_003_*",
+      "impact": "Silent understatement of collected cash or of cancelled debt.",
+      "recommended_remediation": "Require the journal row unconditionally (COALESCE to 0) and verify returns against local_retail_return_parts.debt and the attributed retail journal leg in both directions.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "f232348",
+        "rule": "RULE 3",
+        "root_cause": "A conditional guard turned a required relationship into an optional one.",
+        "fix": "The guard is gone: kind IN (repayment, opening_due, write_off, reversal, link_in, link_out) must match COALESCE(SUM(journal receivables),0) exactly, and a new rule requires each linked entry to have an offsetting counterpart on a different customer. Two new rules verify kind=return against SUM(local_retail_return_parts.debt) in both directions and against the customer-attributed retail journal receivables leg.",
+        "files_changed": [
+          "packages/local-store/src/recovery/financial.rs",
+          "packages/local-store/src/recovery/financial_tests.rs"
+        ],
+        "tests_added": 2,
+        "verification": "p5_new_003_deleted_journal_row_behind_a_credit_entry_is_detected and p5_new_003_credit_return_entry_must_match_the_return_record (which first proves a real credit refund is ACCEPTED, then deletes the debt entry and requires detection) both pass.",
+        "evidence": [
+          "gates-cargo-test.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "recovery::financial::financial_tests::p5_new_003_deleted_journal_row_behind_a_credit_entry_is_detected",
+          "p5_new_003_credit_return_entry_must_match_the_return_record"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "The false-negative is closed; the false-positive guard for legitimate credit refunds passes in the same run.",
+        "result_lines": [
+          "Both cases pass at HEAD (deleted journal row detected; credit-return mismatch detected with a false-positive guard)."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "The false-negative is closed; the false-positive guard for legitimate credit refunds passes in the same run."
+      }
+    },
+    {
+      "id": "P5-NEW-004",
+      "severity": "High",
+      "area": "E. Governance / schema gate",
+      "title": "verify:local-schema fails on schema v13 and the committed fingerprint still described schema 12",
+      "file_function": "scripts/verify-local-schema.py::load_migrations; packages/local-store/fixtures/schema-fingerprint.json",
+      "code_path": "The verifier replayed only `fn migrate` bodies. Schema 13 is applied by `recovery::migrate_v13` with the DDL inline in V13_EXTENSION plus a per-FENCED_TABLES trigger loop, so it was never replayed: user_version stayed 12 against SCHEMA_VERSION 13, and the structural fingerprint and guard attacks described the old schema.",
+      "attack_scenario": "A required governance gate (part of npm run verify) fails on the branch, and the schema fingerprint — the mechanism that catches a silently removed guard — was blind to every v13 guard.",
+      "actual_observed_behavior": "npm run verify:local-schema exit 1 with 2/92 failures on the baseline commit.",
+      "expected_invariant": "The schema verifier must replay and fingerprint the CURRENT schema, and every guard it ships must be attacked.",
+      "reproduction_evidence": "baseline gate run: \"user_version is 12, crate SCHEMA_VERSION is 13\" and \"legacy v4 database upgrades to schema 13\"",
+      "impact": "Release-blocking governance regression plus loss of the guard-regression detector for v13.",
+      "recommended_remediation": "Replay migrate_v13 (V13_EXTENSION + the FENCED_TABLES loop), refresh the fingerprint, and add v13 guard attacks.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "b5e78e5",
+        "rule": "RULE 4",
+        "root_cause": "The loader discovered migrations by the literal name `migrate`, so a version-step with another name was invisible to it.",
+        "fix": "load_migrations() now also resolves `recovery::migrate_v13`: it extracts the V13_EXTENSION const, expands the per-FENCED_TABLES barrier loop, and asserts the lib.rs step order ends with migrate_v13. The fingerprint was regenerated from the real engine (pure additions: 2 tables, 12 metadata triggers, 120 barrier triggers, no table shape change and no trigger removed). Eleven v13 guard attacks were added, and the seeded database now includes the singleton workspace_access row the v3 migration creates.",
+        "files_changed": [
+          "scripts/verify-local-schema.py",
+          "packages/local-store/fixtures/schema-fingerprint.json"
+        ],
+        "tests_added": 11,
+        "verification": "npm run verify:local-schema => all 110 schema checks passed, exit 0 (baseline: exit 1).",
+        "evidence": [
+          "gates-npm-verify.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "scripts/verify-local-schema.py (110 checks, incl. 11 v13 guard attacks)"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "The gate now fails loudly if a future v13 guard is removed, because the fingerprint contains the new tables and every metadata/barrier trigger.",
+        "result_lines": [
+          "verify:local-schema exits 1 with 2 failures on the pre-fix tree and exits 0 with 110 checks at HEAD; the fingerprint diff is pure addition (+2 tables, +120 barrier, +12 metadata triggers, 0 removed, 0 changed)."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "The gate now fails loudly if a future v13 guard is removed, because the fingerprint contains the new tables and every metadata/barrier trigger."
+      }
+    },
+    {
+      "id": "P5-NEW-005",
+      "severity": "Medium",
+      "area": "E. Operational safety",
+      "title": "The PostgreSQL replication migration is not re-runnable",
+      "file_function": "packages/replication-cloud/sql/20261103000000_native_financial_replication.sql; postgres.ts::applyReplicationMigration",
+      "code_path": "Every object used a bare CREATE (tables, index, view, policies). applyReplicationMigration simply executes the file, so a retried deploy or a second call against an already-migrated database aborts.",
+      "attack_scenario": "A deploy retry, a rolled-forward environment, or any second apply of the migration fails partway, leaving the operator to hand-repair the schema.",
+      "expected_invariant": "Applying the migration twice must be a no-op and must leave exactly one of every object.",
+      "actual_observed_behavior": "Round 1 OK, round 2 fails 42P07 relation \"businesses\" already exists.",
+      "reproduction_evidence": "docs/reviews/phase5-remediation-evidence/p5-new-005-migration-idempotency-before.txt",
+      "impact": "Operational: recovery from a failed deploy requires manual DBA intervention.",
+      "recommended_remediation": "Make every statement idempotent (IF NOT EXISTS / CREATE OR REPLACE / existence-guarded policies).",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "da6a5ca",
+        "rule": "RULE 4",
+        "root_cause": "Idempotency was never a requirement for this file.",
+        "fix": "Tables -> CREATE TABLE IF NOT EXISTS; index -> IF NOT EXISTS; function and view -> CREATE OR REPLACE; the seven policies -> individual DO blocks guarded by pg_policies. ALTER/GRANT/REVOKE are already repeatable. No policy predicate, CHECK constraint, grant or row-level-security setting was changed.",
+        "files_changed": [
+          "packages/replication-cloud/sql/20261103000000_native_financial_replication.sql"
+        ],
+        "tests_added": 0,
+        "verification": "Executed on a real PostgreSQL 16.2 server: three consecutive applies all succeed with a stable object count (11 tables, 7 policies, 8 RLS tables, 14 indexes, 1 view). verify:replication-postgres => 79 checks passed and verify:replication-native-https => 123 checks passed against that same server.",
+        "evidence": [
+          "p5-new-005-migration-idempotency-before.txt",
+          "p5-new-005-migration-idempotency-after.txt",
+          "gates-postgres-server.txt",
+          "gates-npm-verify-postgres.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "three consecutive applies on real PostgreSQL 16.2",
+          "verify:replication-postgres (79)",
+          "verify:replication-native-https (123)"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Before/after reproduced on the same server in the same session; the candidate fails on round 2, the fixed file succeeds on rounds 1-3.",
+        "result_lines": [
+          "Independently reproduced on PostgreSQL 16.2: the pre-fix file fails round 2 with 42P07; the shipped file applies 3 times with identical object counts."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Before/after reproduced on the same server in the same session; the candidate fails on round 2, the fixed file succeeds on rounds 1-3."
+      }
+    },
+    {
+      "id": "P5-NEW-006",
+      "severity": "Critical",
+      "area": "E. Publisher draining/replication",
+      "title": "Cloud ingest rejects the second envelope of every real desktop retail sale because operation identity omits the stream",
+      "file_function": "packages/replication-cloud/src/store.ts (CloudStore.byOperation), ingest.ts::ingestEnvelope, postgres.ts::hydrateFromPostgres",
+      "code_path": "A desktop retail sale writes ONE operationId to two outboxes: local_retail_outbox (stream=retail) and local_billing_outbox (stream=billing) — CheckoutPanel.tsx reuses request.operationId for the retail action, payments.rs::post_retail stores it, and replication_matrix_tests.rs proves the native export emits both (bill-cash-upi is billing seq 5 and retail seq 3). PostgreSQL scopes identity as (business_id, restore_generation, stream, operation_id) and postgres.ts dedups with stream, but store.ts and ingest.ts keyed store.byOperation by `${businessId}|${operationId}` and hydrateFromPostgres did the same.",
+      "attack_scenario": "Every genuine retail sale paid by UPI, card, cash+UPI, cash+card or cash+credit fails to replicate: the first (retail) envelope commits, then the billing envelope of the SAME commit is matched against the retail payload, its payloadSha256 differs, and ingest throws CONFLICT. The sale never reaches the cloud projection, so the shop reports and khata silently diverge from the PC. Separately, hydrateFromPostgres overwrites the retail entry with the billing entry, so post-restart duplicate detection compares a billing payload with a retail envelope.",
+      "expected_invariant": "Operation identity must be (business, stream, operation), the same key the durable schema uses; two envelopes of one commit must both commit and each retry must stay idempotent with its own cursor.",
+      "actual_observed_behavior": "Candidate: retail envelope accepted, billing envelope => ReplicationError CONFLICT; after hydration only one byOperation entry exists for the shared id; the native SQLCipher export of seven real sales contains exactly these shared ids and cannot be replicated.",
+      "reproduction_evidence": "docs/reviews/phase5-remediation-evidence/p5-new-006-probe-before.txt (CONFLICT), p5-new-006-postgres-hydrate-before.txt, p5-new-006-native-https-before.txt",
+      "impact": "Critical: silent loss of the cloud copy of the majority of real retail sales, and a false CONFLICT that a retrying publisher cannot resolve. It was masked because the synthetic fixtures used distinct bill-N and sale-N ids.",
+      "recommended_remediation": "Put the stream into the in-memory operation key everywhere (ingest, clone, hydration) and add a real shared-id fixture.",
+      "independently_reproduced": true,
+      "classification": "FAILED",
+      "remediation": {
+        "status": "FIXED",
+        "remediation_commit": "221d1f3",
+        "rule": "RULE 5 (replication contract)",
+        "root_cause": "The in-memory dedup key was narrower than the durable key: it dropped the stream dimension that the native outboxes genuinely use.",
+        "fix": "CloudStore.operationKey(businessId, stream, operationId) is now the single source of the identity string; ingestEnvelope uses it for both lookup and insert, clone() rebuilds byOperation from the copy's own event log with it, and hydrateFromPostgres derives it from the stored row stream. The cross-generation dedup decision of P5-ADV-009 is unchanged: restore_generation is still deliberately excluded. The contract document and the harness source assertion were updated to the corrected identity, and a real shared-id fixture was added to both the in-memory and the durable suites.",
+        "files_changed": [
+          "packages/replication-cloud/src/{store,ingest,postgres}.ts",
+          "scripts/verify-replication.mjs",
+          "scripts/verify-replication-postgres.mjs",
+          "docs/reviews/phase5-cloud-dedup-contract.md"
+        ],
+        "tests_added": 9,
+        "verification": "In-memory: verify:replication => 139 checks passed, exit 0, including both envelopes committing, both retries returning their own original cursor, the clone preserving both, and a changed payload still CONFLICT. Durable on real PostgreSQL 16.2: verify:replication-postgres => 79 checks passed, including two event rows for the shared id, independent cursors, hydration keeping both stream identities and the same-payload-conflict rejection. Native: verify:replication-native-https => 123 checks passed over the real SQLCipher export that contains shared ids.",
+        "evidence": [
+          "p5-new-006-probe-before.txt",
+          "p5-new-006-probe-after.txt",
+          "p5-new-006-postgres-hydrate-before.txt",
+          "p5-new-006-postgres-after.txt",
+          "p5-new-006-native-https-before.txt",
+          "gates-npm-verify.txt",
+          "gates-npm-verify-postgres.txt"
+        ],
+        "remaining_blockers": [],
+        "regression_tests": [
+          "verify:replication.mjs shared-operation-id block (139 checks)",
+          "verify:replication-postgres.mjs hydration identity block (79 checks)",
+          "replay of the real 14-envelope native export: 8/14 before -> 14/14 after"
+        ],
+        "independent_verification": {
+          "status": "VERIFIED",
+          "verified_by": "acceptance reviewer (this pass), not the author",
+          "verified_commit": "830b9f0f057f1aea7ac60535d779671add8211ec",
+          "date_utc": "2026-11-27",
+          "method": "clean git worktree at HEAD; gates re-executed; findings re-attacked where the harness allowed",
+          "result_lines": []
+        }
+      },
+      "independent_verification": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Each claim re-executed: candidate CONFLICT vs fixed acceptance on the in-memory path; candidate hydration collapse vs fixed two-key hydration on real PostgreSQL; idempotency, conflict rejection and cross-generation dedup all still hold.",
+        "result_lines": [
+          "Independently reproduced on the REAL 14-envelope native export: 8/14 envelopes commit before the fix (5 CONFLICT, 1 GAP), 14/14 after. Durable suite 79 checks, native HTTPS 123 checks, all at HEAD."
+        ]
+      },
+      "independent_verification_2026_11_26": {
+        "status": "FIXED",
+        "verified_commit": "9274ddb (closure pass)",
+        "result": "Each claim re-executed: candidate CONFLICT vs fixed acceptance on the in-memory path; candidate hydration collapse vs fixed two-key hydration on real PostgreSQL; idempotency, conflict rejection and cross-generation dedup all still hold."
+      }
+    }
+  ],
+  "test_execution_ledger": [
+    {
+      "command": "cargo test --all-targets --locked --manifest-path packages/local-store/Cargo.toml",
+      "result": "lib 221 passed / 0 failed / 7 ignored; security example 7 passed / 0 failed",
+      "exit_code": 0,
+      "evidence": "candidate-full-suite.txt"
+    },
+    {
+      "command": "cargo fmt --check --manifest-path packages/local-store/Cargo.toml",
+      "result": "clean",
+      "exit_code": 0,
+      "evidence": "pristine-fmt.txt"
+    },
+    {
+      "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml",
+      "result": "17 lib warnings (19 test cfg), no errors",
+      "exit_code": 0,
+      "evidence": "pristine-clippy-plain.txt"
+    },
+    {
+      "command": "cargo clippy --all-targets --locked --manifest-path packages/local-store/Cargo.toml -- -D warnings",
+      "result": "17 style lints promoted to errors",
+      "exit_code": 101,
+      "evidence": "pristine-clippy.txt"
+    },
+    {
+      "command": "cargo test --lib ... crash_at_every_transition_is_fail_closed_and_consistent -- --exact --nocapture",
+      "result": "1 passed (subprocess crashes at 5 phases)",
+      "exit_code": 0,
+      "evidence": "pristine-crash.txt"
+    },
+    {
+      "command": "cargo test --lib ... recovery::phase5_tests::audit_ -- --nocapture",
+      "result": "12 passed / 0 failed (audit-added)",
+      "exit_code": 0,
+      "evidence": "adversarial-all-12.txt"
+    },
+    {
+      "command": "node scripts/verify-replication.mjs",
+      "result": "compiles; fails 'financial schema remains 12'",
+      "exit_code": 1,
+      "evidence": "cloud-verify-replication.txt"
+    },
+    {
+      "command": "tsc replication-cloud + mobile-contracts --strict (TS 6.0.3)",
+      "result": "compiles clean",
+      "exit_code": 0,
+      "evidence": "compile step of verify-replication; cloud-out"
+    },
+    {
+      "command": "node cloud-probe.mjs",
+      "result": "5 assertions passed",
+      "exit_code": 0,
+      "evidence": "cloud-behavioral-probe.txt"
+    }
+  ],
+  "environmental_limitations": {
+    "tauri_desktop_runtime": "NOT VERIFIED (offline; not compiled). Authorization verified at Rust boundary + static dispatch/permission/capability/build-manifest tracing.",
+    "windows": "NOT VERIFIED (Linux execution only; no Windows claims).",
+    "cloud_postgres_durable_path": "NOT VERIFIED by execution (no Postgres instance); source-inspected. In-memory reference path executed.",
+    "end_to_end_silent_financial_corruption": "NOT demonstrated; P5-ADV-003 is a verification-gap finding."
+  },
+  "main_untouched": true,
+  "candidate_implementation_modified": false,
+  "deliverables": [
+    "docs/reviews/phase5-independent-adversarial-audit.md",
+    "docs/reviews/phase5-adversarial-findings.json",
+    "docs/reviews/phase5-adversarial-evidence/"
+  ],
+  "remediation": {
+    "phase": "Phase 5 Remediation — Adversarial Closure Pass",
+    "date_utc": "2026-11-27",
+    "branch": "arena/475a4866-sornio",
+    "branch_constraint": "Stage 0 finding: target commit 16e0267f8a931ebba4736f2e34ea86341e9f6898 is absent from GitHub (HTTP 422) and every remote ref. With explicit user decision `proceed_from_9274ddb`, the session branch was fast-forwarded to the verified parent 9274ddb and the pass continued there. No history was rewritten; main is untouched.",
+    "remediation_head": "830b9f0f057f1aea7ac60535d779671add8211ec",
+    "audit_commit": "5ab3a966219252c9e8cef1d3aa52829be72cafd4",
+    "candidate_commit": "7f73ef0a64c81d4d87cc983c8d410d390e01d04c",
+    "baseline_main_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+    "main_untouched": true,
+    "merged": false,
+    "verdict": "PASS",
+    "verdict_rationale": "Every one of the 17 findings has (a) an identified root cause verified in the source diff, (b) a remediation present as a real code or gate change, and (c) at least one regression assertion that the independent reviewer executed at HEAD. Every gate this environment can run passes on a clean worktree at 830b9f0 (fmt, clippy -D warnings, cargo test 262/0/7, typecheck, native typecheck, lint, 32/32 verify:* sub-gates, real PostgreSQL 16.2 durable 79, native SQLCipher->TLS->PostgreSQL 123, migration applied 3x). Two claims were narrowed by this pass rather than accepted on the author's word: P5-ADV-007's fix lives in the baseline commit 9274ddb, not in f232348; and the durable cross-generation contract (P5-ADV-009) had no durable test until this pass wrote one. Both are now evidenced at HEAD.",
+    "status_legend": {
+      "FIXED": "Remediated and verified by execution in this environment",
+      "FIXED — NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
+      "STILL OPEN": "Not remediated in this pass",
+      "BLOCKED": "Verification cannot be performed in this environment"
+    },
+    "commits": [
+      {
+        "hash": "124e601",
+        "parent": "9274ddb",
+        "scope": "P5-ADV-008, P5-ADV-010"
+      },
+      {
+        "hash": "f232348",
+        "parent": "124e601",
+        "scope": "P5-NEW-001..003 (+ P5-ADV-007 attribution correction)"
+      },
+      {
+        "hash": "221d1f3",
+        "parent": "f232348",
+        "scope": "P5-NEW-006"
+      },
+      {
+        "hash": "b5e78e5",
+        "parent": "221d1f3",
+        "scope": "P5-NEW-004"
+      },
+      {
+        "hash": "da6a5ca",
+        "parent": "b5e78e5",
+        "scope": "P5-NEW-005"
+      },
+      {
+        "hash": "a3573a2",
+        "parent": "da6a5ca",
+        "scope": "P5-ADV-011"
+      },
+      {
+        "hash": "830b9f0",
+        "parent": "a3573a2",
+        "scope": "documentation and evidence"
+      }
+    ],
+    "status_counts": {
+      "FIXED": 17,
+      "STILL OPEN": 0
+    },
+    "test_execution_ledger": [
+      {
+        "command": "cargo fmt --check",
+        "result": "exit 0",
+        "exit_code": 0,
+        "evidence": "gates-fmt.txt"
+      },
+      {
+        "command": "cargo clippy --all-targets --locked --offline -- -D warnings",
+        "result": "exit 0 (baseline: exit 101 with 19 warnings)",
+        "exit_code": 0,
+        "evidence": "gates-clippy-strict.txt"
+      },
+      {
+        "command": "cargo test --all-targets --locked --offline",
+        "result": "262 passed / 0 failed / 7 ignored (415.72s) + example 7 passed / 0 failed",
+        "exit_code": 0,
+        "evidence": "gates-cargo-test.txt"
+      },
+      {
+        "command": "npm run typecheck",
+        "result": "tsc 6.0.3, no type errors",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "npm run typecheck:native",
+        "result": "tsgo 7.0.2, no type errors",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "npm run lint",
+        "result": "0 errors, 0 warnings (baseline: 0 errors, 2 warnings)",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "npm run verify:<all 32 sub-gates>",
+        "result": "32/32 PASS (baseline: 31/32, verify:local-schema failed)",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "DATABASE_URL=... node scripts/verify-replication-postgres.mjs (PostgreSQL 16.2)",
+        "result": "79 checks passed, exit 0",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify-postgres.txt"
+      },
+      {
+        "command": "SORNIO_NATIVE_OUTBOX_DIR=... node scripts/verify-replication-native-https.mjs (PostgreSQL 16.2)",
+        "result": "123 checks passed (SQLCipher TEXT -> TLS -> PostgreSQL), exit 0",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify-postgres.txt"
+      },
+      {
+        "command": "migration applied 3x against PostgreSQL 16.2",
+        "result": "rounds 1-3 OK, stable object counts (candidate failed round 2: 42P07)",
+        "exit_code": 0,
+        "evidence": "p5-new-005-migration-idempotency-after.txt"
+      },
+      {
+        "command": "cargo test --all-targets --locked --offline (BASELINE 9274ddb, before changes)",
+        "result": "252 passed / 1 failed (rem_r2_concurrent_attempts_do_not_bypass_accounting, DatabaseBusy under 8-thread contention) / 7 ignored; the same test passes cleanly when run alone and in the post-change suite",
+        "exit_code": 101,
+        "evidence": "session log"
+      }
+    ],
+    "baseline_comparison": {
+      "audit_candidate": "221 passed / 0 failed / 7 ignored + 7 / 0",
+      "remediation": "262 passed / 0 failed / 7 ignored + 7 / 0 (measured at HEAD by the acceptance review)",
+      "tests_added": 16,
+      "tests_deleted": 0,
+      "regressions": 0
+    },
+    "environmental_limitations": [
+      {
+        "check": "Windows / Tauri desktop runtime",
+        "status": "BLOCKED",
+        "detail": "No Windows host or WebView2 runtime in this Linux sandbox; verify:windows-release and verify:desktop-contract are the executed substitutes (40 and 37 checks passed)."
+      },
+      {
+        "check": "Physical-device / real-shop acceptance",
+        "status": "NOT PERFORMED",
+        "detail": "Requires operator hardware; no evidence is claimed."
+      },
+      {
+        "check": "macOS build",
+        "status": "NOT PERFORMED",
+        "detail": "Out of scope for this closure pass."
+      }
+    ],
+    "remaining_release_blockers": [
+      "Windows / Tauri desktop runtime acceptance (BLOCKED in this environment; mandatory before release).",
+      "Windows installer build + per-user installation (NOT PERFORMED).",
+      "Physical device / real-shop acceptance (NOT PERFORMED)."
+    ],
+    "deliverables": [
+      "docs/reviews/phase5-remediation-report.md",
+      "docs/reviews/phase5-cloud-dedup-contract.md",
+      "docs/reviews/phase5-remediation-evidence/",
+      "docs/reviews/phase5-adversarial-findings.json (originals preserved; remediation added)"
+    ],
+    "tests_added_detail": {
+      "rust_executable_tests": 20,
+      "replication_harness_checks": 19,
+      "note": "Recounted at HEAD against the audit candidate: 260 -> 262 Rust (_test count, plus 9 new/expanded adversarial cases) and 120 -> 139 harness checks. The author's earlier 237/129 figures predate the closure pass."
+    },
+    "baseline": "9274ddb8b3977cf52411cbb49c68e191a1c78c6d",
+    "independent_review": "See canonical_closure (2026-11-27 acceptance review): every gate re-executed from a clean worktree at 830b9f0.",
+    "independent_verification_2026_11_27": {
+      "phase": "Phase 5 — Final Independent Verification & Acceptance Reconciliation",
+      "date_utc": "2026-11-27",
+      "reviewer": "acceptance reviewer (separate session, separate git worktree at HEAD; not the remediation author)",
+      "branch": "arena/475a4866-sornio",
+      "head": "830b9f0f057f1aea7ac60535d779671add8211ec",
+      "baseline": "9274ddb8b3977cf52411cbb49c68e191a1c78c6d",
+      "scope": "Phase 5 code-level remediation (the broader Windows release acceptance is recorded separately)",
+      "verdict": "PASS",
+      "status_counts": {
+        "FIXED": 17,
+        "STILL OPEN": 0
+      },
+      "commits_verified": {
+        "124e601": "P5-ADV-008, P5-ADV-010",
+        "f232348": "P5-NEW-001, P5-NEW-002, P5-NEW-003 (P5-ADV-007 was already fixed in the baseline 9274ddb)",
+        "221d1f3": "P5-NEW-006",
+        "b5e78e5": "P5-NEW-004",
+        "da6a5ca": "P5-NEW-005",
+        "a3573a2": "P5-ADV-011",
+        "830b9f0": "documentation and evidence"
+      },
+      "gates": {
+        "cargo_fmt": 0,
+        "cargo_check": 0,
+        "cargo_clippy_deny_warnings": 0,
+        "cargo_test": "262 passed / 0 failed / 7 ignored",
+        "typecheck": 0,
+        "typecheck_native": 0,
+        "lint": 0,
+        "verify_sub_gates": "32/32",
+        "replication_postgres": "79 checks",
+        "replication_native_https": "123 checks",
+        "migration_idempotency": "3/3 applies stable on PostgreSQL 16.2",
+        "real_export_replay": "14/14 envelopes commit (8/14 before the fix)",
+        "durable_cross_generation_probe": "10/10 assertions"
+      },
+      "verification_gaps_found": {
+        "IV2-002": "the durable PostgreSQL path had no cross-generation restore test; closed by an independent probe",
+        "IV2-003": "rotatePublisherGeneration is not re-exported from index.ts (noted, not changed)",
+        "IV2-004": "the duplicate lookup cannot use the operation-id uniqueness index (scale note)"
+      },
+      "release_blockers": [
+        "Windows runtime acceptance (BLOCKED)",
+        "Windows installer build and installation (NOT PERFORMED)",
+        "physical device / real shop acceptance (NOT PERFORMED)"
+      ]
+    },
+    "severity_counts": {
+      "Critical": 1,
+      "High": 4,
+      "Medium": 10,
+      "Low": 1,
+      "Info": 1
+    }
+  },
+  "independent_verification": {
+    "phase": "Phase 5 Independent Remediation Verification & Release Gate",
+    "date_utc": "2026-11-26",
+    "verified_commit": "d79a6e89fd7590c2806efd2d9bd2d46d3dada537",
+    "branch": "arena/76ac88ca-sornio",
+    "baseline_main_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+    "main_untouched": true,
+    "merged": false,
+    "verdict": "NO-GO",
+    "verdict_rationale": "P5-ADV-007 was reported FIXED but its exact original scenario (duplicated balanced retail SALE journal) still passes the production verifier AND the production restore boundary. Separately, mandatory Windows acceptance evidence is absent and cannot be produced in this environment.",
+    "method": "Three isolated trees (pristine d79a6e8, workspace d79a6e8 + verifier tests, candidate 7f73ef0), each with its own CARGO_TARGET_DIR. All reproductions written independently by the verifier. Production code identical between pristine and workspace except added #[cfg(test)] mod lines.",
+    "new_defects": [
+      {
+        "id": "IV-NEW-001",
+        "severity": "Medium",
+        "title": "Duplicated balanced retail SALE journal accepted by production restore",
+        "related_finding": "P5-ADV-007",
+        "evidence": "cash 4250->8500, receivables -4250->-8500; zero-sum preserved; violations()=[]; verify()=Ok(()); restore()=Ok(...); fence released",
+        "recommended_fix": "Validate retail sale journal legs relationally against the operation recorded payments/activity amounts, mirroring the existing return-totals check. Do not add blanket UNIQUE(operation_id,account): valid multi-part returns repeat accounts.",
+        "evidence_file": "03-gap-duplicated-sale-journal.txt"
+      }
+    ],
+    "postgres_execution": {
+      "status": "VERIFIED",
+      "server": "PostgreSQL 16.2 (disposable, PyPI pgserver binaries)",
+      "endpoint": "127.0.0.1:55432 db sornio_verify, fsync=on",
+      "assertions": "36 passed / 0 failed, exit 0",
+      "covers": "cross-generation duplicates, new post-restore operations, stream advancement, outstanding, retries, conflicting payloads, delayed acks, 4-way concurrent duplicate ingestion, sequence race, rollback, durable authz",
+      "candidate_defect_proven": "full ordered outbox replay doubled outstanding 5000->10000 with duplicate event rows",
+      "note": "applyReplicationMigration is NOT idempotent (42P07 on re-apply); a fresh database was used per run"
+    },
+    "windows_execution": {
+      "status": "NOT PERFORMED - RELEASE BLOCKER",
+      "reason": "No Windows 10/11 host, no WSL/wine/qemu, no MSVC or mingw toolchain, no Windows Rust target, cargo-tauri and webkit2gtk absent, static.rust-lang.org unreachable",
+      "linux_substituted": false
+    },
+    "test_ledger": [
+      {
+        "gate": "complete Rust suite (pristine)",
+        "result": "237 passed / 0 failed / 7 ignored + example 7/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "security governance",
+        "result": "7/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "migration",
+        "result": "14/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "recovery",
+        "result": "59/0/3",
+        "exit_code": 0
+      },
+      {
+        "gate": "financial corruption (author)",
+        "result": "10/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "auth remediation (author)",
+        "result": "6/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "five-phase crash consistency",
+        "result": "1/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "cargo fmt --check",
+        "result": "clean",
+        "exit_code": 0
+      },
+      {
+        "gate": "cargo clippy --all-targets",
+        "result": "17 pre-existing, 0 new",
+        "exit_code": 0
+      },
+      {
+        "gate": "cargo clippy -D warnings",
+        "result": "pre-existing style lints",
+        "exit_code": 101
+      },
+      {
+        "gate": "verify:replication harness",
+        "result": "129 checks",
+        "exit_code": 0
+      },
+      {
+        "gate": "cloud tsc (project + strict)",
+        "result": "clean",
+        "exit_code": 0
+      },
+      {
+        "gate": "cloud behavioral (independent)",
+        "result": "18/18",
+        "exit_code": 0
+      },
+      {
+        "gate": "durable PostgreSQL (independent)",
+        "result": "36/36",
+        "exit_code": 0
+      },
+      {
+        "gate": "independent auth remediation",
+        "result": "6/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "independent auth CANDIDATE",
+        "result": "0 passed / 6 failed - attacks succeed",
+        "exit_code": 101
+      },
+      {
+        "gate": "independent financial",
+        "result": "11/0",
+        "exit_code": 0
+      },
+      {
+        "gate": "independent open-findings probe",
+        "result": "4/0",
+        "exit_code": 0
+      }
+    ],
+    "remaining_release_blockers": [
+      "IV-NEW-001: duplicated retail SALE journal accepted at the production restore boundary (P5-ADV-007 re-opened).",
+      "Windows acceptance entirely unperformed and not performable here.",
+      "P5-ADV-008: accept only with an explicit documented threat-model statement.",
+      "P5-ADV-010: generation format validation recommended.",
+      "P5-ADV-011: pre-existing style debt, accept.",
+      "applyReplicationMigration is not idempotent (operational note)."
+    ],
+    "deliverables": [
+      "docs/reviews/phase5-independent-remediation-verification.md",
+      "docs/reviews/phase5-independent-verification-evidence/"
+    ]
+  },
+  "canonical_closure": {
+    "phase": "Phase 5 — Final Independent Verification & Acceptance Reconciliation",
+    "date_utc": "2026-11-27",
+    "reviewer": "acceptance reviewer (independent of the remediation author; see reviewer_independence)",
+    "repository": "uddieee33-blip/Sornio",
+    "branch": "arena/475a4866-sornio",
+    "base_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+    "verified_starting_point": "9274ddb8b3977cf52411cbb49c68e191a1c78c6d",
+    "remediation_head": "830b9f0f057f1aea7ac60535d779671add8211ec",
+    "commits_verified": [
+      {
+        "hash": "124e601",
+        "parent": "9274ddb",
+        "scope": "P5-ADV-008, P5-ADV-010"
+      },
+      {
+        "hash": "f232348",
+        "parent": "124e601",
+        "scope": "P5-NEW-001..003 (+ P5-ADV-007 attribution correction)"
+      },
+      {
+        "hash": "221d1f3",
+        "parent": "f232348",
+        "scope": "P5-NEW-006"
+      },
+      {
+        "hash": "b5e78e5",
+        "parent": "221d1f3",
+        "scope": "P5-NEW-004"
+      },
+      {
+        "hash": "da6a5ca",
+        "parent": "b5e78e5",
+        "scope": "P5-NEW-005"
+      },
+      {
+        "hash": "a3573a2",
+        "parent": "da6a5ca",
+        "scope": "P5-ADV-011"
+      },
+      {
+        "hash": "830b9f0",
+        "parent": "a3573a2",
+        "scope": "documentation and evidence"
+      }
+    ],
+    "ancestry_method": "git rev-parse per commit + git log --format='%h %p'; each parent confirmed by hash, not by message",
+    "main_untouched": true,
+    "merged": false,
+    "pushed": false,
+    "history_rewritten": false,
+    "force_pushed": false,
+    "working_tree_at_start": "clean (git status --porcelain empty)",
+    "branch_status": "0 commits behind origin/main, 27 ahead; origin/arena/475a4866-sornio == HEAD",
+    "status_counts": {
+      "FIXED": 17,
+      "STILL OPEN": 0,
+      "BLOCKED": 0
+    },
+    "severity_counts": {
+      "Critical": 1,
+      "High": 4,
+      "Medium": 10,
+      "Low": 1,
+      "Info": 1
+    },
+    "verdict": "PASS",
+    "verdict_scope": "Phase 5 code-level remediation only. NOT a release verdict: see release_gate.",
+    "verdict_rationale": "Every one of the 17 findings has (a) an identified root cause verified in the source diff, (b) a remediation present as a real code or gate change, and (c) at least one regression assertion that the independent reviewer executed at HEAD. Every gate this environment can run passes on a clean worktree at 830b9f0 (fmt, clippy -D warnings, cargo test 262/0/7, typecheck, native typecheck, lint, 32/32 verify:* sub-gates, real PostgreSQL 16.2 durable 79, native SQLCipher->TLS->PostgreSQL 123, migration applied 3x). Two claims were narrowed by this pass rather than accepted on the author's word: P5-ADV-007's fix lives in the baseline commit 9274ddb, not in f232348; and the durable cross-generation contract (P5-ADV-009) had no durable test until this pass wrote one. Both are now evidenced at HEAD.",
+    "commit_attribution_corrections": [
+      {
+        "finding": "P5-ADV-007",
+        "previously_recorded_as": "9274ddb (branch baseline)",
+        "correction": "Correct, but it was presented in the commit series as if f232348 closed it. f232348 contains no sale-cardinality rule: git log -S on 'retail sale journal is not exactly one posting set' resolves to 9274ddb only. The rule and its 16-test suite reach HEAD through the baseline; the independent reviewer re-ran all 16 fin* tests at HEAD and they pass."
+      },
+      {
+        "finding": "P5-NEW-004",
+        "previously_recorded_as": "pending-commit-3",
+        "correction": "Landing commit is b5e78e5. Verified: verify:local-schema exits 1 with 2 failures on the pre-fix tree and exits 0 with 110 checks at HEAD."
+      },
+      {
+        "finding": "P5-NEW-005",
+        "previously_recorded_as": "pending-commit-4",
+        "correction": "Landing commit is da6a5ca. Verified independently: round 2 on the pre-fix file fails with 'relation \"businesses\" already exists'; the shipped file applies 3 times with stable counts."
+      },
+      {
+        "finding": "P5-NEW-006",
+        "previously_recorded_as": "pending-commit-5",
+        "correction": "Landing commit is 221d1f3. Verified independently on the real native export: 8/14 envelopes commit before, 14/14 after."
+      },
+      {
+        "finding": "P5-ADV-008 / P5-ADV-010",
+        "previously_recorded_as": "pending-commit-1",
+        "correction": "Landing commit is 124e601."
+      },
+      {
+        "finding": "P5-ADV-011",
+        "previously_recorded_as": "pending-commit-1",
+        "correction": "Landing commit is a3573a2 (not 124e601). Verified: 19 clippy warnings on the pre-fix tree, exit 0 with -D warnings at HEAD."
+      }
+    ],
+    "reviewer_independence": "This record was produced by an agent session performing the acceptance review, using the same offline toolchain and PostgreSQL 16.2 image as the remediation pass, from a separate git worktree checked out at the exact HEAD. It is independent of the author's self-review in the sense that every number here was re-executed rather than copied, and that three author claims were corrected or narrowed. It is NOT an independent human review, and it shares the author's environment (same OS, same container image, no Windows host). Where a claim could only be checked on hardware this environment does not have, it is recorded as BLOCKED, not as verified.",
+    "independent_test_execution": {
+      "worktree": "/tmp/verify-head (git worktree add <HEAD> --detach; clean at start)",
+      "environment": {
+        "rustc": "1.100.0 (0ef1bc386 2026-11-09)",
+        "cargo": "1.100.0 (3acc79c0c 2026-11-05)",
+        "node": "v22.22.3",
+        "npm": "10.9.8",
+        "typescript": "6.0.3",
+        "typescript-native": "7.0.2",
+        "postgresql": "16.2 (real server, port 55432)",
+        "os": "Linux x86_64 (no Windows host, no WebView2)"
+      },
+      "commands": [
+        {
+          "command": "cargo fmt --check",
+          "exit_code": 0,
+          "result": "clean",
+          "evidence": "phase5-final-verification-evidence/gates-fmt.txt"
+        },
+        {
+          "command": "cargo check --all-targets --locked --offline",
+          "exit_code": 0,
+          "result": "Finished dev profile in 2m08s (fresh target dir)",
+          "evidence": "inline"
+        },
+        {
+          "command": "cargo clippy --all-targets --locked --offline -- -D warnings",
+          "exit_code": 0,
+          "result": "no warnings",
+          "evidence": "gates-clippy-strict.txt"
+        },
+        {
+          "command": "cargo test --all-targets --locked --offline",
+          "exit_code": 0,
+          "result": "262 passed / 0 failed / 7 ignored (444.08s) + example 7/0",
+          "evidence": "gates-cargo-test.txt"
+        },
+        {
+          "command": "npm run typecheck",
+          "exit_code": 0,
+          "result": "tsc 6.0.3, no type errors",
+          "evidence": "inline"
+        },
+        {
+          "command": "npm run typecheck:native",
+          "exit_code": 0,
+          "result": "tsgo 7.0.2, no type errors",
+          "evidence": "inline"
+        },
+        {
+          "command": "npm run lint",
+          "exit_code": 0,
+          "result": "eslint clean",
+          "evidence": "inline"
+        },
+        {
+          "command": "npm run verify (all 32 sub-gates)",
+          "exit_code": 0,
+          "result": "32/32 PASS; local-schema 110, replication 139, windows-release 40, desktop-contract 37, mobile-contracts 63",
+          "evidence": "gates-npm-verify.txt"
+        },
+        {
+          "command": "node scripts/verify-replication-postgres.mjs (fresh schema)",
+          "exit_code": 0,
+          "result": "79 checks passed on server PostgreSQL",
+          "evidence": "gates-replication-postgres.txt"
+        },
+        {
+          "command": "node scripts/verify-replication-native-https.mjs",
+          "exit_code": 0,
+          "result": "123 checks passed (SQLCipher TEXT -> TLS -> PostgreSQL)",
+          "evidence": "gates-replication-native-https.txt"
+        },
+        {
+          "command": "migration applied 3x on PostgreSQL 16.2",
+          "exit_code": 0,
+          "result": "3/3 OK, stable counts {tables:11,policies:7,rls:8,idx:14,view:1}; pre-fix file fails round 2",
+          "evidence": "p5-new-005-migration-idempotency.txt"
+        },
+        {
+          "command": "replay of the real 14-envelope native export",
+          "exit_code": 0,
+          "result": "14/14 commit at HEAD; 8/14 at the pre-fix tree (5 CONFLICT + 1 GAP cascade)",
+          "evidence": "p5-new-006-native-replay-before-after.txt"
+        },
+        {
+          "command": "durable cross-generation restore probe (written for this pass)",
+          "exit_code": 0,
+          "result": "10/10 assertions pass at HEAD; the pre-fix tree fails the hydration-identity assertion",
+          "evidence": "p5-adv-009-durable-cross-generation{,-before}.txt"
+        },
+        {
+          "command": "cargo test --lib recovery:: (whole module)",
+          "exit_code": 0,
+          "result": "84 passed / 0 failed / 3 ignored",
+          "evidence": "inline"
+        },
+        {
+          "command": "cargo test --lib final_financial",
+          "exit_code": 0,
+          "result": "16 passed / 0 failed (the P5-ADV-007 suite)",
+          "evidence": "inline"
+        },
+        {
+          "command": "cargo test --lib rem_r2_concurrent x6 (alone)",
+          "exit_code": 0,
+          "result": "6/6 pass; the test is NOT present in the disclosed baseline failure of the authoring pass, and it also passed inside this pass's full suite",
+          "evidence": "inline"
+        }
+      ],
+      "not_executed": [
+        {
+          "check": "Windows / WebView2 / Tauri runtime",
+          "status": "BLOCKED",
+          "reason": "no Windows host and no WebView2 runtime in this Linux sandbox; no cross-target windows-gnu std installed",
+          "substitute": "verify:windows-release (40 checks) and verify:desktop-contract (37 checks) assert packaging INTENT only"
+        },
+        {
+          "check": "Installer build and installation",
+          "status": "NOT PERFORMED",
+          "reason": "requires Windows + NSIS"
+        },
+        {
+          "check": "Physical device / real shop acceptance",
+          "status": "NOT PERFORMED",
+          "reason": "requires operator hardware"
+        },
+        {
+          "check": "macOS build",
+          "status": "NOT PERFORMED",
+          "reason": "out of scope for this pass"
+        }
+      ]
+    },
+    "review_findings_this_pass": [
+      {
+        "id": "IV2-001",
+        "severity": "Low",
+        "title": "P5-ADV-007's fix is not in the commit the series implies",
+        "detail": "f232348 adds no sale-cardinality rule; git log -S resolves it to the baseline 9274ddb. No code defect: the rule and its 16 tests are present at HEAD and pass. Commit-message-level attribution only.",
+        "disposition": "corrected in this record"
+      },
+      {
+        "id": "IV2-002",
+        "severity": "Low",
+        "title": "The durable PostgreSQL path had no cross-generation restore test",
+        "detail": "Every case in verify-replication-postgres.mjs stays on gen-1, so the P5-ADV-009 contract (cross-generation dedup, head advance on replay, no GAP for the first new post-restore operation) was only proven in-memory. The durable implementation does implement it.",
+        "disposition": "closed by an independent probe on real PostgreSQL 16.2 (10/10 assertions); recorded in independent_test_execution"
+      },
+      {
+        "id": "IV2-003",
+        "severity": "Info",
+        "title": "rotatePublisherGeneration is not re-exported from index.ts",
+        "detail": "postgres.ts exports it, index.ts does not, so the durable restore-rotation path has no public surface on the package entry point and no repo test calls it.",
+        "disposition": "documented, not changed (out of scope for a verification pass); the probe reaches the module directly"
+      },
+      {
+        "id": "IV2-004",
+        "severity": "Info",
+        "title": "The duplicate-lookup query cannot use the uniqueness index",
+        "detail": "Omitting restore_generation from the WHERE clause means PostgreSQL scans events_business_id_restore_generation_stream_stream_sequenc_key and filters, rather than the operation-id uniqueness index. Measured plan confirms the filter. Correctness is unaffected; it is a scale consideration for a very large event table.",
+        "disposition": "documented"
+      },
+      {
+        "id": "IV2-005",
+        "severity": "Info",
+        "title": "Engine-level metadata guards have a documented escape",
+        "detail": "A plaintext ATTACHed copy of the database lets a raw-SQL actor drop triggers. This is inherent to in-engine guards and is now stated in P5-ADV-008's residual_threat_model.",
+        "disposition": "documented"
+      }
+    ],
+    "release_gate": {
+      "phase5_code_level_remediation": "PASS",
+      "windows_release_acceptance": "BLOCKED",
+      "verdict": "CONDITIONAL PASS — code accepted; release blocked on the Windows and physical gates",
+      "blockers": [
+        "Windows runtime acceptance: install, launch, WebView2 presence, DB init, upgrade from a v12 shop DB, offline billing, recovery flow, uninstall — none executed on Windows.",
+        "Installer build (NSIS) and per-user installation on a Windows host — not performed.",
+        "Physical device / real-shop acceptance — not performed.",
+        "The on-disk hardening (file permissions, ACLs, encryption-at-rest) was not exercised on NTFS."
+      ],
+      "note": "No Linux result is offered as a substitute for any Windows gate."
+    },
+    "preserved_history": {
+      "original_audit_2026_11_26": "top-level 'audit', 'candidate_commit', 'failed_invariants', 'findings[].independent_verification_2026_11_26'",
+      "author_remediation_claim_2026_11_27": "this object replaces the author's 'remediation' block as the canonical record; the author's block is preserved verbatim below this key as 'remediation_author_record' with a note that it contained pending-commit placeholders"
+    },
+    "per_finding_independent_verification": "see findings[].independent_verification.result_lines"
+  },
+  "remediation_author_record": {
+    "phase": "Phase 5 Remediation — Adversarial Closure Pass",
+    "date_utc": "2026-11-27",
+    "branch": "arena/475a4866-sornio",
+    "branch_constraint": "Stage 0 finding: target commit 16e0267f8a931ebba4736f2e34ea86341e9f6898 is absent from GitHub (HTTP 422) and every remote ref. With explicit user decision `proceed_from_9274ddb`, the session branch was fast-forwarded to the verified parent 9274ddb and the pass continued there. No history was rewritten; main is untouched.",
+    "remediation_head": "c2adaa9c77b7b1fb2ffa4c6528b16d6e56afd71f",
+    "audit_commit": "5ab3a966219252c9e8cef1d3aa52829be72cafd4",
+    "candidate_commit": "7f73ef0a64c81d4d87cc983c8d410d390e01d04c",
+    "baseline_main_commit": "1cc5c798d1eada9a16463213b0776c01e99d36f9",
+    "main_untouched": true,
+    "merged": false,
+    "verdict": "PASS",
+    "verdict_rationale": "All 17 findings carry a verified FIXED status backed by executable evidence produced in this environment. P5-ADV-008/010/011 are closed with engine-level guards, format validation and a clean strict-lint gate. P5-ADV-007 (sale-journal duplication, still open under the previous independent audit) is closed by the sale-cardinality rule. Six new findings were uncovered by this pass; five were release- or restore-blocking (two legitimate-history false positives, the schema-gate blind spot, the non-idempotent PostgreSQL migration and the critical shared-operationId CONFLICT that silently dropped the cloud copy of most real retail sales) and all six are remediated and re-executed. Gates executed here: cargo fmt, clippy -D warnings, full cargo test, npm typecheck/native typecheck/lint, all 32 verify:* sub-gates, and real PostgreSQL 16.2 durable, native SQLCipher->TLS->PostgreSQL and migration-idempotency runs. Residual limitations are recorded honestly: no Windows/Tauri runtime and no physical-device evidence.",
+    "status_legend": {
+      "FIXED": "Remediated and verified by execution in this environment",
+      "FIXED — NOT INDEPENDENTLY VERIFIED": "Code remediated; at least one required verification path could not be executed or needs independent reproduction",
+      "STILL OPEN": "Not remediated in this pass",
+      "BLOCKED": "Verification cannot be performed in this environment"
+    },
+    "commits": [
+      {
+        "hash": "895ec34",
+        "scope": "RULE 2 / P5-ADV-001"
+      },
+      {
+        "hash": "14d5cc1",
+        "scope": "RULE 3 / P5-ADV-003..007"
+      },
+      {
+        "hash": "0ccae3c",
+        "scope": "RULE 4 / P5-ADV-002"
+      },
+      {
+        "hash": "272b492",
+        "scope": "RULE 5 / P5-ADV-009"
+      },
+      {
+        "hash": "30abdf8",
+        "scope": "cargo fmt"
+      },
+      {
+        "hash": "c2adaa9",
+        "scope": "remove unnecessary mut in remediation test"
+      }
+    ],
+    "status_counts": {
+      "FIXED": 17,
+      "STILL OPEN": 0
+    },
+    "test_execution_ledger": [
+      {
+        "command": "cargo fmt --check",
+        "result": "exit 0",
+        "exit_code": 0,
+        "evidence": "gates-fmt.txt"
+      },
+      {
+        "command": "cargo clippy --all-targets --locked --offline -- -D warnings",
+        "result": "exit 0 (baseline: exit 101 with 19 warnings)",
+        "exit_code": 0,
+        "evidence": "gates-clippy-strict.txt"
+      },
+      {
+        "command": "cargo test --all-targets --locked --offline",
+        "result": "262 passed / 0 failed / 7 ignored (415.72s) + example 7 passed / 0 failed",
+        "exit_code": 0,
+        "evidence": "gates-cargo-test.txt"
+      },
+      {
+        "command": "npm run typecheck",
+        "result": "tsc 6.0.3, no type errors",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "npm run typecheck:native",
+        "result": "tsgo 7.0.2, no type errors",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "npm run lint",
+        "result": "0 errors, 0 warnings (baseline: 0 errors, 2 warnings)",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "npm run verify:<all 32 sub-gates>",
+        "result": "32/32 PASS (baseline: 31/32, verify:local-schema failed)",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify.txt"
+      },
+      {
+        "command": "DATABASE_URL=... node scripts/verify-replication-postgres.mjs (PostgreSQL 16.2)",
+        "result": "79 checks passed, exit 0",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify-postgres.txt"
+      },
+      {
+        "command": "SORNIO_NATIVE_OUTBOX_DIR=... node scripts/verify-replication-native-https.mjs (PostgreSQL 16.2)",
+        "result": "123 checks passed (SQLCipher TEXT -> TLS -> PostgreSQL), exit 0",
+        "exit_code": 0,
+        "evidence": "gates-npm-verify-postgres.txt"
+      },
+      {
+        "command": "migration applied 3x against PostgreSQL 16.2",
+        "result": "rounds 1-3 OK, stable object counts (candidate failed round 2: 42P07)",
+        "exit_code": 0,
+        "evidence": "p5-new-005-migration-idempotency-after.txt"
+      },
+      {
+        "command": "cargo test --all-targets --locked --offline (BASELINE 9274ddb, before changes)",
+        "result": "252 passed / 1 failed (rem_r2_concurrent_attempts_do_not_bypass_accounting, DatabaseBusy under 8-thread contention) / 7 ignored; the same test passes cleanly when run alone and in the post-change suite",
+        "exit_code": 101,
+        "evidence": "session log"
+      }
+    ],
+    "baseline_comparison": {
+      "audit_candidate": "221 passed / 0 failed / 7 ignored + 7 / 0",
+      "remediation": "237 passed / 0 failed / 7 ignored + 7 / 0",
+      "tests_added": 16,
+      "tests_deleted": 0,
+      "regressions": 0
+    },
+    "environmental_limitations": [
+      {
+        "check": "Windows / Tauri desktop runtime",
+        "status": "BLOCKED",
+        "detail": "No Windows host or WebView2 runtime in this Linux sandbox; verify:windows-release and verify:desktop-contract are the executed substitutes (40 and 37 checks passed)."
+      },
+      {
+        "check": "Physical-device / real-shop acceptance",
+        "status": "NOT PERFORMED",
+        "detail": "Requires operator hardware; no evidence is claimed."
+      },
+      {
+        "check": "macOS build",
+        "status": "NOT PERFORMED",
+        "detail": "Out of scope for this closure pass."
+      }
+    ],
+    "remaining_release_blockers": [
+      "Durable PostgreSQL runtime verification of the dedup change (BLOCKED in this environment).",
+      "Windows / Tauri desktop runtime verification (NOT VERIFIED).",
+      "P5-ADV-008 (Medium) STILL OPEN.",
+      "P5-ADV-010 (Low) STILL OPEN.",
+      "P5-ADV-011 (Informational) STILL OPEN.",
+      "Independent reviewer must reproduce every fix on a clean checkout."
+    ],
+    "deliverables": [
+      "docs/reviews/phase5-remediation-report.md",
+      "docs/reviews/phase5-cloud-dedup-contract.md",
+      "docs/reviews/phase5-remediation-evidence/",
+      "docs/reviews/phase5-adversarial-findings.json (originals preserved; remediation added)"
+    ],
+    "tests_added_detail": {
+      "rust_executable_tests": 16,
+      "replication_harness_checks": 9,
+      "note": "Rust total matches the full-suite delta 221 -> 237. Harness checks are assertions inside scripts/verify-replication.mjs (120 -> 129)."
+    },
+    "baseline": "9274ddb8b3977cf52411cbb49c68e191a1c78c6d"
+  },
+  "remediation_author_record_note": "VERBATIM copy of the authoring session's remediation block, preserved for history. It contains stale metadata deliberately NOT corrected in place: remediation_head c2adaa9 (superseded by 830b9f0), the pre-normalization test counts (237 Rust / 129 harness), and remaining_release_blockers that still list P5-ADV-008/010/011 as STILL OPEN. See canonical_closure for the reconciled values.",
+  "candidate_commit_finding_note": "The top-level audit fields describe the ORIGINAL audit of candidate 7f73ef0 / branch arena/76ac88ca-sornio and remain correct as history (that audit's verdict was NO-GO). They are not the current verdict: see canonical_closure.",
+  "post_phase5_hardening": {
+    "phase": "Post-Phase-5 replication hardening & Windows acceptance preparation",
+    "date_utc": "2026-11-27",
+    "branch": "arena/475a4866-sornio",
+    "starting_head": "3bdd10c530738cfeb01dccb2e10aad84aba47cff",
+    "scope": "Closes the two non-blocking items the Phase 5 acceptance review left open (IV2-003, IV2-004) and adds a Windows Foundation acceptance package. No Phase 5 finding is reopened and no financial semantics change.",
+    "items": [
+      {
+        "id": "IV2-003",
+        "severity": "Info",
+        "previous_status": "noted, not fixed",
+        "title": "rotatePublisherGeneration was exported from postgres.ts but not from the package entry point, had no caller, and had no test",
+        "root_cause": "Not a missing export: the operation was also UNSAFE to publish as it stood. It silently did nothing when the business was unknown, when no live publisher existed, and when the target generation equalled the current one (the UPDATE matched zero rows and resolved). Its result was void. Exporting it as-is would have published a restore step that can report success without having rotated anything.",
+        "intended_public_api": "Yes. Enrollment, revocation and generation rotation are the three privileged server-side operations of a restore. enrollPrivileged and revokePrivileged were already exported; rotation is the missing third and is required for any restore that must reach the cloud under a new generation.",
+        "production_consumers": "No in-repo caller exists: there is no HTTP route for enrollment/rotation (https.ts serves /v1/replication/ingest only), and the desktop publisher rotates via DesktopPublisher.onRestore against its sidecar. The operation is therefore an operator/tooling surface applied directly to PostgreSQL, which is exactly why its failure modes had to be explicit rather than silently inert.",
+        "safety_analysis": "It moves a transport epoch, never business identity: it writes only devices.restore_generation for one non-revoked publisher. It cannot change an operation id, a stream, a sequence or a payload, so cross-generation dedup, stream-scoped identity, cursor behaviour and conflict detection are unaffected - all four are re-asserted at 100 durable checks.",
+        "resolution": "Hardened and exported: generation format validated against the column CHECK (INVALID_ENVELOPE); unknown business UNAUTHENTICATED; no active publisher FORBIDDEN; re-issuing the current generation CONFLICT; the device row is locked FOR UPDATE; the call returns {businessId, generation, previousGeneration, deviceId} so a caller cannot mistake a no-op for a rotation. Exported from index.ts beside enroll/revoke, with API-surface, lifecycle and refusal tests.",
+        "files_changed": [
+          "packages/replication-cloud/src/postgres.ts",
+          "packages/replication-cloud/src/index.ts",
+          "scripts/verify-replication.mjs",
+          "scripts/verify-replication-postgres.mjs"
+        ],
+        "tests": {
+          "in_memory_harness": "139 -> 144 checks (first pass)",
+          "durable_postgres": "79 -> 100 checks (first pass)",
+          "new_assertions": "5 API-surface + 21 rotation lifecycle/refusal assertions",
+          "superseded_by": "post_phase5_hardening.second_hardening_pass.iv2_003 - the read and the write were still separate statements in this pass; the rotation is now one transaction, and verify:replication is 148 / verify:replication-postgres is 139"
+        },
+        "verification": [
+          "verify:replication 144 checks exit 0 (first pass)",
+          "verify:replication-postgres 100 checks on PostgreSQL 16.2 exit 0 (first pass)"
+        ],
+        "evidence": [
+          "docs/reviews/iv2-evidence/iv2-003-api-surface.txt",
+          "docs/reviews/iv2-evidence/iv2-003-durable-rotation.txt"
+        ],
+        "status": "FIXED — verified"
+      },
+      {
+        "id": "IV2-004",
+        "severity": "Info",
+        "previous_status": "documented as a scale note",
+        "title": "The duplicate-operation lookup could not use any uniqueness index and degraded to a sequential scan",
+        "root_cause": "Semantic identity is (business_id, stream, operation_id) and deliberately excludes restore_generation, while every physical unique constraint on events leads with business_id, restore_generation. No index could serve the lookup.",
+        "measured_before": {
+          "10k_events_ms": 1.32,
+          "100k_events_ms": 11.86,
+          "1M_events_ms": 71.34,
+          "plan": "Seq Scan, one row returned, N-1 filtered"
+        },
+        "resolution": "Added CREATE INDEX IF NOT EXISTS events_operation_identity (business_id, stream, operation_id, event_pk) to the re-runnable schema file. Additive: no constraint, predicate, policy or identity changed. event_pk is a key column, not an INCLUDE payload, so the 'earliest event wins' ORDER BY is satisfied by index order and the Sort node disappears.",
+        "measured_after": {
+          "10k_events_ms": 0.051,
+          "100k_events_ms": 0.057,
+          "1M_events_ms": 0.092,
+          "plan": "Index Scan, flat in table size"
+        },
+        "alternatives_measured": {
+          "identity_only": "0.036 ms, 11 MB",
+          "identity_include_pk": "0.028 ms, 13 MB",
+          "identity_include_payload": "0.025 ms but 29 MB - rejected as redundant"
+        },
+        "write_cost": "20k-row single-transaction insert: 145 ms with the index vs 150 ms without (inside noise)",
+        "migration_safety": {
+          "idempotent_3_applies": "stable {tables:11,policies:7,rls:8,idx:15,view:1}",
+          "upgrade_from_pre_index_schema_with_data": "OK, pre-existing row preserved",
+          "rollback": "DROP INDEX restores the old plan, rows intact",
+          "reapply_after_rollback": "index restored"
+        },
+        "files_changed": [
+          "packages/replication-cloud/sql/20261103000000_native_financial_replication.sql",
+          "scripts/bench-replication-lookup.mjs",
+          "scripts/bench-replication-index-variants.mjs"
+        ],
+        "verification": [
+          "shipped schema at 200k events: 0.033 ms indexed vs 18.88 ms with the index dropped",
+          "migration 3x stable with idx 14 -> 15",
+          "docs/reviews/iv2-004-replication-lookup-performance.md"
+        ],
+        "evidence": [
+          "docs/reviews/iv2-004-replication-lookup-performance.md",
+          "docs/reviews/iv2-004-benchmark-results.json",
+          "docs/reviews/iv2-evidence/iv2-004-scale-proof.txt",
+          "docs/reviews/iv2-evidence/iv2-004-migration.txt"
+        ],
+        "residual": "Benchmark is a warm-cache, single-client, synthetic measurement on a sandbox: representative of plan shape and relative cost, not production latency. A very large existing table needs CREATE INDEX CONCURRENTLY out of band (documented, not automated).",
+        "status": "FIXED — verified"
+      }
+    ],
+    "windows_package": {
+      "deliverables": [
+        "docs/windows/foundation-acceptance.md",
+        "docs/windows/foundation-acceptance.schema.json",
+        "docs/windows/foundation-acceptance.example.json",
+        "scripts/verify-windows-foundation-evidence.mjs",
+        "scripts/test-windows-foundation-evidence.mjs"
+      ],
+      "gate": "npm run verify:windows-foundation (in the aggregate verify chain): 81 checks (31 in the first pass; the policy was tightened in the second pass)",
+      "design": "15 gates. ALL twelve foundation gates (W-01..W-12) must be 'passed'. 'blocked' is legal only on the three hardware gates, and a blocked hardware gate must carry a reason and must not be claimed. The validator also refuses: a passing gate with no evidence, non-integer or placeholder financial figures, a stock snapshot with fewer than three products or different ids on each side, a placeholder commit or installer hash, a commit that is not HEAD, an upgrade that is not specifically schema 12 -> 13, a workstation that already has WebView2 (W-02 unexercisable), and a missing non-claim about either the unsigned build or the unexecuted hardware gates. A validated record says it is a FOUNDATION acceptance, not a hardware acceptance.",
+      "windows_execution": "NOT PERFORMED. No Windows host in this environment.",
+      "blocked_gates": [
+        "H-13 barcode scanner",
+        "H-14 thermal printer",
+        "H-15 cash drawer",
+        "W-01..W-12 cannot pass without a physical Windows workstation (they cannot be blocked instead)"
+      ],
+      "note": "The package is a template and procedure. It cannot pass without a physical Windows workstation, and the validator is written to enforce that rather than allow a paper pass."
+    },
+    "unchanged_guarantees": [
+      "No Phase 5 finding reopened",
+      "No financial semantics changed",
+      "No schema change and no index change in the second pass (the events_operation_identity shape is now asserted, not altered)",
+      "No Rust source touched (cargo test 262/0/7, fmt and clippy -D warnings still clean)",
+      "main untouched, no force push, no history rewrite, no automatic PR",
+      "rem_r2 flake still disclosed, assertions unchanged"
+    ],
+    "second_hardening_pass": {
+      "date_utc": "2026-11-27",
+      "starting_head": "b7357893a7ad263f8818554ea3216d1144bea5ed",
+      "reason": "Three items from the first pass were weaker than they appeared: the rotation was not transactional, the IV2-004 index was evidenced but not gated, and the Windows validator accepted a blocked foundation gate. Each fix was proved by reverting it and watching the gate fail.",
+      "iv2_003": {
+        "defect": "rotatePublisherGeneration read the device row and then issued an unconditional UPDATE with no transaction. Two restores could both read gen-A, both report success with previousGeneration gen-A, and leave the row on whichever UPDATE landed last.",
+        "fix": "One explicit BEGIN/COMMIT on the handed-in connection: lock the business row, then the publisher row (the same order as ingestDurable, so they cannot deadlock), then UPDATE ... WHERE restore_generation = $2 RETURNING. Zero rows means CONFLICT. 40001/40P01 are retried at most 3 times, then surfaced as CONFLICT; no raw driver error escapes.",
+        "no_pool": "SqlDatabase is connection-scoped; there is no pg.Pool anywhere in packages/, scripts/ or apps/.",
+        "new_tests": "5 concurrency cases on separate pg.Client connections: same-target race (exactly one commit, loser CONFLICT), different-target race (a genuine chain from the start generation, never an assumed order), same-generation retry, rotation racing a real ingestDurable, and the opposite-order lock probe.",
+        "mutation_proof": "Reverting postgres.ts to b735789 and re-running the suite fails 6/6 with 'the two transitions form a real chain from the start ([\"race-gen-C\"])' and 'exactly one concurrent rotation to the same generation commits (2 of 2)'.",
+        "assertions_deliberately_not_made": [
+          "A fixed commit order for racing rotations (the one issued first can commit second).",
+          "A single expected error code for an ingest that loses the race: GAP and STALE_GENERATION are both correct fail-closed outcomes."
+        ],
+        "counts": "verify:replication 144 -> 148; verify:replication-postgres 100 -> 139, 10/10 consecutive clean runs",
+        "evidence": [
+          "docs/reviews/iv2-evidence/iv2-003-durable-rotation.txt",
+          "docs/reviews/iv2-evidence/iv2-003-api-surface.txt"
+        ]
+      },
+      "iv2_004": {
+        "defect": "The index, plan and 775x measurement lived in a document plus two bench scripts that nothing in npm run verify ran. A later change could drop or reshape the index and every gate stayed green.",
+        "fix": "verify:replication-postgres asserts, inside one always-rolled-back transaction on a dedicated connection: both composite UNIQUE constraints still lead with restore_generation; the index is exactly (business_id, stream, operation_id, event_pk) and never restore_generation; the lookup for an operation behind a 40k-row backlog is index-served and examines <= 4 rows; dropping the index degrades the same lookup to O(table) rows; re-applying the migration restores the index and the fast plan; the rollback leaves zero probe rows and the index present.",
+        "mutation_proof": [
+          "index removed from the migration -> 'the shipped events_operation_identity index exists' fails",
+          "columns reordered to (business_id, operation_id, stream, event_pk) -> identity check fails",
+          "keyed on restore_generation -> identity check fails"
+        ],
+        "not_claimed": "Plan shape is the gate; timing is asserted only as a relative inequality, and the warm-cache single-client limitation stands.",
+        "evidence": [
+          "docs/reviews/iv2-evidence/iv2-004-migration.txt"
+        ]
+      },
+      "windows_validator": {
+        "defect": "The first pass required every gate to be 'passed' OR 'blocked with a reason', which let a record where W-02 had never been executed still validate. Reproduced: the shipped validator printed 'VALID — every required gate passed' for that record.",
+        "policy_now": [
+          "'blocked' is legal only on H-13..H-15; a blocked foundation gate fails even with a reason.",
+          "environment.webview2 = 'present' is rejected: W-02 cannot be exercised there.",
+          "schemaBefore/schemaAfter pinned to const 12/13, and must be integers (no string coercion).",
+          "Financial figures must be integers; 'REPLACE' placeholders are rejected.",
+          "stockMilli needs >= 3 products, the same ids on both sides, no placeholder ids.",
+          "Evidence rows must be non-empty strings; hardwareClaimed values must be booleans.",
+          "nonClaims must disclose both the unsigned build and the unexecuted hardware gates.",
+          "A missing git checkout is reported as a failure, not an uncaught crash.",
+          "Per-gate schema nodes: W-01..W-12 enumerate only [passed, failed, not-run], so the policy is structural."
+        ],
+        "success_message": "A validated record prints 'foundation gates W-01-installation..W-12 (12 executed, all passed) ... This is a FOUNDATION acceptance, not a hardware acceptance: H-13, H-14, H-15 remain blocked and unclaimed.' The template path labels itself a template, not a Windows pass.",
+        "counts": "negative suite 31 -> 81 checks; no pre-existing case removed or relaxed",
+        "schema_validator_agreement": "Both the schema (ajv) and the validator reject the same nine cheat fixtures and accept the same well-formed record. The shipped example deliberately keeps REPLACE placeholders and therefore does NOT validate: it is a worksheet, not evidence.",
+        "evidence": [
+          "docs/reviews/iv2-evidence/stage3-windows-validator-policy.txt"
+        ]
+      },
+      "gate_ledger": "docs/reviews/iv2-evidence/stage5-gate-ledger-second-pass.txt",
+      "windows_execution": "NOT PERFORMED. Still no Windows host. A foundation pass is not a hardware acceptance."
+    }
+  }
+}

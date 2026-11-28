@@ -1,0 +1,6 @@
+=== RULE 4: replication governance harness (v13) ===
+DATE_UTC: 2026-11-26T15:54:41Z
+COMMAND: node scripts/verify-replication.mjs
+node: v22.22.3, tsc: Version 6.0.3
+verify-replication: 120 checks passed
+EXIT_CODE=0

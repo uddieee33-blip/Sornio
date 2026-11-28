@@ -1,0 +1,890 @@
+=== fmt ===
+DATE_UTC: 2026-11-26T17:01:47Z
+COMMAND: cargo fmt --check --manifest-path packages/local-store/Cargo.toml
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:33:
+ fn fixture(path: &Path) -> (Store, String) {
+     let mut w = Workspace::new(Store::open(path, KEY).unwrap());
+     w.setup(LOGIN).unwrap();
+-    w.save(0, crate::Draft {
+-        business_name: "Independent shop".into(),
+-        business_type: "kirana".into(),
+-        note: "independent".into(),
+-    }).unwrap();
++    w.save(
++        0,
++        crate::Draft {
++            business_name: "Independent shop".into(),
++            business_type: "kirana".into(),
++            note: "independent".into(),
++        },
++    )
++    .unwrap();
+     w.add_product(crate::catalog::AddProduct {
+-        operation_id: "iv-prod".into(), name: "Rice".into(), sku: "IVRICE".into(),
+-        unit: "kg".into(), unit_price_paise: 4250, opening_stock_milli: 100000,
+-    }).unwrap();
++        operation_id: "iv-prod".into(),
++        name: "Rice".into(),
++        sku: "IVRICE".into(),
++        unit: "kg".into(),
++        unit_price_paise: 4250,
++        opening_stock_milli: 100000,
++    })
++    .unwrap();
+     let s = w.into_recovery_store();
+-    let business: String = s
+-        .0
+-        .query_row(
++    let business: String =
++        s.0.query_row(
+             "SELECT business_id FROM local_recovery_identity WHERE singleton=1",
+             [],
+             |r| r.get(0),
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:52:
+         )
+         .unwrap();
+-    let generation: String = s
+-        .0
+-        .query_row(
++    let generation: String =
++        s.0.query_row(
+             "SELECT generation FROM local_recovery_identity WHERE singleton=1",
+             [],
+             |r| r.get(0),
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:76:
+ }
+ 
+ fn fenced(db: &Connection) -> bool {
+-    db.query_row("SELECT EXISTS(SELECT 1 FROM local_recovery_fence)", [], |r| r.get(0))
+-        .unwrap()
++    db.query_row(
++        "SELECT EXISTS(SELECT 1 FROM local_recovery_fence)",
++        [],
++        |r| r.get(0),
++    )
++    .unwrap()
+ }
+ 
+ /// IV-001: The original P5-ADV-001 attack. 40 wrong-password attempts through the
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:101:
+     }
+     s = w.into_recovery_store();
+     let (attempts, retry) = budget(&s.0);
+-    println!("IV001 granted={granted} rate_limited={rate_limited} attempts={attempts} retry={retry}");
++    println!(
++        "IV001 granted={granted} rate_limited={rate_limited} attempts={attempts} retry={retry}"
++    );
+     assert_eq!(granted, 0, "wrong password must never resolve recovery");
+     assert!(fenced(&s.0), "fence must remain after failed attempts");
+     assert!(
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:130:
+         "correct password must be RateLimited during active lockout, got {r:?}"
+     );
+     let s = w.into_recovery_store();
+-    assert!(fenced(&s.0), "fence must survive a refused correct password");
++    assert!(
++        fenced(&s.0),
++        "fence must survive a refused correct password"
++    );
+ }
+ 
+ /// IV-003: Restart (close + reopen the database file) must not reset the lockout.
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:241:
+     );
+     assert_eq!(attempts, 5, "budget must never exceed 5, got {attempts}");
+     assert!(retry > 0);
+-    assert!(fenced(&reopened.0), "fence must survive concurrent failures");
++    assert!(
++        fenced(&reopened.0),
++        "fence must survive concurrent failures"
++    );
+ }
+ 
+ /// IV-006: A successful recovery authentication must not expose ordinary
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_auth_tests.rs:267:
+         [],
+     );
+     println!("IV006 business write while locked => {blocked:?}");
+-    let rows: i64 = s.0.query_row("SELECT COUNT(*) FROM local_products", [], |r| r.get(0)).unwrap();
++    let rows: i64 =
++        s.0.query_row("SELECT COUNT(*) FROM local_products", [], |r| r.get(0))
++            .unwrap();
+     println!("IV006 products present = {rows}");
+-    assert!(rows > 0, "fixture must contain business rows for the fence test to be meaningful");
++    assert!(
++        rows > 0,
++        "fixture must contain business rows for the fence test to be meaningful"
++    );
+     let msg = format!("{blocked:?}");
+     println!("IV006 fence rejection message: {msg}");
+-    assert!(blocked.is_err(), "business writes must be blocked while fenced");
++    assert!(
++        blocked.is_err(),
++        "business writes must be blocked while fenced"
++    );
+     assert!(
+         msg.to_lowercase().contains("fence") || msg.to_lowercase().contains("recovery"),
+         "rejection must be the recovery FENCE, not a schema error: {msg}"
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:7:
+ //! Covers the four original audit scenarios, the multi-part-return false
+ //! positive guard, and ADDITIONAL realistic corruption combinations.
+ use super::*;
++use crate::recovery::financial::violations as prod_violations;
+ use crate::recovery::phase5_tests::{sale, seeded, strip_triggers, LOGIN, SECRET};
+ use crate::recovery::{export, fence_active, preview, restore};
+ use crate::{
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:13:
+     access::Workspace,
+-    billing::{Tender},
+-    customers::{CreditKind, CreditRequest, SaveCustomer},
+     billing::BillLine,
++    billing::Tender,
++    customers::{CreditKind, CreditRequest, SaveCustomer},
+     payments::{Action, PaymentPart, RefundPart, Request, ReturnLine},
+     Store,
+ };
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:20:
+-use crate::recovery::financial::violations as prod_violations;
+ 
+ fn v(db: &Connection) -> Vec<String> {
+     prod_violations(db).unwrap()
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:44:
+     w.prepare_checkout(s.clone()).unwrap();
+     w.post_invoice(s.clone()).unwrap();
+     w.clear_checkout("iv-credit-sale", true).unwrap();
+-    let c = w.find_customers("Independent customer", false).unwrap().remove(0);
++    let c = w
++        .find_customers("Independent customer", false)
++        .unwrap()
++        .remove(0);
+     let req = CreditRequest {
+         operation_id: "iv-repay".into(),
+         customer_id: "cust".into(),
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:71:
+         action: Action::Sale {
+             invoice: crate::billing::PostInvoice {
+                 operation_id: id.into(),
+-                lines: vec![BillLine { product_id: "rice".into(), expected_revision: revision, quantity_milli: 1000 }],
++                lines: vec![BillLine {
++                    product_id: "rice".into(),
++                    expected_revision: revision,
++                    quantity_milli: 1000,
++                }],
+                 tax_basis_points: 0,
+                 tender: Tender::Retail,
+                 customer_id: None,
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:78:
+             },
+-            payments: vec![PaymentPart { id: format!("{id}-p-0"), method: "cash".into(), amount_paise: 4250, reference: String::new() }],
++            payments: vec![PaymentPart {
++                id: format!("{id}-p-0"),
++                method: "cash".into(),
++                amount_paise: 4250,
++                reference: String::new(),
++            }],
+         },
+     };
+     s.prepare_retail(req.clone()).unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:92:
+     let s = credit_store(&d);
+     assert!(v(&s.0).is_empty(), "baseline must be clean: {:?}", v(&s.0));
+     strip_triggers(&s.0);
+-    let n = s.0.execute("DELETE FROM local_credit_entries WHERE kind='sale'", []).unwrap();
++    let n =
++        s.0.execute("DELETE FROM local_credit_entries WHERE kind='sale'", [])
++            .unwrap();
+     println!("IVF01 deleted {n} credit sale entries");
+     assert!(n >= 1, "fixture must contain a credit sale entry");
+     let found = v(&s.0);
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:99:
+     println!("IVF01 violations: {found:?}");
+-    assert!(!found.is_empty(), "deleted credit-sale entry MUST be detected");
++    assert!(
++        !found.is_empty(),
++        "deleted credit-sale entry MUST be detected"
++    );
+ }
+ 
+ // --- ORIGINAL SCENARIO 2: tampered repayment ------------------------------
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:127:
+     assert!(v(&s.0).is_empty(), "baseline: {:?}", v(&s.0));
+     strip_triggers(&s.0);
+     let rows: Vec<(String, i64)> = {
+-        let mut q = s.0.prepare("SELECT account, amount_paise FROM local_billing_ledger").unwrap();
++        let mut q =
++            s.0.prepare("SELECT account, amount_paise FROM local_billing_ledger")
++                .unwrap();
+         let r = q.query_map([], |x| Ok((x.get(0)?, x.get(1)?))).unwrap();
+         r.collect::<Result<_, _>>().unwrap()
+     };
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:134:
+     println!("IVF03 ledger before: {rows:?}");
+     // Shift 700 from the settlement leg to revenue: net change is exactly zero.
+-    let settle = rows.iter().find(|(a, _)| a == "cash" || a == "receivables").unwrap().0.clone();
+-    let n1 = s.0.execute("UPDATE local_billing_ledger SET amount_paise = amount_paise + 700 WHERE account=?1", [&settle]).unwrap();
++    let settle = rows
++        .iter()
++        .find(|(a, _)| a == "cash" || a == "receivables")
++        .unwrap()
++        .0
++        .clone();
++    let n1 =
++        s.0.execute(
++            "UPDATE local_billing_ledger SET amount_paise = amount_paise + 700 WHERE account=?1",
++            [&settle],
++        )
++        .unwrap();
+     let n2 = s.0.execute("UPDATE local_billing_ledger SET amount_paise = amount_paise - 700 WHERE account='revenue'", []).unwrap();
+     println!("IVF03 updated settle={n1} revenue={n2}");
+-    let sum: i64 = s.0.query_row("SELECT SUM(amount_paise) FROM local_billing_ledger", [], |r| r.get(0)).unwrap();
++    let sum: i64 =
++        s.0.query_row(
++            "SELECT SUM(amount_paise) FROM local_billing_ledger",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     println!("IVF03 ledger SUM after shift = {sum} (still balanced)");
+-    assert_eq!(sum, 0, "the tamper must remain balanced to be a real false-negative test");
++    assert_eq!(
++        sum, 0,
++        "the tamper must remain balanced to be a real false-negative test"
++    );
+     let found = v(&s.0);
+     println!("IVF03 violations: {found:?}");
+-    assert!(!found.is_empty(), "balanced-but-wrong ledger MUST be detected");
++    assert!(
++        !found.is_empty(),
++        "balanced-but-wrong ledger MUST be detected"
++    );
+ }
+ 
+ // --- ORIGINAL SCENARIO 4: duplicated retail journal ----------------------
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:155:
+     // Duplicate every journal row for the sale, preserving zero-sum.
+     println!("IVF04 duplicating journal rows with fresh sequence numbers");
+     let ops: Vec<String> = {
+-        let mut q = s.0.prepare("SELECT DISTINCT operation_id FROM local_retail_journal").unwrap();
++        let mut q =
++            s.0.prepare("SELECT DISTINCT operation_id FROM local_retail_journal")
++                .unwrap();
+         let rows = q.query_map([], |r| r.get(0)).unwrap();
+         rows.collect::<Result<_, _>>().unwrap()
+     };
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:162:
+-    let mut next: i64 = s.0.query_row("SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal", [], |r| r.get(0)).unwrap();
++    let mut next: i64 =
++        s.0.query_row(
++            "SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     for op in &ops {
+         let existing: Vec<(Option<String>, String, i64)> = {
+             let mut q = s.0.prepare("SELECT customer_id,account,amount FROM local_retail_journal WHERE operation_id=?1").unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:166:
+-            let r = q.query_map([op], |x| Ok((x.get(0)?, x.get(1)?, x.get(2)?))).unwrap();
++            let r = q
++                .query_map([op], |x| Ok((x.get(0)?, x.get(1)?, x.get(2)?)))
++                .unwrap();
+             r.collect::<Result<_, _>>().unwrap()
+         };
+         for (cust, acct, amt) in existing {
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:183:
+     // OBSERVED: duplicating a SALE operation's legs is NOT detected, while the
+     // author's regression covers only RETURN operations. Recorded as a residual
+     // gap; see independent_gap_probe::ivx01 for the end-to-end evidence.
+-    println!("IVF04 OBSERVED: duplicated SALE journal detected = {}", !found.is_empty());
+-    assert!(bad == 0, "duplication must preserve zero-sum to be a real false-negative probe");
++    println!(
++        "IVF04 OBSERVED: duplicated SALE journal detected = {}",
++        !found.is_empty()
++    );
++    assert!(
++        bad == 0,
++        "duplication must preserve zero-sum to be a real false-negative probe"
++    );
+ }
+ 
+ // --- FALSE-POSITIVE GUARD: legitimate multi-part return ------------------
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:199:
+         action: Action::Sale {
+             invoice: crate::billing::PostInvoice {
+                 operation_id: id.into(),
+-                lines: vec![BillLine { product_id: "rice".into(), expected_revision: revision, quantity_milli: 1000 }],
++                lines: vec![BillLine {
++                    product_id: "rice".into(),
++                    expected_revision: revision,
++                    quantity_milli: 1000,
++                }],
+                 tax_basis_points: 0,
+                 tender: Tender::Retail,
+                 customer_id: None,
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:206:
+             },
+             payments: vec![
+-                PaymentPart { id: format!("{id}-p-0"), method: "cash".into(), amount_paise: 2125, reference: String::new() },
+-                PaymentPart { id: format!("{id}-p-1"), method: "cash".into(), amount_paise: 2125, reference: String::new() },
++                PaymentPart {
++                    id: format!("{id}-p-0"),
++                    method: "cash".into(),
++                    amount_paise: 2125,
++                    reference: String::new(),
++                },
++                PaymentPart {
++                    id: format!("{id}-p-1"),
++                    method: "cash".into(),
++                    amount_paise: 2125,
++                    reference: String::new(),
++                },
+             ],
+         },
+     };
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:213:
+     s.prepare_retail(sale_req.clone()).unwrap();
+     s.post_retail(sale_req.clone()).unwrap();
+     s.clear_retail(id, true).unwrap();
+-    let lines = vec![ReturnLine { line_index: 0, quantity_milli: 1000, disposition: Default::default() }];
++    let lines = vec![ReturnLine {
++        line_index: 0,
++        quantity_milli: 1000,
++        disposition: Default::default(),
++    }];
+     let q = s.quote_retail_return(id, &lines).unwrap();
+     let ret = Request {
+         operation_id: "iv-mp-return".into(),
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:222:
+             expected_revision: q.revision,
+             lines,
+             refunds: vec![
+-                RefundPart { payment_id: format!("{id}-p-0"), amount_paise: 2125 },
+-                RefundPart { payment_id: format!("{id}-p-1"), amount_paise: 2125 },
++                RefundPart {
++                    payment_id: format!("{id}-p-0"),
++                    amount_paise: 2125,
++                },
++                RefundPart {
++                    payment_id: format!("{id}-p-1"),
++                    amount_paise: 2125,
++                },
+             ],
+             reason: "Independent two-part refund".into(),
+         },
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:235:
+         "SELECT COUNT(*) FROM (SELECT operation_id,account FROM local_retail_journal GROUP BY operation_id,account HAVING COUNT(*)>1)",
+         [], |r| r.get(0)).unwrap();
+     println!("IVF05 repeated (operation,account) groups in VALID multipart history = {repeated}");
+-    assert!(repeated > 0, "guard is only meaningful if valid history repeats accounts");
++    assert!(
++        repeated > 0,
++        "guard is only meaningful if valid history repeats accounts"
++    );
+     let found = v(&s.0);
+     println!("IVF05 violations on valid multipart history: {found:?}");
+-    assert!(found.is_empty(), "valid multi-part return MUST NOT be rejected: {found:?}");
++    assert!(
++        found.is_empty(),
++        "valid multi-part return MUST NOT be rejected: {found:?}"
++    );
+ }
+ 
+ // --- NEW COMBINATION A: missing postings entirely ------------------------
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:250:
+     s.0.execute("DELETE FROM local_billing_ledger", []).unwrap();
+     let found = v(&s.0);
+     println!("IVF06 violations: {found:?}");
+-    assert!(!found.is_empty(), "invoice with no postings MUST be detected");
++    assert!(
++        !found.is_empty(),
++        "invoice with no postings MUST be detected"
++    );
+ }
+ 
+ // --- NEW COMBINATION B: stock arithmetic broken --------------------------
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:261:
+     strip_triggers(&s.0);
+     println!("IVF07 NOTE: CHECK(after_milli=before_milli-quantity_milli) blocks normal SQL; rebuilding table without CHECK to emulate on-disk damage");
+     s.0.execute_batch("CREATE TABLE iv_tmp AS SELECT * FROM local_invoice_stock; DROP TABLE local_invoice_stock; CREATE TABLE local_invoice_stock(invoice_id TEXT NOT NULL, product_id TEXT NOT NULL, quantity_milli INTEGER NOT NULL, before_milli INTEGER NOT NULL, after_milli INTEGER NOT NULL, PRIMARY KEY(invoice_id,product_id)); INSERT INTO local_invoice_stock SELECT * FROM iv_tmp; DROP TABLE iv_tmp;").unwrap();
+-    let n = s.0.execute("UPDATE local_invoice_stock SET after_milli = before_milli + 999", []).unwrap();
++    let n =
++        s.0.execute(
++            "UPDATE local_invoice_stock SET after_milli = before_milli + 999",
++            [],
++        )
++        .unwrap();
+     println!("IVF07 corrupted {n} stock movement rows");
+-    if n == 0 { println!("IVF07 no stock rows in fixture; skipping"); return; }
++    if n == 0 {
++        println!("IVF07 no stock rows in fixture; skipping");
++        return;
++    }
+     let found = v(&s.0);
+     println!("IVF07 violations: {found:?}");
+     assert!(!found.is_empty(), "after != before - qty MUST be detected");
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:277:
+     strip_triggers(&s.0);
+     println!("IVF08 NOTE: CHECK(stock_milli>=0) blocks normal SQL; rebuilding without CHECK to emulate on-disk damage");
+     s.0.execute_batch("PRAGMA foreign_keys=OFF; CREATE TABLE iv_tmp AS SELECT * FROM local_products; DROP TABLE local_products; CREATE TABLE local_products(id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, sku TEXT NOT NULL, unit TEXT NOT NULL, unit_price_paise INTEGER NOT NULL, stock_milli INTEGER NOT NULL, revision INTEGER NOT NULL); INSERT INTO local_products SELECT * FROM iv_tmp; DROP TABLE iv_tmp; PRAGMA foreign_keys=ON;").unwrap();
+-    s.0.execute("UPDATE local_products SET stock_milli = -5000", []).unwrap();
++    s.0.execute("UPDATE local_products SET stock_milli = -5000", [])
++        .unwrap();
+     let found = v(&s.0);
+     println!("IVF08 violations: {found:?}");
+     assert!(!found.is_empty(), "negative stock MUST be detected");
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:290:
+     let s = retail_store(&d);
+     strip_triggers(&s.0);
+     let op = "iv-ghost-op";
+-    let next: i64 = s.0.query_row("SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal", [], |r| r.get(0)).unwrap();
++    let next: i64 =
++        s.0.query_row(
++            "SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     // Balanced pair with NO backing retail activity row.
+     let sample: Vec<(String, i64)> = {
+-        let mut q = s.0.prepare("SELECT account, amount FROM local_retail_journal LIMIT 2").unwrap();
++        let mut q =
++            s.0.prepare("SELECT account, amount FROM local_retail_journal LIMIT 2")
++                .unwrap();
+         let rows = q.query_map([], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+         rows.collect::<Result<_, _>>().unwrap()
+     };
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:300:
+-    if sample.len() < 2 { println!("IVF09 insufficient journal rows; skipping"); return; }
++    if sample.len() < 2 {
++        println!("IVF09 insufficient journal rows; skipping");
++        return;
++    }
+     let (acct, amt) = sample[0].clone();
+     s.0.execute("INSERT INTO local_retail_journal(sequence,operation_id,customer_id,account,amount) VALUES(?1,?2,NULL,?3,?4)",
+         rusqlite::params![next, op, acct, amt]).unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:306:
+     println!("IVF09 inserted balanced ghost operation {op} with no retail activity");
+     let found = v(&s.0);
+     println!("IVF09 violations: {found:?}");
+-    assert!(!found.is_empty(), "journal operation without retail activity MUST be detected");
++    assert!(
++        !found.is_empty(),
++        "journal operation without retail activity MUST be detected"
++    );
+ }
+ 
+ // --- PRODUCTION BOUNDARY: restore rejects corruption, DB intact ----------
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:320:
+     // INSERT-only corruption: append a balanced ghost retail journal operation
+     // with no backing activity. No trigger stripping, so the export stays valid
+     // and the FINANCIAL gate (not the digest) is what must reject it.
+-    let next: i64 = s.0.query_row("SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal", [], |r| r.get(0)).unwrap();
++    let next: i64 =
++        s.0.query_row(
++            "SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     s.0.execute("INSERT INTO local_retail_journal(sequence,operation_id,customer_id,account,amount) VALUES(?1,'iv-ghost-backup',NULL,'cash',5000)", rusqlite::params![next]).unwrap();
+     s.0.execute("INSERT INTO local_retail_journal(sequence,operation_id,customer_id,account,amount) VALUES(?1,'iv-ghost-backup',NULL,'revenue',-5000)", rusqlite::params![next+1]).unwrap();
+-    assert!(!v(&s.0).is_empty(), "corrupt source must be detected before export");
++    assert!(
++        !v(&s.0).is_empty(),
++        "corrupt source must be detected before export"
++    );
+     let backup = d.path().join("corrupt.sorniobackup");
+     let prev = export(&mut s, &backup, SECRET).unwrap();
+     println!("IVF10 exported corrupt backup {}", prev.backup_id);
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:337:
+         action: Action::Sale {
+             invoice: crate::billing::PostInvoice {
+                 operation_id: "target-keep-1".into(),
+-                lines: vec![BillLine { product_id: "rice".into(), expected_revision: revision, quantity_milli: 1000 }],
+-                tax_basis_points: 0, tender: Tender::Retail, customer_id: None,
++                lines: vec![BillLine {
++                    product_id: "rice".into(),
++                    expected_revision: revision,
++                    quantity_milli: 1000,
++                }],
++                tax_basis_points: 0,
++                tender: Tender::Retail,
++                customer_id: None,
+             },
+-            payments: vec![PaymentPart { id: "target-keep-1-p-0".into(), method: "cash".into(), amount_paise: 4250, reference: String::new() }],
++            payments: vec![PaymentPart {
++                id: "target-keep-1-p-0".into(),
++                method: "cash".into(),
++                amount_paise: 4250,
++                reference: String::new(),
++            }],
+         },
+     };
+-    t.prepare_retail(later.clone()).unwrap(); t.post_retail(later.clone()).unwrap(); t.clear_retail("target-keep-1", true).unwrap();
+-    let before_invoices: i64 = t.0.query_row("SELECT COUNT(*) FROM local_invoices", [], |r| r.get(0)).unwrap();
++    t.prepare_retail(later.clone()).unwrap();
++    t.post_retail(later.clone()).unwrap();
++    t.clear_retail("target-keep-1", true).unwrap();
++    let before_invoices: i64 =
++        t.0.query_row("SELECT COUNT(*) FROM local_invoices", [], |r| r.get(0))
++            .unwrap();
+     let p = preview(&mut t, &backup, SECRET, LOGIN).unwrap();
+-    let r = restore(&mut t, &backup, d.path(), SECRET, LOGIN, &p, &p.confirmation);
++    let r = restore(
++        &mut t,
++        &backup,
++        d.path(),
++        SECRET,
++        LOGIN,
++        &p,
++        &p.confirmation,
++    );
+     println!("IVF10 restore => {r:?}");
+     assert!(
+         matches!(r, Err(StoreError::FinancialInconsistency)),
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:353:
+         "restore MUST reject financially inconsistent backup, got {r:?}"
+     );
+-    let after_invoices: i64 = t.0.query_row("SELECT COUNT(*) FROM local_invoices", [], |r| r.get(0)).unwrap();
+-    assert_eq!(before_invoices, after_invoices, "original invoices must be intact");
+-    let kept: i64 = t.0.query_row("SELECT COUNT(*) FROM local_invoices WHERE id='target-keep-1'", [], |r| r.get(0)).unwrap();
++    let after_invoices: i64 =
++        t.0.query_row("SELECT COUNT(*) FROM local_invoices", [], |r| r.get(0))
++            .unwrap();
++    assert_eq!(
++        before_invoices, after_invoices,
++        "original invoices must be intact"
++    );
++    let kept: i64 =
++        t.0.query_row(
++            "SELECT COUNT(*) FROM local_invoices WHERE id='target-keep-1'",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     assert_eq!(kept, 1, "original business data must survive rejection");
+-    assert!(!fence_active(&t.0).unwrap(), "no fence may be left behind after rejection");
++    assert!(
++        !fence_active(&t.0).unwrap(),
++        "no fence may be left behind after rejection"
++    );
+     println!("IVF10 original DB preserved: {after_invoices} invoices, fence=false");
+ }
+ 
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:370:
+     let prev = export(&mut s, &backup, SECRET).unwrap();
+     let mut t = s;
+     let p = preview(&mut t, &backup, SECRET, LOGIN).unwrap();
+-    let r = restore(&mut t, &backup, d.path(), SECRET, LOGIN, &p, &p.confirmation);
++    let r = restore(
++        &mut t,
++        &backup,
++        d.path(),
++        SECRET,
++        LOGIN,
++        &p,
++        &p.confirmation,
++    );
+     println!("IVF11 healthy restore => {r:?} (backup {})", prev.backup_id);
+     assert!(r.is_ok(), "healthy backup MUST restore, got {r:?}");
+     assert!(!fence_active(&t.0).unwrap(), "fence released after success");
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_financial_tests.rs:377:
+-    assert!(v(&t.0).is_empty(), "restored DB must be financially clean: {:?}", v(&t.0));
++    assert!(
++        v(&t.0).is_empty(),
++        "restored DB must be financially clean: {:?}",
++        v(&t.0)
++    );
+ }
+ 
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:17:
+     assert!(fence_active(&s.0).unwrap(), "fence must be active");
+ 
+     // Positive control: a BUSINESS write must be blocked.
+-    let business = s.0.execute("UPDATE local_products SET stock_milli = stock_milli + 1", []);
++    let business = s.0.execute(
++        "UPDATE local_products SET stock_milli = stock_milli + 1",
++        [],
++    );
+     println!("IVP008 business write while fenced => {business:?}");
+     assert!(business.is_err(), "business writes must be fenced");
+ 
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:24:
+     // Simulate an attacker who already holds the SQLCipher key: charge a lockout
+     // then try to erase it with raw SQL while the fence is live.
+-    s.0.execute("UPDATE workspace_access SET failed_attempts=5, retry_after=9999999999 WHERE singleton=1", []).unwrap();
+-    let reset = s.0.execute("UPDATE workspace_access SET failed_attempts=0, retry_after=0 WHERE singleton=1", []);
++    s.0.execute(
++        "UPDATE workspace_access SET failed_attempts=5, retry_after=9999999999 WHERE singleton=1",
++        [],
++    )
++    .unwrap();
++    let reset = s.0.execute(
++        "UPDATE workspace_access SET failed_attempts=0, retry_after=0 WHERE singleton=1",
++        [],
++    );
+     println!("IVP008 lockout reset while fenced => {reset:?}");
+-    let budget: (i64, i64) = s.0.query_row("SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
++    let budget: (i64, i64) =
++        s.0.query_row(
++            "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
++            [],
++            |r| Ok((r.get(0)?, r.get(1)?)),
++        )
++        .unwrap();
+     println!("IVP008 budget after reset attempt = {budget:?}");
+ 
+-    let gen_tamper = s.0.execute("UPDATE local_recovery_identity SET generation='deadbeef' WHERE singleton=1", []);
++    let gen_tamper = s.0.execute(
++        "UPDATE local_recovery_identity SET generation='deadbeef' WHERE singleton=1",
++        [],
++    );
+     println!("IVP008 generation tamper while fenced => {gen_tamper:?}");
+-    let biz_tamper = s.0.execute("UPDATE local_recovery_identity SET business_id='attacker-business' WHERE singleton=1", []);
++    let biz_tamper = s.0.execute(
++        "UPDATE local_recovery_identity SET business_id='attacker-business' WHERE singleton=1",
++        [],
++    );
+     println!("IVP008 business_id substitution while fenced => {biz_tamper:?}");
+ 
+     println!(
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:38:
+         "IVP008 OBSERVED: lockout_reset={} generation_tamper={} business_substitution={}",
+-        reset.is_ok(), gen_tamper.is_ok(), biz_tamper.is_ok()
++        reset.is_ok(),
++        gen_tamper.is_ok(),
++        biz_tamper.is_ok()
+     );
+ }
+ 
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:47:
+     let path = d.path().join("live");
+     let s = seeded(&path);
+     let _o = install_fence(&s.0);
+-    s.0.execute("UPDATE local_recovery_identity SET business_id='attacker-business' WHERE singleton=1", []).unwrap();
++    s.0.execute(
++        "UPDATE local_recovery_identity SET business_id='attacker-business' WHERE singleton=1",
++        [],
++    )
++    .unwrap();
+     drop(s);
+     let mut reopened = Store::open(&path, crate::recovery::phase5_tests::KEY).unwrap();
+     let r = reconcile_startup(&mut reopened);
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:54:
+     println!("IVP008b reconcile_startup after business substitution => {r:?}");
+-    assert!(r.is_err(), "startup MUST fail closed on business substitution");
++    assert!(
++        r.is_err(),
++        "startup MUST fail closed on business substitution"
++    );
+ }
+ 
+ /// P5-ADV-010: is a malformed (non-64-hex) generation or owner_token accepted by
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:64:
+         let path = d.path().join("live");
+         let s = seeded(&path);
+         let o = install_fence(&s.0);
+-        s.0.execute("UPDATE local_recovery_identity SET generation=?1 WHERE singleton=1", [bad]).unwrap();
++        s.0.execute(
++            "UPDATE local_recovery_identity SET generation=?1 WHERE singleton=1",
++            [bad],
++        )
++        .unwrap();
+         drop(s);
+         let mut reopened = Store::open(&path, crate::recovery::phase5_tests::KEY).unwrap();
+         let r = reconcile_startup(&mut reopened);
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:77:
+         let path = d.path().join("live");
+         let s = seeded(&path);
+         let _o = install_fence(&s.0);
+-        s.0.execute("UPDATE local_recovery_fence SET owner_token=?1 WHERE singleton=1", [bad]).unwrap();
+-        s.0.execute("UPDATE local_recovery_operations SET owner_token=?1", [bad]).unwrap();
++        s.0.execute(
++            "UPDATE local_recovery_fence SET owner_token=?1 WHERE singleton=1",
++            [bad],
++        )
++        .unwrap();
++        s.0.execute("UPDATE local_recovery_operations SET owner_token=?1", [bad])
++            .unwrap();
+         drop(s);
+         let mut reopened = Store::open(&path, crate::recovery::phase5_tests::KEY).unwrap();
+         let r = reconcile_startup(&mut reopened);
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:99:
+         let _ = w.resolve_interrupted_recovery(&o.operation_id, "wrong password attempt");
+     }
+     let st = w.into_recovery_store();
+-    let locked: (i64, i64) = st.0.query_row("SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
++    let locked: (i64, i64) =
++        st.0.query_row(
++            "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
++            [],
++            |r| Ok((r.get(0)?, r.get(1)?)),
++        )
++        .unwrap();
+     println!("IVP008c after 5 failures budget={locked:?}");
+     assert_eq!(locked.0, 5, "lockout must engage");
+     // Attacker with the DB key erases the budget directly.
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:106:
+-    st.0.execute("UPDATE workspace_access SET failed_attempts=0, retry_after=0 WHERE singleton=1", []).unwrap();
++    st.0.execute(
++        "UPDATE workspace_access SET failed_attempts=0, retry_after=0 WHERE singleton=1",
++        [],
++    )
++    .unwrap();
+     let mut w2 = crate::access::Workspace::new(st);
+     let mut more = 0;
+     for _ in 0..20 {
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_findings_probe.rs:112:
+             _ => more += 1,
+         }
+     }
+-    println!("IVP008c after raw-SQL budget reset: {more} of 20 further guesses were NOT rate-limited");
++    println!(
++        "IVP008c after raw-SQL budget reset: {more} of 20 further guesses were NOT rate-limited"
++    );
+     println!("IVP008c OBSERVED: raw-SQL key holder can reset the budget and resume guessing (bounded by key possession)");
+     let _ = LOGIN;
+ }
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:7:
+ //! checks whether the production verifier AND the production restore boundary
+ //! reject it.
+ use super::*;
++use crate::billing::{BillLine, PostInvoice, Tender};
++use crate::payments::{Action, PaymentPart, Request};
+ use crate::recovery::financial::{verify as prod_verify, violations as prod_violations};
+ use crate::recovery::phase5_tests::{seeded, LOGIN, SECRET};
+ use crate::recovery::{export, fence_active, preview, restore};
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:13:
+-use crate::billing::{BillLine, PostInvoice, Tender};
+-use crate::payments::{Action, PaymentPart, Request};
+ 
+ fn retail_sale_store(d: &tempfile::TempDir, id: &str) -> Store {
+     let mut s = seeded(&d.path().join("live"));
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:21:
+         action: Action::Sale {
+             invoice: PostInvoice {
+                 operation_id: id.into(),
+-                lines: vec![BillLine { product_id: "rice".into(), expected_revision: revision, quantity_milli: 1000 }],
++                lines: vec![BillLine {
++                    product_id: "rice".into(),
++                    expected_revision: revision,
++                    quantity_milli: 1000,
++                }],
+                 tax_basis_points: 0,
+                 tender: Tender::Retail,
+                 customer_id: None,
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:28:
+             },
+-            payments: vec![PaymentPart { id: format!("{id}-p-0"), method: "cash".into(), amount_paise: 4250, reference: String::new() }],
++            payments: vec![PaymentPart {
++                id: format!("{id}-p-0"),
++                method: "cash".into(),
++                amount_paise: 4250,
++                reference: String::new(),
++            }],
+         },
+     };
+     s.prepare_retail(req.clone()).unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:40:
+ fn duplicate_sale_journal(s: &Store, op: &str) -> usize {
+     let legs: Vec<(Option<String>, String, i64)> = {
+         let mut q = s.0.prepare("SELECT customer_id,account,amount FROM local_retail_journal WHERE operation_id=?1 ORDER BY sequence").unwrap();
+-        let r = q.query_map([op], |x| Ok((x.get(0)?, x.get(1)?, x.get(2)?))).unwrap();
++        let r = q
++            .query_map([op], |x| Ok((x.get(0)?, x.get(1)?, x.get(2)?)))
++            .unwrap();
+         r.collect::<Result<_, _>>().unwrap()
+     };
+-    let mut next: i64 = s.0.query_row("SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal", [], |r| r.get(0)).unwrap();
++    let mut next: i64 =
++        s.0.query_row(
++            "SELECT COALESCE(MAX(sequence),0)+1 FROM local_retail_journal",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     for (cust, acct, amt) in &legs {
+         s.0.execute(
+             "INSERT INTO local_retail_journal(sequence,operation_id,customer_id,account,amount) VALUES(?1,?2,?3,?4,?5)",
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:58:
+ fn ivx01_duplicated_sale_journal_verifier_and_restore() {
+     let d = tempfile::tempdir().unwrap();
+     let mut s = retail_sale_store(&d, "ivx-sale");
+-    assert!(prod_violations(&s.0).unwrap().is_empty(), "baseline must be clean");
++    assert!(
++        prod_violations(&s.0).unwrap().is_empty(),
++        "baseline must be clean"
++    );
+ 
+     let before: Vec<(String, i64)> = {
+         let mut q = s.0.prepare("SELECT account, SUM(amount) FROM local_retail_journal GROUP BY account ORDER BY account").unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:74:
+     println!("IVX01 duplicated {added} sale journal legs");
+     println!("IVX01 account totals BEFORE: {before:?}");
+     println!("IVX01 account totals AFTER : {after:?}");
+-    let zero: i64 = s.0.query_row("SELECT SUM(amount) FROM local_retail_journal WHERE operation_id='ivx-sale'", [], |r| r.get(0)).unwrap();
++    let zero: i64 =
++        s.0.query_row(
++            "SELECT SUM(amount) FROM local_retail_journal WHERE operation_id='ivx-sale'",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     println!("IVX01 operation still zero-sum: {zero}");
+-    let activity: i64 = s.0.query_row("SELECT COUNT(*) FROM local_retail_activity WHERE operation_id='ivx-sale'", [], |r| r.get(0)).unwrap();
++    let activity: i64 =
++        s.0.query_row(
++            "SELECT COUNT(*) FROM local_retail_activity WHERE operation_id='ivx-sale'",
++            [],
++            |r| r.get(0),
++        )
++        .unwrap();
+     println!("IVX01 backing activity rows: {activity}");
+ 
+     let v = prod_violations(&s.0).unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery/independent_gap_probe.rs:88:
+     let backup = d.path().join("dup-sale.sorniobackup");
+     let prev = export(&mut s, &backup, SECRET).unwrap();
+     let p = preview(&mut s, &backup, SECRET, LOGIN).unwrap();
+-    let r = restore(&mut s, &backup, d.path(), SECRET, LOGIN, &p, &p.confirmation);
++    let r = restore(
++        &mut s,
++        &backup,
++        d.path(),
++        SECRET,
++        LOGIN,
++        &p,
++        &p.confirmation,
++    );
+     println!("IVX01 PRODUCTION RESTORE of duplicated-sale-journal backup => {r:?}");
+     println!("IVX01 backup id {}", prev.backup_id);
+     let fenced = fence_active(&s.0).unwrap();
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery.rs:1485:
+     Ok(safety.to_string_lossy().into_owned())
+ }
+ #[cfg(test)]
+-#[path = "recovery/phase5_tests.rs"]
+-mod phase5_tests;
+-#[cfg(test)]
+ #[path = "recovery/independent_auth_tests.rs"]
+ mod independent_auth_tests;
+ #[cfg(test)]
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery.rs:1494:
+ #[path = "recovery/independent_financial_tests.rs"]
+ mod independent_financial_tests;
+ #[cfg(test)]
++#[path = "recovery/independent_findings_probe.rs"]
++mod independent_findings_probe;
++#[cfg(test)]
+ #[path = "recovery/independent_gap_probe.rs"]
+ mod independent_gap_probe;
+ #[cfg(test)]
+Diff in /home/user/phase5-verify/workspace/packages/local-store/src/recovery.rs:1500:
+-#[path = "recovery/independent_findings_probe.rs"]
+-mod independent_findings_probe;
++#[path = "recovery/phase5_tests.rs"]
++mod phase5_tests;
+ #[cfg(test)]
+ #[path = "recovery/remediation_tests.rs"]
+ mod remediation_tests;
+EXIT_CODE=1

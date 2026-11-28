@@ -1,0 +1,56 @@
+=== INDEPENDENT FINANCIAL CORRUPTION TESTS (remediation d79a6e8) ===
+DATE_UTC: 2026-11-26T16:54:12Z
+warning: unused variable: `live`
+   --> src/recovery/independent_financial_tests.rs:316:9
+    |
+316 |     let live = d.path().join("live");
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_live`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running unittests src/lib.rs (/home/user/phase5-verify/target-workspace/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 11 tests
+IVF01 deleted 1 credit sale entries
+IVF01 violations: ["credit sale missing matching credit entry: iv-credit-sale", "customer outstanding is negative: cust"]
+test recovery::independent_financial_tests::ivf01_deleted_credit_sale_entry_detected ... ok
+IVF02 tampered 1 repayment entries
+IVF02 violations: ["credit entry disagrees with customer journal: iv-repay/cust"]
+test recovery::independent_financial_tests::ivf02_tampered_repayment_detected ... ok
+IVF03 ledger before: [("receivables", 4250), ("revenue", -4250)]
+IVF03 updated settle=1 revenue=1
+IVF03 ledger SUM after shift = 0 (still balanced)
+IVF03 violations: ["invoice settlement leg disagrees with invoice: iv-retail", "invoice revenue disagrees with invoice subtotal: iv-retail"]
+test recovery::independent_financial_tests::ivf03_balanced_semantic_ledger_shift_detected ... ok
+IVF04 duplicating journal rows with fresh sequence numbers
+IVF04 unbalanced operations after duplication = 0 (0 = still balanced)
+IVF04 violations: []
+IVF04 OBSERVED: duplicated SALE journal detected = false
+test recovery::independent_financial_tests::ivf04_duplicated_retail_journal_detected ... ok
+IVF05 repeated (operation,account) groups in VALID multipart history = 2
+IVF05 violations on valid multipart history: []
+test recovery::independent_financial_tests::ivf05_multipart_return_is_not_rejected ... ok
+IVF06 violations: ["invoice missing ledger postings: iv-retail", "invoice revenue leg not unique: iv-retail"]
+test recovery::independent_financial_tests::ivf06_missing_postings_detected ... ok
+IVF07 NOTE: CHECK(after_milli=before_milli-quantity_milli) blocks normal SQL; rebuilding table without CHECK to emulate on-disk damage
+IVF07 corrupted 1 stock movement rows
+IVF07 violations: ["invoice stock arithmetic broken: iv-retail/rice"]
+test recovery::independent_financial_tests::ivf07_broken_stock_arithmetic_detected ... ok
+IVF08 NOTE: CHECK(stock_milli>=0) blocks normal SQL; rebuilding without CHECK to emulate on-disk damage
+IVF08 violations: ["negative inventory stock: rice"]
+test recovery::independent_financial_tests::ivf08_negative_stock_detected ... ok
+IVF09 inserted balanced ghost operation iv-ghost-op with no retail activity
+IVF09 violations: ["retail journal without source operation: iv-ghost-op"]
+test recovery::independent_financial_tests::ivf09_orphan_retail_journal_detected ... ok
+IVF10 exported corrupt backup 5cf9f720ad8c09a4a2ee9d0907fd399c40c6ffbaf08ebdf4db624e9f69bc6fcb
+IVF10 restore => Err(FinancialInconsistency)
+IVF10 original DB preserved: 2 invoices, fence=false
+test recovery::independent_financial_tests::ivf10_restore_rejects_corruption_and_preserves_original ... ok
+IVF11 healthy restore => Ok("/tmp/.tmpK2TxFX/sornio-before-restore-762b1eb5b9ac7690993d83c1a4684b19665202488a647a78671e3f8eff09e812.sorniobackup") (backup 61dc12675bb34848a2b2fcb2581c21d102f62b5535b6678bed80c3ad082b7647)
+test recovery::independent_financial_tests::ivf11_healthy_backup_still_restores ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 251 filtered out; finished in 10.48s
+
+EXIT_CODE=0

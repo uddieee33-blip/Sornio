@@ -34,3 +34,8 @@ commands.allow = ["prepare_local_retail", "post_local_retail", "clear_local_reta
 identifier = "local-recovery"
 description = "Owner-authorized encrypted snapshots and restore using native pickers; no renderer paths or raw filesystem access."
 commands.allow = ["read_last_restore", "choose_local_backup", "export_local_backup", "preview_local_backup", "restore_local_backup"]
+
+[[permission]]
+identifier = "local-recovery-review"
+description = "Diagnose and resolve an interrupted recovery while the workspace is fenced and locked. Scope is verified read-only (no session is required or granted); resolution re-authenticates the Owner password and writes only recovery metadata. Status is operational metadata, not business data. No SQL, paths, filesystem or network access."
+commands.allow = ["read_recovery_status", "resolve_interrupted_recovery"]

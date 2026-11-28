@@ -1,0 +1,8 @@
+=== RULE 6: cloud TypeScript typecheck (mobile-contracts project config) ===
+DATE_UTC: 2026-11-26T16:17:20Z
+COMMAND: tsc --noEmit -p packages/mobile-contracts/tsconfig.json
+TSC_PROJECT_EXIT=0
+
+=== RULE 6: cloud strict compilation (replication-cloud + mobile-contracts, emit) ===
+COMMAND: tsc <13 replication-cloud src files> <7 mobile-contracts src files> --strict --module commonjs --target es2022 --skipLibCheck --esModuleInterop
+TSC_STRICT_EXIT=0

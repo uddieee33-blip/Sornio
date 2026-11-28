@@ -1,0 +1,35 @@
+=== CANDIDATE 7f73ef0 DURABLE POSTGRES: REPRODUCE P5-ADV-009 DEFECT ===
+DATE_UTC: 2026-11-26T16:43:45Z
+SERVER: disposable PostgreSQL 16.2, fresh db sornio_verify
+COMMAND: node pg-durable-verify.mjs /home/user/phase5-verify/pg-out-candidate packages/replication-cloud/sql/20261103000000_native_financial_replication.sql
+MIGRATION APPLIED to real PostgreSQL
+SERVER: PostgreSQL 16.2 on x86_64-pc-linux-gnu, compiled by gcc (GCC) 10.2.1 20210130 (Red Hat 10.2.1-11), 64-bit
+PASS: gen-1 first invoice is not a duplicate (got false, want false)
+PASS: gen-1 second invoice is not a duplicate (got false, want false)
+gen-1 outstanding rows: {"netFromRows":"5000","lineCount":1,"hydratedOutstanding":"5000"}
+PASS: same-generation redelivery is a duplicate (delayed ack) (got true, want true)
+PASS: retry returns the ORIGINAL cursor (got 3, want 3)
+PASS: retry of a seen sequence does NOT advance the head (got 2, want 2)
+PASS: reusing an operation id with a different payload is CONFLICT (got CONFLICT, want CONFLICT)
+events after conflict: 5
+PASS: old generation envelope is fenced after restore (got STALE_GENERATION, want STALE_GENERATION)
+FAIL: CROSS-GENERATION replay of bill-1 is a duplicate (durable) (got false, want true)
+FAIL: cross-generation duplicate returns the original business cursor (got 6, want 3)
+FAIL: CROSS-GENERATION replay of bill-2 is a duplicate (durable) (got false, want true)
+PASS: duplicates ADVANCE the new generation stream head (got 2, want 2)
+PASS: first NEW post-restore operation is accepted (no GAP) (got , want )
+PASS: new post-restore operation is not a duplicate (got false, want false)
+/home/user/phase5-verify/pg-out-candidate/replication-cloud/src/postgres.js:362
+            throw new types_1.ReplicationError('GAP', 'Stream sequence skipped a gap.');
+                  ^
+
+ReplicationError: Stream sequence skipped a gap.
+    at ingestDurableAttempt (/home/user/phase5-verify/pg-out-candidate/replication-cloud/src/postgres.js:362:19)
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5)
+    at async ingestDurable (/home/user/phase5-verify/pg-out-candidate/replication-cloud/src/postgres.js:290:16)
+    at async file:///home/user/phase5-verify/candidate/pg-durable-verify.mjs:136:12 {
+  code: 'GAP'
+}
+
+Node.js v22.22.3
+EXIT_CODE=1

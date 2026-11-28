@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { randomBytes } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -109,6 +109,7 @@ try {
     verifyStagingToken,
     listenStagingIngest,
     postStagingIngest,
+    rotatePublisherGeneration,
   } = require(join(out, 'replication-cloud/src/index.js'));
   const { parseCompanionSnapshot } = require(join(out, 'mobile-contracts/src/validation.js'));
   const { decideSnapshotApply } = require(join(out, 'mobile-contracts/src/sync.js'));
@@ -278,7 +279,18 @@ try {
   const productionFlag = readFileSync(join(root, 'apps/mobile/app.json'), 'utf8');
   check(productionFlag.includes('"productionSyncEnabled": false'), 'companion production sync stays disabled');
   const schema = readFileSync(join(root, 'packages/local-store/src/lib.rs'), 'utf8');
-  check(/const SCHEMA_VERSION: i64 = 12;/.test(schema), 'financial schema remains 12');
+  // Purpose preserved: pin the financial schema so unintended drift is caught.
+  // v13 equivalent: the durable-recovery schema, its wired migration, and the
+  // fail-closed startup reconciliation that must run on every open.
+  check(/const SCHEMA_VERSION: i64 = 13;/.test(schema), 'financial schema is pinned at v13');
+  check(
+    /if locked_version < 13 \{\s*recovery::migrate_v13\(&tx\)\?;/.test(schema),
+    'v13 recovery migration is wired into the upgrade path',
+  );
+  check(
+    schema.includes('recovery::reconcile_startup(&mut db)?'),
+    'startup reconciliation runs on every database open',
+  );
   check(schema.includes('pub mod replication;'), 'sidecar publisher module is declared');
   const rust = readFileSync(join(root, 'packages/local-store/src/replication.rs'), 'utf8');
   check(rust.includes('unpublished_replication'), 'native unpublished outbox reader is wired');
@@ -289,7 +301,60 @@ try {
   check(!rust.includes('map.get(*key)'), 'timestamp walk borrows map keys');
   check(rust.includes('validate_ack'), 'native publisher validates cloud acknowledgements');
   const desktopMain = readFileSync(join(root, 'apps/desktop/src-tauri/src/main.rs'), 'utf8');
-  check(desktopMain.includes('reset_sidecar_file'), 'desktop restore discards sidecar acks');
+  // Purpose preserved: a restore must never leave stale acknowledgements that
+  // suppress republishing. v13 achieves this by generation-keying instead of
+  // destructive deletion, so the assertion is inverted and paired with the
+  // generation-reset mechanism that now provides the guarantee.
+  check(
+    !desktopMain.includes('reset_sidecar_file'),
+    'desktop restore never deletes sidecar ack history (destructive cleanup disabled)',
+  );
+  check(
+    desktopMain.includes('No sidecar deletion'),
+    'restore documents generation-keyed sidecar reuse',
+  );
+  check(
+    rust.includes('pub fn on_restore(&mut self, generation: &str)'),
+    'sidecar acks reset when the restore generation changes',
+  );
+  check(
+    rust.includes('ack.on_restore(&generation)'),
+    'publisher applies the generation reset before reading unpublished rows',
+  );
+  check(
+    rust.includes('if generation != identity.restore_generation'),
+    'publisher rejects a stale restore generation',
+  );
+
+  // v13 recovery fencing and financial-verification expectations.
+  const recovery = readFileSync(join(root, 'packages/local-store/src/recovery.rs'), 'utf8');
+  check(recovery.includes('const FENCED_TABLES'), 'recovery declares the fenced business tables');
+  check(
+    recovery.includes('recovery_fence_{table}_{suffix}'),
+    'every fenced table gets engine-level barrier triggers',
+  );
+  check(
+    recovery.includes('Sornio recovery is in progress; business writes are paused'),
+    'the fence rejects business writes on every connection, including raw SQL',
+  );
+  check(
+    recovery.includes('pub(crate) fn reconcile_startup'),
+    'fail-closed startup reconciliation is implemented',
+  );
+  check(recovery.includes('RecoveryCorrupt'), 'ambiguous recovery metadata fails closed');
+  check(
+    recovery.includes('pub(crate) mod financial;'),
+    'the financial verifier is a production module',
+  );
+  check(
+    recovery.includes('financial::verify(&tx)?'),
+    'restore verifies financial invariants inside the transaction before completion',
+  );
+  const financial = readFileSync(join(root, 'packages/local-store/src/recovery/financial.rs'), 'utf8');
+  check(
+    financial.includes('pub(crate) fn verify(db: &Connection)'),
+    'financial verification is callable from production restore code',
+  );
 
   const classified = classifyPayments(
     [
@@ -517,6 +582,143 @@ try {
       NOW,
     ),
   );
+
+  // --- P5-ADV-009: dedup semantic contract across restore generations.
+  // Operation identity is business-scoped and generation-independent; a restore
+  // generation is a transport epoch. Dedup must be cross-generation so a replayed
+  // snapshot row is never re-projected, while per-generation stream ordering must
+  // still advance so the first NEW operation after a restore is publishable.
+  {
+    const dd = new CloudStore();
+    const g1 = actor('publisher', { restoreGeneration: 'gen-1', deviceId: 'device-dedup-01' });
+    enroll(dd, g1);
+    const pub = (row, p) => ingestEnvelope(dd, p, buildEnvelope(p, row, digest), digest, NOW);
+    pub(productRow(1), g1);
+    pub(customerRow(1), g1);
+    pub(invoiceRow(1, { id: 'dd-bill-1' }), g1);
+    pub(invoiceRow(2, { id: 'dd-bill-2' }), g1);
+    const creditReplay = {
+      stream: 'customer', sequence: 2, operationId: 'dd-cred-1', occurredAtIso: ISO,
+      payload: {
+        version: 1, kind: 'credit.posted', operationId: 'dd-cred-1',
+        value: { operationId: 'dd-cred-1', customerId: 'cust-ravi', kind: 'sale', amountPaise: 5000, balancePaise: '5000' },
+      },
+    };
+    pub(creditReplay, g1);
+    const key = 'biz-kirana-01|cust-ravi';
+    const outstandingBefore = String(dd.customers.get(key).outstandingPaise);
+
+    const g2 = actor('publisher', { restoreGeneration: 'gen-2', deviceId: 'device-dedup-01' });
+    enroll(dd, g2);
+    const r1 = pub(invoiceRow(1, { id: 'dd-bill-1' }), g2);
+    check(r1.duplicate === true, 'post-restore replay is a cross-generation duplicate');
+    const r2 = pub(invoiceRow(2, { id: 'dd-bill-2' }), g2);
+    check(r2.duplicate === true, 'every replayed snapshot row is a cross-generation duplicate');
+    const fresh = pub(invoiceRow(3, { id: 'dd-bill-3-new' }), g2);
+    check(
+      fresh.duplicate === false,
+      'duplicates advance the generation head so a new post-restore operation is accepted',
+    );
+    const rc = pub(creditReplay, g2);
+    check(rc.duplicate === true, 'a replayed credit entry is a cross-generation duplicate');
+    check(
+      String(dd.customers.get(key).outstandingPaise) === outstandingBefore,
+      'cross-generation dedup never re-projects a credit delta (outstanding is not double-counted)',
+    );
+    const retry = pub(invoiceRow(1, { id: 'dd-bill-1' }), g2);
+    check(
+      retry.duplicate === true && retry.cursor === r1.cursor,
+      'retry of an already-seen sequence stays idempotent and keeps the original cursor',
+    );
+    expectCode('CONFLICT', () => pub(invoiceRow(4, { id: 'dd-bill-1', totalPaise: 999 }), g2));
+  }
+  const pgSrc = readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8');
+  check(
+    /WHERE e\.business_id = \$1 AND e\.stream = \$2 AND e\.operation_id = \$3/.test(pgSrc),
+    'durable Postgres dedup is keyed by business and operation, not restore generation',
+  );
+  const memSrc = readFileSync(join(root, 'packages/replication-cloud/src/ingest.ts'), 'utf8');
+  check(
+    /store\.operationKey\(\s*publisher\.businessId,\s*envelope\.stream,\s*envelope\.operationId,?\s*\)/.test(memSrc),
+    'in-memory dedup uses the same business-scoped operation identity',
+  );
+  check(
+    /store\.operationKey\(businessId,\s*row\.stream,\s*row\.operation_id\)/.test(
+      readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8'),
+    ),
+    'durable hydration keys the same operation identity from the row stream',
+  );
+  check(
+    /operationKey\(businessId: string, stream: StreamName, operationId: string\)/.test(
+      readFileSync(join(root, 'packages/replication-cloud/src/store.ts'), 'utf8'),
+    ),
+    'operation identity is (business, stream, operation), never business+operation alone',
+  );
+
+  // ONE native commit emits several envelopes under ONE operation id: a desktop
+  // retail sale is a `retail` envelope (the payments/receipt) and a `billing`
+  // envelope (the invoice) with the same operationId. Deduping without the
+  // stream rejected the second envelope as CONFLICT, so every real retail sale
+  // (cash+UPI, card, cash+credit) failed to replicate. Synthetic fixtures with
+  // distinct `bill-N`/`sale-N` ids could not see it.
+  {
+    const shared = new CloudStore();
+    const pub = enroll(shared, actor('publisher', { deviceId: 'device-shared-op' }));
+    const opId = 'checkout-op-1';
+    // The retail outbox envelope for this commit carries the SALE operation id,
+    // and the billing outbox envelope carries the INVOICE id — which the native
+    // checkout writes as the same value (CheckoutPanel/`post_retail`).
+    const retailEnvelope = () => ({
+      stream: 'retail',
+      sequence: 1,
+      operationId: opId,
+      occurredAtIso: ISO,
+      payload: {
+        version: 1,
+        actorId: 'owner-1',
+        receipt: {
+          operationId: opId,
+          kind: 'sale',
+          data: {
+            invoice: { id: opId, totalPaise: TOTAL, customerId: null },
+            payments: [{ id: 'pay-shared', method: 'cash', amountPaise: TOTAL }],
+          },
+        },
+      },
+    });
+    const first = publish(shared, pub, retailEnvelope());
+    check(first.duplicate === false, 'shared operation id: retail envelope is accepted');
+    const second = publish(shared, pub, invoiceRow(1, { id: opId, tender: 'retail', customerId: null, customerName: 'Walk-in' }));
+    check(second.duplicate === false, 'shared operation id: billing envelope is a distinct operation, not a CONFLICT');
+    check(
+      shared.events.length === 2 &&
+        shared.events[0].stream === 'retail' &&
+        shared.events[1].stream === 'billing',
+      'both stream envelopes of one commit are committed',
+    );
+    const retailAgain = publish(shared, pub, retailEnvelope());
+    check(
+      retailAgain.duplicate === true && retailAgain.cursor === first.cursor,
+      'retrying the retail envelope stays idempotent with its original cursor',
+    );
+    const billingAgain = publish(shared, pub, invoiceRow(1, { id: opId, tender: 'retail', customerId: null, customerName: 'Walk-in' }));
+    check(
+      billingAgain.duplicate === true && billingAgain.cursor === second.cursor,
+      'retrying the billing envelope stays idempotent with its original cursor',
+    );
+    const clone = shared.clone();
+    check(
+      clone.events.length === 2 && clone.events[0].stream === 'retail' && clone.events[1].stream === 'billing',
+      'cloning the store preserves the stream order of a shared operation id',
+    );
+    expectCode('CONFLICT', () =>
+      publish(shared, pub, invoiceRow(3, { id: opId, tender: 'cash', customerId: null, totalPaise: 1, lines: [] })),
+    );
+    check(
+      shared.events.length === 2,
+      'a conflicting payload on a shared id is still rejected',
+    );
+  }
 
   const sidecar = new CloudStore();
   const pub = enroll(sidecar, actor('publisher', { deviceId: 'device-publisher-flush' }));
@@ -789,6 +991,64 @@ try {
   } finally {
     await server.close();
     rmSync(tlsDir, { recursive: true, force: true });
+  }
+
+  // --- IV2-003: restore-generation rotation is a public, privileged operation.
+  // Enrollment and revocation were already exported from the package entry
+  // point; rotation was exported from postgres.ts but not re-exported, had no
+  // caller and no test, so the one server-side step of a restore was neither
+  // reachable nor exercised. These checks pin the API surface and the failure
+  // taxonomy that keeps it safe.
+  {
+    const entry = readFileSync(join(root, 'packages/replication-cloud/src/index.ts'), 'utf8');
+    check(
+      /rotatePublisherGeneration/.test(entry),
+      'the package entry point exports the restore-generation rotation',
+    );
+    check(
+      typeof rotatePublisherGeneration === 'function',
+      'rotatePublisherGeneration is callable through the package entry point',
+    );
+    // It must move only the transport epoch; identity stays (business, stream, operation).
+    const pgText = readFileSync(join(root, 'packages/replication-cloud/src/postgres.ts'), 'utf8');
+    // The rotation is split into a bounded-retry wrapper and a transactional
+    // body; the write lives in the body, so that is what must be inspected.
+    // Every statement of the transaction must be in one function, or the lock
+    // order that keeps rotation and ingest apart stops being reviewable.
+    check(
+      /async function rotateInTransaction\(/.test(pgText),
+      'the rotation body is a single named function',
+    );
+    const rotation = pgText.slice(pgText.indexOf('async function rotateInTransaction('));
+    const rotationBody = rotation.slice(0, rotation.indexOf('\n}\n') + 3);
+    check(
+      /BEGIN/.test(rotationBody) && /COMMIT/.test(rotationBody) && /ROLLBACK/.test(rotationBody),
+      'the rotation body opens, commits and can roll back an explicit transaction',
+    );
+    check(
+      /SET restore_generation = \$3/.test(rotationBody) &&
+        !/operation_id|stream_sequence|event_pk/.test(rotationBody),
+      'rotation writes only the device generation, never stream or operation identity',
+    );
+    check(
+      /restore_generation = \$2/.test(rotationBody) && /RETURNING/.test(rotationBody),
+      'the write is conditional on the generation that was read, and reports what it replaced',
+    );
+    check(
+      (() => {
+        const order = ['businesses', 'devices'].map((table) => rotationBody.indexOf(`native_replication.${table}`));
+        return order[0] > 0 && order[1] > order[0] && /FOR UPDATE/.test(rotationBody);
+      })(),
+      'rotation locks the business row before the device row, the same order as ingestDurable',
+    );
+    check(
+      /role = 'publisher'/.test(rotationBody) && /revoked = FALSE/.test(rotationBody),
+      'rotation targets exactly one active publisher device',
+    );
+    check(
+      /FOR UPDATE/.test(rotationBody),
+      'rotation locks the device row so it cannot interleave with an in-flight ingest',
+    );
   }
 
   const docs = readFileSync(join(root, 'docs/mobile/PHASE-2-DESKTOP-CLOUD-REPLICATION.md'), 'utf8');

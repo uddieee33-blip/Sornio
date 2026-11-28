@@ -1,0 +1,24 @@
+## Pre-fix reproduction of the gates the remediation closed (same images/toolchain)
+
+### verify:local-schema on the pre-fix tree (f232348, before b5e78e5)
+
+2 FAILED of 92 checks
+  - user_version is 12, crate SCHEMA_VERSION is 13
+  - legacy v4 database upgrades to schema 13
+EXIT=1
+
+### verify:local-schema at HEAD 830b9f0
+
+all 110 schema checks passed
+EXIT=0
+
+### cargo clippy (no -D) on the pre-fix tree (f232348, before a3573a2)
+21 warning lines / 19 generated warnings (17 unique in lib, 2 in tests): needless_borrow x11,
+too_many_arguments x4, type_complexity, redundant_field_pattern, manual_range_contains, redundant_pattern_matching
+
+### cargo clippy -D warnings at HEAD
+Finished dev profile ... (no warnings)
+EXIT=0
+
+### cargo test --all-targets on the pre-fix tree is NOT re-run here (it needs ~7.5 min);
+# the full suite at HEAD is 262/0/7 (gates-cargo-test.txt).

@@ -1,0 +1,3 @@
+CARGO_TEST_EXIT=0
+test result: ok. 262 passed; 0 failed; 7 ignored; 0 measured; 0 filtered out; finished in 415.72s
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.87s

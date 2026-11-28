@@ -12,6 +12,8 @@ export {
   enrollSql,
   enrollPrivileged,
   revokePrivileged,
+  rotatePublisherGeneration,
+  type RotateGenerationResult,
   setJwtClaims,
   setJwtClaimsLocal,
   snapshotFromPostgres,

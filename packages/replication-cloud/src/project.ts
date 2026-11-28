@@ -91,7 +91,7 @@ function applyInvoice(store: CloudStore, envelope: Envelope): void {
   }
 }
 
-function retailInvoiceId(payload: Record<string, unknown>, envelope: Envelope): string {
+function retailInvoiceId(payload: Record<string, unknown>): string {
   const receipt = record(payload.receipt) ? payload.receipt : payload;
   const data = record(receipt.data) ? receipt.data : {};
   const invoice = record(data.invoice) ? data.invoice : null;
@@ -114,7 +114,7 @@ function applyRetailSale(store: CloudStore, envelope: Envelope): void {
   const kind = typeof receipt.kind === 'string' ? receipt.kind : envelope.eventType;
   if (kind !== 'sale' && kind !== 'retail.sale') return;
   const data = record(receipt.data) ? receipt.data : {};
-  const invoiceId = retailInvoiceId(payload, envelope);
+  const invoiceId = retailInvoiceId(payload);
   const payments = data.payments;
   parsePaymentParts(payments);
   const existing = store.invoices.get(tenantKey(envelope.businessId, invoiceId));

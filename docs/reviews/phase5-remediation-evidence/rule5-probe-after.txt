@@ -1,0 +1,10 @@
+=== RULE 5 probe: AFTER fix ===
+DATE_UTC: 2026-11-26T16:01:23Z
+gen-1 outstanding: 5000
+gen-2 billing seq1 (bill-1) => {"operationId":"bill-1","cursor":"3","duplicate":true}
+gen-2 billing seq2 (bill-2, duplicate) => {"operationId":"bill-2","cursor":"4","duplicate":true}
+gen-2 billing seq3 (bill-3-NEW) => {"operationId":"bill-3-NEW","cursor":"6","duplicate":false}
+gen-2 customer seq2 (cred-1) => {"operationId":"cred-1","cursor":"5","duplicate":true}
+gen-2 outstanding: 5000
+OUTSTANDING_PRESERVED: true
+PROBE_EXIT=0

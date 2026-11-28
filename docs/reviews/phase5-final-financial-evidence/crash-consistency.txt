@@ -1,0 +1,23 @@
+=== crash-consistency ===
+DATE_UTC: 2026-11-26T17:43:59Z
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::phase5_tests::crash_at_every_transition_is_fail_closed_and_consistent -- --exact
+warning: variable does not need to be mutable
+   --> src/recovery/final_financial_tests.rs:656:9
+    |
+656 |     let mut s = sale_4250(&d);
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 1 test
+test recovery::phase5_tests::crash_at_every_transition_is_fail_closed_and_consistent ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 260 filtered out; finished in 23.79s
+
+EXIT_CODE=0

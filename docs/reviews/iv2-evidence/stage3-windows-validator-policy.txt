@@ -1,0 +1,83 @@
+Stage 3 — Windows Foundation validator policy tightening
+Captured: 2026-11-27T19:33:00Z on Linux (a template check; NOT a Windows execution)
+Branch: arena/475a4866-sornio
+Working-tree base commit: b7357893a7ad263f8818554ea3216d1144bea5ed
+
+1. DEFECT: the pre-change validator accepted a blocked foundation gate
+   Fixture: W-02-webview2 recorded as state=blocked WITH a reason, environment.webview2=present,
+   every other foundation gate 'passed'. This is the exact cheat the gate must refuse: W-02 was
+   never executed (the workstation already had the WebView2 runtime) yet the record was accepted.
+
+   -- validator as shipped at b735789 (source copied to scripts/ and run from the repo root) --
+
+Non-claims
+
+Windows Foundation acceptance: VALID — every required gate passed on the recorded workstation
+   BEFORE_EXIT=0  <-- accepted
+
+   -- validator in this change --
+
+Windows Foundation acceptance: FAILED
+  - environment.webview2 is "present": W-02 (the offline-runtime fallback) cannot be exercised on this workstation, so the record cannot claim it
+  - W-02-webview2 is 'blocked': a blocked foundation gate is not an acceptance — execute it on the workstation or do not record this milestone as met
+  - foundation gates cannot be blocked: W-02-webview2
+   AFTER_EXIT=0  <-- refused, naming both the blocked gate and the environment contradiction
+
+2. POLICY NOW ENFORCED (each has a negative test in scripts/test-windows-foundation-evidence.mjs)
+   - 'blocked' is rejected on W-01..W-12 even when a reason is supplied.
+   - 'blocked' is honoured only on H-13..H-15, where a reason of >=8 chars is required.
+   - environment.webview2='present' is rejected: W-02 is unexercisable on such a workstation.
+   - schemaBefore/schemaAfter are pinned to 12/13 (const in the schema); 11->13 and 12->14 refused.
+   - schemaBefore/schemaAfter must be integers: '13' as a string is refused, not coerced.
+   - financial snapshot fields must be integers: '10164' and 1500.5 are refused.
+   - stockMilli needs >=3 products, the SAME ids on both sides, and no placeholder ids.
+   - lastInvoiceNumber 'REPLACE' is refused; downstream drift in outstanding is caught.
+   - evidence rows must be non-empty strings: '   ' and a bare string are refused.
+   - hardwareClaimed values must be booleans; a non-boolean claim is refused.
+   - nonClaims must disclose BOTH the unsigned build and the unexecuted hardware gates.
+   - commitSha '0'x40 is rejected as a placeholder, and a non-HEAD SHA is rejected as stale.
+   - a missing git checkout is reported as a failure, not an uncaught crash.
+
+3. SUCCESS MESSAGE (honesty of the pass line)
+  ok    the procedure documents all 15 gates, the blocked policy and its non-claims
+
+Windows Foundation acceptance package: valid (this is a TEMPLATE check, not a Windows pass)
+
+   A validated FOUNDATION record now prints:
+   'Windows Foundation acceptance: VALID — foundation gates W-01-installation..W-12 (12 executed,
+    all passed) on the recorded workstation.'
+   'This is a FOUNDATION acceptance, not a hardware acceptance: H-13-barcode-scanner,
+    H-14-thermal-printer, H-15-cash-drawer remain blocked and unclaimed.'
+   The template path prints 'valid (this is a TEMPLATE check, not a Windows pass)'.
+
+4. NEGATIVE SUITE
+
+windows-foundation evidence gate: 81 checks passed
+   Was 31 checks before this change; no pre-existing case was removed or relaxed.
+
+5. SCHEMA AND VALIDATOR AGREE (structural policy, not just prose)
+   The gates node is no longer a single patternProperties rule: each of the 15 gates has its own
+   schema node, and W-01..W-12 enumerate only [passed, failed, not-run] - so a blocked foundation
+   gate is invalid by construction, not only by a validator branch. Checked with ajv (the only
+   JSON Schema engine present at node_modules/ajv@6.15.0, run draft-07-mode with $schema dropped;
+   the constructs used - type/const/enum/minLength/minProperties/additionalProperties/required -
+   are shared with 2020-12 and the document declares 2020-12):
+   REJECT  shipped template (worksheet with placeholders - expected REJECT)
+   REJECT  W-02 blocked WITH a reason (must REJECT)
+   REJECT  H-13 blocked with NO reason (must REJECT)
+   REJECT  schema 12 -> 14 (must REJECT)
+   REJECT  schemaAfter as a string (must REJECT)
+   REJECT  one stock product (must REJECT)
+   REJECT  blank evidence row on a passed gate (must REJECT)
+   REJECT  unknown gate name (must REJECT)
+   REJECT  non-boolean hardware claim (must REJECT)
+   ACCEPT  valid-shaped record (expected ACCEPT at schema level)
+
+   The shipped example is deliberately NOT a validating record: it is a worksheet. What the
+   template check enforces is narrower and unchanged in spirit - the example must keep only the
+   hardware gates blocked, must claim no hardware, and must model schema 12 -> 13.
+
+6. RESULT
+   npm run verify:windows-foundation -> 81 checks passed (was 31).
+   No pre-existing negative case was removed or relaxed; 4 cases were split or retargeted only
+   where the new policy names a more specific failure (placeholder SHA vs stale SHA).

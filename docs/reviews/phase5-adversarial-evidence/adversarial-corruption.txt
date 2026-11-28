@@ -1,0 +1,18 @@
+=== corruption-resistance controls audit_f ===
+DATE_UTC: 2026-11-26T15:27:09Z
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-audit/workspace/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.42s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 7 tests
+test customers::tests::privileged_audit_failure_rolls_back_the_whole_collection ... ok
+test access::tests::owner_creation_is_serialized_and_audit_failure_rolls_back_provisioning ... ok
+test recovery::phase5_tests::audit_f1_startup_rejects_unknown_audit_action ... ok
+test recovery::phase5_tests::audit_f2_startup_rejects_two_live_operations ... ok
+test recovery::phase5_tests::audit_f3_startup_rejects_fence_on_terminal_operation ... ok
+test recovery::phase5_tests::audit_f4_startup_rejects_completed_without_generation ... ok
+test payments::tests::every_return_write_and_audit_failure_roll_back_stock_journals_and_retry ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 233 filtered out; finished in 22.79s
+
+EXIT_CODE=0

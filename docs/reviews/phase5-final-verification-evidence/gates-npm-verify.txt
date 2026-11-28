@@ -1,0 +1,26 @@
+## npm run verify (32 sub-gates), independent run
+# EXIT=0
+verify verify:scanning verify:billing verify:accounting verify:inventory verify:import verify:lock verify:theme verify:motion verify:security verify:auth verify:onboarding verify:profile verify:pwa verify:team verify:team-database verify:i18n verify:render verify:recovery verify:database verify:owner-plans verify:key-console verify:reliability verify:operating-database verify:shopkeeper verify:workspace verify:local-schema verify:desktop-contract verify:money verify:windows-release verify:business-domain verify:mobile-contracts verify:replication 
+
+## per-gate summaries
+25 passed, 0 failed
+64 passed, 0 failed
+20 passed, 0 failed.
+7 invariants hold across 248 source files.
+53 invariants hold.
+53 passed, 0 failed
+48 passed, 0 failed
+17 passed, 0 failed.
+Team database: isolated RPC, one-time use, roles, rollback and authorization checks passed.
+18 invariants hold.
+24 passed, 0 failed
+38 passed, 0 failed
+59 passed, 0 failed
+all 110 schema checks passed
+37 desktop contract checks passed
+12 money contract checks passed
+40 Windows release-identity checks passed
+Shared domain checks passed: invoice rounding, invalid/overflow amounts, immutable inputs and eight business workspaces.
+Checkout display checks passed: exact paise including balances beyond JS safe integers, negative/zero balances and fractional units.
+Mobile contracts: 63 checks passed (paise, sync, demo isolation, roles, cache, threats).
+verify-replication: 139 checks passed

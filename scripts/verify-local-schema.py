@@ -75,6 +75,12 @@ MODULE_VERSION = {
     "inventory_recovery": 10,
     "recovery": 11,
     "lan_authority": 12,
+    # Schema v13 (recovery state machine: operations/fence tables, the per-table
+    # barrier triggers, and the metadata immutability guards) is applied by
+    # `recovery::migrate_v13`, which is not a `fn migrate` the loader can find by
+    # name. It is replayed explicitly by `v13_requested` below so the schema
+    # fingerprint and guard attacks cover the current schema, not schema 12.
+    "migrate_v13": 13,
 }
 
 failures: list[str] = []
@@ -279,9 +285,46 @@ def load_migrations() -> tuple[list[tuple[str, list[str]]], int]:
                 applied += ddl_from_sql(expanded)
         groups.append((module, applied))
 
+    # Schema v13 is `recovery::migrate_v13`, whose body builds the metadata
+    # tables inline and then creates one barrier trigger per FENCED_TABLES entry
+    # inside a `for table in FENCED_TABLES` loop. Replaying it here is what keeps
+    # this gate honest about the CURRENT schema: without it the fingerprint and
+    # the guard attacks silently describe schema 12.
+    recovery = (SRC / "recovery.rs").read_text()
+    start, end = module_body(recovery, "migrate_v13")
+    body = recovery[start:end]
+    v13 = const_literals(recovery).get("V13_EXTENSION")
+    if v13 is None:
+        raise SystemExit("could not find const V13_EXTENSION in recovery.rs")
+    applied = []
+    for statement in ddl_from_sql(v13):
+        applied.append(statement)
+    fenced_block = re.search(r"const FENCED_TABLES: &\[&str\] = &\[(.*?)\];", recovery, re.DOTALL)
+    if fenced_block is None:
+        raise SystemExit("could not find const FENCED_TABLES in recovery.rs")
+    fenced = re.findall(r'"([^"]+)"', fenced_block.group(1))
+    if not fenced:
+        raise SystemExit("FENCED_TABLES is empty in recovery.rs")
+    for table in fenced:
+        for suffix, op in (("ins", "INSERT"), ("upd", "UPDATE"), ("del", "DELETE")):
+            applied.append(
+                f"CREATE TRIGGER recovery_fence_{table}_{suffix} BEFORE {op} ON {table}\n"
+                "                 BEGIN SELECT RAISE(ABORT,'Sornio recovery is in progress;"
+                " business writes are paused')\n"
+                "                 WHERE EXISTS(SELECT 1 FROM local_recovery_fence); END;"
+            )
+    applied.append("PRAGMA user_version=13;")
+    groups.append(("migrate_v13", applied))
+
     # Guard against MIGRATION_ORDER silently drifting from lib.rs.
-    called = re.findall(r"(\w+)::migrate\(&tx\)", lib)
-    check(called == MIGRATION_ORDER, f"migration order matches lib.rs ({len(called)} modules)")
+    called = [
+        module if step == "migrate" else step
+        for module, step in re.findall(r"(\w+)::(migrate(?:_v13)?)\(&tx\)", lib)
+    ]
+    check(
+        called == MIGRATION_ORDER + ["migrate_v13"],
+        f"migration order matches lib.rs ({len(called)} steps: {called})",
+    )
     return groups, version
 
 
@@ -334,6 +377,9 @@ def seed(db: sqlite3.Connection) -> None:
       * retail journal (cash movement only): cash +2000, receivables -2000
       * payments: cash 2000 and UPI 2451 (UPI stays pending, never "verified")
     """
+    # The v3 migration seeds the singleton workspace_access row; the replay keeps
+    # only DDL, so seed it here exactly as the real migration does.
+    db.execute("INSERT INTO workspace_access(singleton) VALUES(1)")
     db.execute(
         "INSERT INTO local_identity VALUES(1,'biz-test','ws-test','Test shop','general','new')"
     )
@@ -669,6 +715,132 @@ def attacks(db: sqlite3.Connection) -> None:
         "an opening float cannot be negative",
         "INSERT INTO local_retail_floats VALUES('f1','p1','2026-10-31',-1)",
     )
+
+    # Schema v13 recovery metadata: the durable recovery identity is a singleton
+    # with canonical 64-lowercase-hex fields, history is permanent, and the
+    # brute-force budget cannot be cleared while a fence is live. Without these
+    # engine-level guards a raw-SQL writer with the SQLCipher key could reset the
+    # shared lockout or substitute the business identity during a recovery.
+    canonical = "a" * 64
+    db.execute(
+        "INSERT INTO local_recovery_identity VALUES(1,?1,?2)", (canonical, "b" * 64)
+    )
+    must_fail(
+        db,
+        "a second recovery identity row is refused",
+        "INSERT INTO local_recovery_identity VALUES(2,?,?)",
+        (canonical, "b" * 64),
+    )
+    must_fail(
+        db,
+        "a non-hex recovery generation is refused",
+        "UPDATE local_recovery_identity SET generation=?",
+        ("zzzz",),
+    )
+    must_fail(
+        db,
+        "a shortened recovery generation is refused",
+        "UPDATE local_recovery_identity SET generation=?",
+        ("abc",),
+    )
+    must_fail(
+        db,
+        "the recovery business identity is immutable",
+        "UPDATE local_recovery_identity SET business_id=?",
+        ("c" * 64,),
+    )
+    must_fail(
+        db,
+        "the recovery identity cannot be deleted",
+        "DELETE FROM local_recovery_identity",
+    )
+    generation = db.execute(
+        "SELECT generation FROM local_recovery_identity WHERE singleton=1"
+    ).fetchone()[0]
+    db.execute(
+        "INSERT INTO local_recovery_operations(operation_id,kind,state,business_id,"
+        "generation,owner_token,backup_id,expected_fingerprint,created_at,updated_at)"
+        " VALUES(?1,'restore','admitted',?2,?3,?4,'backup-schema',?5,0,0)",
+        ("d" * 64, canonical, generation, "e" * 64, "f" * 64),
+    )
+    db.execute(
+        "INSERT INTO local_recovery_fence VALUES(1,?1,?2,?3,0)",
+        ("d" * 64, canonical, "e" * 64),
+    )
+    must_fail(
+        db,
+        "the recovery fence cannot be updated while active",
+        "UPDATE local_recovery_fence SET owner_token=?",
+        ("f" * 64,),
+    )
+    must_fail(
+        db,
+        "recovery metadata is frozen while a fence is active",
+        "UPDATE local_recovery_identity SET generation=?",
+        ("b" * 64,),
+    )
+    must_fail(
+        db,
+        "a business table write is barred by the recovery fence",
+        "UPDATE local_products SET stock_milli=0 WHERE id='rice'",
+    )
+    db.execute("UPDATE workspace_access SET failed_attempts=5,retry_after=9999999999")
+    must_fail(
+        db,
+        "the shared lockout cannot be cleared while a fence is active",
+        "UPDATE workspace_access SET failed_attempts=0,retry_after=0",
+    )
+    must_fail(
+        db,
+        "the shared lockout window cannot be dropped while a fence is active",
+        "UPDATE workspace_access SET retry_after=0",
+    )
+    must_fail(
+        db,
+        "the workspace credential policy is frozen while a fence is active",
+        "UPDATE workspace_access SET password_hash='x'",
+    )
+    must_fail(
+        db,
+        "workspace access state cannot be deleted",
+        "DELETE FROM workspace_access",
+    )
+    check(
+        db.execute("SELECT COUNT(*) FROM local_recovery_operations").fetchone()[0] == 1,
+        "the recovery operation and fence rows exist before the delete attacks",
+    )
+    check(
+        db.execute("SELECT COUNT(*) FROM local_recovery_fence").fetchone()[0] == 1,
+        "the recovery fence row exists before the delete attacks",
+    )
+    must_fail(
+        db,
+        "recovery operation history is permanent",
+        "DELETE FROM local_recovery_operations",
+    )
+    # Releasing the fence requires a terminal operation, so the attack above
+    # cannot be completed by simply deleting the barrier row first.
+    must_fail(
+        db,
+        "a live recovery fence cannot be released",
+        "DELETE FROM local_recovery_fence",
+    )
+    # The barrier can only be released through the state machine: terminate the
+    # operation first, then drop the fence, then the budget is writable again.
+    db.execute(
+        "UPDATE local_recovery_operations SET state='interrupted',updated_at=1"
+    )
+    db.execute("DELETE FROM local_recovery_fence")
+    db.execute("UPDATE workspace_access SET failed_attempts=0,retry_after=0")
+    check(
+        db.execute("SELECT COUNT(*) FROM local_recovery_fence").fetchone()[0] == 0,
+        "the fence is released only after a terminal recovery state",
+    )
+    check(
+        db.execute("SELECT stock_milli FROM local_products WHERE id='rice'").fetchone()[0]
+        == 8750,
+        "a fenced business write left stock untouched",
+    )
     must_fail(
         db,
         "a closing state outside the allowed set is refused",
@@ -786,7 +958,7 @@ def upgrade_from_legacy(groups, version: int) -> None:
         if MODULE_VERSION[label] > from_version
     ]
     check(
-        [label for label, _ in pending] == MIGRATION_ORDER[1:],
+        [label for label, _ in pending] == MIGRATION_ORDER[1:] + ["migrate_v13"],
         f"a v4 database needs exactly the remaining migrations {[label for label, _ in pending]}",
     )
     for _, group in pending:

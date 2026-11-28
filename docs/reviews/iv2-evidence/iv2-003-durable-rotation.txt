@@ -1,0 +1,82 @@
+## verify:replication-postgres on real PostgreSQL 16.2 (fresh schema)
+verify-replication-postgres: 100 checks passed on server PostgreSQL   [first pass, before the
+                                                                        transactional rewrite]
+EXIT=0
+
+## Second hardening pass: the rotation is now one explicit transaction
+verify-replication-postgres: 139 checks passed on server PostgreSQL   [10/10 consecutive runs]
+EXIT=0
+
+## rotation lifecycle assertions added by IV2-003:
+  - rotation refuses an empty generation
+  - rotation refuses whitespace in a generation
+  - rotation refuses a generation longer than the column allows
+  - rotation refuses an unenrolled business
+  - rotation refuses a business whose only publisher is revoked
+  - rotation refuses re-issuing the generation already in force
+  - rotation reports the transition it performed
+  - rotation reports the device it moved
+  - the enrolled device carries gen-2
+  - rotation itself writes no events
+  - the pre-restore generation can no longer publish
+  - the first new post-restore operation is accepted
+  - a replay after rotation keeps its original cursor
+  - a second rotation reports gen-2 -> gen-3
+  - an operation from an earlier generation is still a duplicate after a second restore
+  - the new generation continues from its own sequence
+  - a skipped sequence under the new generation is still a gap
+  - a reused operation id with a different payload is still a conflict after rotation
+  - each event keeps the generation that carried it; rotation rewrites no history
+  - a replay after rotation is acked against the new generation
+  - hydration after rotation keeps the stream-scoped identity
+
+## Concurrency evidence added in the second hardening pass
+
+`rotatePublisherGeneration` previously read the device row and then issued an
+unconditional UPDATE with no transaction. Two restores could therefore both read
+`gen-A`, both "succeed", and both report `previousGeneration: gen-A` while the row
+ended on whichever UPDATE landed last. The rewrite issues one `BEGIN`/`COMMIT`,
+locks the business row and then the publisher row (the same order as
+`ingestDurable`, so the two can never deadlock), and uses
+`UPDATE ... WHERE restore_generation = $2 RETURNING` so the reported predecessor
+is the value the database actually replaced.
+
+Five concurrency cases, each on its own pair of `pg.Client` connections
+(not one connection reused, and not PGlite):
+
+  1. same-target race - exactly one rotation commits; the loser fails CONFLICT;
+     the winner reports the real predecessor; the stored row sits on the single
+     committed generation.
+  2. different-target race - both commit, and the two reported predecessors form
+     a genuine chain starting at the generation in force
+     (measured example: C reports A, B reports C - i.e. the rotation issued
+     first may commit second; the gate asserts a true chain, never an order).
+  3. same-generation retry - CONFLICT, the generation is unchanged, no event is
+     written.
+  4. rotation racing a real `ingestDurable` - the rotation always commits and
+     reports the generation it replaced; the ingest either commits exactly one
+     event or fails STALE_GENERATION having committed nothing. A reported
+     failure never leaves a committed event.
+  5. the opposite-order probe - both operations end in a commit or a documented
+     replication error; no raw 40001/40P01 driver error escapes either API.
+
+### The suite detects the old defect
+
+Reverting `packages/replication-cloud/src/postgres.ts` to its pre-change (b735789)
+form and re-running the same suite fails 6/6 times:
+
+  run1-6 exit=1, alternating between
+    "the two transitions form a real chain from the start (["race-gen-C"])"
+    and "exactly one concurrent rotation to the same generation commits (2 of 2)"
+
+Both messages describe exactly the bug: a stale predecessor and two "successful"
+same-target rotations. The tests are therefore a regression gate, not a
+restatement of current behaviour.
+
+### A note on what is NOT asserted
+
+- A fixed commit order for racing rotations is deliberately not asserted: the
+  rotation issued first can commit second. The assertion is a chain, not a order.
+- GAP and STALE_GENERATION are correct fail-closed outcomes when a rotation wins
+  the lock mid-ingest. The gate accepts "commit or documented ReplicationError"
+  and never narrows that to one expected code.

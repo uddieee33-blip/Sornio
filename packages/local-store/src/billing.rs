@@ -159,13 +159,13 @@ pub(crate) fn post_into(
     }
     let raw = serde_json::to_string(&request)?;
     crate::identity::guard(
-        &tx,
+        tx,
         session,
         crate::identity::Permission::Sell,
         "sale.posted",
         Some(&request.operation_id),
     )?;
-    crate::identity::checkout_actor(&tx, session)?;
+    crate::identity::checkout_actor(tx, session)?;
     crate::payments::invoice_id_check(tx, &request.operation_id, retail.is_some())?;
     let previous: Option<(String, String)> = tx
         .query_row(
@@ -175,7 +175,7 @@ pub(crate) fn post_into(
         )
         .optional()?;
     if let Some((old, payload)) = previous {
-        crate::identity::invoice_reader(&tx, session, &request.operation_id)?;
+        crate::identity::invoice_reader(tx, session, &request.operation_id)?;
         if old != raw {
             return Err(StoreError::OperationConflict);
         }
@@ -273,12 +273,12 @@ pub(crate) fn post_into(
     };
     let payload = serde_json::to_string(&invoice)?;
     insert_one(
-        &tx,
+        tx,
         "INSERT INTO local_invoices(sequence,id,request,payload) VALUES(?1,?2,?3,?4)",
         params![sequence, invoice.id, raw, payload],
     )?;
     insert_one(
-        &tx,
+        tx,
         "INSERT INTO local_invoice_actors(invoice_id,actor_id) VALUES(?1,?2)",
         params![invoice.id, session.as_ref().map(|s| s.actor_id.as_str())],
     )?;
@@ -299,21 +299,21 @@ pub(crate) fn post_into(
         if changed != 1 {
             return Err(StoreError::StockConflict);
         }
-        insert_one(&tx,"INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?3,?4,?5)",params![invoice.id,id,quantity,before,before-quantity])?;
+        insert_one(tx,"INSERT INTO local_invoice_stock(invoice_id,product_id,quantity_milli,before_milli,after_milli) VALUES(?1,?2,?3,?4,?5)",params![invoice.id,id,quantity,before,before-quantity])?;
     }
     let account = if invoice.tender == Tender::Cash {
         "cash"
     } else {
         "receivables"
     };
-    insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invoice.id,account,invoice.customer_id,total])?;
+    insert_one(tx,"INSERT INTO local_billing_ledger(invoice_id,account,customer_id,amount_paise) VALUES(?1,?2,?3,?4)",params![invoice.id,account,invoice.customer_id,total])?;
     insert_one(
-        &tx,
+        tx,
         "INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'revenue',?2)",
         params![invoice.id, -subtotal],
     )?;
     if tax > 0 {
-        insert_one(&tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoice.id,-tax])?;
+        insert_one(tx,"INSERT INTO local_billing_ledger(invoice_id,account,amount_paise) VALUES(?1,'tax_payable',?2)",params![invoice.id,-tax])?;
     }
     if invoice.tender != Tender::Retail {
         crate::customers::post_sale(tx, session, &invoice)?;
@@ -349,12 +349,12 @@ pub(crate) fn post_into(
     crate::payments::invoice_posted(tx, session, &invoice, retail)?;
     let event=serde_json::json!({"version":1,"kind":"invoice.posted","operationId":invoice.id,"invoice":invoice}).to_string();
     insert_one(
-        &tx,
+        tx,
         "INSERT INTO local_billing_audit(invoice_id,payload) VALUES(?1,?2)",
         params![invoice.id, event],
     )?;
     insert_one(
-        &tx,
+        tx,
         "INSERT INTO local_billing_outbox(invoice_id,payload) VALUES(?1,?2)",
         params![invoice.id, event],
     )?;
@@ -867,6 +867,7 @@ mod tests {
         .unwrap();
         crate::lan_authority::remove_fixture_tables(&s.0);
         s.0.execute_batch("DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; PRAGMA user_version=4;").unwrap();
+        crate::recovery::remove_v13_for_legacy_test(&s.0);
         drop(s);
         let mut w = Workspace::new(Store::open(&path, KEY).unwrap());
         w.unlock("Existing billing password").unwrap();

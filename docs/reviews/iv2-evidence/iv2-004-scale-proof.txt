@@ -1,0 +1,6 @@
+## IV2-004: shipped schema at 200k events, index present / dropped / re-applied
+Plan and Execution Time from EXPLAIN (ANALYZE, COSTS OFF) on the shipped migration.
+SHIPPED schema, 200k events, index present : { plan: 'Index Scan', ms: 0.033 }
+SHIPPED schema, 200k events, index dropped : { plan: 'Seq Scan', ms: 18.88 }
+after re-applying the migration            : { plan: 'Index Scan', ms: 0.042 }
+index restored by migration: true

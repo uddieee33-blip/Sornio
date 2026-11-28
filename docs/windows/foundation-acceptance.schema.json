@@ -1,0 +1,764 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sornio.local/schemas/windows-foundation-acceptance.json",
+  "title": "Sornio Windows Foundation acceptance record",
+  "description": "One record per Windows acceptance session. A record only validates when every foundation gate (W-01..W-12) is 'passed'. 'blocked' is reserved for the hardware gates (H-13..H-15), which are then never claimed: a foundation acceptance is not a hardware acceptance. The shipped example in foundation-acceptance.example.json deliberately keeps 'REPLACE' placeholders and therefore does NOT validate - it is a worksheet, not evidence.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "milestone",
+    "commitSha",
+    "recordedAt",
+    "recordedBy",
+    "environment",
+    "installer",
+    "gates",
+    "hardwareClaimed",
+    "financialParity",
+    "nonClaims"
+  ],
+  "properties": {
+    "milestone": {
+      "const": "foundation"
+    },
+    "commitSha": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{40}$",
+      "description": "The HEAD the installer was built from. The validator compares it with the checked-out HEAD."
+    },
+    "recordedAt": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "recordedBy": {
+      "type": "string",
+      "minLength": 1
+    },
+    "environment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "workstation",
+        "windowsEdition",
+        "windowsBuild",
+        "accountType",
+        "webview2",
+        "databasePath",
+        "schemaBefore",
+        "schemaAfter"
+      ],
+      "properties": {
+        "workstation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "windowsEdition": {
+          "type": "string",
+          "minLength": 1
+        },
+        "windowsBuild": {
+          "type": "string",
+          "minLength": 1
+        },
+        "cpu": {
+          "type": "string"
+        },
+        "ramGb": {
+          "type": "number",
+          "exclusiveMinimum": 0
+        },
+        "accountType": {
+          "enum": [
+            "standard",
+            "administrator"
+          ]
+        },
+        "webview2": {
+          "enum": [
+            "present",
+            "absent",
+            "installed-by-bundled-installer"
+          ],
+          "description": "'absent' or 'installed-by-bundled-installer' is what makes W-02 meaningful. A workstation that already has the runtime cannot exercise the fallback, so the validator rejects a foundation record whose environment.webview2 is 'present'."
+        },
+        "webview2Version": {
+          "type": "string"
+        },
+        "databasePath": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schemaBefore": {
+          "const": 12,
+          "description": "This milestone is defined by the schema-12 -> schema-13 upgrade; any other starting schema is a different record."
+        },
+        "schemaAfter": {
+          "const": 13,
+          "description": "Must be 13. A record that upgrades to any other version does not describe this milestone."
+        }
+      }
+    },
+    "installer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fileName",
+        "sha256",
+        "installedExeSha256",
+        "signatureStatus"
+      ],
+      "properties": {
+        "fileName": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "installedExeSha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "signatureStatus": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Observed Authenticode state, e.g. 'unsigned' or 'valid'. Never invent 'signed'."
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "required": [
+        "W-01-installation",
+        "W-02-webview2",
+        "W-03-startup-shutdown",
+        "W-04-sqlcipher-init",
+        "W-05-schema-upgrade",
+        "W-06-offline-billing",
+        "W-07-offline-inventory",
+        "W-08-recovery",
+        "W-09-restart",
+        "W-10-backup-restore",
+        "W-11-install-uninstall",
+        "W-12-ntfs-acls",
+        "H-13-barcode-scanner",
+        "H-14-thermal-printer",
+        "H-15-cash-drawer"
+      ],
+      "description": "Every gate W-01..W-12 must be 'passed'. Only H-13..H-15 may be 'blocked', and a blocked hardware gate must carry a reason and must not be claimed in hardwareClaimed.",
+      "additionalProperties": false,
+      "properties": {
+        "W-01-installation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-02-webview2": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-03-startup-shutdown": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-04-sqlcipher-init": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-05-schema-upgrade": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-06-offline-billing": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-07-offline-inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-08-recovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-09-restart": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-10-backup-restore": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-11-install-uninstall": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "W-12-ntfs-acls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run"
+              ],
+              "description": "A foundation gate cannot be 'blocked': a blocked foundation gate means the foundation was not accepted. The validator rejects it even when a reason is supplied."
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Foundation gate: must be executed and passed. 'blocked' is not an available state."
+        },
+        "H-13-barcode-scanner": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run",
+                "blocked"
+              ]
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Hardware gate: may be 'blocked' with a reason, and is then never claimed. A blocked hardware gate is not a pass."
+        },
+        "H-14-thermal-printer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run",
+                "blocked"
+              ]
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Hardware gate: may be 'blocked' with a reason, and is then never claimed. A blocked hardware gate is not a pass."
+        },
+        "H-15-cash-drawer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state",
+            "evidence"
+          ],
+          "properties": {
+            "state": {
+              "enum": [
+                "passed",
+                "failed",
+                "not-run",
+                "blocked"
+              ]
+            },
+            "evidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "minLength": 1
+              },
+              "description": "File names or command transcript names relative to the evidence directory. Empty strings are rejected: a blank row is not evidence."
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 8,
+              "description": "Required when a hardware gate is 'blocked'. The validator enforces this."
+            },
+            "notes": {
+              "type": "string"
+            }
+          },
+          "description": "Hardware gate: may be 'blocked' with a reason, and is then never claimed. A blocked hardware gate is not a pass."
+        }
+      }
+    },
+    "hardwareClaimed": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "barcodeScanner",
+        "thermalPrinter",
+        "cashDrawer"
+      ],
+      "properties": {
+        "barcodeScanner": {
+          "type": "boolean"
+        },
+        "thermalPrinter": {
+          "type": "boolean"
+        },
+        "cashDrawer": {
+          "type": "boolean"
+        }
+      },
+      "description": "Must agree with the H-13..H-15 gate states: claiming hardware while the gate is blocked is rejected."
+    },
+    "financialParity": {
+      "type": "object",
+      "additionalProperties": false,
+      "description": "Snapshot proving the schema-12 -> schema-13 upgrade changed no money. Required: a record without it cannot demonstrate that the upgrade preserved financial state.",
+      "required": [
+        "before",
+        "after"
+      ],
+      "properties": {
+        "before": {
+          "$ref": "#/$defs/snapshot"
+        },
+        "after": {
+          "$ref": "#/$defs/snapshot"
+        }
+      }
+    },
+    "nonClaims": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "What this record does NOT establish. The validator requires at least the unsigned-build non-claim and a statement that the hardware gates were not executed."
+    }
+  },
+  "$defs": {
+    "snapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "cashPaise",
+        "customerOutstandingPaise",
+        "stockMilli",
+        "lastInvoiceNumber"
+      ],
+      "properties": {
+        "cashPaise": {
+          "type": "integer"
+        },
+        "customerOutstandingPaise": {
+          "type": "integer"
+        },
+        "stockMilli": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "minProperties": 3,
+          "description": "Product id -> milli-unit balance. At least three products must be recorded on both sides of the upgrade, and both sides must record the same product ids.",
+          "propertyNames": {
+            "not": {
+              "pattern": "REPLACE"
+            }
+          }
+        },
+        "lastInvoiceNumber": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The real invoice number observed; 'REPLACE' is rejected."
+        }
+      },
+      "description": "Integer-typed financial snapshot. The validator rejects non-integers, placeholders and any drift."
+    }
+  }
+}

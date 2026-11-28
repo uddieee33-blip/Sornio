@@ -1,0 +1,6 @@
+=== CLOUD TYPESCRIPT COMPILATION ===
+DATE_UTC: 2026-11-26T17:32:47Z
+COMMAND: tsc --noEmit -p packages/mobile-contracts/tsconfig.json
+TSC_PROJECT_EXIT=0
+COMMAND: tsc --strict (replication-cloud + mobile-contracts, emit)
+TSC_STRICT_EXIT=0

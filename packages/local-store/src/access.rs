@@ -163,6 +163,11 @@ impl Workspace {
         result
     }
 
+    /// Eight inputs (three credentials, two paths, the verified preview and its
+    /// confirmation) are the restore contract as exposed by the native IPC
+    /// command; grouping them into a struct would only move the same secrets into
+    /// a longer-lived value, so the flat signature is deliberate.
+    #[allow(clippy::too_many_arguments)]
     pub fn restore_backup(
         &mut self,
         source: &std::path::Path,
@@ -185,6 +190,27 @@ impl Workspace {
         );
         self.lock();
         result
+    }
+
+    /// Review of the durable recovery state. Never mutates anything. Recovery
+    /// state is operational metadata (not business data), so it is readable
+    /// without an unlocked session: a fenced workspace must be diagnosable before
+    /// the Owner can resolve it. Resolution itself still requires Owner auth.
+    pub fn recovery_status(&self) -> Result<crate::recovery::RecoveryStatus, StoreError> {
+        crate::recovery::status(&self.store.0)
+    }
+
+    /// Explicit Owner resolution of an interrupted recovery (crash survivor).
+    /// Moves the operation to the terminal `interrupted` state and releases the
+    /// fence; never touches business data and never resumes the old restore.
+    pub fn resolve_interrupted_recovery(
+        &mut self,
+        operation_id: &str,
+        current_password: &str,
+    ) -> Result<(), StoreError> {
+        // Authenticates the Owner read-only inside recovery::resolve_interrupted,
+        // because the normal login write is itself barred by the live fence.
+        crate::recovery::resolve_interrupted(&mut self.store, operation_id, current_password)
     }
 
     pub fn new(mut store: Store) -> Self {
@@ -253,6 +279,17 @@ impl Workspace {
     }
     pub fn verify_scope(&self, scope: &Scope) -> Result<(), StoreError> {
         self.require(Permission::View)?;
+        if &identity::scope(&self.store.0)? != scope {
+            return Err(StoreError::WorkspaceMismatch);
+        }
+        Ok(())
+    }
+    /// Read-only scope boundary for recovery review/resolution. A fenced workspace
+    /// cannot establish a session (login is itself barred), so the normal
+    /// session-guarded `verify_scope` is unusable there. This enforces the same
+    /// workspace identity boundary without granting any authority: resolution
+    /// still requires Owner re-authentication, and status is operational metadata.
+    pub fn verify_scope_readonly(&self, scope: &Scope) -> Result<(), StoreError> {
         if &identity::scope(&self.store.0)? != scope {
             return Err(StoreError::WorkspaceMismatch);
         }
@@ -347,6 +384,10 @@ impl Workspace {
         if now < 0 || password.len() > 512 {
             return Err(StoreError::InvalidPassword);
         }
+        // Clean early rejection while a recovery fence is active (the engine-level
+        // barrier would otherwise surface as a raw constraint error). Owner
+        // resolution of an interrupted recovery uses a separate read-only auth.
+        crate::recovery::ensure_open(&self.store.0)?;
         let username = identity::username(username)?;
         let tx = self
             .store
@@ -963,7 +1004,7 @@ pub(crate) fn hash_password(password: &str) -> Result<String, StoreError> {
         .map_err(|_| StoreError::AccessUnavailable)?
         .to_string())
 }
-fn verify_password(password: &str, hash: &str) -> Result<bool, StoreError> {
+pub(crate) fn verify_password(password: &str, hash: &str) -> Result<bool, StoreError> {
     if hash.len() > 128 || !hash.starts_with(HASH_PREFIX) {
         return Err(StoreError::AccessUnavailable);
     }

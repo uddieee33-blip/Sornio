@@ -1,0 +1,254 @@
+// Independent adversarial audit repro tests (Phase 5).
+// To reproduce: append this section to packages/local-store/src/recovery/phase5_tests.rs
+// in an ISOLATED copy of candidate 7f73ef0, then run:
+//   cargo test --locked --manifest-path packages/local-store/Cargo.toml --lib recovery::phase5_tests::audit_ -- --nocapture
+// These tests assert OBSERVED defective behavior; they are NOT part of the candidate.
+// They rely on the candidate's existing private helpers (seeded, sale, install_fence,
+// strip_triggers, financial_violations) and recovery::* via super::*.
+
+// INDEPENDENT ADVERSARIAL AUDIT REPROS — audit workspace ONLY.
+// These are NOT part of the audited candidate 7f73ef0. They assert the OBSERVED
+// (defective) behavior so each finding has executable, reproducible evidence.
+// Added by the Phase 5 independent audit; the candidate source is unchanged.
+// ===========================================================================
+
+/// A.1 — The fenced resolution path authenticates the Owner but never increments
+/// failed_attempts / retry_after, so it is an unlimited brute-force oracle that
+/// also grants an unlocked Owner session on success. Contrast audit_a2.
+#[test]
+fn audit_a1_resolve_interrupted_has_no_bruteforce_lockout() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let o = install_fence(&s.0);
+    assert!(fence_active(&s.0).unwrap());
+    for i in 0..25 {
+        let r = resolve_interrupted(&mut s, &o.operation_id, "definitely-wrong-password");
+        assert!(matches!(r, Err(StoreError::InvalidPassword)), "attempt {i}: {r:?}");
+    }
+    let (pa, pr): (i64, i64) = s.0.query_row(
+        "SELECT failed_attempts,retry_after FROM local_principals WHERE role='owner'",
+        [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    let (ga, gr): (i64, i64) = s.0.query_row(
+        "SELECT failed_attempts,retry_after FROM workspace_access WHERE singleton=1",
+        [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+    assert_eq!((pa, pr, ga, gr), (0, 0, 0, 0), "no lockout engaged after 25 failures");
+    resolve_interrupted(&mut s, &o.operation_id, LOGIN).unwrap();
+    assert!(s.1.is_some(), "resolution grants an unlocked Owner session");
+    assert!(!fence_active(&s.0).unwrap());
+}
+
+/// A.2 — Control: the normal login path DOES lock out after five failures.
+#[test]
+fn audit_a2_normal_login_locks_out_after_five_failures() {
+    let d = tempfile::tempdir().unwrap();
+    let mut w = Workspace::new(seeded(&d.path().join("live")));
+    for _ in 0..5 {
+        let _ = w.unlock("definitely-wrong-password");
+    }
+    let r = w.unlock("definitely-wrong-password");
+    assert!(matches!(r, Err(StoreError::RateLimited)), "normal login must lock: {r:?}");
+}
+
+fn audit_credit_store(d: &tempfile::TempDir) -> Store {
+    use crate::customers::{CreditKind, CreditRequest, SaveCustomer};
+    let mut w = Workspace::new(seeded(&d.path().join("live")));
+    w.unlock(LOGIN).unwrap();
+    w.save_customer(SaveCustomer {
+        operation_id: "new-customer".into(), id: "customer".into(),
+        name: "Synthetic customer".into(), phone: None,
+        credit_limit_paise: Some(100000), credit_days: 0, expected_revision: None,
+    }).unwrap();
+    let mut credit = sale("credit-sale", 1);
+    credit.tax_basis_points = 0;
+    credit.tender = Tender::Credit;
+    credit.customer_id = Some("customer".into());
+    w.prepare_checkout(credit.clone()).unwrap();
+    w.post_invoice(credit.clone()).unwrap();
+    w.clear_checkout("credit-sale", true).unwrap();
+    let customer = w.find_customers("Synthetic customer", false).unwrap().remove(0);
+    let collect = CreditRequest {
+        operation_id: "cash-collection".into(), customer_id: "customer".into(),
+        expected_revision: customer.revision, kind: CreditKind::Repayment,
+        amount_paise: 1000, reason: String::new(), due_on: None, reverse_of: None,
+    };
+    w.prepare_credit(collect.clone()).unwrap();
+    w.post_credit(collect.clone()).unwrap();
+    w.clear_credit("cash-collection", true).unwrap();
+    w.into_recovery_store()
+}
+
+/// D.1 — Deleting a credit sale's credit entry understates customer outstanding
+/// balance, yet the verifier reports clean (check 5 is an INNER JOIN on kind='sale').
+#[test]
+fn audit_d1_verifier_misses_deleted_credit_sale_entry() {
+    let d = tempfile::tempdir().unwrap();
+    let s = audit_credit_store(&d);
+    assert!(financial_violations(&s.0).is_empty());
+    let before: i64 = s.0.query_row(
+        "SELECT COALESCE(SUM(amount_paise),0) FROM local_credit_entries WHERE customer_id='customer'",
+        [], |r| r.get(0)).unwrap();
+    strip_triggers(&s.0);
+    let n = s.0.execute(
+        "DELETE FROM local_credit_entries WHERE invoice_id='credit-sale' AND kind='sale'", []).unwrap();
+    assert_eq!(n, 1);
+    let after: i64 = s.0.query_row(
+        "SELECT COALESCE(SUM(amount_paise),0) FROM local_credit_entries WHERE customer_id='customer'",
+        [], |r| r.get(0)).unwrap();
+    assert_ne!(before, after, "customer outstanding changed");
+    let v = financial_violations(&s.0);
+    assert!(v.is_empty(), "FALSE NEGATIVE: deleted credit sale entry undetected: {v:?}");
+}
+
+/// D.2 — Tampering a repayment credit entry changes outstanding balance, but the
+/// verifier only cross-checks kind='sale', so it reports clean.
+#[test]
+fn audit_d2_verifier_misses_tampered_repayment_entry() {
+    let d = tempfile::tempdir().unwrap();
+    let s = audit_credit_store(&d);
+    assert!(financial_violations(&s.0).is_empty());
+    strip_triggers(&s.0);
+    s.0.execute(
+        "UPDATE local_credit_entries SET amount_paise=amount_paise+5000 WHERE operation_id='cash-collection'",
+        []).unwrap();
+    let v = financial_violations(&s.0);
+    assert!(v.is_empty(), "FALSE NEGATIVE: repayment tamper undetected: {v:?}");
+}
+
+/// D.3 — A balanced billing-ledger tamper (shift between revenue and cash) keeps
+/// SUM=0 so the verifier reports clean, even though the revenue leg no longer
+/// matches the invoice. The verifier never reconciles ledger amounts to totals.
+#[test]
+fn audit_d3_verifier_misses_balanced_ledger_tamper() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    s.post_invoice(sale("sale-1", 1)).unwrap();
+    assert!(financial_violations(&s.0).is_empty());
+    let revenue_before: i64 = s.0.query_row(
+        "SELECT amount_paise FROM local_billing_ledger WHERE invoice_id='sale-1' AND account='revenue'",
+        [], |r| r.get(0)).unwrap();
+    strip_triggers(&s.0);
+    s.0.execute("UPDATE local_billing_ledger SET amount_paise=amount_paise-100 WHERE invoice_id='sale-1' AND account='revenue'", []).unwrap();
+    s.0.execute("UPDATE local_billing_ledger SET amount_paise=amount_paise+100 WHERE invoice_id='sale-1' AND account='cash'", []).unwrap();
+    let v = financial_violations(&s.0);
+    assert!(v.is_empty(), "FALSE NEGATIVE: balanced ledger tamper undetected: {v:?}");
+    let revenue_after: i64 = s.0.query_row(
+        "SELECT amount_paise FROM local_billing_ledger WHERE invoice_id='sale-1' AND account='revenue'",
+        [], |r| r.get(0)).unwrap();
+    assert_ne!(revenue_before, revenue_after, "revenue leg drifted from the invoice");
+}
+
+/// D.4 — local_retail_journal has no UNIQUE(operation_id,account) key and the
+/// verifier has no duplicate-journal check, so a duplicated balanced posting set
+/// (double-counted revenue/cash) reports clean.
+#[test]
+fn audit_d4_verifier_misses_duplicated_retail_journal() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    s.post_invoice(sale("sale-1", 1)).unwrap();
+    strip_triggers(&s.0);
+    s.0.execute_batch(
+        "INSERT INTO local_retail_journal(operation_id,customer_id,account,amount) VALUES('retail-op',NULL,'revenue',-5000);
+         INSERT INTO local_retail_journal(operation_id,customer_id,account,amount) VALUES('retail-op',NULL,'cash',5000);").unwrap();
+    assert!(financial_violations(&s.0).is_empty());
+    s.0.execute(
+        "INSERT INTO local_retail_journal(operation_id,customer_id,account,amount)
+         SELECT operation_id,customer_id,account,amount FROM local_retail_journal WHERE operation_id='retail-op'",
+        []).unwrap();
+    let v = financial_violations(&s.0);
+    assert!(v.is_empty(), "FALSE NEGATIVE: duplicated balanced retail journal undetected: {v:?}");
+    let dup: i64 = s.0.query_row(
+        "SELECT COUNT(*) FROM (SELECT operation_id,account FROM local_retail_journal GROUP BY operation_id,account HAVING COUNT(*)>1)",
+        [], |r| r.get(0)).unwrap();
+    assert!(dup > 0, "duplicates exist but the verifier ignores them");
+}
+
+/// B.1 — The engine fence bars business tables but NOT workspace_access (auth
+/// lockout) or local_recovery_identity (business identity + generation): raw SQL
+/// writes to those succeed while fenced. Positive control: a business write fails.
+#[test]
+fn audit_b1_unfenced_metadata_writable_while_fenced() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    s.post_invoice(sale("sale-1", 1)).unwrap();
+    let _o = install_fence(&s.0);
+    assert!(fence_active(&s.0).unwrap());
+    assert!(s.0.execute("UPDATE local_products SET stock_milli=0 WHERE id='rice'", []).is_err());
+    let r1 = s.0.execute("UPDATE workspace_access SET failed_attempts=0,retry_after=0 WHERE singleton=1", []);
+    let r2 = s.0.execute("UPDATE local_recovery_identity SET generation='tampered-generation' WHERE singleton=1", []);
+    assert!(r1.is_ok(), "workspace_access writable while fenced: {r1:?}");
+    assert!(r2.is_ok(), "local_recovery_identity writable while fenced: {r2:?}");
+}
+
+/// B.2 — Control: startup reconciliation DOES fail closed on business-identity
+/// substitution (bounds the B.1 metadata gap at restart).
+#[test]
+fn audit_b2_startup_fails_closed_on_business_substitution() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let _o = install_fence(&s.0);
+    s.0.execute("UPDATE local_recovery_identity SET business_id='attacker-business' WHERE singleton=1", []).unwrap();
+    let r = reconcile_startup(&mut s.0);
+    assert!(matches!(r, Err(StoreError::RecoveryCorrupt)), "startup must fail closed: {r:?}");
+}
+
+/// F.1 — Startup reconciliation fails closed on an unknown recovery audit action.
+#[test]
+fn audit_f1_startup_rejects_unknown_audit_action() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    strip_triggers(&s.0);
+    s.0.execute(
+        "INSERT INTO local_recovery_audit(operation_id,action,backup_id,created_at) VALUES(?1,'bogus.action','b',?2)",
+        params![random_id().unwrap(), now().unwrap()]).unwrap();
+    let r = reconcile_startup(&mut s.0);
+    assert!(matches!(r, Err(StoreError::RecoveryCorrupt)), "unknown action must fail closed: {r:?}");
+}
+
+/// F.2 — Startup reconciliation fails closed on two live operations (no dual ownership).
+#[test]
+fn audit_f2_startup_rejects_two_live_operations() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let _o = install_fence(&s.0);
+    let business: String = s.0.query_row(
+        "SELECT business_id FROM local_recovery_identity WHERE singleton=1", [], |r| r.get(0)).unwrap();
+    strip_triggers(&s.0);
+    let at = now().unwrap();
+    s.0.execute(
+        "INSERT INTO local_recovery_operations(operation_id,kind,state,business_id,generation,owner_token,backup_id,expected_fingerprint,actor_id,result_generation,detail,created_at,updated_at)
+         VALUES(?1,'restore','admitted',?2,?3,?4,'b2','fp',NULL,NULL,NULL,?5,?5)",
+        params![random_id().unwrap(), business, generation(&s.0).unwrap(), random_id().unwrap(), at]).unwrap();
+    let r = reconcile_startup(&mut s.0);
+    assert!(matches!(r, Err(StoreError::RecoveryCorrupt)), "two live ops must fail closed: {r:?}");
+}
+
+/// F.3 — Startup reconciliation fails closed when a fence references a terminal operation.
+#[test]
+fn audit_f3_startup_rejects_fence_on_terminal_operation() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let o = install_fence(&s.0);
+    strip_triggers(&s.0);
+    s.0.execute(
+        "UPDATE local_recovery_operations SET state='completed', result_generation='gen-x', updated_at=?2 WHERE operation_id=?1",
+        params![o.operation_id, now().unwrap()]).unwrap();
+    let r = reconcile_startup(&mut s.0);
+    assert!(matches!(r, Err(StoreError::RecoveryCorrupt)), "fence on terminal op must fail closed: {r:?}");
+}
+
+/// F.4 — Startup reconciliation fails closed on a completed operation lacking a result generation.
+#[test]
+fn audit_f4_startup_rejects_completed_without_generation() {
+    let d = tempfile::tempdir().unwrap();
+    let mut s = seeded(&d.path().join("live"));
+    let business: String = s.0.query_row(
+        "SELECT business_id FROM local_recovery_identity WHERE singleton=1", [], |r| r.get(0)).unwrap();
+    strip_triggers(&s.0);
+    let at = now().unwrap();
+    s.0.execute(
+        "INSERT INTO local_recovery_operations(operation_id,kind,state,business_id,generation,owner_token,backup_id,expected_fingerprint,actor_id,result_generation,detail,created_at,updated_at)
+         VALUES(?1,'restore','completed',?2,?3,?4,'b','fp',NULL,NULL,NULL,?5,?5)",
+        params![random_id().unwrap(), business, generation(&s.0).unwrap(), random_id().unwrap(), at]).unwrap();
+    let r = reconcile_startup(&mut s.0);
+    assert!(matches!(r, Err(StoreError::RecoveryCorrupt)), "completed without generation must fail closed: {r:?}");
+}

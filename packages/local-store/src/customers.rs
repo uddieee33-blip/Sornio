@@ -294,11 +294,14 @@ fn overdue(db: &Connection, id: &str) -> Result<i128, StoreError> {
     }
     Ok(total)
 }
+/// `(name, phone, credit_limit_paise, credit_days, revision)` as stored.
+type CustomerRow = (String, Option<String>, Option<i64>, i64, i64);
+
 fn customer(db: &Connection, id: &str) -> Result<Customer, StoreError> {
     if !valid_id(id) {
         return Err(StoreError::InvalidCustomer);
     }
-    let row:Option<(String,Option<String>,Option<i64>,i64,i64)>=db.query_row("SELECT name,phone,credit_limit_paise,credit_days,revision FROM local_customers WHERE id=?1",[id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?;
+    let row:Option<CustomerRow>=db.query_row("SELECT name,phone,credit_limit_paise,credit_days,revision FROM local_customers WHERE id=?1",[id],|r|Ok((r.get(0)?,r.get(1)?,r.get(2)?,r.get(3)?,r.get(4)?))).optional()?;
     let (name, phone, limit, days, revision) = row.ok_or(StoreError::CustomerMissing)?;
     let amount = balance(db, id, i64::MAX)?;
     if amount < 0 {
@@ -327,6 +330,10 @@ fn bump(db: &Connection, id: &str, expected: i64) -> Result<i64, StoreError> {
     }
     Ok(next)
 }
+/// Appends one credit entry. The arguments mirror the ledger columns one-to-one
+/// (`kind`, signed amount, due date, invoice link, reversal link, reason); a
+/// wrapper struct would be reconstructed at all nine call sites for no gain.
+#[allow(clippy::too_many_arguments)]
 fn entry(
     db: &Connection,
     id: &str,

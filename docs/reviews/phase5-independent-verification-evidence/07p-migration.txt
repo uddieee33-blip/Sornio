@@ -1,0 +1,83 @@
+=== PRISTINE d79a6e8: migration ===
+DATE_UTC: 2026-11-26T17:04:43Z
+SOURCE: /home/user/phase5-verify/pristine (exact committed tree, no verifier additions)
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml migrat
+   Compiling libc v0.2.191
+   Compiling cfg-if v1.0.5
+   Compiling rand_core v0.10.1
+   Compiling typenum v1.20.1
+   Compiling generic-array v0.14.7
+   Compiling subtle v2.6.1
+   Compiling bitflags v2.13.2
+   Compiling getrandom v0.4.3
+   Compiling block-buffer v0.10.4
+   Compiling crypto-common v0.1.7
+   Compiling linux-raw-sys v0.12.1
+   Compiling digest v0.10.7
+   Compiling fastrand v2.5.0
+   Compiling rustix v1.1.5
+   Compiling foldhash v0.1.5
+   Compiling once_cell v1.21.4
+   Compiling hashbrown v0.15.5
+   Compiling serde_core v1.0.229
+   Compiling tempfile v3.27.0
+   Compiling openssl-sys v0.9.117
+   Compiling wait-timeout v0.2.1
+   Compiling fnv v1.0.7
+   Compiling rand_core v0.6.4
+   Compiling cpufeatures v0.3.1
+   Compiling base64ct v1.8.3
+   Compiling quick-error v1.2.3
+   Compiling cpufeatures v0.2.17
+   Compiling bit-vec v0.10.1
+   Compiling password-hash v0.5.0
+   Compiling bit-set v0.11.1
+   Compiling rusty-fork v0.3.1
+   Compiling chacha20 v0.10.2
+   Compiling libsqlite3-sys v0.35.0
+   Compiling num-traits v0.2.19
+   Compiling hashlink v0.10.0
+   Compiling zmij v1.0.23
+   Compiling blake2 v0.10.6
+   Compiling rand v0.10.3
+   Compiling rand_xorshift v0.5.0
+   Compiling memchr v2.8.3
+   Compiling unarray v0.1.4
+   Compiling itoa v1.0.18
+   Compiling zeroize v1.9.1
+   Compiling smallvec v1.16.4
+   Compiling fallible-iterator v0.3.0
+   Compiling regex-syntax v0.8.11
+   Compiling core_detect v1.0.0
+   Compiling fallible-streaming-iterator v0.1.9
+   Compiling rusqlite v0.37.0
+   Compiling serde_json v1.0.154
+   Compiling proptest v1.12.0
+   Compiling argon2 v0.5.3
+   Compiling serde v1.0.229
+   Compiling thiserror v2.0.21
+   Compiling getrandom v0.3.4
+   Compiling sha2 v0.10.9
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-verify/pristine/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.41s
+     Running unittests src/lib.rs (/home/user/phase5-verify/target-pristine/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 14 tests
+test billing::reliability_tests::frozen_pr120_v4_migration_preserves_all_existing_rows_and_idempotency ... ok
+test access::tests::v6_migration_preserves_data_and_requires_the_existing_owners_password ... ok
+test billing::tests::v4_migration_preserves_catalogue_and_access ... ok
+test catalog::tests::version_three_migration_keeps_drafts_password_and_locking ... ok
+test customers::tests::schema_v7_migration_preserves_credit_invoices_ledger_and_owner_identity ... ok
+test checkout::tests::v5_migration_preserves_posted_invoice_and_large_exact_balances ... ok
+test inventory_recovery::tests::schema_nine_migration_preserves_inventory_and_legacy_operation_ids ... ok
+test lan_authority::tests::migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collision ... ok
+test payments::tests::v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity ... ok
+test recovery::tests::legacy_v6_archive_preserves_business_identity_and_migrates_individual_owner ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+test recovery::tests::recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_error ... ok
+test tests::version_one_migration_preserves_draft_and_seeds_history ... ok
+test recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 230 filtered out; finished in 20.54s
+
+EXIT_CODE=0

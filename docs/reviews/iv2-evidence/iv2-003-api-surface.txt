@@ -1,0 +1,35 @@
+# IV2-003 / IV2-004 verification, executed 2026-11-27T19:19:35Z
+# HEAD 3bdd10c + this session's changes; PostgreSQL 16.2 on port 55432
+
+## verify:replication (in-memory contract + public API surface)
+verify-replication: 144 checks passed   [first pass]
+EXIT=0
+
+## API-surface checks added by IV2-003 (first pass):
+  - the package entry point exports the restore-generation rotation
+  - rotatePublisherGeneration is callable through the package entry point
+  - rotation writes only the device generation, never stream or operation identity
+  - rotation targets exactly one active publisher device
+  - rotation locks the device row so it cannot interleave with an in-flight ingest
+
+## Second hardening pass — the same gate, retargeted and strengthened
+verify-replication: 148 checks passed
+EXIT=0
+
+The transactional rewrite moved the write out of rotatePublisherGeneration into
+rotateInTransaction, so the source-inspecting checks had to follow it. The
+"rotation writes only the device generation" check was NOT weakened: it now
+slices the whole transaction body rather than the wrapper, and three checks were
+added alongside it —
+
+  - the rotation body is a single named function (a split transaction would stop
+    being reviewable)
+  - the rotation body opens, commits and can roll back an explicit transaction
+  - the write is conditional on the generation that was read, and reports what it
+    replaced (UPDATE ... WHERE restore_generation = $2 RETURNING)
+  - rotation locks the business row BEFORE the device row, the same order as
+    ingestDurable (the lock-order guarantee is now asserted, not just commented)
+
+These remain source-structure checks; the behavioural proof is
+verify:replication-postgres (see iv2-003-durable-rotation.txt), which is where
+the concurrency guarantees are actually executed against PostgreSQL.

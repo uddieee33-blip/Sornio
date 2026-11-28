@@ -285,6 +285,9 @@ pub(crate) fn guard(
     action: &str,
     target: Option<&str>,
 ) -> Result<(), StoreError> {
+    // Clean early rejection while a recovery fence is active. The engine-level
+    // barrier triggers enforce the same rule for session-less and raw-SQL paths.
+    crate::recovery::ensure_open(tx)?;
     if let Some(s) = session {
         let p = verify(tx, s, permission)?;
         audit(tx, &s.scope, Some(&p), action, target)?;

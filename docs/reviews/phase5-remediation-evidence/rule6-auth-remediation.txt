@@ -1,0 +1,16 @@
+=== RULE 2 auth tests (final) ===
+   Compiling sornio-local-store v0.1.0 (/home/user/Sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.85s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 6 tests
+test recovery::remediation_tests::rem_r2_budget_is_shared_with_normal_login ... ok
+test recovery::remediation_tests::rem_r2_concurrent_attempts_do_not_bypass_accounting ... ok
+test recovery::remediation_tests::rem_r2_correct_password_cannot_bypass_active_lockout ... ok
+test recovery::remediation_tests::rem_r2_repeated_failures_lock_out_and_persist_across_restart ... ok
+test recovery::remediation_tests::rem_r2_review_available_while_business_stays_blocked ... ok
+test recovery::remediation_tests::rem_r2_success_after_permitted_interval_clears_budget ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 238 filtered out; finished in 12.41s
+
+EXIT_CODE=0

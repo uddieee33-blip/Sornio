@@ -1,0 +1,33 @@
+=== RULE 8: WINDOWS ACCEPTANCE AVAILABILITY ===
+DATE_UTC: 2026-11-26T17:07:01Z
+HOST: Linux e2b.local 6.1.158+ #1 SMP PREEMPT_DYNAMIC Mon May 11 18:48:24 UTC 2026 x86_64 GNU/Linux
+OS: Debian GNU/Linux 12 (bookworm)
+--- Windows host indicators ---
+/mnt/c                                   ABSENT
+/proc/sys/fs/binfmt_misc/WSLInterop      ABSENT
+/cygdrive                                ABSENT
+--- Windows executables / emulation ---
+powershell.exe           MISSING
+cmd.exe                  MISSING
+wsl.exe                  MISSING
+wine                     MISSING
+wine64                   MISSING
+qemu-system-x86_64       MISSING
+vagrant                  MISSING
+--- Rust installed targets ---
+/bin/bash: line 1: rustup: command not found
+--- Windows GNU/MSVC toolchain ---
+x86_64-w64-mingw32-gcc       MISSING
+link.exe                     MISSING
+cl.exe                       MISSING
+--- Tauri CLI / webview deps ---
+cargo-tauri MISSING
+webkit2gtk MISSING (Tauri Linux build also unavailable)
+--- network for Windows runner / MSVC deps ---
+static.rust-lang.org 000
+static.rust-lang.org UNREACHABLE
+
+CONCLUSION: No Windows 10/11 machine, no emulation, no MSVC/mingw toolchain,
+no Windows Rust target, and no reachable Windows toolchain host.
+Windows acceptance CANNOT be performed. Preserved as a RELEASE BLOCKER.
+Linux tests are NOT a substitute for Windows acceptance.

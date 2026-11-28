@@ -1,0 +1,11 @@
+## Migration idempotency, independent, real PostgreSQL 16.2
+### shipped file at HEAD (830b9f0): three consecutive applies
+ROUND_1_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 14, "view" : 1}
+ROUND_2_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 14, "view" : 1}
+ROUND_3_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 14, "view" : 1}
+EXIT=0
+
+### the pre-P5-NEW-005 file (git show b5e78e5:...sql) on the same server
+ROUND_1 exit=0
+ROUND_2 exit=3
+psql:<stdin>:22: ERROR:  relation "businesses" already exists

@@ -52,6 +52,11 @@ impl From<StoreError> for CommandError {
             StoreError::InvalidRecoveryPassword => "invalid_recovery_password",
             StoreError::RecoveryConfirmation => "recovery_confirmation",
             StoreError::RecoveryChanged => "recovery_changed",
+            StoreError::RecoveryActive => "recovery_active",
+            StoreError::RecoveryInterrupted => "recovery_interrupted",
+            StoreError::RecoveryOwnership => "recovery_ownership",
+            StoreError::RecoveryCorrupt => "recovery_corrupt",
+            StoreError::FinancialInconsistency => "financial_inconsistency",
             StoreError::InvalidPayment => "invalid_payment",
             StoreError::PaymentConflict => "payment_conflict",
             StoreError::DuplicateSettlement => "duplicate_settlement",
@@ -721,16 +726,14 @@ async fn restore_local_backup(
         .map_err(|_| CommandError::unavailable("Safety backup folder is unavailable."))?
         .join("recovery-safety");
     let selected = Arc::clone(selection.inner());
-    let sidecar = app
-        .path()
-        .app_local_data_dir()
-        .map_err(|_| CommandError::unavailable("Replication sidecar folder is unavailable."))?
-        .join("replication-sidecar.sqlite");
     with_recovery_workspace(state, scope, move |w| {
         let mut selected = selected.lock().map_err(|_| StoreError::AccessUnavailable)?;
         let path = selected.path.clone().ok_or(StoreError::InvalidBackup)?;
         let preview = selected.preview.take().ok_or(StoreError::RecoveryChanged)?;
-        let receipt = w.restore_backup(
+        // No sidecar deletion: the replication sidecar is generation-keyed, so the
+        // new restore generation starts at cursor 0 while the old generation's ack
+        // history is preserved as evidence. Destructive cleanup stays disabled.
+        w.restore_backup(
             &path,
             &safety,
             &current,
@@ -738,9 +741,48 @@ async fn restore_local_backup(
             &original,
             &preview,
             &confirmation,
-        )?;
-        sornio_local_store::replication::reset_sidecar_file(&sidecar)?;
-        Ok(receipt)
+        )
+    })
+    .await
+}
+// Recovery review/resolution must work while the workspace is fenced and locked
+// (the normal login is itself barred by the fence). This wrapper enforces the
+// workspace scope boundary read-only — no session is required or granted. It is
+// deliberately separate from the session-guarded wrappers: resolution still
+// re-authenticates the Owner password internally, and status is operational
+// metadata, not business data. Existing commands keep their session guards.
+async fn with_recovery_review_workspace<T, F>(
+    state: tauri::State<'_, LocalState>,
+    scope: Scope,
+    operation: F,
+) -> Result<T, CommandError>
+where
+    T: Send + 'static,
+    F: FnOnce(&mut Workspace) -> Result<T, StoreError> + Send + 'static,
+{
+    with_workspace(state, move |w| {
+        w.verify_scope_readonly(&scope)?;
+        operation(w)
+    })
+    .await
+}
+#[tauri::command]
+async fn read_recovery_status(
+    scope: Scope,
+    state: tauri::State<'_, LocalState>,
+) -> Result<sornio_local_store::recovery::RecoveryStatus, CommandError> {
+    with_recovery_review_workspace(state, scope, |w| w.recovery_status()).await
+}
+#[tauri::command]
+async fn resolve_interrupted_recovery(
+    scope: Scope,
+    operation_id: String,
+    current_password: String,
+    state: tauri::State<'_, LocalState>,
+) -> Result<(), CommandError> {
+    let current = Zeroizing::new(current_password);
+    with_recovery_review_workspace(state, scope, move |w| {
+        w.resolve_interrupted_recovery(&operation_id, &current)
     })
     .await
 }
@@ -763,6 +805,8 @@ fn main() {
             export_local_backup,
             preview_local_backup,
             restore_local_backup,
+            read_recovery_status,
+            resolve_interrupted_recovery,
             change_local_password,
             reset_local_staff_password,
             prepare_local_retail,

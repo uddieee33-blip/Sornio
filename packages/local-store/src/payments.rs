@@ -766,6 +766,10 @@ fn quote(db: &Connection, id: &str, lines: &[ReturnLine]) -> Result<ReturnQuote,
         suggested_refunds: suggested,
     })
 }
+/// One retail return is described by eight distinct facts (operation, invoice,
+/// expected revision, returned lines, refund parts, reason). Keeping them
+/// explicit makes the validation order auditable against `return_invoice`.
+#[allow(clippy::too_many_arguments)]
 fn return_invoice(
     db: &Transaction<'_>,
     s: &Option<Session>,
@@ -1511,15 +1515,7 @@ impl Store {
                 close_row(&tx, id, &x, "closed")?;
                 json!({"closing":x})
             }
-            Action::CorrectClose {
-                closing_id,
-                reason: _,
-                ..
-            }
-            | Action::Reopen {
-                closing_id,
-                reason: _,
-            } => {
+            Action::CorrectClose { closing_id, .. } | Action::Reopen { closing_id, .. } => {
                 let raw: String = tx
                     .query_row(
                         "SELECT payload FROM local_retail_closings WHERE id=?1",
@@ -1774,6 +1770,9 @@ fn decimal(n: i128) -> String {
         n.abs() % 100
     )
 }
+/// Writes one fixed-width settlement CSV row: twelve columns that must stay in
+/// the order of the exported header.
+#[allow(clippy::too_many_arguments)]
 fn csv_row(
     out: &mut String,
     typ: &str,

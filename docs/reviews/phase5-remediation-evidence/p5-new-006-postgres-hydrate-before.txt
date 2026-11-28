@@ -1,0 +1,17 @@
+node:internal/modules/run_main:123
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: restart hydrate keeps both stream identities of a shared operation id
+    at check (file:///home/user/Sornio/scripts/verify-replication-postgres.mjs:40:10)
+    at file:///home/user/Sornio/scripts/verify-replication-postgres.mjs:575:3
+    at process.processTicksAndRejections (node:internal/process/task_queues:103:5) {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: false,
+  expected: true,
+  operator: '==',
+  diff: 'simple'
+}
+
+Node.js v22.22.3

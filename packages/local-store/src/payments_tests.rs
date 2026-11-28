@@ -1250,6 +1250,7 @@ fn v8_migration_preserves_financial_rows_and_seeds_legacy_cash_activity() {
         s.0.execute_batch(&format!("DROP TABLE {t}")).unwrap();
     }
     s.0.pragma_update(None, "user_version", 8).unwrap();
+    crate::recovery::remove_v13_for_legacy_test(&s.0);
     drop(s);
     let s = authenticated(&path);
     assert_eq!(

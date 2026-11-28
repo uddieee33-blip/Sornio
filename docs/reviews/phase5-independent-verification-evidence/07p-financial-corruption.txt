@@ -1,0 +1,22 @@
+=== PRISTINE d79a6e8: financial-corruption ===
+DATE_UTC: 2026-11-26T17:07:38Z
+SOURCE: /home/user/phase5-verify/pristine (exact committed tree, no verifier additions)
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::financial::financial_tests
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (/home/user/phase5-verify/target-pristine/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 10 tests
+test recovery::financial::financial_tests::rem_r3_detects_balanced_but_semantically_wrong_ledger ... ok
+test recovery::financial::financial_tests::rem_r3_accepts_valid_history_including_multipart_returns ... ok
+test recovery::financial::financial_tests::rem_r3_detects_deleted_credit_sale_entry ... ok
+test recovery::financial::financial_tests::rem_r3_detects_duplicated_return_journal ... ok
+test recovery::financial::financial_tests::rem_r3_detects_missing_postings_and_broken_stock_arithmetic ... ok
+test recovery::financial::financial_tests::rem_r3_detects_orphan_retail_journal_operation ... ok
+test recovery::financial::financial_tests::rem_r3_detects_tampered_repayment_entry ... ok
+test recovery::financial::financial_tests::rem_r3_tampered_backup_file_is_rejected_at_preview ... ok
+test recovery::financial::financial_tests::rem_r3_restore_rejects_financially_inconsistent_backup ... ok
+test recovery::financial::financial_tests::rem_r3_valid_backup_still_restores ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 234 filtered out; finished in 12.43s
+
+EXIT_CODE=0

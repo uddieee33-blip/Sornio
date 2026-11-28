@@ -190,14 +190,10 @@ fn cash_credit_and_zero_tax_ledgers_are_correct_per_invoice() {
             "receivables",
             5579,
         ),
-        (
-            "zero-tax",
-            Tender::Cash,
-            0,
-            Some("customer-1"),
-            "cash",
-            5313,
-        ),
+        // Phase 5 baseline repair: cash sales carry no customer (customer_id is
+        // credit exposure only; invoice_posted rejects cash+customer). The old
+        // fixture asserted a combination the product deliberately rejects.
+        ("zero-tax", Tender::Cash, 0, None, "cash", 5313),
     ] {
         let mut request = bill(&store, id);
         request.tender = tender;

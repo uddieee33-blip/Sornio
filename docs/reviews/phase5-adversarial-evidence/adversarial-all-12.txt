@@ -1,0 +1,22 @@
+=== all 12 independent adversarial tests ===
+DATE_UTC: 2026-11-26T15:27:49Z
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 12 tests
+test recovery::phase5_tests::audit_a2_normal_login_locks_out_after_five_failures ... ok
+test recovery::phase5_tests::audit_b1_unfenced_metadata_writable_while_fenced ... ok
+test recovery::phase5_tests::audit_b2_startup_fails_closed_on_business_substitution ... ok
+test recovery::phase5_tests::audit_d1_verifier_misses_deleted_credit_sale_entry ... ok
+test recovery::phase5_tests::audit_d2_verifier_misses_tampered_repayment_entry ... ok
+test recovery::phase5_tests::audit_d3_verifier_misses_balanced_ledger_tamper ... ok
+test recovery::phase5_tests::audit_d4_verifier_misses_duplicated_retail_journal ... ok
+test recovery::phase5_tests::audit_f1_startup_rejects_unknown_audit_action ... ok
+test recovery::phase5_tests::audit_f2_startup_rejects_two_live_operations ... ok
+test recovery::phase5_tests::audit_f3_startup_rejects_fence_on_terminal_operation ... ok
+test recovery::phase5_tests::audit_f4_startup_rejects_completed_without_generation ... ok
+test recovery::phase5_tests::audit_a1_resolve_interrupted_has_no_bruteforce_lockout ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 228 filtered out; finished in 12.84s
+
+EXIT_CODE=0

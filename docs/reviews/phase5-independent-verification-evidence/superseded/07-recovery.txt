@@ -1,0 +1,64 @@
+=== recovery ===
+DATE_UTC: 2026-11-26T17:01:45Z
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::
+   Compiling sornio-local-store v0.1.0 (/home/user/phase5-verify/workspace/packages/local-store)
+error[E0308]: mismatched types
+   --> src/recovery/independent_findings_probe.rs:53:31
+    |
+ 53 |     let r = reconcile_startup(&mut reopened);
+    |             ----------------- ^^^^^^^^^^^^^ expected `&mut Connection`, found `&mut Store`
+    |             |
+    |             arguments to this function are incorrect
+    |
+    = note: expected mutable reference `&mut rusqlite::Connection`
+               found mutable reference `&mut Store`
+note: function defined here
+   --> src/recovery.rs:581:15
+    |
+581 | pub(crate) fn reconcile_startup(db: &mut Connection) -> Result<(), StoreError> {
+    |               ^^^^^^^^^^^^^^^^^ -------------------
+
+error[E0308]: mismatched types
+   --> src/recovery/independent_findings_probe.rs:70:35
+    |
+ 70 |         let r = reconcile_startup(&mut reopened);
+    |                 ----------------- ^^^^^^^^^^^^^ expected `&mut Connection`, found `&mut Store`
+    |                 |
+    |                 arguments to this function are incorrect
+    |
+    = note: expected mutable reference `&mut rusqlite::Connection`
+               found mutable reference `&mut Store`
+note: function defined here
+   --> src/recovery.rs:581:15
+    |
+581 | pub(crate) fn reconcile_startup(db: &mut Connection) -> Result<(), StoreError> {
+    |               ^^^^^^^^^^^^^^^^^ -------------------
+
+error[E0308]: mismatched types
+   --> src/recovery/independent_findings_probe.rs:84:35
+    |
+ 84 |         let r = reconcile_startup(&mut reopened);
+    |                 ----------------- ^^^^^^^^^^^^^ expected `&mut Connection`, found `&mut Store`
+    |                 |
+    |                 arguments to this function are incorrect
+    |
+    = note: expected mutable reference `&mut rusqlite::Connection`
+               found mutable reference `&mut Store`
+note: function defined here
+   --> src/recovery.rs:581:15
+    |
+581 | pub(crate) fn reconcile_startup(db: &mut Connection) -> Result<(), StoreError> {
+    |               ^^^^^^^^^^^^^^^^^ -------------------
+
+warning: unused variable: `live`
+   --> src/recovery/independent_financial_tests.rs:316:9
+    |
+316 |     let live = d.path().join("live");
+    |         ^^^^ help: if this is intentional, prefix it with an underscore: `_live`
+    |
+    = note: `#[warn(unused_variables)]` (part of `#[warn(unused)]`) on by default
+
+For more information about this error, try `rustc --explain E0308`.
+warning: `sornio-local-store` (lib test) generated 1 warning
+error: could not compile `sornio-local-store` (lib test) due to 3 previous errors; 1 warning emitted
+EXIT_CODE=101

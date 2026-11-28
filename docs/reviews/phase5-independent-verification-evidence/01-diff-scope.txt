@@ -1,0 +1,24 @@
+=== DIFF: candidate 7f73ef0 -> remediation d79a6e8 (implementation only) ===
+ apps/desktop/src-tauri/src/main.rs                 |   1 +
+ packages/local-store/src/lib.rs                    |   2 +
+ packages/local-store/src/recovery.rs               |  86 ++++-
+ packages/local-store/src/recovery/financial.rs     | 352 +++++++++++++++++
+ .../local-store/src/recovery/financial_tests.rs    | 416 +++++++++++++++++++++
+ packages/local-store/src/recovery/phase5_tests.rs  |  19 +-
+ .../local-store/src/recovery/remediation_tests.rs  | 222 +++++++++++
+ packages/replication-cloud/src/ingest.ts           |  20 +-
+ packages/replication-cloud/src/postgres.ts         |  47 ++-
+ scripts/verify-replication.mjs                     | 128 ++++++-
+ 10 files changed, 1265 insertions(+), 28 deletions(-)
+
+=== audit commit 5ab3a96 touched implementation? (must be none) ===
+(empty above = audit did not modify implementation)
+
+=== remediation commits ===
+d79a6e8 docs(phase5): remediation report, dedup contract, evidence and finding statuses
+c2adaa9 style: remove unnecessary mut in RULE 2 concurrency test
+30abdf8 style: apply cargo fmt to Phase 5 remediation code
+272b492 fix(replication): unify cross-generation dedup contract (P5-ADV-009)
+0ccae3c fix(governance): update replication harness to v13 semantics (P5-ADV-002)
+14d5cc1 fix(recovery): enforce financial verification at the restore boundary (P5-ADV-003..007)
+895ec34 fix(recovery): durable lockout for Owner recovery authentication (P5-ADV-001)

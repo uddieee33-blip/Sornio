@@ -1,0 +1,78 @@
+=== final-financial-tests (FINAL TREE) ===
+DATE_UTC: 2026-11-26T17:54:57Z
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::final_financial_tests -- --nocapture --test-threads=2
+   Compiling sornio-local-store v0.1.0 (/home/user/Sornio/packages/local-store)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.06s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 16 tests
+fin02 removed 2 sale journal legs
+[fin02] verifier violations: ["retail sale journal disagrees with recorded cash payments: final-sale", "retail sale journal is not exactly one posting set: final-sale"]
+fin01 BEFORE: [("cash", 4250), ("receivables", -4250)]
+fin01 duplicated 2 legs; AFTER: [("cash", 4250), ("receivables", -4250), ("cash", 4250), ("receivables", -4250)]
+fin01 ledger still zero-sum: 0
+[fin01] verifier violations: ["retail sale journal disagrees with recorded cash payments: final-sale", "retail sale journal is not exactly one posting set: final-sale"]
+[fin02] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin02_missing_sale_journal ... ok
+[fin01] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin01_duplicate_sale_journal_4250_scenario ... ok
+fin02b legs now: [("cash", 4250)]
+[fin02b] verifier violations: ["retail journal imbalance: final-sale", "retail sale journal disagrees with recorded cash payments: final-sale", "retail sale journal is not exactly one posting set: final-sale"]
+fin03 legs: [("cash", 4950), ("receivables", -4950)] (balanced)
+[fin03] verifier violations: ["retail sale journal disagrees with recorded cash payments: final-sale"]
+[fin02b] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin02b_partial_missing_sale_journal ... ok
+fin04 legs: [("cash", 9999), ("receivables", -9999)]
+[fin04] verifier violations: ["retail sale journal disagrees with recorded cash payments: final-sale"]
+[fin03] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin03_incorrect_cash_posting ... ok
+fin05 legs: [("cash", 4250), ("receivables", -4250), ("revenue", -4250), ("refund_payable", 4250)]
+[fin05] verifier violations: ["retail sale journal has unexpected account or customer: final-sale"]
+[fin04] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin04_incorrect_receivables_posting ... ok
+fin06 legs: [("cash", 4250), ("receivables", -4250), ("tax_payable", -500), ("refund_payable", 500)]
+[fin06] verifier violations: ["retail sale journal has unexpected account or customer: final-sale"]
+[fin05] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin05_incorrect_revenue_posting_on_sale ... ok
+fin06b valid taxed sale violations: []
+fin06b recorded tax leg = -765
+[fin06b] verifier violations: ["billing ledger imbalance: taxed-sale", "invoice tax disagrees with invoice tax: taxed-sale"]
+[fin06] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin06_incorrect_tax_posting_on_sale ... ok
+fin07 API reuse of operation id with altered payload => Err(OperationConflict)
+fin07 retained outbox rows for the sale: 1
+fin07 duplicated outbox rows with altered payload: 1
+fin07 verifier violations: ["retail outbox duplicate operation: final-sale"]
+[fin06b] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin06b_taxed_sale_is_accepted_and_tax_tamper_detected ... ok
+fin07 export of schema-damaged database => Err(InvalidBackup)
+test recovery::final_financial_tests::fin07_duplicate_operation_with_altered_payload ... ok
+fin07b legs: [("cash", 2125), ("receivables", -2125), ("cash", 2125), ("receivables", -2125)] (sums correct, cardinality doubled)
+[fin07b] verifier violations: ["retail sale journal is not exactly one posting set: final-sale"]
+fin08 repeated (operation,account) groups in VALID history = 2
+fin08 violations on valid multipart history: []
+[fin07b] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin07b_duplicate_with_halved_amounts_keeps_sums ... ok
+fin09 violations on four valid sales: []
+fin09 digital-only sale legs (expected none): []
+fin08 production restore of VALID multipart history => Ok("/tmp/.tmptJddRr/sornio-before-restore-dc1f46c6c65a4587b79bb31648fcdb76f622c8d018ac2fb42a545772b8bc3cc7.sorniobackup")
+test recovery::final_financial_tests::fin08_legitimate_multipart_return_accepted ... ok
+fin09b duplicated only sale-b; sale-a legs: [("cash", 4250), ("receivables", -4250)]
+[fin09b] verifier violations: ["retail sale journal disagrees with recorded cash payments: sale-b", "retail sale journal is not exactly one posting set: sale-b"]
+fin09 production restore of valid multi-sale history => Ok("/tmp/.tmpgHWGdX/sornio-before-restore-bade569f8fa0a93aca90ec83978e14c734c67feb6dc92059e62a44d2f80685dc.sorniobackup")
+test recovery::final_financial_tests::fin09_multiple_legitimate_sales_accepted ... ok
+fin10 violations with legacy (field-less) payload: []
+fin10 violations after orphan injection: ["retail journal without source operation: legacy-ghost"]
+test recovery::final_financial_tests::fin10_historical_legacy_payload_compatibility ... ok
+[fin09b] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin09b_duplicate_one_of_many_sales_rejected ... ok
+fin11 synthetic sale has activity + balanced journal but no invoice
+[fin11] verifier violations: ["retail sale activity without source invoice: ghost-sale"]
+fin10b healthy history restore => Ok("/tmp/.tmpP02rBE/sornio-before-restore-a4c72b6c0757c267576926b69d513addc8eac5facfc3dc176a9f2e358cc853a7.sorniobackup")
+test recovery::final_financial_tests::fin10b_valid_history_restore_is_not_rejected ... ok
+[fin11] production restore => Err(FinancialInconsistency)
+test recovery::final_financial_tests::fin11_synthetic_sale_without_invoice_rejected ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 244 filtered out; finished in 33.47s
+
+EXIT_CODE=0

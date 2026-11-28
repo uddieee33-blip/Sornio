@@ -38,6 +38,18 @@ pub enum StoreError {
     RecoveryConfirmation,
     #[error("The backup or current workspace changed. Preview again before restoring.")]
     RecoveryChanged,
+    #[error("A recovery is in progress. Business changes are paused until it finishes.")]
+    RecoveryActive,
+    #[error("A previous recovery was interrupted. The owner must review and resolve it before continuing.")]
+    RecoveryInterrupted,
+    #[error(
+        "This recovery step no longer owns the recovery operation. Preview again before restoring."
+    )]
+    RecoveryOwnership,
+    #[error("Recovery records are inconsistent. Keep the original files; do not reset them.")]
+    RecoveryCorrupt,
+    #[error("That saved copy has inconsistent financial records. Keep the original database and choose a different backup.")]
+    FinancialInconsistency,
     #[error("Check payment amounts, references, return quantities and closing values.")]
     InvalidPayment,
     #[error("Payment or closing changed. Refresh it before continuing.")]
@@ -147,7 +159,7 @@ pub struct SavedCopy {
     pub draft: Draft,
 }
 
-const SCHEMA_VERSION: i64 = 12;
+const SCHEMA_VERSION: i64 = 13;
 const HISTORY_LIMIT: i64 = 20;
 
 pub struct Store(Connection, Option<identity::Session>);
@@ -254,8 +266,15 @@ impl Store {
             if locked_version < 12 {
                 lan_authority::migrate(&tx)?;
             }
+            if locked_version < 13 {
+                recovery::migrate_v13(&tx)?;
+            }
             tx.commit()?;
         }
+        // Fail-closed startup reconciliation: an interrupted recovery stays fenced
+        // and can never be silently interpreted as success. Ambiguous metadata
+        // refuses the open entirely; the original files are preserved.
+        recovery::reconcile_startup(&mut db)?;
         Ok(Self(db, None))
     }
 
@@ -524,6 +543,7 @@ mod tests {
             old.0
                 .execute_batch("DROP TABLE local_recovery_audit; DROP TABLE local_recovery_identity; DROP TABLE local_inventory_pending; DROP TABLE local_inventory_outbox; DROP TABLE local_inventory_actors; DROP TABLE local_retail_outbox; DROP TABLE local_retail_pending; DROP TABLE local_retail_canceled; DROP TABLE local_retail_events; DROP TABLE local_retail_journal; DROP TABLE local_retail_activity; DROP TABLE local_retail_return_items; DROP TABLE local_retail_return_parts; DROP TABLE local_retail_refunds; DROP TABLE local_retail_returns; DROP TABLE local_retail_payments; DROP TABLE local_retail_float_corrections; DROP TABLE local_retail_floats; DROP TABLE local_retail_closings; DROP TABLE local_retail_ops; DROP TABLE local_customer_journal; DROP TABLE local_customer_outbox; DROP TABLE local_customer_pending; DROP TABLE local_customer_canceled; DROP TABLE local_credit_entries; DROP TABLE local_customer_ops; DROP TABLE local_customers; DROP TABLE local_checkout_canceled; DROP TABLE local_checkout; DROP TABLE local_invoice_actors; DROP TABLE local_identity_audit; DROP TABLE local_principals; DROP TABLE local_identity; DROP TABLE local_billing_outbox; DROP TABLE local_billing_audit; DROP TABLE local_billing_ledger; DROP TABLE local_invoice_stock; DROP TABLE local_invoices; DROP TABLE local_inventory_events; DROP TABLE local_products; DROP TABLE workspace_history; DROP TABLE workspace_access; PRAGMA user_version = 1;")
                 .unwrap();
+            crate::recovery::remove_v13_for_legacy_test(&old.0);
         }
         let migrated = Store::open(&path, KEY).unwrap();
         assert_eq!(migrated.load().unwrap().draft, Some(draft()));

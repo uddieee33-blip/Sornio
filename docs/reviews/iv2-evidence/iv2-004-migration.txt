@@ -1,0 +1,71 @@
+## Migration idempotency and additive upgrade (PostgreSQL 16.2)
+
+ROUND_1_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 15, "view" : 1}
+ROUND_2_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 15, "view" : 1}
+ROUND_3_OK {"tables" : 11, "policies" : 7, "rls" : 8, "idx" : 15, "view" : 1}
+identity index present: 1
+plan:
+
+
+## additive upgrade from the pre-index schema, with data present
+apply OLD schema (pre-index), 1x: OK
+  idx count after OLD: 14
+  seeded 1 event before the upgrade
+apply NEW schema on top (upgrade), 1x: OK
+  idx count after NEW: 15
+  identity index: CREATE INDEX events_operation_identity ON native_replication.events USING btree (business_id, stream, operation_id, event_pk)
+  pre-existing row survived: 1
+apply NEW again (rerun), 1x: OK
+  idx count after rerun: 15
+rollback (drop the index only): OK
+  idx count after rollback: 14
+  rows still intact: 1
+re-apply NEW after rollback: OK
+  index restored: 1
+
+## Stage 4 of the second hardening pass: the index is now a regression gate
+
+Before this pass, IV2-004 was evidenced by recorded numbers and by two benchmark
+scripts (`bench-replication-lookup.mjs`, `bench-replication-index-variants.mjs`)
+that nothing in the verify chain ran. A later change could have dropped or
+reshaped the index and every gate would still have gone green.
+
+`verify:replication-postgres` now proves the plan, its cause, and its
+restorability inside one always-rolled-back transaction on a dedicated
+connection (so the durable schema the other checks share is untouched):
+
+  1. the shipped schema still carries both composite UNIQUE constraints on
+     events, each leading with business_id, restore_generation — i.e. the lookup
+     still cannot be served by a constraint;
+  2. `events_operation_identity` exists, keys on (business_id, stream,
+     operation_id, event_pk) and does NOT key on restore_generation;
+  3. with 40k probe rows present, the lookup for an operation ingested behind the
+     whole backlog is served by that index and examines <= 4 rows;
+  4. DROP INDEX inside the transaction removes it from the plan and the same
+     lookup now examines O(table) rows (>= 10k, > 100x) and is slower — the
+     dependency is measured, not assumed;
+  5. re-applying the shipped migration restores the index and the fast plan
+     (also the idempotency guarantee);
+  6. after the rollback there are zero probe rows and the index is present on the
+     durable schema.
+
+### The gate catches the regressions it exists for
+
+Three mutations of the shipped migration were applied and each was caught:
+
+  | mutation | gate output |
+  |---|---|
+  | index removed entirely | "the shipped events_operation_identity index exists" fails |
+  | (business_id, operation_id, stream, event_pk) | "keys on the semantic identity and ends in event_pk" fails |
+  | keyed on restore_generation | same check fails (wrong identity) |
+
+The migration file was restored from a saved copy after each mutation and the
+working tree confirmed clean.
+
+### What this does not claim
+
+The plan-shape assertions are deterministic and are the real gate. The timing
+comparison (indexed vs degraded) is recorded but only asserted as a relative
+inequality, and the benchmark in docs/reviews/iv2-004-replication-lookup-performance.md
+keeps its warm-cache / single-client limitation. Nothing here is a production
+load test.

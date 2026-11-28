@@ -1,0 +1,112 @@
+=== CLEAN RE-VERIFY: recovery group after temporary probe removal ===
+DATE_UTC: 2026-11-26T17:44:41Z
+NOTE: the earlier recovery-tests.txt run included a temporary ba_probe test; this is the clean count.
+COMMAND: cargo test --lib --locked --manifest-path packages/local-store/Cargo.toml recovery::
+   Compiling sornio-local-store v0.1.0 (/home/user/Sornio/packages/local-store)
+warning: variable does not need to be mutable
+   --> src/recovery/final_financial_tests.rs:656:9
+    |
+656 |     let mut s = sale_4250(&d);
+    |         ----^
+    |         |
+    |         help: remove this `mut`
+    |
+    = note: `#[warn(unused_mut)]` (part of `#[warn(unused)]`) on by default
+
+warning: `sornio-local-store` (lib test) generated 1 warning (run `cargo fix --lib -p sornio-local-store --tests` to apply 1 suggestion)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.89s
+     Running unittests src/lib.rs (/home/user/phase5-audit/target/debug/build/sornio-local-store/ebb569760facbdba/out/sornio_local_store-ebb569760facbdba)
+
+running 78 tests
+test inventory_recovery::tests::deferred_commit_failure_rolls_back_stock_receipt_audit_and_outbox ... ok
+test inventory_recovery::tests::exact_and_competing_inventory_requests_serialize_across_connections ... ok
+test inventory_recovery::tests::ignored_creation_event_never_leaves_an_unreplayable_item ... ok
+test inventory_recovery::tests::inventory_attribution_and_outbox_cannot_be_rewritten_or_replaced ... ok
+test inventory_recovery::tests::inventory_crash_worker ... ignored, subprocess-only worker, exercised by process_termination_preserves_inventory_atomicity
+test inventory_recovery::tests::lost_inventory_reply_survives_restart_and_requires_ack_before_another_id ... ok
+test inventory_recovery::tests::missing_product_multi_row_guard_and_new_delivery_after_ack ... ok
+
+running 1 test
+
+running 1 test
+test inventory_recovery::tests::process_termination_preserves_inventory_atomicity ... ok
+test inventory_recovery::tests::receipts_cannot_cross_staff_or_business_scope_and_revoked_sessions_cannot_write ... ok
+test inventory_recovery::tests::schema_nine_migration_preserves_inventory_and_legacy_operation_ids ... ok
+test inventory_recovery::tests::every_required_inventory_write_rolls_back_together_on_ignored_or_failed_writes ... ok
+test recovery::final_financial_tests::fin01_duplicate_sale_journal_4250_scenario ... ok
+test recovery::final_financial_tests::fin02_missing_sale_journal ... ok
+test recovery::final_financial_tests::fin02b_partial_missing_sale_journal ... ok
+test recovery::final_financial_tests::fin03_incorrect_cash_posting ... ok
+test recovery::final_financial_tests::fin04_incorrect_receivables_posting ... ok
+test recovery::final_financial_tests::fin05_incorrect_revenue_posting_on_sale ... ok
+test recovery::final_financial_tests::fin06_incorrect_tax_posting_on_sale ... ok
+test recovery::final_financial_tests::fin06b_taxed_sale_is_accepted_and_tax_tamper_detected ... ok
+test recovery::final_financial_tests::fin07_duplicate_operation_with_altered_payload ... ok
+test recovery::final_financial_tests::fin07b_duplicate_with_halved_amounts_keeps_sums ... ok
+test recovery::final_financial_tests::fin08_legitimate_multipart_return_accepted ... ok
+test recovery::final_financial_tests::fin09_multiple_legitimate_sales_accepted ... ok
+test recovery::final_financial_tests::fin10_historical_legacy_payload_compatibility ... ok
+test recovery::final_financial_tests::fin09b_duplicate_one_of_many_sales_rejected ... ok
+test recovery::final_financial_tests::fin10b_valid_history_restore_is_not_rejected ... ok
+test recovery::final_financial_tests::fin11_synthetic_sale_without_invoice_rejected ... ok
+test recovery::financial::financial_tests::rem_r3_detects_balanced_but_semantically_wrong_ledger ... ok
+test recovery::financial::financial_tests::rem_r3_accepts_valid_history_including_multipart_returns ... ok
+test recovery::financial::financial_tests::rem_r3_detects_duplicated_return_journal ... ok
+test recovery::financial::financial_tests::rem_r3_detects_deleted_credit_sale_entry ... ok
+test recovery::financial::financial_tests::rem_r3_detects_missing_postings_and_broken_stock_arithmetic ... ok
+test recovery::financial::financial_tests::rem_r3_detects_orphan_retail_journal_operation ... ok
+test recovery::financial::financial_tests::rem_r3_detects_tampered_repayment_entry ... ok
+test recovery::financial::financial_tests::rem_r3_tampered_backup_file_is_rejected_at_preview ... ok
+test recovery::financial::financial_tests::rem_r3_restore_rejects_financially_inconsistent_backup ... ok
+test recovery::financial::financial_tests::rem_r3_valid_backup_still_restores ... ok
+test recovery::phase5_tests::business_identity_substitution_into_a_configured_store_is_rejected ... ok
+test recovery::phase5_tests::fence_blocks_every_business_table_write_including_raw_sql ... ok
+test recovery::phase5_tests::financial_verifier_accepts_a_healthy_workspace ... ok
+test recovery::phase5_tests::financial_verifier_detects_credit_mismatch_and_customer_journal_imbalance ... ok
+test recovery::phase5_tests::financial_verifier_detects_ledger_imbalance_and_missing_postings ... ok
+test recovery::phase5_tests::financial_verifier_holds_after_a_complete_restore ... ok
+test recovery::phase5_tests::phase5_crash_worker ... ignored, subprocess crash worker only
+test recovery::phase5_tests::publisher_is_barred_while_a_recovery_fence_is_active ... ok
+test recovery::phase5_tests::publisher_with_stale_generation_is_rejected ... ok
+test recovery::phase5_tests::rejected_attempt_releases_fence_and_preserves_business_state ... ok
+test recovery::phase5_tests::second_admission_while_fenced_is_rejected_no_dual_ownership ... ok
+test recovery::phase5_tests::stale_owner_token_cannot_transition_or_release ... ok
+test recovery::phase5_tests::startup_reconciliation_matrix ... ok
+test recovery::phase5_tests::startup_refences_a_live_operation_that_lost_its_fence ... ok
+test recovery::phase5_tests::crash_at_every_transition_is_fail_closed_and_consistent ... ok
+test recovery::remediation_tests::rem_r2_budget_is_shared_with_normal_login ... ok
+test recovery::remediation_tests::rem_r2_correct_password_cannot_bypass_active_lockout ... ok
+test recovery::remediation_tests::rem_r2_concurrent_attempts_do_not_bypass_accounting ... ok
+test recovery::remediation_tests::rem_r2_repeated_failures_lock_out_and_persist_across_restart ... ok
+test recovery::remediation_tests::rem_r2_review_available_while_business_stays_blocked ... ok
+test recovery::remediation_tests::rem_r2_success_after_permitted_interval_clears_budget ... ok
+test recovery::tests::crash_worker ... ignored, subprocess crash worker only
+test recovery::tests::damaged_return_backup_restores_the_saved_result_without_restock_or_refund_replay ... ok
+test recovery::tests::all_non_owner_roles_and_expired_or_revoked_owners_cannot_start_recovery ... ok
+test recovery::tests::duplicate_restore_with_old_preview_cannot_replace_the_workspace_twice ... ok
+test recovery::tests::full_target_database_rolls_restore_back_without_losing_current_data ... ok
+test recovery::tests::integrated_recovery_preserves_credit_split_upi_returns_closing_and_every_financial_table ... ok
+test recovery::tests::forced_termination_does_not_publish_partial_backup_or_commit_partial_restore ... ok
+test recovery::tests::internal_name_lookalikes_and_manifest_named_triggers_are_not_trusted ... ok
+test recovery::tests::legacy_v6_archive_preserves_business_identity_and_migrates_individual_owner ... ok
+test recovery::tests::other_business_confirmation_stale_preview_storage_and_native_auth_are_checked ... ok
+test recovery::tests::new_device_uses_new_device_key_and_original_login_and_locks_old_sessions ... ok
+test recovery::tests::recovery_audit_is_immutable_and_migration_preserves_old_schema_contents ... ok
+test recovery::tests::owner_only_backup_preserves_customer_payments_and_revokes_staff_sessions ... ok
+test recovery::tests::recovery_migration_preserves_schema_ten_financial_rows_and_rolls_back_on_error ... ok
+test recovery::tests::recovery_refuses_ignored_audit_writes_and_substituted_archives_without_losing_live_data ... ok
+test recovery::tests::restored_copy_does_not_revoke_an_independent_original_or_merge_operation_histories ... ok
+2026-11-26 17:47:11.474: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-11-26 17:47:11.474: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-11-26 17:47:11.474: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::snapshot_excludes_uncommitted_sale_and_restore_preserves_original_on_required_write_failure ... ok
+test recovery::tests::version_eleven_backup_remains_verifiable_and_restorable_after_lan_migration ... ok
+test recovery::tests::snapshot_restore_preserves_finance_identity_pending_work_and_retries ... ok
+2026-11-26 17:47:18.541: ERROR CORE sqlcipher_page_cipher: hmac check failed for pgno=1
+2026-11-26 17:47:18.541: ERROR CORE sqlite3Codec: error decrypting page 1 data: 1
+2026-11-26 17:47:18.541: ERROR CORE sqlcipher_codec_ctx_set_error 1
+test recovery::tests::wrong_passwords_corruption_truncation_newer_schema_and_unknown_sql_fail_closed ... ok
+
+test result: ok. 75 passed; 0 failed; 3 ignored; 0 measured; 182 filtered out; finished in 156.56s
+
+EXIT_CODE=0

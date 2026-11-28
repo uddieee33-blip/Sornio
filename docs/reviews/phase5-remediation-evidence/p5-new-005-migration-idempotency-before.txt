@@ -1,0 +1,2 @@
+BEFORE_ROUND_1_OK
+BEFORE_ROUND_2_FAIL 42P07 relation "businesses" already exists

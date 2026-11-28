@@ -499,6 +499,8 @@ fn migration_from_frozen_v11_preserves_records_and_rejects_partial_schema_collis
     w.post_invoice(sale("legacy")).unwrap();
     let invoices = serde_json::to_value(w.list_invoices(0).unwrap()).unwrap();
     remove_fixture_tables(&w.store_for_test().0);
+    // Phase 5: a frozen-v11 image contains no v13 recovery objects either.
+    crate::recovery::remove_v13_for_legacy_test(&w.store_for_test().0);
     w.store_for_test()
         .0
         .pragma_update(None, "user_version", 11)

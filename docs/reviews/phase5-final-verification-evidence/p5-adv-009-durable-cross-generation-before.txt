@@ -1,0 +1,17 @@
+# The same durable cross-generation probe against the PRE-FIX tree (parent of 221d1f3).
+# Restores the schema to the pre-fix state first, as the pre-fix harness requires.
+verify-replication-postgres: 71 checks passed on server PostgreSQL
+   gen-1 outstanding = 5000
+  ok    replayed billing row is a cross-generation duplicate
+  ok    every replayed billing row is a duplicate
+  ok    replayed credit entry is a duplicate
+  ok    credit delta is NOT double-counted (5000 == 5000)
+  ok    first NEW post-restore operation is accepted (no GAP)
+  ok    a gapped new operation is rejected (GAP)
+  ok    changed payload on a known id is CONFLICT (CONFLICT)
+  ok    exactly 4 durable events for 4 business operations (4)
+  ok    gen-2 acks recorded for replayed rows (4)
+  FAIL  every hydrated key is (business|stream|operation)
+
+PROBE FAILED
+EXIT=1

@@ -1,0 +1,2 @@
+CANDIDATE-ACCEPTED-BILLING {"operationId":"checkout-op-1","cursor":"2","duplicate":false}
+probe checks passed: 72
